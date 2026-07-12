@@ -1,0 +1,17 @@
+nicegui
+pandas
+python-dotenv
+openpyxl
+reportlab
+plotly
+requests   # core/sec_filings.py — SEC EDGAR data fetching (13D/13G, 13F)
+psycopg2-binary   # core/db.py — Neon Postgres backend (falls back to SQLite if unused)
+yfinance   # core/market_data.py — free market data (price/volume), 60-min-delay tolerant
+pypdf   # core/transcripts.py — extract text from uploaded earnings-call transcript PDFs
+python-pptx   # core/board_slides.py — PT Drift Tracker board-slide export (replaces app.py's
+              # broken Node.js subprocess approach — generate_pt_slide.js was never actually
+              # included in the project, so that button never worked even in the original demo)
+
+# streamlit — kept temporarily so the original app.py still runs during the
+# NiceGUI migration. Remove once every page is ported and app.py is retired.
+streamlit

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Platform | Praxis Point Advisory</title>
+<meta name="description" content="Inside the Praxis Point IR platform — institutional investor scoring, a guidance decision engine, a 24-indicator risk dashboard, and AI-classified analyst mail, all computed from real data.">
+<meta property="og:title" content="The Platform | Praxis Point Advisory">
+<meta property="og:description" content="Institutional investor scoring, a guidance decision engine, a 24-indicator risk dashboard, and AI-classified analyst mail — the system behind the strategy.">
+<meta property="og:type" content="website">
+<style>
+:root{
+  --navy:#16223F; --navy-deep:#0E1730; --gold:#A9832E; --gold-light:#C9A24B;
+  --ink:#1F2430; --muted:#5C6472; --bg:#FFFFFF; --bg-soft:#F6F4EE; --border:#E6E2D6;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;}
+h1,h2,h3,h4{font-family:Georgia,Cambria,"Times New Roman",serif;color:var(--navy);font-weight:600;line-height:1.25;margin:0 0 .5em;}
+p{margin:0 0 1em;color:var(--ink);}
+a{color:inherit;text-decoration:none;}
+.container{max-width:1180px;margin:0 auto;padding:0 32px;}
+.section{padding:88px 0;}
+.section-soft{background:var(--bg-soft);}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:14px;display:block;}
+.btn{display:inline-block;padding:14px 30px;font-size:14px;font-weight:600;letter-spacing:.02em;border-radius:2px;line-height:1.4;white-space:nowrap;font-family:inherit;}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-primary:hover{background:var(--navy-deep);}
+.btn-ghost{border:1px solid var(--navy);color:var(--navy);}
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);}
+.navwrap{max-width:1180px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:Georgia,serif;font-weight:700;font-size:19px;color:var(--navy);letter-spacing:.01em;}
+.logo span{display:block;font-family:-apple-system,"Segoe UI",sans-serif;font-size:10px;letter-spacing:.24em;color:var(--gold);font-weight:700;margin-top:2px;}
+.navlinks{display:flex;gap:16px;align-items:center;}
+.navlinks a{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;flex-shrink:0;}
+.navlinks a.active{color:var(--gold);}
+.navlinks a:hover{color:var(--gold);}
+.hero{padding:80px 0 56px;background:linear-gradient(180deg,#fff 0%,var(--bg-soft) 100%);text-align:center;}
+.hero h1{font-size:42px;max-width:780px;margin:0 auto 20px;}
+.hero p.lead{font-size:17px;color:var(--muted);max-width:620px;margin:0 auto 30px;}
+.mockup{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 24px 48px -20px rgba(22,34,63,.22);overflow:hidden;}
+.mockup-bar{background:var(--navy-deep);padding:10px 14px;display:flex;gap:6px;}
+.mockup-bar span{width:9px;height:9px;border-radius:50%;background:#3B4A72;}
+.mockup-body{padding:22px;}
+.mockup-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.mrow:last-child{border-bottom:none;}
+.tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;letter-spacing:.04em;white-space:nowrap;}
+.tag-green{background:#E4F1E8;color:#1F6B3B;}
+.tag-amber{background:#FBF0DD;color:#8A5E10;}
+.tag-gray{background:#EEEEEE;color:#777;}
+.tag-blue{background:#E4EAF8;color:#28407E;}
+.metricgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+.metric{background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:14px;}
+.metric .num{font-family:Georgia,serif;font-size:20px;color:var(--navy);font-weight:700;}
+.metric .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+.bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px;}
+.bar span{display:block;height:100%;background:var(--gold);}
+.module{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:76px 0;border-bottom:1px solid var(--border);}
+.module.reverse .txt{order:2;}
+.module.reverse .vis{order:1;}
+.module h2{font-size:28px;}
+.module p.desc{color:var(--muted);font-size:15px;max-width:480px;}
+.checklist{list-style:none;padding:0;margin:20px 0 0;}
+.checklist li{padding-left:26px;position:relative;font-size:14px;color:var(--ink);margin-bottom:10px;}
+.checklist li:before{content:"—";position:absolute;left:0;color:var(--gold);font-weight:700;}
+.badge-soft{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:5px 12px;margin-bottom:14px;}
+.callout{background:var(--navy);border-radius:10px;padding:44px;color:#fff;}
+.callout h3{color:#fff;}
+.callout p{color:#C9D0DE;}
+footer{background:var(--navy-deep);color:#B9C1D6;padding:64px 0 28px;}
+.footgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px;padding-bottom:40px;border-bottom:1px solid #263356;}
+footer h5{color:#fff;font-family:-apple-system,sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;}
+footer a{display:block;font-size:14px;color:#B9C1D6;margin-bottom:10px;}
+footer a:hover{color:var(--gold-light);}
+.copyright{padding-top:24px;font-size:13px;color:#7C89A8;display:flex;justify-content:space-between;}
+@media (max-width: 900px){
+  .module,.module.reverse{grid-template-columns:1fr;}
+  .module.reverse .txt,.module.reverse .vis{order:0;}
+  .navlinks{display:none;}
+  .hero h1{font-size:30px;}
+  .footgrid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="navwrap">
+    <a href="index.html" class="logo">PRAXIS POINT<span>ADVISORY</span></a>
+    <nav class="navlinks">
+      <a href="index.html">Home</a>
+      <a href="platform.html" class="active">Platform</a>
+      <a href="services.html">Services</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="contact.html" class="btn btn-primary" style="padding:8px 14px;font-size:13px;">Schedule a Call</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <span class="eyebrow">The Platform</span>
+    <h1>The system behind the strategy.</h1>
+    <p class="lead">Every module below runs on real, computed data — live market feeds, SEC filings, and your own logged investor activity. Illustrative figures shown; your platform runs on your numbers.</p>
+    <a href="contact.html" class="btn btn-primary">See It On Your Data</a>
+  </div>
+</section>
+
+<div class="container">
+
+  <div class="module">
+    <div class="txt">
+      <span class="badge-soft">Institutional Targeting</span>
+      <h2>Investor Targeting &amp; Fit Score</h2>
+      <p class="desc">A transparent, six-component score ranks every prospective institution out of 100 — Peer Conviction, New-Buyer Signal, Comparability Fit, Turnover Style, Purchasing Power, and Contactability — rolling up to a priority tier.</p>
+      <ul class="checklist">
+        <li>Purchasing Power is a real number, computed from actual 13F ownership filings — not a guess</li>
+        <li>Every component score is visible; the ranking is never a black box</li>
+        <li>The model can be re-weighted from your own logged meeting outcomes over time</li>
+      </ul>
+    </div>
+    <div class="vis">
+      <div class="mockup">
+        <div class="mockup-bar"><span></span><span></span><span></span></div>
+        <div class="mockup-body">
+          <div class="mockup-title">Fit Score — Illustrative Prospect</div>
+          <div class="mrow"><span>Peer Conviction</span><span>26 / 30</span></div>
+          <div class="bar"><span style="width:87%;"></span></div>
+          <div class="mrow" style="margin-top:10px;"><span>New-Buyer Signal</span><span>14 / 20</span></div>
+          <div class="bar"><span style="width:70%;"></span></div>
+          <div class="mrow" style="margin-top:10px;"><span>Purchasing Power</span><span>9 / 10</span></div>
+          <div class="bar"><span style="width:90%;"></span></div>
+          <div class="mrow" style="margin-top:14px;"><span>Composite</span><span class="tag tag-green">78 · Tier P2</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module reverse">
+    <div class="txt">
+      <span class="badge-soft">Earnings Cycle</span>
+      <h2>Guidance &amp; Outlook Decision Engine</h2>
+      <p class="desc">The highest-stakes paragraph on any earnings call, drafted from real math instead of gut feel. The engine reads YTD revenue against a seasonally-weighted pace, computes what H2 needs to hit guidance, and recommends an action.</p>
+      <ul class="checklist">
+        <li>Recommends raise, reiterate, or narrow — with plain-English reasoning, not just a badge</li>
+        <li>Every forward-looking claim auto-tagged for legal review before it reaches the script</li>
+        <li>Management always makes the final call — the engine recommends, it doesn't decide</li>
+      </ul>
+    </div>
+    <div class="vis">
+      <div class="mockup">
+        <div class="mockup-bar"><span></span><span></span><span></span></div>
+        <div class="mockup-body">
+          <div class="mockup-title">Guidance Engine — Illustrative</div>
+          <div class="metricgrid">
+            <div class="metric"><div class="num">-2.1pp</div><div class="lbl">vs. Seasonal Pace</div></div>
+            <div class="metric"><div class="num">$41.6M</div><div class="lbl">FY Implied from H1</div></div>
+          </div>
+          <div class="mrow" style="margin-top:18px;"><span>Recommended action</span><span class="tag tag-amber">REITERATE</span></div>
+          <div class="mrow"><span>H2 needed (low end)</span><span>$21.3M</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="txt">
+      <span class="badge-soft">Risk Monitoring</span>
+      <h2>IR Risk Dashboard</h2>
+      <p class="desc">A 24-indicator scorecard across six risk categories — consensus dispersion, narrative risk, ownership shifts, disclosure compliance, and more — computed from real data wherever a real source exists.</p>
+      <ul class="checklist">
+        <li>No fabricated benchmarks: where no real source exists yet, the indicator says "not tracked" — not a guess dressed up as a metric</li>
+        <li>A real logged investor objection or narrative gap moves the dashboard automatically</li>
+        <li>Every colored indicator is trustworthy precisely because the gray ones are honest</li>
+      </ul>
+    </div>
+    <div class="vis">
+      <div class="mockup">
+        <div class="mockup-bar"><span></span><span></span><span></span></div>
+        <div class="mockup-body">
+          <div class="mockup-title">IR Risk Dashboard — Illustrative</div>
+          <div class="mrow"><span>Consensus dispersion</span><span class="tag tag-green">In line</span></div>
+          <div class="mrow"><span>Investor objection trend</span><span class="tag tag-amber">Watch</span></div>
+          <div class="mrow"><span>Ownership concentration shift</span><span class="tag tag-blue">Improving</span></div>
+          <div class="mrow"><span>Activist screening</span><span class="tag tag-gray">Not tracked</span></div>
+          <div class="mrow"><span>Short interest</span><span class="tag tag-gray">Not tracked</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module reverse">
+    <div class="txt">
+      <span class="badge-soft">Analyst &amp; Buy-Side Mail</span>
+      <h2>AI-Classified Inbox</h2>
+      <p class="desc">Every inbound analyst or investor email is automatically read and classified — an updated model, a research note, a meeting request, a conference invite — and routed to the right person, pre-filled with the fields that matter.</p>
+      <ul class="checklist">
+        <li>Research notes get a CFA-lens extraction: rating/PT change, valuation method, thesis vs. consensus, catalysts and risks</li>
+        <li>Marked Internal Use Only — built around internal circulation, never external redistribution of licensed research</li>
+        <li>Turns "reviewed / not reviewed" into a decision the Head of IR can make in seconds</li>
+      </ul>
+    </div>
+    <div class="vis">
+      <div class="mockup">
+        <div class="mockup-bar"><span></span><span></span><span></span></div>
+        <div class="mockup-body">
+          <div class="mockup-title">Pending Inbox — Illustrative</div>
+          <div class="mrow"><span>Updated financial model</span><span class="tag tag-blue">Model</span></div>
+          <div class="mrow"><span>PT raised to $XX, Buy reiterated</span><span class="tag tag-green">Research Note</span></div>
+          <div class="mrow"><span>Request: NDR meeting, Boston</span><span class="tag tag-amber">NDR Request</span></div>
+          <div class="mrow"><span>Invitation: Sector Conference</span><span class="tag tag-gray">Conference</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<section class="section section-soft">
+  <div class="container">
+    <div class="callout">
+      <span class="eyebrow" style="color:var(--gold-light);">Built to Prove Out ROI</span>
+      <h3 style="font-size:26px;">Every automated action, logged and queryable.</h3>
+      <p style="max-width:640px;font-size:15px;">The platform tracks what it actually did — every resolved signal, every routed email, every classified model — tagged by page and section. When leadership asks "what did we get for this," there's a real answer, not an estimate.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="text-align:center;">
+  <div class="container">
+    <h2 style="font-size:30px;">See it running on your numbers.</h2>
+    <p style="max-width:520px;margin:0 auto 28px;color:var(--muted);">Every module above is built to run on your company's real market data, filings, and investor activity from day one.</p>
+    <a href="contact.html" class="btn btn-primary">Schedule a Strategy Call</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footgrid">
+      <div>
+        <div class="logo" style="color:#fff;">PRAXIS POINT<span>ADVISORY</span></div>
+        <p style="color:#8C97B5;font-size:14px;margin-top:16px;max-width:320px;">Praxis Point Advisory helps technology growth companies refine investor messaging, engage institutional investors, and prepare for IPOs, capital raises, and public market success — backed by a proprietary IR platform.</p>
+      </div>
+      <div>
+        <h5>Navigation</h5>
+        <a href="index.html">Home</a>
+        <a href="platform.html">Platform</a>
+        <a href="services.html">Services</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </div>
+      <div>
+        <h5>Connect</h5>
+        <a href="https://www.linkedin.com/in/robert-breza/">LinkedIn</a>
+        <a href="mailto:contact@praxispointadvisory.com">contact@praxispointadvisory.com</a>
+      </div>
+    </div>
+    <div class="copyright">
+      <span>&copy; 2026 Praxis Point Advisory</span>
+      <span>Investor Relations &amp; IPO Advisory for Technology Companies</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,445 @@
+"""
+core/risk_scorecard.py — computes Markets' IR Risk Dashboard content (the
+"Actionable IR signals" list and the 6-category / 24-indicator risk grid)
+from real data wherever a real data source exists in this app, marking an
+indicator GRAY / "Not Tracked" wherever it doesn't.
+
+This replaces data/seed/consensus_estimates.py's risk_signals/
+risk_categories dicts as the primary source. Those started as a faithful
+port of app.py's own hardcoded content (itself typed-in literals, not
+computed from anything, despite the UI's "auto-updates when models are
+ingested" caption). By the time this module was written, the app had
+gained several real data sources that didn't exist when that scorecard was
+first built: core.market_data (live-ish price/volume), core.sec_filings
+(13D/13G ownership-stake filings), the Reg FD log (reports_page.py), the
+Script Generation stage state (earnings_page.py), the Consensus Tracker
+log (earnings_page.py), and — most recently — core.transcripts
+(AI-summarized earnings call transcripts, ingested by hand since ChorusCall
+has no public API; see that module's docstring), which backs Q&A Risk
+Topics below once a transcript has been ingested and summarized, and (as of
+2026-07-12) log_ndr_objection() / the ndr_objections.json log it writes to,
+fed by page_modules_nicegui/investors_page.py's Post-NDR Debrief form —
+backs KPI Understanding / Investor Objection Trend below once at least one
+debrief has logged a real objection. Every indicator below that can be
+grounded in one of those now is; the rest — short interest, insider Form 4
+filings, ESG/governance monitoring, activist screening, float/ADV, a full
+cap table — still have no real source anywhere in this app, so they stay
+GRAY. That's a deliberate "we don't have this," not a placeholder waiting
+for a guess.
+
+The static, purely-informational items in data/seed/consensus_estimates.py's
+risk_signals list (the two "blind spot" gray cards and the NY Metro NDR
+prompt) are still pulled from there rather than reinvented here — they're
+already honest about being untracked, and NDR-trip readiness isn't wired
+into this module yet either.
+"""
+
+from datetime import datetime, timedelta
+
+from config.client_config import CA, CT, get_active_client_id
+from core import db, market_data
+
+
+def _consensus_pt_avg(period="Q2 2026E"):
+    """Average price target across currently-active covering analysts —
+    shared by both compute_scorecard() and compute_actionable_signals() so
+    the "138% upside" style figure is computed once, consistently, the
+    same way page_modules_nicegui/today_page.py computes its own."""
+    from data.seed.consensus_estimates import get_seed_consensus
+    seed = get_seed_consensus(get_active_client_id())
+    ests = seed.get("period_estimates", {}).get(period, {})
+    active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
+    pts = [ests[f]["Price Target"] for f in ests if f in active_firms and ests.get(f, {}).get("Price Target") is not None]
+    return sum(pts) / len(pts) if pts else None
+
+
+def _parse_filing_date(f):
+    for key in ("filing_date", "date", "updated"):
+        v = f.get(key) if isinstance(f, dict) else None
+        if v:
+            try:
+                return datetime.fromisoformat(str(v)[:19])
+            except Exception:
+                continue
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# 24-indicator grid, one function per category
+# ─────────────────────────────────────────────────────────────────────────
+def _market_signals():
+    ticker = CT("ticker")
+    snap = market_data.get_snapshot(ticker)
+    items = []
+
+    if snap and snap.get("pct_change") is not None:
+        chg = snap["pct_change"]
+        status = "GREEN" if chg >= 3 else "YELLOW" if chg >= 0 else "ORANGE" if chg >= -3 else "RED"
+        as_of = (snap.get("as_of") or "")[:16].replace("T", " ")
+        items.append(("Stock Performance", status,
+                       f"{chg:+.1f}% as of {as_of} — {'a real move' if abs(chg) >= 3 else 'a modest, single-session move'}, not yet a multi-day trend."))
+    else:
+        items.append(("Stock Performance", "GRAY", "Market data not yet fetched for this ticker."))
+
+    sector_snap = market_data.get_snapshot("FINX")  # payments-sector ETF as a rough sector proxy
+    if snap and snap.get("pct_change") is not None and sector_snap and sector_snap.get("pct_change") is not None:
+        rel = snap["pct_change"] - sector_snap["pct_change"]
+        status = "GREEN" if rel > 0 else "YELLOW" if rel > -2 else "ORANGE"
+        items.append(("Relative Performance", status,
+                       f"{ticker} {snap['pct_change']:+.1f}% vs FINX {sector_snap['pct_change']:+.1f}% same session — "
+                       f"{'outperforming' if rel > 0 else 'underperforming'} sector by {abs(rel):.1f} point(s)."))
+    else:
+        items.append(("Relative Performance", "GRAY", "Needs both a stock and FINX sector-ETF snapshot — not yet fully fetched."))
+
+    items.append(("Volatility", "GRAY", "Not tracked — no historical volatility series in this app."))
+    items.append(("Short Interest", "GRAY", "Not tracked — no short-interest data source exists here."))
+    return items
+
+
+def _ownership_liquidity():
+    items = [
+        ("Top Holder Concentration", "GRAY", "Not fully tracked — only a curated set of institutions on file, not a complete cap table."),
+        ("Float Liquidity", "GRAY", "Not tracked — no shares-outstanding/float or ADV data in this app."),
+    ]
+
+    try:
+        from core import sec_filings
+        ticker = CT("ticker")
+        cached = sec_filings.get_cached_13d_13g(ticker, refresh_if_stale=False) or {}
+        filings = cached.get("filings", []) if isinstance(cached, dict) else (cached or [])
+        cutoff = datetime.now() - timedelta(days=45)
+        recent = [f for f in filings if _parse_filing_date(f) and _parse_filing_date(f) >= cutoff]
+        if filings:
+            status = "GREEN" if recent else "YELLOW"
+            reason = (f"{len(recent)} 13D/13G filing(s) in the last 45 days (of {len(filings)} on file) — "
+                      f"{'active recent ownership-stake activity' if recent else 'on file, but nothing in the last 45 days'}.")
+        else:
+            status, reason = "GRAY", "No 13D/13G filings cached yet — see Investors → SEC Intelligence."
+        items.append(("New Institutional Buying", status, reason))
+    except Exception as e:
+        items.append(("New Institutional Buying", "GRAY", f"13D/13G data unavailable ({e})."))
+
+    items.append(("Retail / Momentum Risk", "GRAY", "Not tracked — no NOBO / retail-ownership data source in this app."))
+    return items
+
+
+def get_revision_momentum(period="Q2 2026E"):
+    """8-quarter PT-revision summary — same first-vs-last-PT drift math as
+    markets_page.py's PT Drift Tracker "Analyst PT direction" table.
+
+    Extracted to its own function (rather than left inline in
+    _estimate_guidance_risk) so it has exactly one caller-agnostic result
+    that both the IR Risk Dashboard's "Revision Momentum" scorecard tile
+    AND core/board_slides.py's Export-as-Board-Slide feature read from —
+    computed once, here, so the two surfaces never say two different things
+    about the same 8-quarter history.
+
+    Returns {"status": "GREEN"|"YELLOW"|"RED"|"GRAY", "headline": str,
+    "detail": str, "full": str} — "headline"+"detail" are sized for a slide
+    stat callout (short label + sub-caption), "full" is the single-sentence
+    form the scorecard tile displays.
+    """
+    from data.seed.consensus_estimates import get_seed_consensus
+    seed = get_seed_consensus(get_active_client_id())
+    pt_hist = seed.get("pt_history", {})
+    labels = pt_hist.get("labels", [])
+    by_firm = pt_hist.get("by_firm", {})
+
+    if not by_firm:
+        msg = "No PT history on file yet — see Markets → PT Drift Tracker."
+        return {"status": "GRAY", "headline": "Not tracked", "detail": msg, "full": msg}
+
+    raising, cutting = [], []
+    for firm, pts in by_firm.items():
+        valid = [(labels[i], p) for i, p in enumerate(pts) if p is not None and i < len(labels)]
+        if len(valid) < 2 or pts[-1] is None:
+            continue
+        chg_pct = round((valid[-1][1] - valid[0][1]) / valid[0][1] * 100, 1) if valid[0][1] else 0
+        if chg_pct > 0:
+            raising.append((firm, chg_pct))
+        elif chg_pct < 0:
+            cutting.append((firm, chg_pct))
+
+    moves = raising + cutting
+    if not moves:
+        msg = "No net PT revisions over the 8-quarter history — every covering analyst is flat or inactive."
+        return {"status": "YELLOW", "headline": "No net revisions", "detail": "Every analyst flat or inactive.", "full": msg}
+
+    n = len(moves)
+    status = "GREEN" if raising and not cutting else "RED" if cutting and not raising else "YELLOW"
+    direction = "upward" if raising and not cutting else "downward" if cutting and not raising else "mixed"
+    headline = f"{n} {direction} revision{'s' if n != 1 else ''}"
+    move_list = ", ".join(f"{f} {c:+.1f}%" for f, c in moves)
+    return {
+        "status": status,
+        "headline": headline,
+        "detail": f"{move_list}, the rest flat or inactive.",
+        "full": f"{headline} over 8 quarters ({move_list}) — the rest flat or inactive.",
+    }
+
+
+def _estimate_guidance_risk(period="Q2 2026E"):
+    from data.seed.consensus_estimates import get_seed_consensus
+    seed = get_seed_consensus(get_active_client_id())
+    items = []
+
+    g = seed.get("period_guidance", {}).get(period, {})
+    ests = seed.get("period_estimates", {}).get(period, {})
+    ingested = {f: v for f, v in ests.items() if v.get("Rating") is not None}
+    rev_vals = [v["Revenue Est ($M)"] for v in ingested.values() if v.get("Revenue Est ($M)") is not None]
+    con_rev = sum(rev_vals) / len(rev_vals) if rev_vals else None
+    if con_rev and g.get("Revenue Est ($M)"):
+        gap_pct = (con_rev - g["Revenue Est ($M)"]) / g["Revenue Est ($M)"] * 100
+        status = "GREEN" if abs(gap_pct) <= 1 else "YELLOW" if abs(gap_pct) <= 3 else "ORANGE" if abs(gap_pct) <= 6 else "RED"
+        items.append(("Consensus Revenue", status, f"Street ${con_rev:.1f}M vs guidance midpoint ${g['Revenue Est ($M)']:.1f}M — {gap_pct:+.1f}% gap."))
+    else:
+        items.append(("Consensus Revenue", "GRAY", "No ingested analyst estimates for this period yet."))
+
+    total = len(CA())
+    active = sum(1 for a in CA() if a.get("status") == "active")
+    cov = active / total if total else 0
+    status = "GREEN" if cov >= 0.8 else "YELLOW" if cov >= 0.5 else "ORANGE" if cov > 0 else "RED"
+    items.append(("EBITDA / EPS Risk", status, f"Consensus built on {active} of {total} covering analysts' models — {'broad' if cov >= 0.8 else 'thin'} coverage."))
+
+    surprises = db.load_json("earnings_surprise_log.json", [])
+    if surprises:
+        last = surprises[-1]
+        gve = last.get("guidance_vs_embedded", "—")
+        status = {"Beat": "GREEN", "Above": "GREEN", "In-line": "YELLOW", "Below": "ORANGE"}.get(gve, "GRAY")
+        items.append(("Guidance Credibility", status, f"Last logged quarter ({last.get('quarter','—')}): guidance {gve} vs embedded expectation."))
+    else:
+        items.append(("Guidance Credibility", "GRAY", "No quarters logged yet in the Consensus Tracker (Earnings page)."))
+
+    # Was GRAY/"not built yet" — but the 8-quarter PT-history log this needs
+    # (pt_history.by_firm) already exists in the same seed data and is
+    # actively used by markets_page.py's PT Drift Tracker chart (see
+    # _render_pt_drift). Computation now lives in get_revision_momentum()
+    # above so this tile and core/board_slides.py's board-slide export both
+    # read the exact same 8-quarter drift result.
+    rm = get_revision_momentum(period)
+    items.append(("Revision Momentum", rm["status"], rm["full"]))
+    return items
+
+
+NDR_OBJECTIONS_KEY = "ndr_objections.json"
+
+
+def log_ndr_objection(trip_name, objection="", narrative_gap=""):
+    """Called from page_modules_nicegui/investors_page.py's Post-NDR Debrief
+    form whenever a debrief records a key objection and/or narrative gap —
+    this is the real data source _investor_narrative_risk() below was
+    written to wait for (see this module's docstring: 'NDR-debrief
+    objection logging... still have no real source anywhere in this app').
+    Appends rather than overwrites, so KPI Understanding / Investor
+    Objection Trend below can look at the log's history, not just the
+    latest debrief. No-ops (doesn't append an empty entry) if both fields
+    are blank — a debrief with nothing to log shouldn't pollute the trend
+    with a hollow row."""
+    objection = (objection or "").strip()
+    narrative_gap = (narrative_gap or "").strip()
+    if not objection and not narrative_gap:
+        return
+    log = db.load_json(NDR_OBJECTIONS_KEY, default=[])
+    log.append({
+        "trip": trip_name, "objection": objection, "narrative_gap": narrative_gap,
+        "logged_at": datetime.now().isoformat(),
+    })
+    db.save_json(NDR_OBJECTIONS_KEY, log)
+
+
+def _investor_narrative_risk(period="Q2 2026E"):
+    from data.seed.consensus_estimates import get_seed_consensus
+    items = [("Equity Story Clarity", "GRAY", "Subjective — no quantified source in this app.")]
+
+    objections = db.load_json(NDR_OBJECTIONS_KEY, default=[])
+    if objections:
+        recent = objections[-5:]
+        with_gap = sum(1 for o in recent if o.get("narrative_gap"))
+        # YELLOW, not a fabricated GREEN/RED classification — this is real
+        # logged data (an actual objection exists), but whether that's good
+        # or bad news needs a human read, not a guessed sentiment score.
+        # Same "honest signal over invented precision" approach as
+        # core/fit_score.py's heuristic classes.
+        items.append(("KPI Understanding", "YELLOW",
+                       f"{len(objections)} objection(s) logged from NDR debriefs — most recent from \"{objections[-1]['trip']}\": "
+                       f"\"{objections[-1]['objection'] or objections[-1]['narrative_gap']}\". Review in NDR Planner → Post-NDR Debrief."))
+        items.append(("Investor Objection Trend", "YELLOW",
+                       f"{with_gap} of the last {len(recent)} debrief(s) logged a narrative gap (a question the script doesn't "
+                       f"currently answer) — feed these into the next Script Generation cycle's Q&A prep."))
+    else:
+        items.append(("KPI Understanding", "GRAY", "Not tracked — no logged investor objections on file yet."))
+        items.append(("Investor Objection Trend", "GRAY", "Not tracked — same reason; populates once NDR debriefs start logging real objections."))
+
+    active = [a for a in CA() if a.get("status") == "active"]
+    snap = market_data.get_snapshot(CT("ticker"))
+    seed = get_seed_consensus(get_active_client_id())
+    ests = seed.get("period_estimates", {}).get(period, {})
+    if active and snap and snap.get("last_price"):
+        buy_count = sum(1 for a in active if ests.get(a["firm"], {}).get("Rating") == "Buy")
+        above_count = sum(1 for a in active if a.get("pt") and a["pt"] > snap["last_price"])
+        aligned = min(buy_count, above_count)
+        status = "GREEN" if aligned == len(active) else "YELLOW" if aligned > 0 else "ORANGE"
+        items.append(("Analyst Message Alignment", status,
+                       f"{buy_count}/{len(active)} active analyst(s) Buy-rated, {above_count}/{len(active)} with PT above last trade (${snap['last_price']:.2f})."))
+    else:
+        items.append(("Analyst Message Alignment", "GRAY", "Needs active analyst ratings/PTs and a market snapshot."))
+    return items
+
+
+def _event_communication_risk():
+    items = []
+
+    ss = db.load_json("script_workflow_state.json", None)
+    if ss and ss.get("stages"):
+        stages = ss["stages"]
+        complete = sum(1 for s in stages.values() if s.get("status") == "complete")
+        pct = complete / len(stages) * 100 if stages else 0
+        status = "GREEN" if pct >= 80 else "YELLOW" if pct >= 40 else "ORANGE" if pct > 0 else "RED"
+        items.append(("Earnings Prep", status, f"Script Generation {pct:.0f}% through its 5 stages ({complete}/{len(stages)} complete)."))
+    else:
+        items.append(("Earnings Prep", "GRAY", "Script Generation hasn't been started yet (Earnings page)."))
+
+    items.append(("Conference Readiness", "GRAY", "Not computed here — see Calendar for confirmed events; no structured readiness field wired in yet."))
+
+    regfd = db.load_json("regfd_log.json", [])
+    if regfd:
+        open_high = sum(1 for e in regfd if e.get("risk") == "HIGH" and not e.get("reviewed"))
+        open_8k = sum(1 for e in regfd if e.get("8k_flag") and not e.get("8k_resolved"))
+        total_open = open_high + open_8k
+        status = "GREEN" if total_open == 0 else "YELLOW" if total_open <= 1 else "ORANGE" if total_open <= 3 else "RED"
+        items.append(("Disclosure Risk", status,
+                       f"{total_open} open Reg FD item(s) — {open_high} unreviewed HIGH-risk, {open_8k} unresolved 8-K flag(s). See Reports → Reg FD."))
+    else:
+        items.append(("Disclosure Risk", "GRAY", "No Reg FD log entries yet (Reports → Reg FD)."))
+
+    items.append(_qa_risk_topics_item())
+    return items
+
+
+def _qa_risk_topics_item():
+    """Sourced from core.transcripts — an AI pass over the most recently
+    ingested earnings call transcript that flags Q&A exchanges reading as
+    analyst pushback/skepticism (see transcripts.py's summarize_transcript
+    prompt). Stays GRAY if no transcript has been ingested yet, or one has
+    been ingested but not yet summarized — this never guesses at Q&A
+    content that wasn't actually captured."""
+    try:
+        from core import transcripts
+        from config.client_config import CE
+        quarter = CE().get("current_quarter") or None
+        record = None
+        if quarter:
+            record = transcripts.get_transcript(quarter)
+        if not record:
+            # Fall back to the most recently ingested transcript (e.g. the
+            # prior quarter's call, if the current quarter hasn't happened
+            # yet) rather than assuming nothing exists at all.
+            all_t = transcripts.list_transcripts()
+            record = transcripts.get_transcript(all_t[0]["quarter"]) if all_t else None
+        if not record:
+            return ("Q&A Risk Topics", "GRAY", "No earnings call transcript ingested yet — see Earnings → Call Transcripts.")
+        topics = record.get("qa_risk_topics")
+        if topics is None:
+            return ("Q&A Risk Topics", "GRAY",
+                     f"Transcript on file for {record['quarter']}, but AI summary hasn't been run yet — "
+                     f"see Earnings → Call Transcripts.")
+        if not topics:
+            return ("Q&A Risk Topics", "GREEN", f"{record['quarter']} call: no analyst pushback/skepticism flagged by AI review.")
+        high = sum(1 for t in topics if t.get("severity") == "HIGH")
+        med = sum(1 for t in topics if t.get("severity") == "MEDIUM")
+        status = "RED" if high >= 2 else "ORANGE" if high == 1 else "YELLOW" if med else "GREEN"
+        names = ", ".join(t.get("topic", "?") for t in topics[:3])
+        return ("Q&A Risk Topics", status,
+                 f"{record['quarter']} call: {len(topics)} flagged topic(s) — {names}{'...' if len(topics) > 3 else ''}.")
+    except Exception as e:
+        return ("Q&A Risk Topics", "GRAY", f"Transcript data unavailable ({e}).")
+
+
+def _governance_reputation_risk():
+    return [
+        ("Insider Selling Optics", "GRAY", "Not tracked — no Form 4 / insider transaction data source in this app."),
+        ("Activism Vulnerability", "GRAY", "Not tracked — no activist-screening data source in this app."),
+        ("Management Credibility", "GRAY", "Not tracked — no quantified source for this in this app."),
+        ("ESG / Governance Noise", "GRAY", "Not tracked — no ESG/governance monitoring in this app."),
+    ]
+
+
+def compute_scorecard(period="Q2 2026E"):
+    """Returns the same {category_name: [(label, status, reason), ...]}
+    shape markets_page.py has always used, so its existing overall-score
+    math and rendering code don't need to change — only where this dict
+    comes from does (previously data/seed/consensus_estimates.py's static
+    risk_categories, now this function)."""
+    return {
+        "1. Market Signals": _market_signals(),
+        "2. Ownership / Liquidity": _ownership_liquidity(),
+        "3. Estimate / Guidance Risk": _estimate_guidance_risk(period),
+        "4. Investor Narrative Risk": _investor_narrative_risk(period),
+        "5. Event / Communication Risk": _event_communication_risk(),
+        "6. Governance / Reputation Risk": _governance_reputation_risk(),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# "Actionable IR signals" list
+# ─────────────────────────────────────────────────────────────────────────
+def compute_actionable_signals(period="Q2 2026E"):
+    from data.seed.consensus_estimates import get_seed_consensus
+    seed = get_seed_consensus(get_active_client_id())
+    signals = []
+
+    total = len(CA())
+    inactive = [a for a in CA() if a.get("status") != "active"]
+    if inactive:
+        names = ", ".join(a["name"].split()[-1] for a in inactive)
+        signals.append({
+            "level": "red", "icon": "🔴",
+            "title": f"{len(inactive)} of {total} analyst models missing — consensus is unreliable",
+            "desc": f"{names} have no model on file. Consensus is built on only {total - len(inactive)} data point(s). "
+                    f"If one analyst moves their PT, blended consensus can swing sharply.",
+            "action": "Send model request emails — see Today → Risk Signals, or Mail Gateway",
+        })
+    else:
+        signals.append({
+            "level": "green", "icon": "✅",
+            "title": f"All {total} analyst models on file",
+            "desc": "Full coverage — consensus reflects every covering analyst.",
+            "action": "No action needed",
+        })
+
+    g = seed.get("period_guidance", {}).get(period, {})
+    ests = seed.get("period_estimates", {}).get(period, {})
+    ingested = {f: v for f, v in ests.items() if v.get("Rating") is not None}
+    rev_vals = [v["Revenue Est ($M)"] for v in ingested.values() if v.get("Revenue Est ($M)") is not None]
+    con_rev = sum(rev_vals) / len(rev_vals) if rev_vals else None
+    if con_rev and g.get("Revenue Est ($M)"):
+        gap_pct = (con_rev - g["Revenue Est ($M)"]) / g["Revenue Est ($M)"] * 100
+        is_beat_risk = gap_pct > 1.5
+        signals.append({
+            "level": "amber" if is_beat_risk else "green", "icon": "⚠️" if is_beat_risk else "✅",
+            "title": f"Street at ${con_rev:.1f}M vs your ${g['Revenue Est ($M)']:.1f}M guidance midpoint",
+            "desc": f"Street revenue consensus is {gap_pct:+.1f}% {'above' if gap_pct > 0 else 'below'} guidance midpoint — "
+                    f"{'hitting your own number would be a miss vs street' if is_beat_risk else 'in line with guidance'}.",
+            "action": "Discuss with CFO: walk analysts toward guidance, or tighten guidance upward" if is_beat_risk else "In line — no action needed",
+        })
+
+    pt_avg = _consensus_pt_avg(period)
+    snap = market_data.get_snapshot(CT("ticker"))
+    if pt_avg and snap and snap.get("last_price"):
+        upside_pct = (pt_avg / snap["last_price"] - 1) * 100
+        signals.append({
+            "level": "green" if upside_pct >= 0 else "amber", "icon": "✅" if upside_pct >= 0 else "⚠️",
+            "title": f"{upside_pct:+.0f}% {'upside' if upside_pct >= 0 else 'downside'} to consensus PT",
+            "desc": f"Consensus PT of ${pt_avg:.2f} vs last trade of ${snap['last_price']:.2f}.",
+            "action": "Lead with this in institutional outreach" if upside_pct > 50 else "Monitor",
+        })
+
+    # Static, documented gaps — no real data source exists in this app for
+    # any of these; NDR-trip readiness isn't wired into this computation
+    # yet either. Pulled from seed rather than invented, same honesty
+    # policy as the GRAY items in the 24-indicator grid above.
+    for s in seed.get("risk_signals", []):
+        if s.get("level") == "gray" or "NDR" in s.get("title", ""):
+            signals.append(s)
+
+    return signals

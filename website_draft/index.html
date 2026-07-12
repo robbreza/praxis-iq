@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Praxis Point Advisory | Investor Relations, Built Like Enterprise Software</title>
+<meta name="description" content="Praxis Point Advisory pairs 25+ years of Wall Street and IPO experience with a proprietary IR platform — real investor scoring, guidance analytics, and risk monitoring, not just decks and calls.">
+<meta property="og:title" content="Praxis Point Advisory | Investor Relations, Built Like Enterprise Software">
+<meta property="og:description" content="25+ years of Wall Street and IPO experience, now backed by a working IR platform — investor targeting, guidance analytics, and risk monitoring built to institutional standard.">
+<meta property="og:type" content="website">
+<style>
+:root{
+  --navy:#16223F; --navy-deep:#0E1730; --gold:#A9832E; --gold-light:#C9A24B;
+  --ink:#1F2430; --muted:#5C6472; --bg:#FFFFFF; --bg-soft:#F6F4EE; --border:#E6E2D6;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;}
+h1,h2,h3,h4{font-family:Georgia,Cambria,"Times New Roman",serif;color:var(--navy);font-weight:600;line-height:1.25;margin:0 0 .5em;}
+p{margin:0 0 1em;color:var(--ink);}
+a{color:inherit;text-decoration:none;}
+.container{max-width:1180px;margin:0 auto;padding:0 32px;}
+.section{padding:88px 0;}
+.section-soft{background:var(--bg-soft);}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:14px;display:block;}
+.btn{display:inline-block;padding:14px 30px;font-size:14px;font-weight:600;letter-spacing:.02em;border-radius:2px;line-height:1.4;white-space:nowrap;font-family:inherit;}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-primary:hover{background:var(--navy-deep);}
+.btn-ghost{border:1px solid var(--navy);color:var(--navy);}
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);}
+.navwrap{max-width:1180px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:Georgia,serif;font-weight:700;font-size:19px;color:var(--navy);letter-spacing:.01em;}
+.logo span{display:block;font-family:-apple-system,"Segoe UI",sans-serif;font-size:10px;letter-spacing:.24em;color:var(--gold);font-weight:700;margin-top:2px;}
+.navlinks{display:flex;gap:16px;align-items:center;}
+.navlinks a{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;flex-shrink:0;}
+.navlinks a.active{color:var(--gold);}
+.navlinks a:hover{color:var(--gold);}
+/* HERO */
+.hero{padding:96px 0 72px;background:linear-gradient(180deg,#fff 0%,var(--bg-soft) 100%);}
+.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center;}
+.hero h1{font-size:44px;margin-bottom:22px;}
+.hero p.lead{font-size:18px;color:var(--muted);max-width:520px;margin-bottom:32px;}
+.hero-ctas{display:flex;gap:16px;margin-bottom:36px;}
+.pillrow{display:flex;flex-wrap:wrap;gap:10px;}
+.pill{font-size:12px;font-weight:600;color:var(--navy);background:#fff;border:1px solid var(--border);padding:7px 14px;border-radius:20px;}
+/* MOCKUP PANEL */
+.mockup{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 24px 48px -20px rgba(22,34,63,.28);overflow:hidden;}
+.mockup-bar{background:var(--navy-deep);padding:10px 14px;display:flex;gap:6px;}
+.mockup-bar span{width:9px;height:9px;border-radius:50%;background:#3B4A72;}
+.mockup-body{padding:22px;}
+.mockup-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.mrow:last-child{border-bottom:none;}
+.tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;letter-spacing:.04em;}
+.tag-green{background:#E4F1E8;color:#1F6B3B;}
+.tag-amber{background:#FBF0DD;color:#8A5E10;}
+.tag-gray{background:#EEEEEE;color:#777;}
+.metricgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+.metric{background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:14px;}
+.metric .num{font-family:Georgia,serif;font-size:22px;color:var(--navy);font-weight:700;}
+.metric .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+/* STATS */
+.statbar{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:40px 0;margin:0;}
+.statbar .stat{text-align:center;}
+.statbar .num{font-family:Georgia,serif;font-size:38px;color:var(--gold);font-weight:700;}
+.statbar .lbl{font-size:13px;color:var(--muted);margin-top:4px;}
+/* GRID CARDS */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:30px;}
+.card h3{font-size:19px;}
+.card ul{margin:14px 0 0;padding-left:18px;color:var(--muted);font-size:14px;}
+.card ul li{margin-bottom:6px;}
+.badge-soft{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:5px 12px;margin-bottom:12px;}
+/* PROCESS */
+.process{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;}
+.proc-step .stepnum{font-family:Georgia,serif;font-size:30px;color:var(--border);font-weight:700;margin-bottom:8px;}
+.proc-step h4{font-size:17px;margin-bottom:8px;}
+.proc-step p{font-size:14px;color:var(--muted);margin:0;}
+/* HONEST CALLOUT */
+.callout{background:var(--navy);border-radius:10px;padding:44px;color:#fff;}
+.callout h3{color:#fff;}
+.callout p{color:#C9D0DE;}
+/* OUTCOMES */
+.outcome-card{border-left:3px solid var(--gold);padding-left:20px;}
+/* FOOTER */
+footer{background:var(--navy-deep);color:#B9C1D6;padding:64px 0 28px;}
+.footgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px;padding-bottom:40px;border-bottom:1px solid #263356;}
+footer h5{color:#fff;font-family:-apple-system,sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;}
+footer a{display:block;font-size:14px;color:#B9C1D6;margin-bottom:10px;}
+footer a:hover{color:var(--gold-light);}
+.copyright{padding-top:24px;font-size:13px;color:#7C89A8;display:flex;justify-content:space-between;}
+@media (max-width: 900px){
+  .hero-grid,.grid3,.grid2,.process,.statbar,.footgrid{grid-template-columns:1fr;}
+  .navlinks{display:none;}
+  .hero h1{font-size:32px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="navwrap">
+    <a href="index.html" class="logo">PRAXIS POINT<span>ADVISORY</span></a>
+    <nav class="navlinks">
+      <a href="index.html" class="active">Home</a>
+      <a href="platform.html">Platform</a>
+      <a href="services.html">Services</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+      <a href="contact.html" class="btn btn-primary" style="padding:8px 14px;font-size:13px;">Schedule a Call</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <span class="eyebrow">Investor Relations &amp; IPO Advisory for Technology Companies</span>
+      <h1>Investor relations, built like enterprise software.</h1>
+      <p class="lead">Praxis Point Advisory pairs 25+ years of Wall Street and IPO experience with a working IR platform — real investor scoring, guidance analytics, and risk monitoring, not just decks and phone calls.</p>
+      <div class="hero-ctas">
+        <a href="contact.html" class="btn btn-primary">Schedule a Strategy Call</a>
+        <a href="platform.html" class="btn btn-ghost">See the Platform</a>
+      </div>
+      <div class="pillrow">
+        <span class="pill">Wall Street Experience</span>
+        <span class="pill">IPO &amp; Capital Markets Expertise</span>
+        <span class="pill">Proprietary IR Platform</span>
+        <span class="pill">Senior-Level Advisory</span>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-bar"><span></span><span></span><span></span></div>
+      <div class="mockup-body">
+        <div class="mockup-title">Guidance &amp; Outlook Decision Engine — Illustrative</div>
+        <div class="metricgrid">
+          <div class="metric"><div class="num">-2.1pp</div><div class="lbl">vs. Seasonal Pace</div></div>
+          <div class="metric"><div class="num">$41.6M</div><div class="lbl">FY Implied from H1</div></div>
+        </div>
+        <div class="mrow" style="margin-top:18px;"><span>Recommended action</span><span class="tag tag-amber">REITERATE</span></div>
+        <div class="mrow"><span>Interest income headwind</span><span class="tag tag-amber">Not pre-empted</span></div>
+        <div class="mrow"><span>Institutional coverage tracking</span><span class="tag tag-green">Live</span></div>
+        <div class="mrow"><span>Short interest / activist screen</span><span class="tag tag-gray">Not tracked</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <div class="statbar">
+    <div class="stat"><div class="num">25+</div><div class="lbl">Years Experience</div></div>
+    <div class="stat"><div class="num">75+</div><div class="lbl">Technology Companies Covered</div></div>
+    <div class="stat"><div class="num">20+</div><div class="lbl">IPO &amp; Follow-on Deals</div></div>
+    <div class="stat"><div class="num">$4T+</div><div class="lbl">Market Cap Experience</div></div>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <span class="badge-soft">Advisory + Platform</span>
+    <h2 style="font-size:30px;max-width:720px;">Two things most IR advisors don't offer together.</h2>
+    <p style="max-width:720px;color:var(--muted);font-size:16px;">Most advisory firms hand you a framework and a slide deck. Most software vendors hand you a dashboard and no judgment. Praxis Point Advisory built both under one roof: senior capital-markets guidance, delivered through a platform that actually computes the numbers behind it — instead of a spreadsheet that gets rebuilt from scratch every quarter.</p>
+  </div>
+</section>
+
+<section class="section section-soft">
+  <div class="container">
+    <span class="eyebrow">What the platform does</span>
+    <h2 style="font-size:30px;">The system behind the strategy</h2>
+    <p style="max-width:640px;color:var(--muted);margin-bottom:44px;">A working platform underneath every part of the IR calendar — not a mockup, not slideware.</p>
+    <div class="grid3">
+      <div class="card">
+        <h3>Institutional Targeting</h3>
+        <p style="font-size:14px;color:var(--muted);">A transparent, six-component scoring engine ranks every prospect using real 13F ownership data — not a purchased list.</p>
+        <ul><li>Every component score shown, never a black box</li><li>Learns from logged meeting outcomes over time</li></ul>
+      </div>
+      <div class="card">
+        <h3>Guidance &amp; Outlook Engine</h3>
+        <p style="font-size:14px;color:var(--muted);">Computes YTD pace against seasonally-weighted targets and recommends a guidance action — raise, reiterate, or narrow — with the reasoning stated in plain English.</p>
+        <ul><li>Every forward-looking claim auto-flagged for legal review</li><li>CFO and CEO always make the final call</li></ul>
+      </div>
+      <div class="card">
+        <h3>IR Risk Monitoring</h3>
+        <p style="font-size:14px;color:var(--muted);">A 24-indicator scorecard across six risk categories, computed from real data wherever real data exists.</p>
+        <ul><li>Marked "not tracked" — not guessed — where it doesn't</li><li>Closes the loop from live investor conversations back to risk</li></ul>
+      </div>
+    </div>
+    <div style="margin-top:36px;"><a href="platform.html" class="btn btn-ghost">Explore the full platform &rarr;</a></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <span class="eyebrow">Proprietary Frameworks</span>
+    <h2 style="font-size:30px;max-width:640px;">Methodologies developed over 25 years — now software-backed.</h2>
+    <div class="grid2" style="margin-top:40px;">
+      <div class="card">
+        <span class="badge-soft">Software-backed</span>
+        <h3>Praxis Ownership Model&trade;</h3>
+        <p style="font-size:14px;color:var(--muted);">Identify, target, and cultivate long-term institutional investors aligned with growth profile and valuation objectives — powered by the platform's live 13F scoring engine.</p>
+      </div>
+      <div class="card">
+        <span class="badge-soft">Software-backed</span>
+        <h3>Guidance Analytics Framework&trade;</h3>
+        <p style="font-size:14px;color:var(--muted);">Forecasting frameworks and scenario models that improve guidance accuracy and investor confidence — this is the platform's Guidance &amp; Outlook Decision Engine.</p>
+      </div>
+      <div class="card">
+        <span class="badge-soft">Software-backed</span>
+        <h3>Consensus Expectations Model&trade;</h3>
+        <p style="font-size:14px;color:var(--muted);">Track analyst estimates, model earnings scenarios, and manage the Street's expectations before results — run through the platform's durable Consensus Tracker.</p>
+      </div>
+      <div class="card">
+        <span class="badge-soft">Software-backed</span>
+        <h3>Praxis Readiness Scorecard&trade;</h3>
+        <p style="font-size:14px;color:var(--muted);">Evaluate readiness across governance, reporting, and investor communications, using the same computed, evidence-based scoring behind the IR Risk Dashboard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-soft">
+  <div class="container">
+    <span class="eyebrow">Methodology</span>
+    <h2 style="font-size:30px;">A structured approach to capital markets success</h2>
+    <div class="process" style="margin-top:36px;">
+      <div class="proc-step"><div class="stepnum">01</div><h4>Assess</h4><p>Evaluate current investor positioning, communications infrastructure, and institutional perception gaps.</p></div>
+      <div class="proc-step"><div class="stepnum">02</div><h4>Measure</h4><p>Benchmark against peer companies, analyst coverage quality, and capital markets performance.</p></div>
+      <div class="proc-step"><div class="stepnum">03</div><h4>Position</h4><p>Develop a differentiated equity narrative and institutional messaging that drives investor conviction.</p></div>
+      <div class="proc-step"><div class="stepnum">04</div><h4>Engage</h4><p>Execute targeted institutional outreach and build durable capital markets relationships — with the platform tracking every step.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="callout">
+      <span class="eyebrow" style="color:var(--gold-light);">Why It's Different</span>
+      <h3 style="font-size:26px;">No black boxes. No fabricated benchmarks.</h3>
+      <p style="max-width:640px;font-size:15px;">Every number the platform shows is computed from a real, disclosed source — market data, SEC filings, logged investor conversations. Where no real data exists yet for an indicator, it's marked "not tracked," not filled in with a guess dressed up as a metric. That's the standard the rest of the industry should be held to.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section section-soft">
+  <div class="container" style="text-align:center;">
+    <h2 style="font-size:30px;">Ready to strengthen your investor story?</h2>
+    <p style="max-width:560px;margin:0 auto 28px;color:var(--muted);">Whether preparing for an IPO, refining investor messaging, or engaging institutional investors, Praxis Point Advisory can help — with the rigor of Wall Street and a platform to back it up.</p>
+    <a href="contact.html" class="btn btn-primary">Schedule a Strategy Call</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footgrid">
+      <div>
+        <div class="logo" style="color:#fff;">PRAXIS POINT<span>ADVISORY</span></div>
+        <p style="color:#8C97B5;font-size:14px;margin-top:16px;max-width:320px;">Praxis Point Advisory helps technology growth companies refine investor messaging, engage institutional investors, and prepare for IPOs, capital raises, and public market success — backed by a proprietary IR platform.</p>
+      </div>
+      <div>
+        <h5>Navigation</h5>
+        <a href="index.html">Home</a>
+        <a href="platform.html">Platform</a>
+        <a href="services.html">Services</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </div>
+      <div>
+        <h5>Connect</h5>
+        <a href="https://www.linkedin.com/in/robert-breza/">LinkedIn</a>
+        <a href="mailto:contact@praxispointadvisory.com">contact@praxispointadvisory.com</a>
+      </div>
+    </div>
+    <div class="copyright">
+      <span>&copy; 2026 Praxis Point Advisory</span>
+      <span>Investor Relations &amp; IPO Advisory for Technology Companies</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
