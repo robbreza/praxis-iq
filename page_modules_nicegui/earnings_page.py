@@ -2606,4 +2606,49 @@ def _render_transcripts_tab():
                                 "review the transcript manually."
                             ).style("color:#F0A830;font-size:12px;")
 
-                ui.button("🤖 Generate AI Summary", on_click=g
+                ui.button("🤖 Generate AI Summary", on_click=generate_summary).props("flat dense").style("margin-top:6px;")
+            else:
+                ui.markdown("---")
+                ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:12.5px;")
+
+                key_quotes = rec.get("key_quotes") or []
+                if key_quotes:
+                    ui.label("Key quotes").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    for kq in key_quotes:
+                        ui.label(f"“{kq.get('quote','')}” — {kq.get('speaker','')}").style(
+                            f"color:{COLORS['text_muted']};font-size:11.5px;font-style:italic;")
+
+                guidance = rec.get("guidance_language") or []
+                if guidance:
+                    ui.label("Guidance language").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    for g in guidance:
+                        ui.label(f"• {g}").style(f"color:{COLORS['text_body']};font-size:11.5px;")
+
+                topics = rec.get("qa_risk_topics") or []
+                if topics:
+                    ui.label("Q&A risk topics").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    sev_color = {"HIGH": "#F87171", "MEDIUM": "#F0A830", "LOW": "#94A3B8"}
+                    for t in topics:
+                        clr = sev_color.get(t.get("severity"), "#94A3B8")
+                        ui.label(f"{t.get('severity','?')} · {t.get('topic','')} — {t.get('why','')}").style(f"color:{clr};font-size:11.5px;")
+                else:
+                    ui.label("No Q&A risk topics flagged by AI review.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+                ui.label(f"Summarized {rec['summarized_at'][:16].replace('T',' ') if rec.get('summarized_at') else ''}").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
+
+                rerun_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+                async def rerun_summary(q=rec["quarter"], status=rerun_status):
+                    status.text = "Regenerating…"
+                    result = transcripts.summarize_transcript(q)
+                    if result:
+                        activity_log.log_event("transcript_summarized", entity=q)
+                        ui.notify(f"{q} summary regenerated.")
+                        _refresh()
+                    else:
+                        status.text = ("⚠️ Couldn't regenerate — check that ANTHROPIC_API_KEY is set in .env "
+                                        "and this machine can reach api.anthropic.com.")
+                        status.style("color:#F0A830;font-size:11.5px;")
+
+                ui.button("🔄 Re-run AI Summary", on_click=rerun_summary).props("flat dense")

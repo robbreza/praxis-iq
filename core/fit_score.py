@@ -405,4 +405,91 @@ def score_all_holders(peer_tickers, client_id=None, backfill_top_n=40):
                 # that looked like a mid-tier "M" placeholder might turn
                 # out to run a $50B book) — re-sort just this slice rather
                 # than assuming the provisional order still holds.
-       
+                results = top_slice + results[backfill_top_n:]
+                results.sort(key=lambda r: -r["composite"])
+
+    return results
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Score learning — ported from score_tuning.py's lift-based re-weighting
+# ─────────────────────────────────────────────────────────────────────────
+_COMPONENT_KEYS = [
+    ("conviction", "Peer conviction"), ("newbuyer_pts", "New-buyer"),
+    ("fit", "Comparability fit"), ("turnover_pts", "Turnover"),
+    ("pp_pts", "Purchasing power"), ("contact_pts", "Contactability"),
+]
+_WEIGHT_KEY_FOR = {
+    "conviction": "conviction", "newbuyer_pts": "newbuyer", "fit": "fit",
+    "turnover_pts": "turnover", "pp_pts": "pp", "contact_pts": "contact",
+}
+MIN_LABELED = 12
+
+
+def analyze_lift(labeled_rows):
+    """labeled_rows: list of {**score_prospect() component fields,
+    "_outcome": 1|0} — 1 = positive (meeting set / met / became a holder),
+    0 = negative (passed). Pure function, no I/O — same algorithm as
+    score_tuning.py's analyze(): for each component, compares its mean
+    among positive vs negative outcomes ("lift"). Suggested weight =
+    70% current + 30% lift-share of the total, renormalized so the
+    composite still sums to the same total (stays transparent, never
+    silently changes the /100 scale)."""
+    pos = [r for r in labeled_rows if r["_outcome"] == 1]
+    neg = [r for r in labeled_rows if r["_outcome"] == 0]
+    weights = get_weights(None)
+
+    out = []
+    for key, label in _COMPONENT_KEYS:
+        cur = weights[_WEIGHT_KEY_FOR[key]]
+        mp = sum(r.get(key, 0) for r in pos) / len(pos) if pos else 0
+        mn = sum(r.get(key, 0) for r in neg) / len(neg) if neg else 0
+        lift = mp - mn
+        out.append(dict(weight_key=_WEIGHT_KEY_FOR[key], label=label, cur=cur,
+                         mean_pos=round(mp, 1), mean_neg=round(mn, 1), lift=round(lift, 1)))
+
+    total = sum(o["cur"] for o in out) or 1
+    lifts = [max(0.0, o["lift"]) for o in out]
+    lift_sum = sum(lifts) or 1
+    for o, lf in zip(out, lifts):
+        lift_weighted = lf / lift_sum * total
+        o["suggested"] = round(0.7 * o["cur"] + 0.3 * lift_weighted, 1)
+    suggested_total = sum(o["suggested"] for o in out) or 1
+    for o in out:
+        o["suggested"] = round(o["suggested"] / suggested_total * total, 1)
+        o["move"] = round(o["suggested"] - o["cur"], 1)
+    return out, len(pos), len(neg)
+
+
+def suggest_reweight(client_id=None):
+    """Reads this client's labeled prospect outcomes (prospects.json
+    entries with a stored 'score_breakdown' dict and an 'outcome' status —
+    see page_modules_nicegui/investors_page.py's Target Database for
+    where 'outcome' gets set) and proposes re-weighted components.
+    Below MIN_LABELED resolved outcomes, returns mode='insufficient' with
+    an empty result — no synthetic/illustrative sample here, since
+    showing plausible-looking fake numbers this early risks getting
+    mistaken for a real recommendation. Apply by calling save_weights()
+    with the suggested values once you're satisfied — nothing here
+    changes live weights automatically."""
+    cid = _resolve_client_id(client_id)
+    prospects = db.load_json("prospects.json", default=[], client_id=cid)
+    labeled = []
+    for p in prospects:
+        outcome = p.get("outcome")
+        score = p.get("score_breakdown")
+        if not score or outcome not in ("positive", "negative"):
+            continue
+        row = dict(score)
+        row["_outcome"] = 1 if outcome == "positive" else 0
+        labeled.append(row)
+
+    if len(labeled) < MIN_LABELED:
+        return {"mode": "insufficient", "components": [], "n_pos": 0, "n_neg": 0,
+                "message": f"Only {len(labeled)} resolved outcomes on file — need at least "
+                           f"{MIN_LABELED} (prospects marked won or passed) before a re-weight "
+                           f"suggestion is trustworthy. Log meeting outcomes as they happen; "
+                           f"this re-checks itself every time you open this panel."}
+
+    components, n_pos, n_neg = analyze_lift(labeled)
+    return {"mode": "live", "components": components, "n_pos": n_pos, "n_neg": n_neg, "message": None}

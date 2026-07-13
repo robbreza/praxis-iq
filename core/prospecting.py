@@ -179,4 +179,5 @@ def parse_pasted_table(raw_text):
         return [], []
     max_cols = max(len(r) for r in parsed_rows)
     padded = [r + [""] * (max_cols - len(r)) for r in parsed_rows]
-    columns = [f"Column {i + 
+    columns = [f"Column {i + 1}" for i in range(max_cols)]
+    return columns, padded

@@ -2047,4 +2047,1205 @@ _CATEGORY_LABELS = {
 def _render_pending_inbox_items():
     """The human half of the email-routing pipeline: core/mail_gateway.py
     classifies an inbound email (model / research note / NDR request /
-    conference invite / speak-to-management) and queues it here rath
+    conference invite / speak-to-management) and queues it here rather than
+    acting on an AI guess unattended (see core/email_classifier.py's
+    docstring for why). One card per pending item, prefilled from whatever
+    was extracted, with a category-appropriate confirm action:
+      - model              -> core/consensus.py (Markets → Consensus Matrix)
+      - research_note      -> CFA-lens breakdown (rating/PT, valuation method,
+                              variant view, catalysts/risks, sentiment) so the
+                              reviewer can decide fast whether it's worth
+                              circulating further internally; optionally also
+                              updates consensus if a rating/PT was extracted.
+                              "Internal Use Only" is just a flag recorded on
+                              the queue entry — actual forwarding is a manual
+                              human decision, not something this app sends
+                              (sell-side research is licensed content anyway).
+      - ndr_request        -> this page's own Inbound NDR/Meeting Requests list
+      - conference_invite  -> the Calendar's conference list
+      - speak_to_management -> this page's Meeting Hub (Scheduled Meetings)
+      - meeting_confirmation -> this page's Meeting Hub (Scheduled Meetings),
+                              pre-filled Status "Confirmed" — replaces app.py's
+                              old ad hoc IMAP-scan-with-password-prompt button
+                              (see core/email_classifier.py's docstring)
+    Every card also has Dismiss, for anything that turns out mis-tagged."""
+    pending = inbox_queue.list_pending_items()
+    if not pending:
+        return
+
+    current = consensus.get_consensus()
+    firms_with_data = {a["firm"] for a in CA()}
+
+    with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};margin-top:8px;"):
+        ui.label(f"📋 Pending Inbox Items ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label("Classified and pre-filled from the email by AI where possible — review, correct if needed, "
+                  "and confirm to send it where it belongs, or dismiss if it was mis-tagged.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        for item in pending:
+            extracted = item.get("extracted") or {}
+            category = item.get("category", "general")
+            with ui.card().classes("w-full").style(f"background:{COLORS['canvas_bg']};border:1px solid {COLORS['border']};margin-top:6px;"):
+                with ui.row().classes("w-full items-center justify-between"):
+                    ui.label(f"{_CATEGORY_LABELS.get(category, category)} — {item['contact']} ({item['firm']})") \
+                        .classes("font-bold").style(f"color:{COLORS['accent_light']};")
+                    ui.label(f"received {item['received_at']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(f"Subject: {item.get('subject') or '(no subject)'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+                if item.get("doc_id") is not None:
+                    def _download(doc_id=item["doc_id"]):
+                        result = documents.get_document_bytes(doc_id)
+                        if result:
+                            fname, _ctype, raw = result
+                            ui.download(raw, filename=fname)
+                    ui.button(f"📎 {item['filename']}", on_click=_download).props("flat dense size=sm").style(
+                        f"color:{COLORS['accent_light']};font-size:11px;")
+
+                def dismiss(item_id=item["id"]):
+                    inbox_queue.dismiss_item(item_id)
+                    ui.notify("Dismissed.")
+                    _refresh()
+
+                if category == "model":
+                    firm = item["firm"] if item["firm"] in firms_with_data else (list(firms_with_data)[0] if firms_with_data else item["firm"])
+                    default_period = extracted.get("period") if extracted.get("period") in ALL_PERIODS else ALL_PERIODS[0]
+                    existing = current["period_estimates"].get(default_period, {}).get(firm, {})
+
+                    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+                        r_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1")
+                        r_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"],
+                                              value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1")
+                    with ui.row().classes("w-full gap-3"):
+                        r_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1")
+                        r_eps = ui.number("EPS Est ($)", value=extracted.get("eps_est") or existing.get("EPS Est") or 0.0, step=0.01).classes("flex-1")
+                        r_rev = ui.number("Revenue Est ($M)", value=extracted.get("revenue_est") or existing.get("Revenue Est ($M)") or 0.0, step=0.5).classes("flex-1")
+                        r_ebd = ui.number("EBITDA Est ($M)", value=extracted.get("ebitda_est") or existing.get("EBITDA Est ($M)") or 0.0, step=0.1).classes("flex-1")
+                    if extracted:
+                        ui.label("Numbers pre-filled by AI from the attached file — check them before confirming.").style(
+                            f"color:{COLORS['warning']};font-size:11px;")
+
+                    def confirm(item_id=item["id"], firm=item["firm"], r_period=r_period, r_rating=r_rating,
+                                r_pt=r_pt, r_eps=r_eps, r_rev=r_rev, r_ebd=r_ebd):
+                        ok = consensus.confirm_model_review(
+                            item_id, period=r_period.value, firm=firm, rating=r_rating.value,
+                            price_target=r_pt.value or None, eps_est=r_eps.value if r_eps.value else None,
+                            revenue_est=r_rev.value or None, ebitda_est=r_ebd.value or None,
+                        )
+                        if ok:
+                            ui.notify(f"{firm} consensus updated for {r_period.value}.")
+                        else:
+                            ui.notify("That item was already actioned.", type="warning")
+                        _refresh()
+                    confirm_label = "✅ Confirm & Update Consensus"
+
+                elif category == "research_note":
+                    # CFA-lens breakdown, not just a summary — the reviewer
+                    # (Head of IR) should be able to decide in seconds
+                    # whether this is worth circulating further internally.
+                    # Forwarding itself stays a manual human decision (see
+                    # this function's docstring) — this just gets them a
+                    # sharper read than a generic AI summary would.
+                    with ui.column().classes("w-full gap-1").style("margin-top:6px;"):
+                        if extracted.get("thesis_summary"):
+                            ui.label(extracted["thesis_summary"]).style(f"color:{COLORS['text_body']};font-size:12.5px;")
+                        meta_bits = []
+                        if extracted.get("sentiment"):
+                            meta_bits.append(f"Sentiment: {extracted['sentiment']}")
+                        if extracted.get("variant_view"):
+                            meta_bits.append(f"View: {extracted['variant_view']}")
+                        if extracted.get("valuation_method"):
+                            meta_bits.append(f"Method: {extracted['valuation_method']}")
+                        if meta_bits:
+                            ui.label(" · ".join(meta_bits)).style(f"color:{COLORS['accent_light']};font-size:11.5px;font-weight:bold;")
+                        if extracted.get("key_assumptions"):
+                            ui.label(f"Key assumptions: {extracted['key_assumptions']}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                        if extracted.get("catalysts_risks"):
+                            ui.label(f"Catalysts/risks to watch: {extracted['catalysts_risks']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
+                        if extracted.get("prior_price_target") and extracted.get("price_target"):
+                            ui.label(f"PT change: ${extracted['prior_price_target']} → ${extracted['price_target']}").style(
+                                f"color:{COLORS['text_body']};font-size:11.5px;")
+
+                    has_rating_or_pt = bool(extracted.get("rating") or extracted.get("price_target"))
+                    if has_rating_or_pt:
+                        firm = item["firm"] if item["firm"] in firms_with_data else (list(firms_with_data)[0] if firms_with_data else item["firm"])
+                        default_period = extracted.get("period") if extracted.get("period") in ALL_PERIODS else ALL_PERIODS[0]
+                        existing = current["period_estimates"].get(default_period, {}).get(firm, {})
+                        with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+                            rn_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1")
+                            rn_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"],
+                                                   value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1")
+                            rn_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1")
+                        rn_update_consensus = ui.checkbox("Also update consensus with this rating/PT", value=True)
+                        rn_internal_only = ui.checkbox("Internal Use Only (flag before any further internal circulation)", value=True)
+
+                        def confirm(item_id=item["id"], firm=firm, rn_period=rn_period, rn_rating=rn_rating,
+                                    rn_pt=rn_pt, rn_update_consensus=rn_update_consensus, rn_internal_only=rn_internal_only):
+                            notes = []
+                            if rn_update_consensus.value:
+                                consensus.update_estimate(rn_period.value, firm, rating=rn_rating.value,
+                                                           price_target=rn_pt.value or None, source="email_research_note")
+                                notes.append(f"consensus updated for {firm}, {rn_period.value}")
+                            notes.append("marked Internal Use Only" if rn_internal_only.value else "reviewed")
+                            inbox_queue.mark_confirmed(item_id, outcome="; ".join(notes).capitalize())
+                            ui.notify(f"Research note from {firm} — {', '.join(notes)}.")
+                            _refresh()
+                    else:
+                        rn_internal_only = ui.checkbox("Internal Use Only (flag before any further internal circulation)", value=True)
+
+                        def confirm(item_id=item["id"], firm=item["firm"], rn_internal_only=rn_internal_only):
+                            outcome = "Marked Internal Use Only" if rn_internal_only.value else "Reviewed"
+                            inbox_queue.mark_confirmed(item_id, outcome=outcome)
+                            ui.notify(f"Research note from {firm} — {outcome.lower()}.")
+                            _refresh()
+                    confirm_label = "✅ Confirm Review"
+
+                elif category == "ndr_request":
+                    n_city = ui.input("City *", value=extracted.get("city") or "").classes("w-full").style("margin-top:6px;")
+                    n_metro = ui.input("Metro region", value=extracted.get("metro") or "").classes("w-full")
+                    n_reason = ui.textarea("Reason / context", value=extracted.get("reason") or "").classes("w-full")
+
+                    def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
+                                n_city=n_city, n_metro=n_metro, n_reason=n_reason):
+                        if not n_city.value:
+                            ui.notify("City is required.", type="warning")
+                            return
+                        reqs = _load_ndr_requests()
+                        reqs.append({
+                            "id": datetime.now().strftime("%Y%m%d%H%M%S"), "analyst": contact, "firm": firm,
+                            "city": n_city.value, "metro": n_metro.value or n_city.value, "reason": n_reason.value or "—",
+                            "received": datetime.now().strftime("%b %d, %Y"), "resolved": False, "seeded": False,
+                        })
+                        _save_ndr_requests(reqs)
+                        inbox_queue.mark_confirmed(item_id, outcome=f"Logged NDR request for {n_city.value}")
+                        ui.notify(f"NDR request from {contact} logged — see NDR Planner → Requests.")
+                        _refresh()
+                    confirm_label = "✅ Log NDR Request"
+
+                elif category == "conference_invite":
+                    c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;")
+                    c_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or "").classes("w-full")
+                    c_loc = ui.input("Location", value=extracted.get("location") or "").classes("w-full")
+
+                    def confirm(item_id=item["id"], firm=item["firm"], c_event=c_event, c_date=c_date, c_loc=c_loc):
+                        if not c_event.value:
+                            ui.notify("Event name is required.", type="warning")
+                            return
+                        events = db.load_json("ir_conference_calendar.csv", None) or []
+                        events.append({
+                            "Event": c_event.value, "Type": "Conference", "Date": c_date.value or "TBD",
+                            "Location": c_loc.value or "—", "Organizer": firm, "Status": "Invited — pending confirmation",
+                            "Deadline": "—", "Notes": f"Invitation received by email from {item['contact']} ({firm}).",
+                            "Source": "Email invite", "Attending": "TBD", "Priority": "Medium",
+                        })
+                        db.save_json("ir_conference_calendar.csv", events)
+                        inbox_queue.mark_confirmed(item_id, outcome=f"Added '{c_event.value}' to Calendar")
+                        ui.notify(f"'{c_event.value}' added to Calendar — confirm details there.")
+                        _refresh()
+                    confirm_label = "✅ Add to Calendar"
+
+                elif category == "speak_to_management":
+                    m_contact_role = ui.input("Requested contact", value=extracted.get("requested_contact") or "CFO / IR").classes("w-full").style("margin-top:6px;")
+                    m_topic = ui.textarea("Topic", value=extracted.get("topic") or "").classes("w-full")
+                    m_date = ui.input("Proposed date (YYYY-MM-DD)", value=(datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full")
+
+                    def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
+                                m_topic=m_topic, m_date=m_date):
+                        meetings = db.load_json("scheduled_meetings.json", None) or []
+                        meetings.append({
+                            "id": str(uuid.uuid4()), "Contact": contact, "Firm": firm, "Side": "Buy-side",
+                            "Date": m_date.value, "Time": "", "Type": "Callback",
+                            "Topic": m_topic.value or "Speak-to-management request from email — confirm date/time.",
+                            "Status": "Requested", "Priority": "Medium",
+                        })
+                        db.save_json("scheduled_meetings.json", meetings)
+                        inbox_queue.mark_confirmed(item_id, outcome=f"Scheduled meeting request for {contact}")
+                        ui.notify(f"Meeting request from {contact} added to Meeting Hub — confirm date/time there.")
+                        _refresh()
+                    confirm_label = "✅ Schedule Meeting"
+
+                else:  # meeting_confirmation
+                    mc_type = ui.select(["1x1 call", "Conference call", "Video call", "In-person", "Other"],
+                                         value=extracted.get("meeting_type") or "1x1 call", label="Meeting type").classes("w-full").style("margin-top:6px;")
+                    mc_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")).classes("w-full")
+                    mc_time = ui.input("Time", value=extracted.get("time") or "").classes("w-full")
+                    mc_notes = ui.textarea("Notes", value=extracted.get("notes") or "").classes("w-full")
+
+                    def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
+                                mc_type=mc_type, mc_date=mc_date, mc_time=mc_time, mc_notes=mc_notes):
+                        meetings = db.load_json("scheduled_meetings.json", None) or []
+                        meetings.append({
+                            "id": str(uuid.uuid4()), "Contact": contact, "Firm": firm, "Side": "Buy-side",
+                            "Date": mc_date.value, "Time": mc_time.value, "Type": mc_type.value,
+                            "Topic": mc_notes.value or "Confirmed via email — see original message for details.",
+                            "Status": "Confirmed", "Priority": "Medium",
+                        })
+                        db.save_json("scheduled_meetings.json", meetings)
+                        inbox_queue.mark_confirmed(item_id, outcome=f"Logged confirmed meeting with {contact} on {mc_date.value}")
+                        ui.notify(f"Confirmed meeting with {contact} added to Meeting Hub.")
+                        _refresh()
+                    confirm_label = "✅ Log Confirmed Meeting"
+
+                with ui.row().classes("w-full gap-2").style("margin-top:6px;"):
+                    ui.button(confirm_label, on_click=confirm).props("color=primary dense")
+                    ui.button("Dismiss", on_click=dismiss).props("flat dense")
+
+
+def _render_linked_documents(contact, firm):
+    """Shown on an Upcoming Meetings card — "pull up the model the analyst
+    sent in and the most recent note" in one place, instead of hunting
+    through email or a shared drive. Looks up by contact+firm (the same
+    join key used by post_meeting_notes.json and the Meeting Log), so this
+    works whether the document was attached from Schedule Meeting, from
+    Post-Meeting Notes, or (once wired) pulled in from the IR inbox."""
+    model_doc = documents.get_latest_document(contact=contact, firm=firm, doc_type="model")
+    note_doc = documents.get_latest_document(contact=contact, firm=firm, doc_type="note_attachment")
+    if not (model_doc or note_doc):
+        return
+
+    def _download(doc_id):
+        result = documents.get_document_bytes(doc_id)
+        if result:
+            fname, _ctype, raw = result
+            ui.download(raw, filename=fname)
+
+    with ui.row().classes("w-full gap-2").style("margin-top:4px;flex-wrap:wrap;"):
+        if model_doc:
+            ui.button(f"📎 Latest model — {model_doc['filename']}",
+                      on_click=lambda doc_id=model_doc["id"]: _download(doc_id)) \
+                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
+        if note_doc:
+            ui.button(f"📝 Latest note attachment — {note_doc['filename']}",
+                      on_click=lambda doc_id=note_doc["id"]: _download(doc_id)) \
+                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
+
+
+def _hub_metric(label, value):
+    with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+        ui.label(str(value)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:10px;")
+
+
+def _safe_date(s):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return datetime.now().date()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Target Database tab
+# ─────────────────────────────────────────────────────────────────────────
+def _render_target_db_tab(institutions, client_id):
+    prospects = _load_json("prospects.json", [])
+
+    ui.label("🎯 Target Database").classes("text-lg font-bold")
+    ui.label("Search and filter the tracked institution universe, plus manually-added prospects. The automated "
+             "prospecting pipeline below (Analyst Coverage Network, live-13F auto-generation, NOBO cross-reference, "
+             "bulk paste) is ported and rebuilt on the live SEC 13F fetcher — see each section for details.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
+
+    search_in = ui.input("Search by fund name").classes("w-full")
+    results = ui.column().classes("w-full gap-2")
+
+    _OUTCOME_OPTIONS = {"— unresolved —": None, "Won (meeting set / met / owns)": "positive", "Passed": "negative"}
+    _OUTCOME_REVERSE = {"positive": "Won (meeting set / met / owns)", "negative": "Passed", None: "— unresolved —"}
+
+    def do_search():
+        results.clear()
+        q = (search_in.value or "").lower().strip()
+        combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
+                    "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None} for i in institutions]
+        current_prospects = _load_json("prospects.json", [])
+        combined += [{"Fund": p["fund"], "Metro": p.get("metro", "—"), "Type": p.get("style", "—"),
+                     "USIO_Holder": False, "Score": p.get("score", 0), "Source": "Prospect", "_pidx": idx,
+                     "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown"))}
+                     for idx, p in enumerate(current_prospects)]
+        if q:
+            combined = [c for c in combined if q in c["Fund"].lower()]
+        combined.sort(key=lambda x: -x["Score"])
+        with results:
+            if not combined:
+                ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
+            for c in combined:
+                with ui.row().classes("w-full items-center justify-between").style(
+                        f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+                    ui.label(f"{c['Fund']} ({c['Source']})").style(f"color:{COLORS['text_body']};font-size:13px;")
+                    ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    # Outcome marker — only for prospects that were added WITH a
+                    # stored Fit Score breakdown (see run_fit_score_ranking's
+                    # add_scored_prospect), since that's what
+                    # core.fit_score.suggest_reweight() needs to learn from.
+                    # Every "Won" or "Passed" logged here is a labeled data
+                    # point the re-weight suggestion picks up next time it runs.
+                    if c["Source"] == "Prospect" and c.get("_has_score"):
+                        def set_outcome(e, pidx=c["_pidx"]):
+                            plist = _load_json("prospects.json", [])
+                            plist[pidx]["outcome"] = _OUTCOME_OPTIONS.get(e.value)
+                            _save_json("prospects.json", plist)
+                            ui.notify("Outcome saved.")
+
+                        ui.select(list(_OUTCOME_OPTIONS.keys()), value=_OUTCOME_REVERSE.get(c.get("_outcome")),
+                                  on_change=set_outcome).props("dense outlined").classes("min-w-[220px]")
+
+    search_in.on("keydown.enter", do_search)
+    ui.button("Search", on_click=do_search).props("dense")
+    do_search()
+
+    ui.markdown("---")
+    with ui.expansion("✍️ Add a prospect manually").classes("w-full"):
+        p_fund = ui.input("Fund name *").classes("w-full")
+        p_metro = ui.input("Metro / region").classes("w-full")
+        p_style = ui.input("Investment style").classes("w-full")
+        p_score = ui.number("Fit score (0-100)", value=50, min=0, max=100)
+        p_notes = ui.textarea("Notes").classes("w-full")
+
+        def add_prospect():
+            if not p_fund.value:
+                ui.notify("Fund name is required.", type="warning")
+                return
+            plist = _load_json("prospects.json", [])
+            plist.append({"fund": p_fund.value, "metro": p_metro.value, "style": p_style.value,
+                          "score": p_score.value, "notes": p_notes.value, "added": datetime.now().strftime("%Y-%m-%d")})
+            _save_json("prospects.json", plist)
+            ui.notify(f"Added {p_fund.value} to the prospect list.")
+            _refresh()
+
+        ui.button("➕ Add Prospect", on_click=add_prospect).props("color=primary")
+
+    ui.markdown("---")
+    with ui.expansion("📋 Bulk paste-from-website", value=False).classes("w-full"):
+        ui.label("Some sites (WhaleWisdom in particular) render holder tables as styled grids, not plain HTML "
+                  "tables — copy/paste from those won't preserve columns cleanly through a file upload. Paste raw "
+                  "text here instead; it's parsed by tab or by runs of 2+ spaces.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+        bp_raw = ui.textarea("Paste table here", placeholder="Paste tab-separated or space-aligned rows here...").classes("w-full")
+        bp_preview = ui.column().classes("w-full")
+        bp_state = {"columns": [], "rows": [], "fund_col_idx": 0}
+
+        def bp_parse():
+            bp_preview.clear()
+            columns, rows = prospecting.parse_pasted_table(bp_raw.value or "")
+            bp_state["columns"], bp_state["rows"] = columns, rows
+            with bp_preview:
+                if not rows:
+                    ui.label("Nothing parsed yet — paste some rows above.").style(f"color:{COLORS['text_muted']};")
+                    return
+                ui.label(f"Parsed {len(rows)} row(s) — check this looks right before adding.").style(
+                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+                fund_col_sel = ui.select(columns, value=columns[0], label="Which column is the fund/investor name?").classes("w-full")
+
+                def set_fund_col():
+                    bp_state["fund_col_idx"] = columns.index(fund_col_sel.value)
+                fund_col_sel.on_value_change(set_fund_col)
+
+                with ui.column().classes("w-full").style(f"max-height:220px;overflow-y:auto;border:1px solid {COLORS['border']};border-radius:6px;padding:6px;"):
+                    for r in rows[:30]:
+                        ui.label(" | ".join(r)).style(f"color:{COLORS['text_body']};font-size:11px;")
+                    if len(rows) > 30:
+                        ui.label(f"... + {len(rows) - 30} more rows").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+                def add_all():
+                    plist = _load_json("prospects.json", [])
+                    existing_names = {p["fund"] for p in plist}
+                    added = 0
+                    fi = bp_state["fund_col_idx"]
+                    for r in bp_state["rows"]:
+                        name = r[fi].strip() if fi < len(r) else ""
+                        if not name or name.lower() in ("history", "nan", ""):
+                            continue
+                        if name in existing_names:
+                            continue
+                        other = {columns[i]: r[i] for i in range(len(r)) if i != fi and r[i]}
+                        plist.append({
+                            "fund": name, "metro": "—", "style": "Unknown", "score": 0,
+                            "notes": " · ".join(f"{k}: {v}" for k, v in other.items()),
+                            "added": datetime.now().strftime("%Y-%m-%d"), "source": "Bulk paste",
+                        })
+                        existing_names.add(name)
+                        added += 1
+                    _save_json("prospects.json", plist)
+                    ui.notify(f"✅ Added {added} funds to the prospect queue.")
+                    _refresh()
+
+                ui.button(f"➕ Add all parsed rows to Prospect Queue", on_click=add_all).props("dense").style("margin-top:6px;")
+
+        bp_raw.on_value_change(bp_parse)
+        ui.button("Parse", on_click=bp_parse).props("dense flat")
+
+    ui.markdown("---")
+    with ui.expansion("🔬 Analyst Coverage Network Targeting", value=False).classes("w-full"):
+        ui.label("Institutions already owning other stocks a covering analyst rates Buy have demonstrated they "
+                  "trust that analyst's research and understand the surrounding sector thesis — the "
+                  "highest-probability prospects once that analyst raises this client's target.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        coverage = analyst_coverage.get_coverage(client_id)
+        if not coverage:
+            ui.label("No covering analysts on file yet.").style(f"color:{COLORS['text_muted']};")
+        else:
+            analyst_keys = list(coverage.keys())
+            analyst_sel = ui.select(analyst_keys, value=analyst_keys[0], label="Select analyst coverage network to mine").classes("w-full")
+            coverage_list = ui.column().classes("w-full")
+
+            def render_coverage_list():
+                coverage_list.clear()
+                cov = analyst_coverage.get_coverage(client_id)
+                data = cov.get(analyst_sel.value)
+                if not data:
+                    return
+                with coverage_list:
+                    ui.label(f"{data['analyst']} — {data['firm']} · {data['email']} · "
+                              f"{len(data['coverage'])} stocks in coverage universe").classes("font-bold").style(
+                        f"color:{COLORS['text_heading']};font-size:12.5px;")
+                    for stock in sorted(data["coverage"], key=lambda s: -s.get("relevance", 0)):
+                        rel = stock.get("relevance", 0)
+                        rel_clr = "#4ADE80" if rel >= 80 else "#F0A830" if rel >= 50 else "#94A3B8"
+                        with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};margin-top:4px;"):
+                            with ui.row().classes("w-full justify-between items-center"):
+                                ui.label(f"{stock['ticker']} — {stock['name']} · {stock.get('sector', '—')}").classes("font-bold").style(
+                                    f"color:{COLORS['text_heading']};font-size:12.5px;")
+                                ui.label(f"{stock.get('rating', '—')} · PT ${stock.get('pt', 0):.2f} · Relevance {rel}/100").style(
+                                    f"color:{rel_clr};font-size:11.5px;font-weight:bold;")
+                            if stock.get("bridge"):
+                                ui.label(stock["bridge"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            if stock.get("shared_dna"):
+                                ui.label(" · ".join(t.strip() for t in stock["shared_dna"].split("·") if t.strip())).style(
+                                    f"color:{COLORS['accent_light']};font-size:10.5px;")
+
+            analyst_sel.on_value_change(render_coverage_list)
+            render_coverage_list()
+
+            ui.markdown("---")
+            with ui.expansion("➕ Add stock to this analyst's coverage").classes("w-full"):
+                ac_ticker = ui.input("Ticker").classes("w-full")
+                ac_name = ui.input("Company name").classes("w-full")
+                ac_pt = ui.number("Price target ($)", value=0.0, step=0.25)
+                ac_rating = ui.select(["Buy", "Neutral", "Sell"], value="Buy")
+                ac_sector = ui.input("Sector").classes("w-full")
+                ac_relevance = ui.number("USIO relevance (0-100)", value=50, min=0, max=100)
+                ac_bridge = ui.textarea("Why holders of this ticker are prospects").classes("w-full")
+
+                def add_coverage_entry():
+                    if not (ac_ticker.value and ac_name.value):
+                        ui.notify("Ticker and company name are required.", type="warning")
+                        return
+                    ok = analyst_coverage.add_coverage_stock(
+                        analyst_sel.value, ac_ticker.value, ac_name.value, ac_pt.value, ac_rating.value,
+                        ac_sector.value, relevance=int(ac_relevance.value), bridge=ac_bridge.value, client_id=client_id,
+                    )
+                    if ok:
+                        ui.notify(f"{ac_ticker.value.upper()} added to {analyst_sel.value}'s coverage.")
+                        render_coverage_list()
+                    else:
+                        ui.notify(f"{ac_ticker.value.upper()} is already in this analyst's coverage.", type="warning")
+
+                ui.button("➕ Add", on_click=add_coverage_entry).props("dense")
+
+    ui.markdown("---")
+    with ui.expansion("🤖 Automated Prospecting Pipeline — Live 13F Holders of Coverage-Network Stocks", value=False).classes("w-full"):
+        ui.label("For the selected analyst's other Buy-rated stocks scoring at or above the threshold, pulls real "
+                  "SEC 13F institutional holders (already fetched via the SEC Intelligence tab's 'Refresh 13F "
+                  "Institutional Holders' button — this does not trigger a new download itself), excludes anyone "
+                  "already tracked or already in the prospect queue, and ranks the rest.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        coverage2 = analyst_coverage.get_coverage(client_id)
+        if not coverage2:
+            ui.label("No covering analysts on file — add one above first.").style(f"color:{COLORS['text_muted']};")
+        else:
+            analyst_keys2 = list(coverage2.keys())
+            auto_analyst = ui.select(analyst_keys2, value=analyst_keys2[0], label="Analyst coverage network").classes("w-full")
+            ui.label("Minimum USIO relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            auto_threshold = ui.slider(min=0, max=100, value=50, step=5).props("label-always")
+            auto_results = ui.column().classes("w-full")
+
+            def run_auto_prospecting():
+                auto_results.clear()
+                known_names = {i["Fund"] for i in institutions} | {p["fund"] for p in _load_json("prospects.json", [])}
+                result = prospecting.generate_coverage_prospects(
+                    auto_analyst.value, min_relevance=int(auto_threshold.value),
+                    known_fund_names=known_names, client_id=client_id,
+                )
+                with auto_results:
+                    if result["not_fetched_tickers"]:
+                        ui.label(f"⚠️ No live 13F data cached yet for: {', '.join(result['not_fetched_tickers'])} — "
+                                  f"add them to the Peer Universe below and refresh 13F on the SEC Intelligence tab "
+                                  f"to include their holders here.").style(f"color:{COLORS['warning']};font-size:11px;")
+                    if not result["prospects"]:
+                        ui.label("No new prospects found at this relevance threshold.").style(f"color:{COLORS['text_muted']};")
+                        return
+                    ui.label(f"{len(result['prospects'])} prospect(s) found:").classes("font-bold")
+                    for p in result["prospects"][:25]:
+                        with ui.row().classes("w-full items-start justify-between").style(
+                                f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+                            with ui.column().classes("flex-1"):
+                                ui.label(f"{p['fund']} — via {p['source_ticker']} ({p['source_name']})").classes("font-bold").style(
+                                    f"color:{COLORS['text_heading']};font-size:12.5px;")
+                                ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                # size_known=False means this holder came from the EDGAR full-text-search
+                                # path (sec_filings._search_holders_for_ticker) — confirmed to hold a
+                                # position, but exact share/dollar size wasn't fetched (see that
+                                # function's docstring). Showing "1 shares · $0 reported" in that case
+                                # would be misleadingly precise-looking for a value we don't actually have.
+                                size_line = (f"{p['shares']:,} shares · ${p['value']:,} reported · relevance {p['relevance']}/100"
+                                             if p.get("size_known", True)
+                                             else f"confirmed holder (position size not available) · relevance {p['relevance']}/100")
+                                ui.label(size_line).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+                            def add_this(p=p):
+                                plist = _load_json("prospects.json", [])
+                                if any(x["fund"] == p["fund"] for x in plist):
+                                    ui.notify(f"{p['fund']} is already in the prospect queue.", type="warning")
+                                    return
+                                plist.append({
+                                    "fund": p["fund"], "metro": "—", "style": "Unknown", "score": p["relevance"],
+                                    "notes": p["talking_point"], "added": datetime.now().strftime("%Y-%m-%d"),
+                                    "source": f"Coverage Network — {p['source_ticker']}",
+                                })
+                                _save_json("prospects.json", plist)
+                                ui.notify(f"{p['fund']} added to prospect queue.")
+                                _refresh()
+
+                            ui.button("➕ Add", on_click=add_this).props("flat dense")
+
+            ui.button("🚀 Auto-Generate Prospect List", on_click=run_auto_prospecting).props("color=primary dense")
+            run_auto_prospecting()
+
+    ui.markdown("---")
+    with ui.expansion("📋 NOBO Cross-Reference", value=False).classes("w-full"):
+        ui.label("Request from the transfer agent (e.g. Computershare) quarterly — Excel or CSV with holder name "
+                  "and shares. Compares a list of names (the prospect queue, tracked institutions, the call "
+                  "listener log, the IR website visitor log, or a pasted list) against this client's actual NOBO "
+                  "shareholder file — matches are already-identified shareholders; everyone else is a real, "
+                  "unconfirmed prospect.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        nobo_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        def refresh_nobo_status():
+            cur = prospecting.get_nobo_list(client_id)
+            if cur.get("rows"):
+                nobo_status.text = f"✅ {cur['source_label']} — {len(cur['rows'])} holders on file (loaded {cur['_fetched_at'][:10]})"
+            else:
+                nobo_status.text = "No NOBO file on hand yet — request one from your transfer agent, or upload one below."
+        refresh_nobo_status()
+
+        async def handle_nobo_upload(e):
+            try:
+                raw = await e.file.read()
+                fname = e.file.name
+                if fname.lower().endswith(".csv"):
+                    text = raw.decode("utf-8", errors="replace")
+                    rows_in = list(csv.DictReader(io.StringIO(text)))
+                else:
+                    df = pd.read_excel(io.BytesIO(raw))
+                    rows_in = df.to_dict("records")
+                if not rows_in:
+                    ui.notify("That file has no rows.", type="warning")
+                    return
+
+                def find_col(row, *keywords):
+                    for k in row.keys():
+                        if any(kw in str(k).lower() for kw in keywords):
+                            return k
+                    return None
+
+                name_col = find_col(rows_in[0], "holder_name", "holder name", "name")
+                shares_col = find_col(rows_in[0], "shares")
+                if not (name_col and shares_col):
+                    ui.notify("Couldn't find a holder-name and shares column — check this file's headers.", type="negative")
+                    return
+                parsed = []
+                for r in rows_in:
+                    try:
+                        shares = int(float(r.get(shares_col, 0) or 0))
+                    except (TypeError, ValueError):
+                        shares = 0
+                    name = str(r.get(name_col, "")).strip()
+                    if name and name.lower() != "nan":
+                        parsed.append({"holder_name": name, "shares": shares})
+                prospecting.save_nobo_list(parsed, source_label=f"Uploaded: {fname}", client_id=client_id)
+                ui.notify(f"✅ NOBO list updated — {len(parsed)} holders.")
+                refresh_nobo_status()
+            except Exception as ex:
+                ui.notify(f"Couldn't read that file: {ex}", type="negative")
+
+        ui.upload(on_upload=handle_nobo_upload, auto_upload=True).props("accept=.csv,.xlsx flat").classes("w-full")
+
+        ui.markdown("---")
+        nobo_source_options = ["Prospect Queue", "Tracked Institutions"]
+        if os.path.exists(client_data_path("q1_2026_call_listener_log.csv", client_id)):
+            nobo_source_options.append("Call Listener Log")
+        if os.path.exists(client_data_path("ir_website_visitor_log.csv", client_id)):
+            nobo_source_options.append("IR Website Visitor Log")
+        nobo_source_options.append("Paste names")
+
+        nobo_compare_src = ui.select(nobo_source_options, value="Prospect Queue", label="Compare against:").classes("w-full")
+        nobo_paste = ui.textarea("Paste one name per line").classes("w-full")
+        nobo_paste.set_visibility(False)
+        nobo_compare_src.on_value_change(lambda: nobo_paste.set_visibility(nobo_compare_src.value == "Paste names"))
+        nobo_results = ui.column().classes("w-full")
+
+        def run_nobo_compare():
+            nobo_results.clear()
+            src = nobo_compare_src.value
+            if src == "Prospect Queue":
+                names = [p["fund"] for p in _load_json("prospects.json", [])]
+            elif src == "Tracked Institutions":
+                names = [i["Fund"] for i in institutions]
+            elif src == "Call Listener Log":
+                cl = pd.read_csv(client_data_path("q1_2026_call_listener_log.csv", client_id))
+                names = cl["Firm"].dropna().unique().tolist() if "Firm" in cl.columns else []
+            elif src == "IR Website Visitor Log":
+                vl = pd.read_csv(client_data_path("ir_website_visitor_log.csv", client_id))
+                names = vl["Visitor_Organization"].dropna().unique().tolist() if "Visitor_Organization" in vl.columns else []
+            else:
+                names = [n.strip() for n in (nobo_paste.value or "").split("\n") if n.strip()]
+
+            with nobo_results:
+                if not prospecting.get_nobo_list(client_id).get("rows"):
+                    ui.label("Upload a NOBO file above first.").style(f"color:{COLORS['text_muted']};")
+                    return
+                if not names:
+                    ui.label("Nothing to compare — that source is empty.").style(f"color:{COLORS['text_muted']};")
+                    return
+                matched, unmatched = prospecting.match_against_nobo(names, client_id=client_id)
+                ui.label(f"{len(matched)} identified on the NOBO file · {len(unmatched)} not found — real "
+                          f"prospects, not already-known shareholders").classes("font-bold")
+                with ui.row().classes("w-full gap-4"):
+                    with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
+                        ui.label("✅ Identified shareholders").classes("font-bold").style("color:#4ADE80;font-size:12px;")
+                        if matched:
+                            for nm, mn, sh in matched:
+                                ui.label(f"{nm} → {mn} — {sh:,} shares").style(f"color:{COLORS['text_body']};font-size:11px;")
+                        else:
+                            ui.label("None matched.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
+                        ui.label("🎯 Not on the NOBO file (genuine prospects)").classes("font-bold").style(
+                            f"color:{COLORS['text_heading']};font-size:12px;")
+                        if unmatched:
+                            for nm in unmatched:
+                                ui.label(nm).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        else:
+                            ui.label("Everything compared matched the NOBO file.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+        ui.button("Compare", on_click=run_nobo_compare).props("dense")
+
+    ui.markdown("---")
+    _render_peer_universe_manager(institutions)
+
+
+def _render_peer_universe_manager(institutions):
+    ui.label("🎯 Peer Cross-Targeting — Find Institutions Owning Peers But Not This Client").classes("font-bold")
+    peers = _load_peer_universe()
+
+    with ui.expansion("⚙️ Manage Peer Universe — Add or Remove Tickers", value=False).classes("w-full"):
+        ui.label(f"Custom peer group saved to peer_universe.csv · Persists across restarts · {len(peers)} peers currently tracked").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        manage_list = ui.column().classes("w-full")
+
+        def render_manage_list():
+            manage_list.clear()
+            current = _load_peer_universe()
+            with manage_list:
+                for idx, p in enumerate(current):
+                    with ui.row().classes("w-full items-center justify-between").style(f"border-bottom:1px solid {COLORS['border']};padding:4px 0;"):
+                        ev = f"{p['ev_rev']}x" if p.get("ev_rev") else "no EV/Rev on file"
+                        ui.label(f"{p['ticker']} — {p['name']} · {p.get('sector','—')} · {ev}").style(f"color:{COLORS['text_body']};font-size:12.5px;")
+
+                        def do_delete(idx=idx):
+                            cur = _load_peer_universe()
+                            removed = cur.pop(idx)
+                            _save_peer_universe(cur)
+                            ui.notify(f"{removed['ticker']} removed.")
+                            render_manage_list()
+
+                        # Fit Score inputs — tier drives Comparability fit +
+                        # the P1-P4 tier's "core" bonus; weight drives Peer
+                        # conviction (see core/fit_score.py). Saved
+                        # immediately on change, no separate Save button —
+                        # matches the delete button's immediate-effect pattern
+                        # right next to it.
+                        def set_tier(e, idx=idx):
+                            cur = _load_peer_universe()
+                            cur[idx]["tier"] = e.value
+                            _save_peer_universe(cur)
+
+                        def set_weight(e, idx=idx):
+                            try:
+                                w = float(e.value)
+                            except (TypeError, ValueError):
+                                return
+                            cur = _load_peer_universe()
+                            cur[idx]["weight"] = w
+                            _save_peer_universe(cur)
+
+                        ui.select(["core", "close", "large"], value=p.get("tier", "close"),
+                                  on_change=set_tier).props("dense outlined").classes("min-w-[90px]")
+                        ui.number(value=p.get("weight", 1.0), min=0.1, max=5.0, step=0.5,
+                                  on_change=set_weight).props("dense outlined").classes("min-w-[70px]")
+                        ui.button("🗑", on_click=do_delete).props("flat dense")
+
+        render_manage_list()
+        ui.label("Tier: \"core\" = closest-size direct comp (full Fit Score points, +5 conviction bonus) · "
+                 "\"close\" = real but less-comparable peer (default) · \"large\" = mega-cap/weak-signal peer. "
+                 "Weight scales Peer Conviction — higher for peers closest to this client's own size.").style(
+            f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+        ui.markdown("---")
+
+        ui.label("Add a new peer ticker:").classes("font-bold").style("font-size:12.5px;")
+        with ui.row().classes("w-full gap-2"):
+            new_ticker = ui.input("Ticker", placeholder="e.g. PAYO").classes("flex-1")
+            new_name = ui.input("Company name", placeholder="e.g. Payoneer Global").classes("flex-1")
+            new_sector = ui.input("Sector / focus", placeholder="e.g. Cross-Border Payments").classes("flex-1")
+            new_ev = ui.input("EV/Rev (optional)", placeholder="EV/Rev").classes("min-w-[100px]")
+        with ui.row().classes("w-full gap-2"):
+            new_tier = ui.select(["core", "close", "large"], value="close", label="Fit Score tier").classes("min-w-[120px]")
+            new_weight = ui.number("Fit Score weight", value=1.0, min=0.1, max=5.0, step=0.5).classes("min-w-[120px]")
+
+        def add_peer():
+            tkr = (new_ticker.value or "").upper().strip()
+            nm = (new_name.value or "").strip()
+            if not (tkr and nm):
+                ui.notify("Enter at least a ticker and company name.", type="warning")
+                return
+            cur = _load_peer_universe()
+            if tkr in [p["ticker"] for p in cur]:
+                ui.notify(f"{tkr} is already in the peer universe.", type="warning")
+                return
+            try:
+                ev_val = float(new_ev.value) if new_ev.value and new_ev.value.strip() else None
+            except ValueError:
+                ev_val = None
+            cur.append({"ticker": tkr, "name": nm, "sector": new_sector.value or "Payments / Fintech", "ev_rev": ev_val,
+                        "tier": new_tier.value or "close", "weight": float(new_weight.value or 1.0)})
+            _save_peer_universe(cur)
+            ui.notify(f"✅ {tkr} — {nm} added and saved" + (f" with EV/Rev {ev_val}x." if ev_val else " — no EV/Rev yet, flagged as needing research."))
+            new_ticker.value, new_name.value, new_sector.value, new_ev.value = "", "", "", ""
+            new_tier.value, new_weight.value = "close", 1.0
+            render_manage_list()
+            _refresh()
+
+        ui.button("➕ Add", on_click=add_peer).props("dense")
+
+        missing_ev = [p["ticker"] for p in peers if not p.get("ev_rev")]
+        if missing_ev:
+            ui.label(f"⚠️ No EV/Revenue multiple on file for: {', '.join(missing_ev)} — these won't get a specific "
+                     f"valuation comparison in outreach drafts until a multiple is added here.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;")
+
+        ui.markdown("---")
+        ui.label("Quick-add common fintech peers:").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        quick_peers = [("PAYO", "Payoneer", "Cross-Border"), ("FLYW", "Flywire", "Ed/Healthcare Payments"),
+                       ("RELY", "Remitly", "Digital Remittance"), ("EVTC", "EVERTEC", "LatAm Payments"),
+                       ("I", "Inpay", "B2B Cross-Border")]
+        with ui.row().classes("w-full gap-2"):
+            for qt, qn, qs in quick_peers:
+                existing_tickers = [p["ticker"] for p in peers]
+
+                def add_quick(qt=qt, qn=qn, qs=qs):
+                    cur = _load_peer_universe()
+                    cur.append({"ticker": qt, "name": qn, "sector": qs, "ev_rev": None})
+                    _save_peer_universe(cur)
+                    ui.notify(f"{qt} added.")
+                    render_manage_list()
+                    _refresh()
+
+                if qt in existing_tickers:
+                    ui.label(f"✅ {qt}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                else:
+                    ui.button(f"+ {qt}", on_click=add_quick).props("flat dense")
+
+    ui.markdown("---")
+    all_tickers = [p["ticker"] for p in peers]
+
+    # Data-freshness summary — shown BEFORE the selector so it's clear
+    # up front which tickers this analysis can actually back with a real
+    # SEC 13F filing right now vs. which are still on the original seed
+    # guess (see _enrich_peer_holdings_with_live_13f). A ticker only
+    # becomes "live" after someone clicks "Refresh 13F Institutional
+    # Holders" on the SEC Intelligence tab for it — this list doesn't
+    # trigger that fetch itself (13F refresh is heavy, see
+    # core/sec_filings.py's module docstring).
+    _live_tickers = [t for t in all_tickers if sec_filings.get_cached_13f_holders(t).get("quarter")]
+    _seed_tickers = [t for t in all_tickers if t not in _live_tickers]
+    _freshness_bits = []
+    if _live_tickers:
+        _freshness_bits.append(f"✅ Live SEC 13F data: {', '.join(_live_tickers)}")
+    if _seed_tickers:
+        _freshness_bits.append(f"⚠️ Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
+    ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:11px;")
+    if _seed_tickers:
+        ui.label("Refresh a ticker from the SEC Intelligence tab's \"Refresh 13F Institutional Holders\" "
+                  "button to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+
+    with ui.row().classes("w-full gap-4"):
+        peer_select = ui.select(all_tickers, multiple=True, value=all_tickers,
+                                 label="Select peers to cross-reference").classes("flex-1")
+        aum_select = ui.select(["Any", "$100M+", "$500M+", "$1B+"], value="$100M+", label="Min fund AUM").classes("min-w-[140px]")
+
+    results_area = ui.column().classes("w-full")
+
+    def run_cross_targeting(from_click=False):
+        # This already runs once automatically on page load (see the
+        # unconditional call at the bottom of this function), so the results
+        # below are visible before anyone touches the button. Clicking
+        # "Run cross-targeting" without first changing the peer selection or
+        # AUM filter re-renders the identical list — which reads as "the
+        # button did nothing" even though it worked. The ui.notify() calls
+        # below give every click a visible confirmation regardless of
+        # whether the underlying result list actually changed.
+        results_area.clear()
+        sel = peer_select.value or []
+        aum_min = {"Any": 0.0, "$100M+": 100.0, "$500M+": 500.0, "$1B+": 1000.0}[aum_select.value]
+        with results_area:
+            if not sel:
+                ui.label("Select at least one peer ticker to run cross-targeting analysis.").style(f"color:{COLORS['text_muted']};")
+                if from_click:
+                    ui.notify("Select at least one peer ticker first.", type="warning")
+                return
+            for t in sel:
+                info = next((p for p in peers if p["ticker"] == t), None)
+                if info:
+                    ui.label(f"{t} — {info['name']} · {info.get('sector','—')}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+            cross_targets = [i for i in institutions
+                              if not i["USIO_Holder"]
+                              and any(p in i["Peer_Holdings"] for p in sel)
+                              and _parse_aum_millions(i["AUM"]) >= aum_min]
+            if not cross_targets:
+                ui.label("No cross-target matches at this AUM threshold. This checks your tracked watchlist "
+                         "institutions by exact legal-entity name against the live SEC 13F filer roster — a peer "
+                         "can have real institutional holders (see the SEC Intelligence tab) without any of them "
+                         "being one of the specific institutions on your watchlist. Add more institutions to the "
+                         "watchlist above, or lower the AUM threshold.").style(f"color:{COLORS['text_muted']};margin-top:6px;")
+                if from_click:
+                    ui.notify("Cross-targeting run — no matches at this AUM threshold.", type="warning")
+                return
+            ui.label(f"{len(cross_targets)} institutions own {', '.join(sel)} but NOT this client (AUM ≥ {aum_select.value}):").classes("font-bold").style("margin-top:6px;")
+            for ct in sorted(cross_targets, key=lambda x: x["Engagement_Score"], reverse=True):
+                overlap = [p for p in sel if p in ct["Peer_Holdings"]]
+                # Same ✅ = confirmed-by-real-13F-filing marker as the
+                # institution card's "Peers held" line — kept consistent so
+                # the same overlap doesn't look "more real" in one place
+                # than the other.
+                ct_src = ct.get("Peer_Holdings_Source", {})
+                overlap_labels = [p + (" ✅" if ct_src.get(p) == "live" else "") for p in overlap]
+                score = ct["Engagement_Score"]
+                score_clr = "#4ADE80" if score >= 80 else "#F0A830" if score >= 50 else "#94A3B8"
+                with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
+                    with ui.row().classes("w-full justify-between items-center"):
+                        ui.label(f"{ct['Fund']} — {ct['Type']} · AUM {ct['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(f"Score: {score}").style(f"color:{score_clr};font-weight:bold;")
+                    ui.label(f"Owns: {', '.join(overlap_labels)} · IR visits (30d): {ct['IR_Visits_30d']} · "
+                             f"Q1 call: {'✅ Yes' if ct['Call_Listener'] else '⭕ No'} · Does NOT own this client").style(
+                        f"color:{COLORS['text_muted']};font-size:11.5px;")
+            if from_click:
+                ui.notify(f"Cross-targeting run — {len(cross_targets)} institution(s) found.", type="positive")
+
+    ui.button("Run cross-targeting", on_click=lambda: run_cross_targeting(from_click=True)).props("color=primary dense")
+    run_cross_targeting()
+
+    ui.markdown("---")
+    ui.label("🏆 Fit Score Ranking — All Confirmed Peer Holders (Live 13F)").classes("font-bold")
+    ui.label(
+        "Different scope from the watchlist-only Peer Cross-Targeting above: this scores EVERY institution with "
+        "a confirmed live 13F position in your selected peers — not just names already on your tracked buy-side "
+        "roster — using the full six-component Fit Score (Peer conviction /30, New-buyer /20, Comparability fit "
+        "/15, Turnover /15, Purchasing power /10, Contactability /10 = /100, P1-P4 tier). Peer conviction/Fit are "
+        "computed directly from the tier + weight set per peer above. Purchasing power is a real number for the "
+        "top-ranked prospects shown below — each fund's whole 13F book, fetched on demand from its own SEC filing "
+        "the first time it appears in a top result (falls back to a neutral placeholder until then). Turnover and "
+        "Contactability are rough automated heuristics (name-pattern + existing-relationship matching) until "
+        "real outcomes accumulate — see \"Which score signals are converting?\" below."
+    ).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+    fit_results_area = ui.column().classes("w-full")
+
+    async def run_fit_score_ranking(from_click=False):
+        # async + asyncio.to_thread: score_all_holders() now does a bounded
+        # lazy backfill of real purchasing-power book totals for its top ~40
+        # results (see fit_score.py's backfill_top_n, sec_filings.py's
+        # ensure_book_totals) — up to ~40 sequential SEC network requests.
+        # Same class of bug as the old blocking 13F-refresh buttons (see
+        # refresh_13d13g/refresh_13f above): a plain synchronous handler here
+        # would freeze the whole app's event loop for every connected user
+        # long enough to trip "Connection lost." Running the scoring call in
+        # a background thread keeps the UI responsive while it works.
+        fit_results_area.clear()
+        sel = peer_select.value or []
+        if not sel:
+            with fit_results_area:
+                ui.label("Select at least one peer ticker above to run Fit Score ranking.").style(f"color:{COLORS['text_muted']};")
+            if from_click:
+                ui.notify("Select at least one peer ticker first.", type="warning")
+            return
+        if from_click:
+            ui.notify("Scoring confirmed holders — fetching real purchasing-power figures for top results, this may take a few seconds.")
+        try:
+            scored = await asyncio.to_thread(fit_score.score_all_holders, sel, get_active_client_id())
+        except Exception as e:
+            with fit_results_area:
+                ui.label(f"Fit Score ranking failed: {e}").style(f"color:{COLORS['warning']};")
+            if from_click:
+                ui.notify(f"Fit Score ranking failed: {e}", type="negative")
+            return
+        with fit_results_area:
+            if not scored:
+                ui.label("No confirmed holders yet for the selected peers — refresh 13F Institutional Holders "
+                          "on the SEC Intelligence tab first.").style(f"color:{COLORS['text_muted']};")
+                if from_click:
+                    ui.notify("No confirmed 13F holders yet for these peers.", type="warning")
+                return
+            ui.label(f"{len(scored)} institution(s) scored, ranked by Fit Score:").classes("font-bold").style("margin-top:6px;")
+            tier_clrs = {"P1": "#4ADE80", "P2": "#86EFAC", "P3": "#F0A830", "P4": "#94A3B8"}
+            for r in scored[:40]:
+                tier_clr = tier_clrs.get(r["tier"], "#94A3B8")
+                def add_scored_prospect(r=r):
+                    plist = _load_json("prospects.json", [])
+                    if any(p.get("fund") == r["fund"] for p in plist):
+                        ui.notify(f"{r['fund']} is already in the prospect queue.", type="warning")
+                        return
+                    plist.append({
+                        "fund": r["fund"], "metro": "—", "style": r["tier_label"], "score": r["composite"],
+                        "score_breakdown": r, "outcome": None,
+                        "notes": f"Fit Score {r['composite']}/100 · {r['tier_label']} · holds {', '.join(r['peers_held'])} "
+                                 f"· via Peer Cross-Targeting Fit Score ranking",
+                        "added": datetime.now().strftime("%Y-%m-%d"), "source": "Fit Score ranking",
+                    })
+                    _save_json("prospects.json", plist)
+                    ui.notify(f"✅ {r['fund']} added to prospect queue.")
+
+                with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
+                    with ui.row().classes("w-full justify-between items-center"):
+                        ui.label(r["fund"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        with ui.row().classes("items-center gap-2"):
+                            ui.label(f"{r['tier_label']} · {r['composite']}/100").style(f"color:{tier_clr};font-weight:bold;font-size:12.5px;")
+                            ui.button("➕ Add", on_click=add_scored_prospect).props("flat dense")
+                    ui.label(f"Holds: {', '.join(r['peers_held'])}" +
+                             (" · 🆕 NEW buyer this quarter" if r["newbuyer_pts"] else "")).style(
+                        f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    with ui.row().classes("w-full gap-2").style("margin-top:2px;flex-wrap:wrap;"):
+                        for label, val, maxv in [
+                            ("Conviction", r["conviction"], 30), ("New-buyer", r["newbuyer_pts"], 20),
+                            ("Fit", r["fit"], 15), ("Turnover", r["turnover_pts"], 15),
+                            ("Purch. power", r["pp_pts"], 10), ("Contact", r["contact_pts"], 10),
+                        ]:
+                            ui.label(f"{label} {val}/{maxv}").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;background:{COLORS['surface_bg']};"
+                                f"padding:1px 6px;border-radius:4px;")
+                    ui.label(f"Turnover: {r['turnover_class']} ({r['turnover_why']}) · "
+                              f"Purchasing power: {r['pp_class']} ({r['pp_why']}) · "
+                              f"Contactability: {r['contact_class']} ({r['contact_why']})").style(
+                        f"color:{COLORS['text_muted']};font-size:10px;font-style:italic;margin-top:2px;")
+            if from_click:
+                ui.notify(f"Fit Score ranking run — {len(scored)} institution(s) scored.", type="positive")
+
+    ui.button("🏆 Rank by Fit Score", on_click=lambda: run_fit_score_ranking(from_click=True)).props("color=primary dense")
+
+    with ui.expansion("⚙️ Fit Score Weights — Re-weight the Components", value=False).classes("w-full"):
+        ui.label("Current weights (must sum to 100). Same 'transparent, re-weightable' design as the source — "
+                  "every component always shows in its own column, the composite is never a black box.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        current_weights = fit_score.get_weights(get_active_client_id())
+        weight_inputs = {}
+        with ui.row().classes("w-full gap-2"):
+            for key, label in [("conviction", "Conviction"), ("newbuyer", "New-buyer"), ("fit", "Fit"),
+                                ("turnover", "Turnover"), ("pp", "Purch. power"), ("contact", "Contact")]:
+                weight_inputs[key] = ui.number(label, value=current_weights.get(key, fit_score.DEFAULT_WEIGHTS[key]),
+                                                min=0, max=100, step=1).classes("min-w-[100px]")
+
+        def save_weight_changes():
+            new_weights = {k: (inp.value or 0) for k, inp in weight_inputs.items()}
+            total = sum(new_weights.values())
+            if total != 100:
+                ui.notify(f"Weights sum to {total}, not 100 — adjust before saving.", type="warning")
+                return
+            fit_score.save_weights(new_weights, get_active_client_id())
+            ui.notify("✅ Weights saved — re-run Fit Score ranking to see the effect.", type="positive")
+
+        ui.button("Save weights", on_click=save_weight_changes).props("dense")
+
+        ui.markdown("---")
+        ui.label("Which score signals are converting? Re-weight the score:").classes("font-bold").style("font-size:12.5px;")
+        reweight_area = ui.column().classes("w-full")
+
+        def run_reweight_suggestion():
+            reweight_area.clear()
+            result = fit_score.suggest_reweight(get_active_client_id())
+            with reweight_area:
+                if result["mode"] == "insufficient":
+                    ui.label(result["message"]).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    return
+                ui.label(f"From {result['n_pos']} positive (met/owns) and {result['n_neg']} pass outcomes:").style(
+                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+                for c in result["components"]:
+                    move_str = f"+{c['move']}" if c["move"] > 0 else str(c["move"])
+                    move_clr = "#4ADE80" if c["move"] > 0 else "#F87171" if c["move"] < 0 else COLORS["text_muted"]
+                    ui.label(f"{c['label']}: current {c['cur']} → suggested {c['suggested']} ({move_str}) · "
+                              f"lift {c['lift']} (avg {c['mean_pos']} converters vs {c['mean_neg']} passes)").style(
+                        f"color:{move_clr};font-size:11.5px;")
+
+        ui.button("Check for a re-weight suggestion", on_click=run_reweight_suggestion).props("dense")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# SEC Intelligence tab — 13D/13G ownership-stake alerts + 13F institutional
+# holders for this client and its full peer universe (config.client_config
+# .CP(), the same peer list Peer Cross-Targeting above manages). Data comes
+# from core/sec_filings.py, which is cache-first: this tab reads whatever
+# is cached (kept warm by app_nicegui.py's startup hook for 13D/13G) rather
+# than blocking page render on a live SEC call — the two Refresh buttons
+# below are the only things that hit the network from inside a page render,
+# and both are explicit, user-initiated actions.
+# ─────────────────────────────────────────────────────────────────────────
+def _render_sec_intelligence_tab():
+    ui.label("🏛️ SEC Intelligence").classes("text-lg font-bold")
+    ui.label(
+        "Ownership-stake filings (13D/13G) and institutional holders (13F) for this client and its full peer "
+        "universe — tracked tickers come straight from the Peer Cross-Targeting list in Target Database, so "
+        "adding a competitor there adds it here too."
+    ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    log = sec_filings.get_last_refresh_log()
+    with ui.row().classes("w-full items-center gap-3").style("margin-top:6px;"):
+        if log:
+            ui.label(f"Last 13D/13G refresh: {log.get('finished_at', '—')[:19].replace('T', ' ')}").style(
+                f"color:{COLORS['text_muted']};font-size:12px;"
+            )
+        else:
+            ui.label("No refresh has run yet — the app's startup hook kicks one off automatically each launch, "
+                      "or trigger one now:").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    # Surface a top-level 13F failure explicitly. Real bug found 2026-07-10:
+    # if the SEC bulk download/unzip/parse itself fails (network error, SEC
+    # blocking the request, an unexpected file format), refresh_all catches
+    # it and stamps "13f_error" onto every entry in the run log — but NO
+    # per-ticker 13F cache key ever gets written, since the failure happens
+    # before refresh_13f_for_tracked_tickers's per-ticker loop even starts.
+    # get_cached_13f_holders then returns its generic "not yet fetched"
+    # default for every single ticker, indistinguishable from "nobody has
+    # clicked Refresh 13F yet" — the real error was silently dropped, only
+    # ever visible in this log dict which nothing rendered. Surfacing it
+    # here means a top-level failure (e.g. this being the very first live
+    # run against sec.gov from this machine) is visible instead of looking
+    # like "no institutional data exists for any tracked ticker."
+    if log:
+        _13f_errors = {
+            r["ticker"]: r["13f_error"]
+            for r in log.get("results", [])
+            if r.get("13f_error")
+        }
+        if _13f_errors:
+            _sample_ticker, _sample_err = next(iter(_13f_errors.items()))
+            with ui.row().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border-left:4px solid {COLORS['danger']};"
+                f"border-radius:4px;padding:8px 12px;margin-top:4px;"
+            ):
+                ui.label(
+                    f"⚠️ 13F refresh failed for all {len(_13f_errors)} tracked ticker(s) — the SEC bulk "
+                    f"download/parse itself errored before any institutional-holder data could be saved. "
+                    f"This is not \"no data exists\"; it's a failed fetch. Error: {_sample_err}"
+                ).style(f"color:{COLORS['text_body']};font-size:12px;")
+
+    sec_container = ui.column().classes("w-full gap-2").style("margin-top:8px;")
+
+    def render_sec_list():
+        sec_container.clear()
+        with sec_container:
+            for ticker, name in sec_filings.tracked_tickers():
+                d13 = sec_filings.get_cached_13d_13g(ticker, refresh_if_stale=False)
+                f13 = sec_filings.get_cached_13f_holders(ticker)
+                filings = d13.get("filings", [])
+                holders = f13.get("holders", [])
+                label = f"{ticker} — {name} · {len(filings)} 13D/13G on file"
+                if f13.get("quarter"):
+                    label += f" · {len(holders)} institutional holders ({f13['quarter']})"
+                with ui.expansion(label).classes("w-full"):
+                    if d13.get("_error"):
+                        ui.label(f"⚠️ 13D/13G fetch error: {d13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
+                    if not filings:
+                        ui.label("No 13D/13G filings cached yet for this ticker.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    else:
+                        for f in filings[:10]:
+                            ui.label(f"{f['date']} · {f['form']} · {f['title']}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            if f.get("link"):
+                                ui.link("View on EDGAR ↗", f["link"], new_tab=True).style("font-size:11.5px;")
+
+                    ui.markdown("---")
+                    if f13.get("_error") and f13["_error"] != "not yet fetched":
+                        ui.label(f"⚠️ 13F fetch error: {f13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
+                    if not holders:
+                        ui.label("No 13F institutional-holder data cached yet — use 'Refresh 13F Institutional "
+                                 "Holders' below.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    else:
+                        for h in holders[:10]:
+                            # size_known=False: confirmed via EDGAR full-text search, but this holder's
+                            # exact share/dollar size wasn't fetched (see
+                            # sec_filings._search_holders_for_ticker's docstring) — don't show the
+                            # sentinel shares=1/value=0 as if it were a real reported figure.
+                            size_text = f"{h['shares']:,} shares (${h['value']:,} reported)" if h.get("size_known", True) \
+                                else "position size not available"
+                            ui.label(f"{h['filer']} — {size_text}").style(
+                                f"color:{COLORS['text_body']};font-size:12px;"
+                            )
+
+    render_sec_list()
+
+    # Was: plain `def` handlers calling sec_filings.refresh_all(...)
+    # directly — a real, blocking network call (13F alone downloads a
+    # multi-ticker, tens-of-MB SEC bulk dataset). NiceGUI runs a sync
+    # click handler straight on the server's single asyncio event loop, so
+    # this froze the ENTIRE app for every connected user until the whole
+    # download finished (or hung/timed out) — not just this button, and
+    # often not even flushing the "Refreshing..." toast first, since a
+    # non-yielding sync call blocks outgoing websocket messages too. That's
+    # exactly what "I clicked it and nothing happened" looks like from the
+    # browser: no toast, no error, no visible progress, just silence.
+    # app_nicegui.py's startup hooks already established the correct fix
+    # for this exact class of call (asyncio.to_thread, see
+    # _kick_off_sec_refresh) — applying the same pattern here so a manual
+    # refresh behaves like the automatic startup one: the UI stays
+    # responsive and the toast/notify actually show up immediately.
+    async def refresh_13d13g():
+        # force_13d13g=True: a manual "Refresh Now" click must always hit
+        # SEC live, not silently return an already-cached snapshot because
+        # it's under the 24h TTL (see get_cached_13d_13g's force param —
+        # without this, repeated clicks reported "refresh complete" while
+        # actually doing nothing, which is exactly what "the data is stuck
+        # on old filings" looks like from the browser).
+        ui.notify("Refreshing 13D/13G filings from SEC EDGAR — this hits the network now and may take a few seconds per ticker.")
+        try:
+            await asyncio.to_thread(sec_filings.refresh_all, False, True)
+            ui.notify("13D/13G refresh complete.", type="positive")
+        except Exception as e:
+            ui.notify(f"Refresh failed: {e}", type="negative")
+        render_sec_list()
+
+    async def refresh_13f():
+        # As of 2026-07-12 this runs one lightweight EDGAR full-text search per
+        # tracked ticker (see sec_filings.refresh_13f_for_tracked_tickers) instead
+        # of downloading SEC's entire quarterly bulk dataset — much faster, but
+        # still a handful of sequential network requests, so it stays behind
+        # asyncio.to_thread and an explicit button rather than a page render.
+        ui.notify(
+            "Refreshing 13F institutional holders from SEC EDGAR (targeted per-ticker search) — "
+            "this may take a few seconds per tracked ticker.",
+            type="warning",
+        )
+        try:
+            await asyncio.to_thread(sec_filings.refresh_all, True)
+            ui.notify("13F refresh complete.", type="positive")
+        except Exception as e:
+            ui.notify(f"Refresh failed: {e}", type="negative")
+        render_sec_list()
+
+    with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
+        ui.button("🔄 Refresh 13D/13G Now", on_click=refresh_13d13g).props("color=primary dense")
+        ui.button("📊 Refresh 13F Institutional Holders (slow)", on_click=refresh_13f).props("flat dense")
+
+    ui.markdown("---")
+    ui.label(
+        "If a ticker fails to resolve to a SEC CIK (rare — recent IPOs, ADRs, or a ticker change), add a manual "
+        "override in core/sec_filings.py's MANUAL_CIK_OVERRIDES dict."
+    ).style(f"color:{COLORS['text_muted']};font-size:11px;")

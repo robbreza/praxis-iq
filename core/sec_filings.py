@@ -381,4 +381,555 @@ def _fulltext_search_page(phrase, startdt, enddt, from_=0, forms="13F-HR"):
 def _search_13f_holders_raw(phrase, startdt, enddt, max_results=150):
     """Paginated EDGAR full-text search for every 13F-HR filing that
     mentions `phrase` (a company's display name) within [startdt, enddt].
-    Deduped by CIK, keep
+    Deduped by CIK, keeping the most recent file_date if a manager shows
+    up more than once (an original filing plus a same-quarter amendment).
+
+    THIS is the replacement for the old bulk-quarterly-dataset download —
+    see SEC_13F_extraction_reference.md: a handful of lightweight paginated
+    JSON requests scoped to one company, instead of downloading and parsing
+    every institutional manager's every position across the entire market
+    (tens of MB compressed, dramatically larger unzipped) just to filter it
+    down to the tickers we care about. That bulk download is what made a
+    'Refresh 13F' click look hung/frozen in practice (2026-07-12).
+
+    Returns a list of {filer, cik, accession, filename, file_date} dicts —
+    filename comes from splitting the hit's _id on ':', which is exactly
+    the info-table XML SEC matched our phrase against for that filer, so a
+    later whole-book fetch (see get_or_fetch_filer_book_total) needs no
+    extra discovery request.
+
+    FIXED 2026-07-12 after the first-ever live run against the real
+    endpoint (verified directly by querying efts.sec.gov by hand): the
+    original field names here were guessed from SEC_13F_extraction_
+    reference.md's prose description and didn't match the actual JSON.
+    The real per-hit _source carries the filer's CIK under "ciks" (plural,
+    a list — not "cik"), and the accession number under "adsh" (not
+    "accession"). Reading the wrong (nonexistent) keys meant `cik` was
+    always None, so every single hit silently failed the `if not cik`
+    check and got skipped — 13F refresh completed "successfully" with
+    zero holders for every tracked ticker, no exception, no visible error.
+    The hit's own _id (always 'accession:filename', confirmed live) is
+    used as the primary source for accession/filename now, since it's
+    guaranteed present; "adsh" is cross-checked as a fallback only."""
+    holders = {}
+    from_ = 0
+    page_size = 10
+    while from_ < max_results:
+        data = _fulltext_search_page(phrase, startdt, enddt, from_=from_)
+        hits = (data.get("hits") or {}).get("hits") or []
+        if not hits:
+            break
+        for h in hits:
+            src = h.get("_source", {})
+            cik = src.get("ciks")
+            if isinstance(cik, list):
+                cik = cik[0] if cik else None
+            if not cik:
+                continue
+            display = src.get("display_names")
+            display = display[0] if isinstance(display, list) and display else display
+            filer = _parse_display_name(display) or "Unknown filer"
+            hit_id = h.get("_id", "")
+            accession, filename = (hit_id.split(":", 1) + [None])[:2] if ":" in hit_id else (None, None)
+            accession = accession or src.get("adsh")
+            file_date = src.get("file_date", "")
+            existing = holders.get(cik)
+            if existing is None or file_date > existing.get("file_date", ""):
+                holders[cik] = {
+                    "filer": filer, "cik": cik, "accession": accession,
+                    "filename": filename, "file_date": file_date,
+                }
+        total = ((data.get("hits") or {}).get("total") or {}).get("value", 0)
+        from_ += page_size
+        if from_ >= total:
+            break
+    return list(holders.values())
+
+
+def _search_holders_for_ticker(company_name, startdt, enddt, max_results=150):
+    """Same output shape core.fit_score/investors_page.py already expect
+    from a holder-cache entry (filer/shares/value), built from EDGAR
+    full-text search instead of the bulk dataset. shares/value can't come
+    from a phrase search the way they could from filtering the full
+    INFOTABLE dataset row-by-row — full-text search confirms WHO holds a
+    position, not the exact share count or dollar value of that one
+    position — so those are set to honest sentinels (shares=1: 'confirmed
+    a nonzero position, exact count unknown'; value=0) with an explicit
+    size_known=False flag so display code shows 'confirmed holder'
+    instead of a fabricated-looking '1 shares / $0 reported'. shares=1
+    (not None/0) is deliberate: live_peer_overlap_map's '> 0' holder check
+    and get_cached_13f_holders_with_trend's NEW/EXITED detection both key
+    off shares being truthy — those signals only ever needed presence,
+    never magnitude, so they keep working unchanged; only ADD/TRIM
+    (a magnitude comparison) is lost. cik/accession/filename ride along on
+    every holder so a later purchasing-power backfill (see
+    get_or_fetch_filer_book_total) can fetch that exact filer's own whole
+    info table with zero extra discovery requests."""
+    needle = (company_name or "").strip()
+    if not needle:
+        return []
+    hits = _search_13f_holders_raw(needle, startdt, enddt, max_results=max_results)
+    holders = [
+        {
+            "filer": h["filer"], "shares": 1, "value": 0, "size_known": False,
+            "cik": h["cik"], "accession": h["accession"], "filename": h["filename"],
+            "file_date": h["file_date"],
+        }
+        for h in hits
+    ]
+    return sorted(holders, key=lambda h: h["filer"])
+
+
+def _fetch_filer_info_table_xml(cik, accession, filename):
+    """Fetches ONE filer's own 13F information-table XML for a specific
+    filing — the exact accession+filename EDGAR full-text search already
+    told us about that filer (see _search_13f_holders_raw), so this needs
+    no index/discovery request first. URL form per
+    SEC_13F_extraction_reference.md's endpoint map."""
+    cik_int = str(int(cik))
+    accession_nodash = accession.replace("-", "")
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession_nodash}/{filename}"
+    resp = _get(url, timeout=20)
+    return resp.content
+
+
+def _sum_info_table_value(xml_bytes):
+    """Sums every <value> element in a 13F information-table XML — this
+    filer's WHOLE quarter-end 13F book (every issuer they hold, not just
+    the one whose search hit led us here). Matches by local tag name only
+    (ignoring the XML namespace), since the namespace URI varies by which
+    EDGAR filer-agent software a manager's filing agent used."""
+    root = ET.fromstring(xml_bytes)
+    total = 0
+    for el in root.iter():
+        tag = el.tag.split("}")[-1]
+        if tag.lower() == "value" and el.text:
+            try:
+                total += int(float(el.text.strip()))
+            except ValueError:
+                continue
+    return total
+
+
+def _filer_book_cache_key(cik):
+    return f"sec_13f_filer_book_{cik}.json"
+
+
+def get_or_fetch_filer_book_total(cik, accession, filename, quarter_label):
+    """Cached per (cik, quarter) — the "purchasing power" signal
+    core/fit_score.py needs, computed lazily and per-filer instead of in
+    one big pass over the whole market's bulk dataset (see module history:
+    that bulk pass, _compute_book_totals, is what made 'Refresh 13F' hang;
+    replaced 2026-07-12 with EDGAR full-text search for holder lookups
+    plus this on-demand per-filer fetch for whole-book sizing).
+
+    A single lightweight request per filer — deliberately called for a
+    BOUNDED set of filers (score_all_holders's visible top N, not every
+    confirmed holder of a peer ticker; see
+    SEC_13F_extraction_reference.md's own "skip filers whose info table
+    exceeds the fetch limit" guidance — same idea, applied by only ever
+    fetching whoever actually needs to show a real number). Returns None
+    (and caches that None) if the fetch/parse fails for any reason —
+    purchasing power then just falls back to its existing neutral 'M'
+    default, same as "no 13F refresh has run yet."""
+    cache_key = _filer_book_cache_key(cik)
+    cached = db.load_json(cache_key, default=None)
+    if cached and cached.get("quarter") == quarter_label and cached.get("total") is not None:
+        return cached["total"]
+    try:
+        xml_bytes = _fetch_filer_info_table_xml(cik, accession, filename)
+        total = _sum_info_table_value(xml_bytes)
+    except Exception as e:
+        print(f"[sec_filings] Book-total fetch failed for CIK {cik}: {e}")
+        total = None
+    db.save_json(cache_key, {"quarter": quarter_label, "total": total, "_fetched_at": datetime.now().isoformat()})
+    return total
+
+
+def get_cached_filer_refs(peer_tickers):
+    """{filer_name: {cik, accession, filename, quarter}} built from the
+    CACHED per-ticker 13F holder lists for `peer_tickers` — no network,
+    same batched-read pattern as live_peer_overlap_map. This is what lets
+    a caller (score_all_holders) turn "these fund names need a real
+    purchasing-power number" into the cik/accession/filename
+    get_or_fetch_filer_book_total needs, without re-searching EDGAR. If
+    the same filer shows up under more than one peer ticker, whichever is
+    read last wins — they all point at the same manager's same-quarter
+    filing, so any one of them fetches the correct whole book."""
+    refs = {}
+    for t in peer_tickers:
+        cached = get_cached_13f_holders(t)
+        if not cached.get("quarter"):
+            continue
+        for h in cached.get("holders", []):
+            filer = h.get("filer")
+            if filer and h.get("cik") and h.get("accession") and h.get("filename"):
+                refs[filer] = {
+                    "filer": filer, "cik": h["cik"], "accession": h["accession"],
+                    "filename": h["filename"], "quarter": cached["quarter"],
+                }
+    return refs
+
+
+def ensure_book_totals(filer_refs, quarter_label):
+    """filer_refs: iterable of dicts with filer/cik/accession/filename
+    (e.g. from get_cached_filer_refs, filtered down to whichever prospects
+    a caller is about to display). Fetches + caches a real book total for
+    whichever of these don't already have one cached for this quarter,
+    then persists the merged {filer_name: total} dict under the same
+    SEC_13F_BOOK_TOTALS_KEY get_all_cached_book_totals()/
+    get_cached_book_total() already read — those two accessors don't
+    change at all; this just changes how that shared cache gets
+    populated (incrementally, filer by filer, on demand) instead of one
+    big bulk-dataset pass. No return value — callers re-read via those
+    accessors after calling this."""
+    totals = get_all_cached_book_totals()
+    changed = False
+    for ref in filer_refs:
+        filer = ref.get("filer")
+        if not filer or filer in totals:
+            continue
+        cik, accession, filename = ref.get("cik"), ref.get("accession"), ref.get("filename")
+        if not (cik and accession and filename):
+            continue
+        total = get_or_fetch_filer_book_total(cik, accession, filename, quarter_label)
+        if total is not None:
+            totals[filer] = total
+            changed = True
+    if changed:
+        db.save_json(SEC_13F_BOOK_TOTALS_KEY, {"quarter": quarter_label, "totals": totals,
+                                                "_fetched_at": datetime.now().isoformat()})
+
+
+def get_cached_book_total(filer_name):
+    """Cache-only accessor — a filer's total 13F portfolio value for the
+    most recently refreshed quarter. None if no 13F refresh has run yet,
+    or if this filer wasn't present in that quarter's bulk dataset (e.g.
+    a fund that only files 13F occasionally, or a name-matching miss).
+
+    Single-filer convenience wrapper — does one db.load_json() call. Do
+    NOT call this in a loop over many filers (e.g. every holder of a
+    peer ticker); that fires one Neon round-trip per filer and can
+    block the event loop long enough to trip the browser's websocket
+    ping timeout ("Connection lost"). Loop callers should use
+    get_all_cached_book_totals() once, then dict.get() per filer."""
+    cached = db.load_json(SEC_13F_BOOK_TOTALS_KEY, default=None)
+    if not cached:
+        return None
+    return cached.get("totals", {}).get(filer_name)
+
+
+def get_all_cached_book_totals():
+    """Bulk accessor — the full {filer_name: total_value} dict from the
+    most recently refreshed quarter, in ONE db.load_json() call. Use this
+    (not get_cached_book_total in a loop) whenever you need book totals
+    for many filers at once, e.g. core.fit_score.score_all_holders()
+    scoring every confirmed holder of a peer ticker — a large peer like
+    GDOT or EEFT can easily have 100+ holders, and 100+ sequential Neon
+    round-trips inside one synchronous call is exactly what caused the
+    2026-07-11 bug where clicking "Rank by Fit Score" froze the event
+    loop long enough for the client to report "Connection lost."
+    Returns {} if no 13F refresh has computed book totals yet."""
+    cached = db.load_json(SEC_13F_BOOK_TOTALS_KEY, default=None)
+    if not cached:
+        return {}
+    return cached.get("totals", {})
+
+
+def _qoq_trend(cur_shares, prior_shares):
+    """Ported near-verbatim from IR OS's position_econ.py qoq_trend() —
+    classifies one holder's quarter-over-quarter share-count change.
+    NEW/EXITED are the two "hard" signals (a fund entering or leaving a
+    position entirely); ADD/TRIM use a 10% move as the threshold for
+    "meaningful," matching the source. This is pure logic, no I/O — safe
+    to unit test against fixtures."""
+    if prior_shares in (None, 0) and cur_shares:
+        return "NEW"
+    if cur_shares in (None, 0) and prior_shares:
+        return "EXITED"
+    if cur_shares is None or prior_shares is None:
+        return "n/a"
+    d = cur_shares - prior_shares
+    if d == 0:
+        return "FLAT"
+    pct = d / prior_shares * 100
+    if pct >= 10:
+        return f"ADD +{pct:.0f}%"
+    if pct <= -10:
+        return f"TRIM {pct:.0f}%"
+    return "~flat"
+
+
+def get_cached_13f_holders_prior(ticker):
+    """The quarter-before-last-refresh snapshot for `ticker`, archived by
+    refresh_13f_for_tracked_tickers right before it overwrites the
+    "current" cache — see that function's docstring. Empty holder list if
+    no prior quarter has been archived yet (e.g. this is the first-ever
+    refresh for this ticker)."""
+    key = SEC_13F_HOLDERS_PRIOR_KEY_FMT.format(ticker=ticker.upper())
+    return db.load_json(key, default={"quarter": None, "holders": []})
+
+
+def get_cached_13f_holders_with_trend(ticker):
+    """Same as get_cached_13f_holders, but each holder also carries a
+    'trend' field (NEW / ADD +x% / TRIM -x% / ~flat / FLAT / n/a) from
+    diffing against get_cached_13f_holders_prior. A holder that was in the
+    prior quarter but has fully exited (0 shares now, so it no longer
+    appears as a "current" INFOTABLE row at all) is appended explicitly
+    with trend='EXITED' and shares=0 — "someone just sold out entirely" is
+    itself a real signal that a plain iteration over current holders would
+    silently miss, since an exited holder has no current row to iterate.
+
+    This is the 'newbuyer' signal core/fit_score.py's scoring needs — a
+    holder here with trend == 'NEW' is exactly what IR OS's rec["newbuyer"]
+    boolean meant. Cache-only, same non-blocking contract as
+    get_cached_13f_holders — never triggers a live fetch."""
+    cur = get_cached_13f_holders(ticker)
+    prior = get_cached_13f_holders_prior(ticker)
+    prior_shares = {h["filer"]: h.get("shares", 0) for h in prior.get("holders", [])}
+
+    cur_filers = set()
+    annotated = []
+    for h in cur.get("holders", []):
+        h = dict(h)
+        cur_filers.add(h["filer"])
+        h["trend"] = _qoq_trend(h.get("shares", 0), prior_shares.get(h["filer"]))
+        annotated.append(h)
+    for filer, shares in prior_shares.items():
+        if filer not in cur_filers and shares:
+            annotated.append({"filer": filer, "shares": 0, "value": 0, "trend": "EXITED"})
+
+    result = dict(cur)
+    result["holders"] = annotated
+    return result
+
+
+def _archive_prior_if_new_quarter(ticker, new_label):
+    """Before a ticker's "current" 13F cache gets overwritten, shift
+    whatever was there into the "prior" slot — but only if the incoming
+    quarter is actually different from what's already cached. Re-running a
+    refresh mid-quarter (e.g. re-pulling after fixing a bug, or a second
+    manual click) must NOT stomp real prior-quarter history with this same
+    quarter's own data — that would make every holder look like a 'NEW'
+    buyer relative to itself. See get_cached_13f_holders_with_trend."""
+    existing = db.load_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=ticker.upper()), default=None)
+    if existing and existing.get("quarter") and existing.get("quarter") != new_label:
+        db.save_json(SEC_13F_HOLDERS_PRIOR_KEY_FMT.format(ticker=ticker.upper()), existing)
+
+
+def refresh_13f_holders(ticker, company_name):
+    """Live EDGAR full-text-search fetch of institutional 13F holders in
+    `ticker` for the latest completed quarter. Heavy-ish (a handful of
+    paginated SEC requests, see module history) — call this from a manual
+    'Refresh 13F Holders' button or a quarterly schedule, never from a
+    page render or the startup hook. Purchasing-power book totals are
+    NOT computed here anymore — see get_or_fetch_filer_book_total /
+    ensure_book_totals, called lazily by core/fit_score.py for whichever
+    prospects actually get displayed, instead of for every holder up
+    front."""
+    startdt, enddt, label = _quarter_search_window()
+    holders = _search_holders_for_ticker(company_name, startdt, enddt)
+    result = {
+        "quarter": label, "holders": holders,
+        "_fetched_at": datetime.now().isoformat(), "_error": None,
+    }
+    _archive_prior_if_new_quarter(ticker, label)
+    db.save_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=ticker.upper()), result)
+    return result
+
+
+def refresh_13f_for_tracked_tickers(ticker_name_pairs):
+    """Refreshes institutional 13F holders for every tracked ticker (the
+    active client + its full peer universe) via EDGAR full-text search —
+    one targeted, paginated search per ticker, scoped to that company's
+    name within the latest completed quarter's filing window.
+
+    REPLACED 2026-07-12 (see SEC_13F_extraction_reference.md, ported from
+    a sibling project's working usio_prospects.py/wrap_target.py): this
+    used to download and parse SEC's entire quarterly bulk structured
+    dataset ONCE and filter it down to tracked tickers client-side — every
+    institutional manager's every position across the whole market, tens
+    of MB compressed and dramatically larger unzipped. That download was
+    the real cause of a "Refresh 13F" click looking hung/frozen; even
+    wrapped in a background thread (see the async refresh_13f handler in
+    investors_page.py) it could take minutes with no visible progress.
+    Full-text search per ticker is a handful of lightweight JSON requests
+    instead — slower in one sense (N tickers = N searches instead of one
+    shared download) but each one is fast and bounded, so the total is
+    both quicker in practice and, critically, predictable.
+
+    Purchasing-power book totals are NOT computed here — see
+    get_or_fetch_filer_book_total's docstring for why that moved to a
+    lazy, per-filer, visible-results-only fetch instead of a bulk pass
+    over every confirmed holder.
+
+    Each ticker's search is wrapped in its own try/except — same
+    isolation fix as before (2026-07-10): one ticker's failure (a bad
+    response shape, a transient SEC error) shouldn't abort every ticker
+    still queued after it.
+
+    Saves each ticker's result to the same per-ticker cache key
+    (SEC_13F_HOLDERS_KEY_FMT) this always used, so every existing reader
+    (get_cached_13f_holders, live_peer_overlap_map, the SEC Intelligence
+    tab) is unaffected — this only changes HOW the cache gets populated
+    and what shape each holder record carries (cik/accession/filename/
+    size_known added; shares/value are now sentinels — see
+    _search_holders_for_ticker), not the cache's top-level shape.
+
+    Returns {ticker: result_dict}."""
+    startdt, enddt, label = _quarter_search_window()
+    results = {}
+    for ticker, company_name in ticker_name_pairs:
+        try:
+            holders = _search_holders_for_ticker(company_name, startdt, enddt)
+            result = {
+                "quarter": label, "holders": holders,
+                "_fetched_at": datetime.now().isoformat(), "_error": None,
+            }
+        except Exception as e:
+            result = {
+                "quarter": label, "holders": [],
+                "_fetched_at": datetime.now().isoformat(), "_error": str(e),
+            }
+        _archive_prior_if_new_quarter(ticker, label)
+        db.save_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=ticker.upper()), result)
+        results[ticker] = result
+
+    return results
+
+
+def get_cached_13f_holders(ticker):
+    """Cache-only accessor for page code — 13F refresh is quarterly/manual
+    (see refresh_13f_holders), never triggered inline by a page render."""
+    key = SEC_13F_HOLDERS_KEY_FMT.format(ticker=ticker.upper())
+    return db.load_json(key, default={"quarter": None, "holders": [], "_fetched_at": None, "_error": "not yet fetched"})
+
+
+def normalize_company_name(name):
+    """Public wrapper around _normalize_company_name — the same
+    punctuation/suffix-stripping normalization live_peer_overlap_map uses
+    below to match SEC issuer/filer strings, exposed for callers outside
+    this module that need to match a fund/company name against SEC's
+    naming conventions."""
+    return _normalize_company_name(name)
+
+
+def live_peer_overlap_map(fund_names, peer_tickers):
+    """For each fund in `fund_names`, checks every ticker in `peer_tickers`
+    for a confirmed 13F institutional position, using cached data only
+    (never triggers a live fetch — see get_cached_13f_holders).
+
+    Matching is EXACT on the normalized name, not fuzzy substring, on
+    purpose: 13F is filed at the parent-manager level (SEC sees "VANGUARD
+    GROUP INC", not a specific fund/strategy within it). A fuzzy/substring
+    match would misattribute one manager's aggregate position to every
+    differently-named product under that umbrella — e.g. matching
+    "BlackRock Small Cap Growth" (a specific strategy, not itself a 13F
+    filer) against "BLACKROCK INC"'s aggregate position would be a
+    confident-looking but false claim. Exact-match means some real
+    strategy-level institutions in a curated list won't resolve to a
+    filing (they aren't the filer of record) — that's treated as "unknown"
+    (not_fetched-style caller handling), never silently guessed.
+
+    Returns {fund_name: {"confirmed": [tickers with a real match],
+    "not_fetched": [tickers with no 13F data cached yet]}}. A ticker
+    appearing in neither list means its 13F data IS cached but this fund
+    is confirmed NOT among its holders — a real negative, distinct from
+    "we haven't checked" (not_fetched) or "we found a match" (confirmed).
+
+    Batched (one cache read per ticker, not per fund x ticker) since this
+    is meant to run once per page render across every tracked institution."""
+    per_ticker = {t: get_cached_13f_holders(t) for t in peer_tickers}
+    normalized_holders = {}
+    for t, cached in per_ticker.items():
+        if cached.get("quarter"):
+            normalized_holders[t] = {
+                _normalize_company_name(h.get("filer", "")): h.get("shares", 0)
+                for h in cached.get("holders", [])
+            }
+
+    result = {}
+    for fund_name in fund_names:
+        needle = _normalize_company_name(fund_name)
+        confirmed, not_fetched = [], []
+        for t in peer_tickers:
+            if per_ticker[t].get("quarter") is None:
+                not_fetched.append(t)
+            elif normalized_holders.get(t, {}).get(needle, 0) > 0:
+                confirmed.append(t)
+        result[fund_name] = {"confirmed": confirmed, "not_fetched": not_fetched}
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Orchestration — what the startup hook and the Refresh buttons call
+# ─────────────────────────────────────────────────────────────────────────
+def tracked_tickers():
+    """Client's own ticker + its full peer universe
+    (config.client_config.CP()) — the same peer list already used
+    throughout Markets/Investors, so 'competitors to watch' isn't a
+    second list to keep in sync; it's this one."""
+    from config.client_config import C, CP
+    client = C()
+    tickers = [(client["ticker"], client["name"])]
+    tickers += [(p["ticker"], p["name"]) for p in CP()]
+    return tickers
+
+
+def refresh_all(include_13f=False, force_13d13g=False):
+    """Refreshes 13D/13G for every tracked ticker (cheap — meant to run
+    ~daily; this is what app_nicegui.py's startup hook calls in the
+    background). include_13f=True additionally refreshes institutional
+    holders for every tracked ticker (expensive — meant to run
+    quarterly/on demand, not on every startup). Returns a run-log dict
+    that the Investors -> SEC Intelligence tab displays.
+
+    force_13d13g=True bypasses the 24h TTL and always hits SEC live for
+    13D/13G — pass this from a manual 'Refresh Now' button click (see
+    investors_page.py), where the whole point of clicking is to get the
+    live filings right now, not to conditionally hit the network only if
+    the cache happens to be stale. Leave it False for the automatic
+    startup-hook call, which should stay TTL-gated so it doesn't hammer
+    SEC on every server restart.
+
+    13D/13G stays a per-ticker loop (cheap, independent lookups per
+    issuer). 13F is ALSO now a per-ticker loop — see
+    refresh_13f_for_tracked_tickers's docstring: since the 2026-07-12
+    rewrite to EDGAR full-text search, each ticker's search is its own
+    small, bounded request instead of a shared multi-minute bulk-dataset
+    download, so looping per ticker no longer means redoing an expensive
+    shared fetch N times."""
+    log = {"started_at": datetime.now().isoformat(), "results": []}
+    tracked = tracked_tickers()
+
+    for ticker, name in tracked:
+        entry = {"ticker": ticker}
+        try:
+            r = get_cached_13d_13g(ticker, refresh_if_stale=True, force=force_13d13g)
+            entry["13d13g_count"] = len(r.get("filings", []))
+            entry["13d13g_error"] = r.get("_error")
+        except Exception as e:
+            entry["13d13g_error"] = str(e)
+        log["results"].append(entry)
+
+    if include_13f:
+        try:
+            results = refresh_13f_for_tracked_tickers(tracked)
+        except Exception as e:
+            results = {}
+            for entry in log["results"]:
+                entry["13f_error"] = str(e)
+        else:
+            for entry in log["results"]:
+                r = results.get(entry["ticker"])
+                if r is not None:
+                    entry["13f_holder_count"] = len(r.get("holders", []))
+                    entry["13f_error"] = r.get("_error")
+
+    log["finished_at"] = datetime.now().isoformat()
+    db.save_json(SEC_REFRESH_LOG_KEY, log)
+    return log
+
+
+def get_last_refresh_log():
+    return db.load_json(SEC_REFRESH_LOG_KEY, default=None)

@@ -247,4 +247,127 @@ def get_client(client_id=None):
     """Full config record for the given client, or the active one."""
     cid = client_id or get_active_client_id()
     if cid not in CLIENT_REGISTRY:
-     
+        raise ValueError(f"Unknown client_id '{cid}'. Known clients: {list(CLIENT_REGISTRY)}")
+    return CLIENT_REGISTRY[cid]
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Backward-compatible accessors
+# These match the exact function names/signatures app.py already calls
+# throughout its ~12,750 lines (C(), CI(), CA(), etc.), so pages/components
+# do not need to change in this step — only WHERE these functions are
+# defined changes. They now read from the active client instead of one
+# hardcoded dict.
+# ─────────────────────────────────────────────────────────────────────────
+def C():
+    return get_client()
+
+
+def CI():
+    return get_client().get("ir_contact", {})
+
+
+def CA():
+    return get_client().get("analysts", [])
+
+
+def CE():
+    return get_client().get("earnings", {})
+
+
+def CF():
+    return get_client().get("financials", {})
+
+
+def CG():
+    """Management guidance snapshot (new accessor — the old USIO_GUIDANCE
+    global is folded into the client record as its 'guidance' key)."""
+    return get_client().get("guidance", {})
+
+
+def CGP():
+    """Guidance & Outlook Decision Engine policy inputs (earnings_page.py's
+    Script Generation tab) — seasonality weights, prior-FY quarterly
+    revenue, growth-range assumption, per-action range deltas, known H2
+    catalysts, closing line, operator handoff. Empty dict if the active
+    client hasn't configured one (see CLIENT_REGISTRY's "usio" record and
+    this module's docstring gap-inventory item 1)."""
+    return get_client().get("guidance_policy", {})
+
+
+def CT(key, default=""):
+    return get_client().get(key, default)
+
+
+def _read_csv_with_fallback_encoding(path):
+    """Small local CSV reader with the same encoding-fallback order as
+    app.py's robust_read_csv (utf-8 -> utf-8-sig -> cp1252 -> latin1).
+    Deliberately NOT importing robust_read_csv from app.py here — app.py
+    will import THIS module, so importing back from app.py would create a
+    circular import. If this needs the full delimiter-sniffing behavior
+    robust_read_csv has, that function should move to a shared
+    core/io_utils.py module in a later pass (it currently has 40+ call
+    sites throughout app.py's page code, which is out of scope for this
+    config-extraction step)."""
+    last_err = None
+    for enc in ("utf-8", "utf-8-sig", "cp1252", "latin1"):
+        try:
+            return pd.read_csv(path, encoding=enc)
+        except UnicodeDecodeError as e:
+            last_err = e
+            continue
+    raise last_err
+
+
+def CP():
+    """Peer comps used for valuation talking points (outreach drafts, etc).
+    Reads the active client's peer universe from the SQLite data layer
+    (core.db, key "peer_universe.csv" — same key investors_page.py's Peer
+    Universe manager reads/writes, so a peer added via Peer Cross-Targeting
+    is immediately available here too), falling back to the static default
+    peer list in CLIENT_REGISTRY if nothing has been saved yet. core.db
+    transparently imports a pre-existing peer_universe.csv file the first
+    time this is called, so peers added before the SQLite migration aren't
+    lost."""
+    from core import db
+    client = get_client()
+    peers = db.load_json("peer_universe.csv", default=None)
+    if peers:
+        return [{"ticker": p["ticker"], "name": p["name"],
+                  "ev_rev": float(p["ev_rev"]) if p.get("ev_rev") not in (None, "") else None}
+                 for p in peers]
+    return client.get("peers", [])
+
+
+def client_data_path(filename, client_id=None):
+    """Path for per-client data files. The original demo hardcoded a single
+    shared 'models/' folder (fine for one client). Now scoped under
+    data/<client_id>/ so a future client #2 never reads or writes client
+    #1's files. Falls back to the legacy shared 'models/' path if a
+    client-scoped copy doesn't exist yet, so existing USIO data isn't
+    silently orphaned by this change."""
+    cid = client_id or get_active_client_id()
+    new_dir = os.path.join("data", cid)
+    os.makedirs(new_dir, exist_ok=True)
+    new_path = os.path.join(new_dir, filename)
+    legacy_path = os.path.join("models", filename)
+    if not os.path.exists(new_path) and os.path.exists(legacy_path):
+        return legacy_path
+    return new_path
+
+
+def team_email_lookup():
+    """Client team members who show up in NDR trip rosters etc., mapped to
+    their known email. Derived from the client's executives + ir_contact
+    instead of being a separately hardcoded dict (the original demo had
+    TEAM_EMAIL_LOOKUP as a second, independent copy of the same 3 names —
+    a real duplication risk if the two ever drifted apart)."""
+    client = get_client()
+    lookup = {}
+    ir = client.get("ir_contact", {})
+    if ir.get("name") and ir.get("email"):
+        lookup[ir["name"]] = ir["email"]
+    for _role, info in client.get("executives", {}).items():
+        if info.get("name") and info.get("email"):
+            lookup[info["name"]] = info["email"]
+    return lookup

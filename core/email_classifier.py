@@ -272,4 +272,44 @@ def _fallback_classify(subject, body, attachments, sender_kind):
         return "conference_invite", {}
     if sender_kind == "analyst" and (has_pdf or "research note" in text or "initiating coverage" in text or "report attached" in text):
         return "research_note", {}
-    if any(kw in text for kw in ("schedule a call", "speak with", "spe
+    if any(kw in text for kw in ("schedule a call", "speak with", "speak to", "meet with your", "request a meeting",
+                                  "call with your ceo", "call with your cfo", "arrange a call")):
+        return "speak_to_management", {}
+    # Ported from app.py's MEETING_KEYWORDS list (the old ad hoc "Scan
+    # IRConnect Inbox" keyword search) — checked after the more specific
+    # categories above so an NDR/conference/speak-to-management email
+    # containing the word "meeting" doesn't get miscategorized here instead.
+    if any(kw in text for kw in ("meeting confirmed", "call scheduled", "confirmed for", "calendar invite",
+                                  "zoom", "teams meeting", "webex", "1x1", "one-on-one", "conference call")):
+        return "meeting_confirmation", {}
+    return "general", {}
+
+
+def classify_and_extract(subject, body, attachments, sender_kind="unknown"):
+    """`attachments` is a list of (filename, content_type, file_bytes) tuples
+    — same shape core/mail_gateway.py's _extract_body_and_attachments
+    already produces. Returns {"category": ..., "extracted": {...}}, never
+    raises, never returns an unrecognized category."""
+    attachment_text = ""
+    for filename, content_type, file_bytes in attachments:
+        chunk = _extract_attachment_text(filename, content_type, file_bytes)
+        if chunk:
+            attachment_text += f"\n--- {filename} ---\n{chunk}"
+    attachment_text = attachment_text[:6000] or "(no attachment text extracted)"
+    attachment_names = ", ".join(a[0] for a in attachments) or "(none)"
+
+    prompt = _build_prompt(
+        sender_kind=sender_kind, subject=subject or "(no subject)",
+        attachment_names=attachment_names, body=(body or "")[:3000],
+        attachment_text=attachment_text,
+    )
+    raw = _call_claude(prompt, max_tokens=800)  # research_note's CFA-lens schema is the biggest of the six
+    if raw:
+        parsed = _parse_json(raw)
+        if parsed and parsed.get("category") in CATEGORIES:
+            extracted = parsed.get("extracted")
+            return {"category": parsed["category"], "extracted": extracted if isinstance(extracted, dict) else {}}
+        print("[email_classifier] AI response didn't match expected shape — falling back to keyword classifier.")
+
+    category, extracted = _fallback_classify(subject or "", body or "", attachments, sender_kind)
+    return {"category": category, "extracted": extracted}
