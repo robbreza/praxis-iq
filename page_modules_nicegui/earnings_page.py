@@ -1057,6 +1057,23 @@ _GUIDANCE_PRIOR_QUOTES = [
 ]
 
 
+# ── Tenant gates for the two hardcoded USIO snapshots above ──
+# _PERSONA_LAST_QUARTER and _GUIDANCE_PRIOR_QUOTES are USIO's real, one-quarter
+# content. They are hardcoded because the proper source — transcript-driven
+# extraction from an ingested/summarized call (core.transcripts key_quotes /
+# guidance_language) — is not built yet. Until it is, render them ONLY for USIO;
+# for any other tenant they would be a leak (USIO's words on someone else's
+# script), so these accessors return empty and the consuming UI shows a clean
+# "nothing on file" state instead. Every consumer reads through these, never the
+# constants directly — the single-read-point pattern used for _fls_items().
+def _persona_last_quarter():
+    return _PERSONA_LAST_QUARTER if get_active_client_id() == "usio" else {}
+
+
+def _guidance_prior_quotes():
+    return _GUIDANCE_PRIOR_QUOTES if get_active_client_id() == "usio" else []
+
+
 def _guidance_writing_rules():
     """AI-prompt writing rules for the Guidance & Outlook draft — built from
     the active client's seasonal_weights/closing_line/operator_handoff
@@ -1475,7 +1492,7 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     tone = _tone_context(ss)
     policy = CGP()
     weights = policy.get("seasonal_weights", {})
-    quotes_block = "; ".join(f'{q}: "{t}"' for q, t in _GUIDANCE_PRIOR_QUOTES)
+    quotes_block = "; ".join(f'{q}: "{t}"' for q, t in _guidance_prior_quotes())
     catalysts_block = "; ".join(policy.get("known_h2_catalysts", [])) or "none configured"
     range_str = f"${new_low:.1f}M to ${new_hi:.1f}M"
     seasonal_note = (
@@ -1726,7 +1743,7 @@ def _render_persona_steps(ss, role, key):
     if role == "IR":
         _render_call_opening(ss)
 
-    ref = _PERSONA_LAST_QUARTER.get(role, {})
+    ref = _persona_last_quarter().get(role, {})
     notes = ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};padding:10px;box-shadow:none;border:1px solid {COLORS['border']};"):
