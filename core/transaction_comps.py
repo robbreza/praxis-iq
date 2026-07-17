@@ -174,8 +174,25 @@ def gdot_deal():
     return d
 
 
-def build(bench=None):
-    """Both transaction comps, plus the read. Safe to call from any report."""
+# Transaction comps are inherently CLIENT-SPECIFIC: they are deals involving a
+# particular client's PEERS. USIO's peer set contains PRTH (take-private) and GDOT
+# (merger), hardcoded above from their primary filings; another tenant's peers have
+# their own deals, or none. So build() renders them ONLY for a client that has
+# transaction comps defined here. For any other tenant (e.g. WRAP) it returns None
+# and the report section does not render — rather than showing that reader Priority
+# Technology's and Green Dot's deals, which have nothing to do with their company.
+# Adding a second client's transaction comps later is a data edit: give them their
+# own constants and add the client_id to this set.
+_CLIENTS_WITH_TXN_COMPS = {"usio"}
+
+
+def build(bench=None, client_id=None):
+    """Both transaction comps, plus the read. Returns None for a client that has
+    no transaction comps configured, so the section is simply omitted."""
+    from config.client_config import get_active_client_id
+    cid = client_id or get_active_client_id()
+    if cid not in _CLIENTS_WITH_TXN_COMPS:
+        return None
     prth = prth_bid(bench)
     gdot = gdot_deal()
     out = {

@@ -249,7 +249,7 @@ def _segments_story(story):
     """
     try:
         from core import segments
-        seg = segments.build("USIO")
+        seg = segments.build()  # active tenant, not hardcoded
     except Exception as exc:
         print(f"[report_pdf] segments unavailable: {exc}")
         return
@@ -346,7 +346,7 @@ def _annual_growth_story(story):
             Paragraph(f(f"{gg:+.1f}%") if gg is not None else "—", _S["td"]),
             Paragraph(f(f"{dm:+.1f}pp") if dm is not None else "—", _S["td"])])
 
-    _row("USIO", gb["usio_annual_rev_growth"], gb["usio_annual_gp_growth"],
+    _row(CT("ticker"), gb["usio_annual_rev_growth"], gb["usio_annual_gp_growth"],
          gb.get("usio_gm_delta_pp"), bold=True)
     for pr in sorted(gb["peers"], key=lambda x: -(x["gp_growth"] if x["gp_growth"] is not None else -999)):
         _row(pr["ticker"], pr["rev_growth"], pr["gp_growth"], pr.get("gm_delta_pp"))
@@ -392,7 +392,7 @@ def _valuation_caveats(story, comp, compact=True):
     # 1. The blend objection: our multiple is blended, the peer median is pure-play.
     try:
         from core import segments
-        seg = segments.build("USIO")
+        seg = segments.build()  # active tenant, not hardcoded
         sotp = seg.get("sotp") if seg.get("status") == "ok" else None
     except Exception as exc:
         print(f"[report_pdf] segments unavailable for caveats: {exc}")

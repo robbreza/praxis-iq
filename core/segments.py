@@ -159,8 +159,15 @@ def _pick(facts, end, dims_filter):
     return None
 
 
-def fetch(ticker="USIO"):
-    """Segment table for the latest 10-K, reconciled against consolidated. Cached."""
+def fetch(ticker=None):
+    """Segment table for the latest 10-K, reconciled against consolidated. Cached.
+
+    ticker defaults to the ACTIVE TENANT (config.client_config.CT), never a
+    hardcoded 'USIO' — otherwise a second client's segment section would render
+    USIO's 10-K. Pass an explicit ticker only to inspect a specific company."""
+    if ticker is None:
+        from config.client_config import CT
+        ticker = CT("ticker")
     key = ticker.upper()
     with _lock:
         hit = _cache.get(key)
@@ -339,7 +346,7 @@ def sotp_breakeven(seg=None, peer_median=None, usio_ev=None):
     """
     from core import valuation_comp, benchmarking_engine
 
-    seg = seg or fetch("USIO")
+    seg = seg or fetch()
     if seg.get("status") != "ok" or len(seg.get("segments") or []) < 2:
         return None
 
@@ -423,7 +430,7 @@ def _sotp_read(pay, oth, median, breakeven, residual, blended):
     )
 
 
-def build(ticker="USIO"):
+def build(ticker=None):
     seg = fetch(ticker)
     if seg.get("status") == "ok":
         try:
