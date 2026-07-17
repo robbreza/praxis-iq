@@ -123,19 +123,18 @@ from datetime import datetime
 import pandas as pd
 from nicegui import ui
 
-from config.client_config import C, CE, CF, CGP, CI, CT, get_active_client_id
+from config.client_config import C, CE, CF, CGP, CI, CT, get_active_client_id, team_labels
 from config.theme_tokens import ACTIVE as COLORS
-from core import activity_log, db, inbox_queue, transcripts
+from core import activity_log, consensus, db, guidance_engine, inbox_queue, market_data, transcripts
 from core.security import get_anthropic_api_key
-from data.seed.consensus_estimates import get_seed_consensus
 from page_modules_nicegui import nav
 
 STAGES = [
-    {"id": "cfo_numbers", "label": "Stage 1", "name": "CFO Numbers In", "icon": "📥"},
-    {"id": "ir_review", "label": "Stage 2", "name": "IR Review", "icon": "✏️"},
-    {"id": "exec_review", "label": "Stage 3", "name": "CFO+CEO+CRO Review", "icon": "👔"},
-    {"id": "consolidate", "label": "Stage 4", "name": "Consolidation", "icon": "🔀"},
-    {"id": "legal_signoff", "label": "Stage 5", "name": "Legal Sign-Off", "icon": "⚖️"},
+    {"id": "cfo_numbers", "label": "Stage 1", "name": "CFO Numbers In", "icon": ""},
+    {"id": "ir_review", "label": "Stage 2", "name": "IR Review", "icon": ""},
+    {"id": "exec_review", "label": "Stage 3", "name": "CFO+CEO+CRO Review", "icon": ""},
+    {"id": "consolidate", "label": "Stage 4", "name": "Consolidation", "icon": ""},
+    {"id": "legal_signoff", "label": "Stage 5", "name": "Legal Sign-Off", "icon": ""},
 ]
 
 # Forward-Looking Statements checklist for the Script Generation tab's
@@ -175,10 +174,10 @@ _Q1_QA_TOPICS = [
 # pacing estimate in the Script Canvas.
 _Q1_SECTION_TIMING = [
     ("CEO Opening", 6.5, 8.0, "#3B82F6", "On track — tight and thematic"),
-    ("Business Review", 12.0, 10.0, "#F59E0B", "Ran 2 min over — PayFac detail was dense"),
-    ("CFO Financial Review", 9.5, 10.0, "#4ADE80", "Under budget — well-structured"),
-    ("Guidance & Outlook", 4.0, 4.0, "#4ADE80", "Exactly on — Louis was disciplined"),
-    ("Q&A Session", 40.0, 35.0, "#F87171", "Ran 5 min over — interest income bridge took 3 questions"),
+    ("Business Review", 12.0, 10.0, "#B45309", "Ran 2 min over — PayFac detail was dense"),
+    ("CFO Financial Review", 9.5, 10.0, "#15803D", "Under budget — well-structured"),
+    ("Guidance & Outlook", 4.0, 4.0, "#15803D", "Exactly on — Louis was disciplined"),
+    ("Q&A Session", 40.0, 35.0, "#B91C1C", "Ran 5 min over — interest income bridge took 3 questions"),
 ]
 _Q1_SECTION_WORDCOUNT = [
     ("CEO Opening", 820, 900), ("Business Review", 1450, 1200), ("CFO Financial Review", 1180, 1150),
@@ -208,10 +207,10 @@ def _pacing_estimate(text, hist_key=None):
         return f"~{est_min:.1f} min ({words} words)", COLORS["text_muted"]
     delta = est_min - hist
     if delta > hist * 0.15:
-        return f"~{est_min:.1f} min ({words} words) — running long vs. the ~{hist:.1f} min historical norm", "#F87171"
+        return f"~{est_min:.1f} min ({words} words) — running long vs. the ~{hist:.1f} min historical norm", "#B91C1C"
     if delta < -hist * 0.15:
-        return f"~{est_min:.1f} min ({words} words) — shorter than the ~{hist:.1f} min historical norm", "#60A5FA"
-    return f"~{est_min:.1f} min ({words} words) — on pace vs. the ~{hist:.1f} min historical norm", "#4ADE80"
+        return f"~{est_min:.1f} min ({words} words) — shorter than the ~{hist:.1f} min historical norm", "#1E40AF"
+    return f"~{est_min:.1f} min ({words} words) — on pace vs. the ~{hist:.1f} min historical norm", "#15803D"
 
 
 # Q1 → Q2 Script Actions — the concrete, specific critique from the Q1
@@ -224,19 +223,19 @@ def _pacing_estimate(text, hist_key=None):
 # Like _PERSONA_LAST_QUARTER, this is one quarter's real critique — replace
 # it each cycle rather than assuming it holds going forward.
 _Q1_TO_Q2_ACTIONS = [
-    {"priority": "CRITICAL", "clr": "#EF4444", "icon": "🔴", "persona_role": "CFO",
+    {"priority": "CRITICAL", "clr": "#EF4444", "icon": "", "persona_role": "CFO",
      "q1_finding": "Interest income — NOT pre-empted · 3 analyst questions in Q1 Q&A",
      "action": "Write interest income bridge in CFO section",
      "where": "Script Generation → CFO Financials", "impact": "Eliminates ~3 questions from covering analysts"},
-    {"priority": "IMPROVE", "clr": "#F59E0B", "icon": "🟠", "persona_role": "CRO",
+    {"priority": "IMPROVE", "clr": "#B45309", "icon": "", "persona_role": "CRO",
      "q1_finding": "Business Review ran 2 min over at 12 min · PayFac over-narrated",
      "action": "Cap Business Operations section at 90 sec on PayFac · add H2 margin pre-emption",
      "where": "Script Generation → Business Operations", "impact": "Reclaims 2 min for margin expansion narrative analysts missed"},
-    {"priority": "NEW", "clr": "#60A5FA", "icon": "💡", "persona_role": None,
+    {"priority": "NEW", "clr": "#1E40AF", "icon": "", "persona_role": None,
      "q1_finding": "No Q&A prep section existed in Q1 · 3 off-script questions",
      "action": "Build analyst-specific Q&A prep",
      "where": "Script Generation → Q&A Prep", "impact": "Pre-empts analysts on interest income and margin mix"},
-    {"priority": "KEEP", "clr": "#4ADE80", "icon": "🟢", "persona_role": "CEO",
+    {"priority": "KEEP", "clr": "#15803D", "icon": "", "persona_role": "CEO",
      "q1_finding": "CEO opening tone — 6.5 min · 'operating leverage inflection' framing worked",
      "action": "Reprise CEO framing in Q2 · same length · update numbers only",
      "where": "Script Generation → CEO Narrative", "impact": "Analysts are now tracking this narrative — reinforce it"},
@@ -350,10 +349,10 @@ def _render_call_opening(ss):
     operator_line, welcome_line, fls_line = _call_opening_text(ss)
     ir = CI()
     with ui.card().classes("w-full").style(
-            "background:rgba(248,113,113,.06);border:2px solid #F87171;border-radius:8px;"
+            "background:rgba(248,113,113,.06);border:2px solid #B91C1C;border-radius:8px;"
             "padding:12px 14px;margin-bottom:12px;"):
-        ui.label("🔒 Call Opening — Operator & Reg FD / Safe Harbor Reading").classes("font-bold").style(
-            "color:#F87171;font-size:13px;")
+        ui.label("Call Opening — Operator & Reg FD / Safe Harbor Reading").classes("font-bold").style(
+            "color:#B91C1C;font-size:13px;")
         ui.label("Legal-approved, reads verbatim — not an editable AI draft like the sections below. Always "
                   "included at the very start of the assembled Full Script and every download.").style(
             f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
@@ -410,7 +409,7 @@ _PERSONA_LAST_QUARTER = {
             ("Output Solutions", "+19% — accelerating"),
             ("Gross margin", "Somewhat lower — interest income decline (100%-margin line)"),
         ],
-        "tags": ["⚠️ Interest income decline was NOT pre-empted last quarter — "
+        "tags": ["Interest income decline was NOT pre-empted last quarter — "
                  "drew 3 analyst Q&A follow-ups"],
     },
     "CRO": {
@@ -424,7 +423,7 @@ _PERSONA_LAST_QUARTER = {
             ("Usio ONE case study", "Custom payout provider — came in for card, now also on RTP + Output + prepaid"),
             ("New enterprise", "Building-supply and online-sporting-goods accounts (first full quarter)"),
         ],
-        "tags": ["⚠️ Everything above must be disclosed again this quarter, or explicitly "
+        "tags": ["Everything above must be disclosed again this quarter, or explicitly "
                  "explained if it's being dropped"],
     },
     "CEO": {
@@ -486,9 +485,9 @@ def _tone_context(ss):
     band = CT("tone_band_m", 0.5) or 0.5
     delta = (n.get("rev", 0) or 0) - (CT("q2_consensus_rev", 0) or 0)
     if delta > band:
-        return {"bucket": "beat", "label": f"✅ BEAT +${delta:.2f}M vs Street", "delta": delta}
+        return {"bucket": "beat", "label": f"BEAT +${delta:.2f}M vs Street", "delta": delta}
     if delta < -band:
-        return {"bucket": "miss", "label": f"⚠️ MISS ${delta:.2f}M vs Street", "delta": delta}
+        return {"bucket": "miss", "label": f"MISS ${delta:.2f}M vs Street", "delta": delta}
     return {"bucket": "inline", "label": "\U0001f7e1 IN LINE vs Street", "delta": delta}
 
 
@@ -550,7 +549,7 @@ def _blank_script_state():
         # Once set, this is the authoritative full script everywhere
         # (_full_script_text prefers it) — autosaves as you type, but
         # full_script_override_saved_at only updates on an explicit Save
-        # click, so the "✅ Saved ..." confirmation means what it says.
+        # click, so the "Saved ..." confirmation means what it says.
         "full_script_override": "",
         "full_script_override_saved_at": None,
         "first_pass_complete": None,
@@ -571,13 +570,27 @@ def render_earnings_page():
     # actually opening Script Generation — see chat from Jul 10, 2026).
     _earnings_tab_target = nav.highlights.pop("earnings_tab", None)
     jump_to_transcripts = _earnings_tab_target == "transcripts"
-    jump_to_script = _earnings_tab_target == "script"
+    # "guidance" (Markets "Open the Guidance Decision Engine" buttons) lands on
+    # the Script Generation tab AND scrolls to the Decision Engine, so the
+    # button opens the engine itself rather than the top of the tab.
+    jump_to_script = _earnings_tab_target in ("script", "guidance")
+    scroll_to_guidance = _earnings_tab_target == "guidance"
 
     with ui.tabs().classes("w-full") as tabs:
-        t1 = ui.tab("📊 Prior Qtr Review")
-        t2 = ui.tab("📝 Script Generation")
-        t3 = ui.tab("🎯 Consensus Tracker")
-        t4 = ui.tab("🎙️ Call Transcripts")
+        t1 = ui.tab("Prior Qtr Review")
+        t2 = ui.tab("Script Generation")
+        # Narrative Momentum — promoted from a section inside Script Generation →
+        # Tomorrow's Setup to its own tab. Same shared renderer (narrative_engine
+        # via markets_page._render_narrative_momentum); Tomorrow's Setup keeps its
+        # own synthesis view, this is the direct destination. Declared here so it
+        # sits right after Script Generation in the tab order.
+        t5 = ui.tab("Narrative Momentum")
+        t3 = ui.tab("Consensus Tracker")
+        t4 = ui.tab("Call Transcripts")
+        # Morning After — the post-call critique (core.morning_after). Sits last
+        # because it's the end of the cycle: the call has happened, the tape has
+        # voted, and this is what feeds next quarter's Prior Qtr Review (t1).
+        t6 = ui.tab("Morning After")
 
     # Lazy tab loading — all 4 tabs used to build eagerly on every page
     # load (this page's Script Generation tab alone builds a 15-field intake
@@ -587,7 +600,12 @@ def render_earnings_page():
     # Same fix already applied to investors_page.py's render_investors_page
     # — only the default-open tab renders immediately; the rest render a
     # spinner and build for real the first time they're actually selected.
-    default_tab = t4 if jump_to_transcripts else (t2 if jump_to_script else t1)
+    # A sidebar sub-item deep-links straight to a tab (nav.consume_target_tab);
+    # it wins over the guidance/transcript jump logic. Map the label back to its
+    # tab object so the lazy-load default and eager-render branches still work.
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6)}
+    default_tab = _by_name.get(nav.consume_target_tab()) or (
+        t4 if jump_to_transcripts else (t2 if jump_to_script else t1))
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
         with ui.tab_panel(t1) as p1:
             if default_tab is t1:
@@ -599,24 +617,52 @@ def render_earnings_page():
                 _render_script_workflow_tab()
             else:
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t5) as p5:
+            if default_tab is t5:
+                _render_narrative_momentum_tab()
+            else:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t3) as p3:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+            if default_tab is t3:
+                _render_surprise_tracker_tab()
+            else:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t4) as p4:
             if default_tab is t4:
                 _render_transcripts_tab()
             else:
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t6) as p6:
+            if default_tab is t6:
+                _render_morning_after_tab()
+            else:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+
+    if scroll_to_guidance:
+        # Scroll to the Decision Engine once the Script Generation tab paints.
+        # The engine sits far down a heavy tab that reflows as forms/charts
+        # settle, so a single scroll lands too early — this retries a handful
+        # of times so the final position sticks. No-op if the anchor is absent.
+        ui.timer(0.2, lambda: ui.run_javascript(
+            "(function(){var n=0;function go(){"
+            "var el=document.getElementById('guidance-engine-anchor');"
+            "if(el){el.scrollIntoView({block:'start'});}"
+            "if(++n<7){setTimeout(go,450);}}setTimeout(go,250);})()"), once=True)
 
     lazy_panels = {
         t1.props["name"]: (p1, _render_lookback_tab),
         t2.props["name"]: (p2, _render_script_workflow_tab),
+        t5.props["name"]: (p5, _render_narrative_momentum_tab),
         t3.props["name"]: (p3, _render_surprise_tracker_tab),
         t4.props["name"]: (p4, _render_transcripts_tab),
+        t6.props["name"]: (p6, _render_morning_after_tab),
     }
     loaded_tabs = {default_tab.props["name"]}
 
     async def _load_tab_on_demand(e):
         name = e.value
+        # Keep the sidebar's sub-item highlight in sync with in-page tab clicks.
+        nav.tab_changed(name)
         if name not in lazy_panels or name in loaded_tabs:
             return
         container, build_fn = lazy_panels[name]
@@ -641,7 +687,7 @@ def render_earnings_page():
             traceback.print_exc()
             container.clear()
             with container:
-                ui.label("⚠️ This tab failed to load").classes("text-lg font-bold").style(f"color:{COLORS['danger']};")
+                ui.label("This tab failed to load").classes("text-lg font-bold").style(f"color:{COLORS['danger']};")
                 ui.label("Something broke while rendering this tab. The exact error is in the server "
                          "console (the terminal window running app_nicegui.py) — copy it from there.").style(
                     f"color:{COLORS['text_muted']};font-size:12px;")
@@ -654,26 +700,26 @@ def render_earnings_page():
 # Tab 0 — Prior Qtr Review
 # ─────────────────────────────────────────────────────────────────────────
 def _render_lookback_tab():
-    ui.label("📊 Q1 2026 Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("Q1 2026 Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Every Q2 script decision should start here. What worked, what was missed, and what analysts actually cared about.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.row().classes("w-full gap-3 items-stretch"):
-        with ui.card().classes("flex-[2]").style("background:linear-gradient(135deg,#1D4ED8,#1E3A5F);border-radius:10px;"):
-            ui.label("🎧 Q1 2026 Earnings Call Replay").classes("font-bold").style("color:#F1F5F9;")
-            ui.label("May 13, 2026 · 4:30 PM ET · 72 minutes · Chorus Call archive").style("color:#93C5FD;font-size:12px;")
-        ui.link("▶️ Play on Chorus Call", "https://www.choruscall.com", new_tab=True).classes("flex-1 text-center").style(
+        with ui.card().classes("flex-[2]").style("background:#E8EEF7;border:1px solid #D3DBE4;border-radius:10px;"):
+            ui.label("Q1 2026 earnings call replay").classes("font-bold").style("color:#0F172A;")
+            ui.label("May 13, 2026 · 4:30 PM ET · 72 minutes · Chorus Call archive").style("color:#475569;font-size:12px;")
+        ui.link("Play on Chorus Call", "https://www.choruscall.com", new_tab=True).classes("flex-1 text-center").style(
             f"background:{COLORS['accent']};color:white;padding:10px;border-radius:8px;")
         with ui.column().classes("flex-1"):
-            ui.label("📄 Upload the transcript PDF in the 🎙️ Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:11.5px;padding:8px;")
-            ui.button("🎙️ Go to Call Transcripts", on_click=lambda: nav.go_to("Earnings", earnings_tab="transcripts")).props("flat dense")
+            ui.label("Upload the transcript PDF in the Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:11.5px;padding:8px;")
+            ui.button("Go to Call Transcripts", on_click=lambda: nav.go_to("Earnings", "Call Transcripts")).props("flat dense")
 
     with ui.row().classes("w-full gap-3"):
         for val, lbl, sub, clr in [
-            ("+24.22%", "AH Reaction", "May 13 · record session", "#4ADE80"),
-            ("$25.47M", "Q1 Revenue", "+16% YoY · record quarter", "#4ADE80"),
-            ("$0.00 EPS", "First B/E quarter", "vs −$0.01 guided", "#4ADE80"),
-            ("2.4x", "Volume vs avg", "Analyst interest spiked", "#60A5FA"),
-            ("72 min", "Call length", "vs 65 min Q4 2025", "#94A3B8"),
+            ("+24.22%", "AH Reaction", "May 13 · record session", "#15803D"),
+            ("$25.47M", "Q1 Revenue", "+16% YoY · record quarter", "#15803D"),
+            ("$0.00 EPS", "First B/E quarter", "vs −$0.01 guided", "#15803D"),
+            ("2.4x", "Volume vs avg", "Analyst interest spiked", "#1E40AF"),
+            ("72 min", "Call length", "vs 65 min Q4 2025", "#64748B"),
         ]:
             with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                 ui.label(val).classes("text-lg font-bold").style(f"color:{clr};")
@@ -687,7 +733,7 @@ def _render_lookback_tab():
             for sec, actual, hist, clr, note in _Q1_SECTION_TIMING:
                 delta = actual - hist
                 delta_str = f"+{delta:.0f} min" if delta > 0 else (f"{delta:.0f} min" if delta < 0 else "on time")
-                delta_clr = "#F87171" if delta > 0 else ("#4ADE80" if delta < 0 else COLORS["text_muted"])
+                delta_clr = "#B91C1C" if delta > 0 else ("#15803D" if delta < 0 else COLORS["text_muted"])
                 with ui.row().classes("w-full items-center gap-3").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
                     ui.label(sec).style(f"color:{COLORS['text_body']};font-size:12.5px;min-width:150px;")
                     ui.label(f"{actual:.0f} min").style(f"color:{clr};font-weight:bold;min-width:60px;")
@@ -697,7 +743,7 @@ def _render_lookback_tab():
             ui.label("Script Word Count — Q1 2026").classes("font-bold").style("margin-top:12px;")
             for sec, wc, hist_wc in _Q1_SECTION_WORDCOUNT:
                 pct = min(int(wc / 2500 * 100), 100)
-                vs_clr = "#F59E0B" if wc > hist_wc * 1.15 else COLORS["text_muted"]
+                vs_clr = "#B45309" if wc > hist_wc * 1.15 else COLORS["text_muted"]
                 with ui.row().classes("w-full items-center gap-2"):
                     ui.label(sec).style(f"color:{COLORS['text_muted']};font-size:11.5px;min-width:150px;")
                     with ui.element("div").classes("flex-1").style(f"background:{COLORS['canvas_bg']};border-radius:4px;height:8px;overflow:hidden;"):
@@ -725,10 +771,10 @@ def _render_lookback_tab():
                             ui.label(f"{a['priority']} · Q1 FINDING").style(f"color:{a['clr']};font-size:11px;font-weight:bold;text-transform:uppercase;")
                             ui.label(a["q1_finding"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
                             ui.label(a["action"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
-                            ui.label(f"📍 {a['where']}").style(f"color:{a['clr']};font-size:11.5px;")
+                            ui.label(f"{a['where']}").style(f"color:{a['clr']};font-size:11.5px;")
                         ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:11.5px;font-style:italic;padding:0 4px;")
             ui.label("These same items now auto-seed Step 2 of each relevant persona's Script Canvas tab — "
-                      "click 📝 Script Generation above to see them there, pre-filled and editable.").style(
+                      "click Script Generation above to see them there, pre-filled and editable.").style(
                 f"color:{COLORS['text_muted']};font-size:11.5px;margin-top:6px;")
 
         with ui.column().classes("flex-[4]"):
@@ -736,8 +782,8 @@ def _render_lookback_tab():
             ui.label("Pre-emption score: was this addressed proactively in the script, or did it surface as a question?").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
             qa_topics = _Q1_QA_TOPICS
             for topic, preempted, note in qa_topics:
-                clr = "#4ADE80" if preempted else "#F87171"
-                icon = "✅" if preempted else "❌"
+                clr = "#15803D" if preempted else "#B91C1C"
+                icon = "" if preempted else ""
                 with ui.row().classes("w-full items-start gap-2").style(f"padding:4px 0;"):
                     ui.label(icon)
                     with ui.column().classes("gap-0"):
@@ -748,19 +794,19 @@ def _render_lookback_tab():
             score = round(preempted_count / len(qa_topics) * 100)
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                 ui.label("Pre-emption score — Q1 2026").style(f"color:{COLORS['text_muted']};font-size:11px;text-transform:uppercase;")
-                ui.label(f"{score}% · {preempted_count} of {len(qa_topics)} topics addressed proactively").classes("font-bold").style("color:#4ADE80;font-size:18px;")
-                ui.label("Target for Q2: 90%+ · Key fix: interest income bridge language").style("color:#F59E0B;font-size:11.5px;")
+                ui.label(f"{score}% · {preempted_count} of {len(qa_topics)} topics addressed proactively").classes("font-bold").style("color:#15803D;font-size:18px;")
+                ui.label("Target for Q2: 90%+ · Key fix: interest income bridge language").style("color:#B45309;font-size:11.5px;")
 
             ui.label("Post-Call Analyst Note Alignment").classes("font-bold").style("margin-top:10px;")
             alignment = [
-                ("Record revenue momentum", "HCW · Ladenburg both highlighted", "#4ADE80"),
-                ("First B/E quarter", "HCW flagged as positive inflection", "#4ADE80"),
-                ("PayFac growth conviction", "Ladenburg led note with PayFac thesis", "#4ADE80"),
-                ("Interest income drag", "Ladenburg flagged as lingering uncertainty", "#F87171"),
-                ("H2 margin expansion", "Neither analyst modeled the H2 improvement explicitly", "#F59E0B"),
+                ("Record revenue momentum", "HCW · Ladenburg both highlighted", "#15803D"),
+                ("First B/E quarter", "HCW flagged as positive inflection", "#15803D"),
+                ("PayFac growth conviction", "Ladenburg led note with PayFac thesis", "#15803D"),
+                ("Interest income drag", "Ladenburg flagged as lingering uncertainty", "#B91C1C"),
+                ("H2 margin expansion", "Neither analyst modeled the H2 improvement explicitly", "#B45309"),
             ]
             for takeaway, view, clr in alignment:
-                icon = "✅" if clr == "#4ADE80" else ("⚠️" if clr == "#F59E0B" else "❌")
+                icon = "" if clr == "#15803D" else ("" if clr == "#B45309" else "")
                 with ui.column().classes("gap-0").style(f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                     ui.label(f"{icon} {takeaway}").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
                     ui.label(view).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
@@ -987,10 +1033,10 @@ def _generate_persona_draft(role, ss, context=""):
 # selector too.
 # ─────────────────────────────────────────────────────────────────────────
 _GUIDANCE_ACTIONS = [
-    ("raise_low", "🟢 RAISE — Increase the low end of the range (most common beat action at Q2)"),
-    ("raise_mid", "🔵 RAISE — Increase the midpoint (strong beat + strong H2 visibility required)"),
-    ("reiterate", "🟡 REITERATE — Maintain full range (conservative; appropriate after Q1-level beat at Q2)"),
-    ("narrow", "🔴 NARROW — Tighten the range without raising (signals H2 visibility but not confidence)"),
+    ("raise_low", "RAISE — Increase the low end of the range (most common beat action at Q2)"),
+    ("raise_mid", "RAISE — Increase the midpoint (strong beat + strong H2 visibility required)"),
+    ("reiterate", "REITERATE — Maintain full range (conservative; appropriate after Q1-level beat at Q2)"),
+    ("narrow", "NARROW — Tighten the range without raising (signals H2 visibility but not confidence)"),
 ]
 _GUIDANCE_ACK = {
     "raise_low": "Raise low end selected — script will bank the Q2 beat into the guidance floor.",
@@ -1039,90 +1085,348 @@ def _guidance_writing_rules():
 
 
 def _guidance_math(ss):
-    """Seasonality-adjusted guidance dashboard numbers + scenario
-    recommendation. The recommendation is informational only — the actual
-    guidance action is still a human (CFO/CEO) radio-button decision.
-    Every seasonal/growth/prior-FY input comes from the active client's
-    guidance_policy (CGP()) — a client with none configured gets an honest
-    all-zeros read here rather than USIO's numbers."""
-    policy = CGP()
-    prior_fy_rev = policy.get("prior_fy_quarterly_revenue", {})
-    weights = policy.get("seasonal_weights", {})
-    growth_low = policy.get("fy_growth_low", 0)
-    growth_high = policy.get("fy_growth_high", 0)
-    prior_fy_total = sum(prior_fy_rev.values())
-
-    n = ss.get("q2_numbers", {})
-    q2_actual = n.get("rev", 0) or 0
-    q1_actual = CF().get("last_rev", 0) or 0  # same figure the Prior Qtr Review tab already uses
-    ytd_rev = q1_actual + q2_actual
-    fy_low = round(prior_fy_total * (1 + growth_low), 2)
-    fy_hi = round(prior_fy_total * (1 + growth_high), 2)
-    fy_mid = round((fy_low + fy_hi) / 2, 2)
-    ytd_pct_of_mid = (ytd_rev / fy_mid * 100) if fy_mid else 0
-    seasonal_h1_pct = (weights.get("Q1", 0) + weights.get("Q2", 0)) * 100
-    pace_vs_seasonal = ytd_pct_of_mid - seasonal_h1_pct
-    beat_vs_street = q2_actual - (CT("q2_consensus_rev", 0) or 0)
-    h2_2025_rev = prior_fy_rev.get("Q3", 0) + prior_fy_rev.get("Q4", 0)
-    h2_needed_low = fy_low - ytd_rev
-    h2_growth_needed = ((h2_needed_low / h2_2025_rev) - 1) * 100 if h2_2025_rev else 0
-    fy_implied_from_h1 = (ytd_rev / seasonal_h1_pct * 100) if seasonal_h1_pct else 0
-
-    if pace_vs_seasonal >= 3.0 and beat_vs_street >= 1.0:
-        scenario, label = "RAISE_MID", "RAISE MIDPOINT — Running materially above seasonal pace; beat supports full range shift"
-    elif pace_vs_seasonal >= 1.0 and beat_vs_street >= 0:
-        scenario, label = "RAISE_LOW", "RAISE LOW END — Above seasonal pace; bank the beat into the floor"
-    elif pace_vs_seasonal >= -1.0 and beat_vs_street >= -0.5:
-        scenario, label = "REITERATE", "REITERATE — On seasonal pace; H2 catalysts needed before raising"
-    else:
-        scenario, label = "REITERATE_CAUTIOUS", "REITERATE WITH CAUTION — Behind seasonal pace; Street will ask about H2 bridge"
-
-    return {
-        "ytd_rev": ytd_rev, "fy_low": fy_low, "fy_hi": fy_hi, "fy_mid": fy_mid,
-        "ytd_pct_of_mid": ytd_pct_of_mid, "pace_vs_seasonal": pace_vs_seasonal,
-        "beat_vs_street": beat_vs_street, "h2_2025_rev": h2_2025_rev,
-        "h2_needed_low": h2_needed_low, "h2_growth_needed": h2_growth_needed,
-        "fy_implied_from_h1": fy_implied_from_h1, "scenario": scenario, "scenario_label": label,
-    }
+    """Thin wrapper — the seasonal read now lives in core.guidance_engine, the
+    single source of truth shared with the Markets 'Update guidance' impact
+    panel so the two screens can never compute different numbers. Kept as a
+    named function here because other modules already import it."""
+    return guidance_engine.seasonal_read(ss)
 
 
 def _guidance_range_for_action(action, math_):
-    """Flat-dollar range nudges are a per-client policy value
-    (guidance_policy.range_deltas_m) rather than hardcoded — sized for
-    USIO's scale; a much larger client would need bigger (or %-of-revenue)
-    moves here. Defaults to 0 (no-op nudge) for a client with none configured."""
-    fy_low, fy_hi = math_["fy_low"], math_["fy_hi"]
-    deltas = CGP().get("range_deltas_m", {})
-    d_raise_low = deltas.get("raise_low", 0)
-    d_raise_mid = deltas.get("raise_mid", 0)
-    d_narrow = deltas.get("narrow", 0)
-    if action == "raise_low":
-        new_low, new_hi = round(fy_low + d_raise_low, 1), round(fy_hi, 1)
-        rationale = (f"Raising the low end from ${fy_low:.1f}M to ${new_low:.1f}M reflects the Q2 beat now banked "
-                     f"into the full year. The high end is maintained, preserving appropriate conservatism given "
-                     f"H2 execution risk.")
-    elif action == "raise_mid":
-        new_low, new_hi = round(fy_low + d_raise_mid, 1), round(fy_hi + d_raise_mid, 1)
-        rationale = (f"Raising both ends of the guidance range by approximately ${d_raise_mid:.1f}M reflects "
-                     f"strong H1 performance and improving H2 visibility from pipeline, new implementations, and "
-                     f"named H2 catalysts.")
-    elif action == "narrow":
-        new_low, new_hi = round(fy_low + d_narrow, 1), round(fy_hi - d_narrow, 1)
-        rationale = ("Narrowing the guidance range reflects increased visibility into H2 without committing to "
-                     "a higher midpoint ahead of key Q3 implementations.")
-    else:  # reiterate
-        new_low, new_hi = round(fy_low, 1), round(fy_hi, 1)
-        rationale = ("Reiterating the full-year guidance range reflects management's confidence in the business "
-                     "trajectory while maintaining appropriate conservatism given that significant H2 "
-                     "implementations are still scaling.")
-    return new_low, new_hi, rationale
+    """Thin wrapper — the verb→numbers translation now lives in
+    core.guidance_engine.apply_action so the write-through to period_guidance
+    and any other consumer share one definition."""
+    return guidance_engine.apply_action(action, math_)
+
+
+_VERDICT_STYLE = {
+    "material_gap": ("#B91C1C", "MATERIAL GAP"),
+    "unaddressed": ("#B45309", "NOT ADDRESSED"),
+    "probing": ("#1E40AF", "PROBING"),
+    "ritual": ("#64748B", "RITUAL"),
+}
+
+
+def _render_morning_after_tab():
+    """Post-call critique (core.morning_after): what the tape did, how the call
+    was delivered, and what the Q&A actually exposed — material gaps first."""
+    from core import morning_after, transcripts
+
+    ui.label("Morning After — post-call critique").classes("text-lg font-bold")
+    ui.label("What the tape did, how the call ran, and what the Q&A exposed. The Q&A is an arena: "
+             "analysts must ask something to be on record, and most questions fish for incremental "
+             "colour you can't pre-empt. Only questions with evidence behind them — management "
+             "couldn't answer, conceded something the script framed as upside, or the topic recurs — "
+             "count against the script.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    quarters = [t["quarter"] for t in sorted((transcripts.list_transcripts() or []),
+                                             key=lambda x: x.get("call_date") or "", reverse=True)]
+    if not quarters:
+        ui.label("No transcripts ingested yet — add one on the Call Transcripts tab.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
+        return
+
+    state = {"q": quarters[0]}
+    with ui.row().classes("items-center gap-2").style("margin-top:6px;"):
+        ui.label("Quarter").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        sel = ui.select(quarters, value=quarters[0]).props("dense outlined").classes("min-w-[130px]")
+
+    @ui.refreshable
+    def _body():
+        try:
+            c = morning_after.critique(state["q"])
+        except Exception as e:
+            ui.label(f"Critique unavailable: {e}").style("color:#B45309;font-size:12px;")
+            return
+        if not c:
+            ui.label("Nothing to critique for that quarter.").style(f"color:{COLORS['text_muted']};")
+            return
+        r, t, p = c.get("reaction"), c.get("timing"), c.get("preempt")
+
+        # ── The tape ────────────────────────────────────────────────────────
+        if r:
+            drift = r["next_day_pct"] - r["pct"]
+            gap_clr = "#15803D" if r["pct"] >= 0 else "#B91C1C"
+            close_clr = "#15803D" if r["next_day_pct"] >= 0 else "#B91C1C"
+            with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
+                _metric_card("Call-day close", f"${r['close']:.2f}", "last print before they digested it")
+                _metric_card("Overnight gap", f"{r['pct']:+.2f}%", f"opened ${r['next_open']:.2f}", gap_clr)
+                _metric_card("Next close", f"{r['next_day_pct']:+.2f}%", f"cumulative · {r['next_volume']:,} sh", close_clr)
+                _metric_card("Moved after open", f"{drift:+.2f}pp",
+                             "digested through the session" if abs(drift) > abs(r["pct"]) else "verdict was at the bell")
+            ui.label("Close-to-next-open. After-hours is excluded: on a micro-cap those are market-maker "
+                     "quotes that print but can't be traded.").style(
+                f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+        # ── Delivery ────────────────────────────────────────────────────────
+        if t:
+            ui.label("Delivery (measured from the transcript's own timestamps)").classes(
+                "section-head").style("margin-top:10px;")
+            if not t.get("reliable"):
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid #B45309;"
+                        "border-left:3px solid #B45309;padding:6px 10px;"):
+                    ui.label("Timing withheld — this transcript's labelling can't support it").style(
+                        "color:#B45309;font-size:11.5px;font-weight:700;")
+                    for w in t["warnings"]:
+                        ui.label("• " + w).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label("The tape and Q&A findings below are unaffected — they come from the text "
+                             "and the market, not the speaker labels.").style(
+                        f"color:{COLORS['text_muted']};font-size:10.5px;")
+            else:
+                with ui.row().classes("w-full gap-3"):
+                    _metric_card("Prepared", f"{t['prepared_minutes']} min", "management only")
+                    _metric_card("Q&A", f"{t['qa_minutes']} min", "")
+                    _metric_card("Total", f"{t['total_minutes']} min", f"operator {t['operator_minutes']} min")
+                for s in t["by_speaker"]:
+                    with ui.row().classes("w-full items-center gap-2").style(
+                            f"border-bottom:1px solid {COLORS['border']};padding:3px 0;"):
+                        ui.label(s["speaker"]).style(
+                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;width:110px;")
+                        ui.label(f"{s['minutes']} min").style(f"color:{COLORS['accent']};font-size:12px;width:70px;")
+                        ui.label(f"{s['wpm']} wpm").style(f"color:{COLORS['text_muted']};font-size:11px;width:70px;")
+                        ui.label(", ".join(s.get("raw", []))[:70]).style(
+                            f"color:{COLORS['text_muted']};font-size:10px;")
+
+        # ── Non-answers (published classifier + base rate) ───────────────────
+        na = c.get("non_answers")
+        if na:
+            ui.label("Non-answers — did management actually answer?").classes(
+                "section-head").style("margin-top:12px;")
+            ui.label("Gow, Larcker & Zakolyukina (2021), J. Accounting Research 59(4) — their regex "
+                     "classifier (78.9% out-of-sample true-positive, 89.2% accuracy). The number only "
+                     "means something against their benchmark: ~11% of responses across all firms are "
+                     "non-answers, stable over time and across industries. 11% is NORMAL.").style(
+                f"color:{COLORS['text_muted']};font-size:10.5px;")
+            rate_pct = na["rate"] * 100
+            if not na["labels_reliable"]:
+                rate_clr = "#B45309"
+            elif rate_pct > 14:
+                rate_clr = "#B91C1C"
+            elif rate_pct < 7:
+                rate_clr = "#15803D"
+            else:
+                rate_clr = COLORS["accent"]
+            with ui.row().classes("w-full gap-3").style("margin-top:4px;"):
+                _metric_card("Non-answer rate", f"{rate_pct:.0f}%",
+                             f"{na['non_answers']} of {na['responses']} responses", rate_clr)
+                _metric_card("vs 11% norm",
+                             (f"{na['vs_benchmark_pp']:+.1f}pp" if na["vs_benchmark_pp"] is not None else "—"),
+                             "p25 7% · p75 14%", rate_clr)
+                _metric_card("Refuse / Unable / Offline",
+                             f"{na['by_type']['REFUSE']} / {na['by_type']['UNABLE']} / {na['by_type']['AFTERCALL']}",
+                             "won't / can't / deflect")
+            if not na["labels_reliable"]:
+                ui.label("⚠ Rate is indicative only — this transcript mis-attributes management turns, "
+                         "so the denominator mixes speakers. The flagged phrases below are still real.").style(
+                    "color:#B45309;font-size:10.5px;")
+            ui.label(na["read"]).style(f"color:{COLORS['text_body']};font-size:11.5px;margin-top:2px;")
+            for f in na["flagged"]:
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                        "border-left:3px solid #B45309;padding:6px 10px;margin-top:3px;"):
+                    ui.label(f"{' + '.join(f['types'])} · {f['speaker']}").style(
+                        "color:#B45309;font-size:11.5px;font-weight:700;")
+                    ui.label(f"flagged phrase: \"{f['hits'][0]['phrase']}\"").style(
+                        f"color:{COLORS['text_body']};font-size:11px;")
+                    ui.label(f["excerpt"]).style(
+                        f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+            if not na["flagged"]:
+                ui.label("No non-answers detected — management engaged every question. Against an ~11% "
+                         "norm that is genuinely unusual, and worth protecting.").style(
+                    "color:#15803D;font-size:11px;margin-top:2px;")
+
+        # ── What the Q&A DEMANDED (number_frame) ────────────────────────────
+        ui.label("What the Q&A demanded — and whether you delivered it").classes(
+            "section-head").style("margin-top:12px;")
+        ui.label("Every analyst question anchors on a number, and the analyst has ALREADY judged it. "
+                 "The valence sets what the answer owes: a GOOD number must be shown to REPEAT "
+                 "(run-rate or one-timer?); a BAD number needs CONTROL and TIMING (yours to fix, and "
+                 "by when?); a CLAIM or guide needs BACKING (what's signed vs assumed?). A mismatch "
+                 "isn't evasion — it's usually a good answer to a question nobody asked.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+
+        fr = c.get("frames")
+        fbox = ui.column().classes("w-full")
+
+        def _render_frames(f):
+            fbox.clear()
+            with fbox:
+                if not f:
+                    ui.label("Not analysed yet — this runs a model call per exchange, so it's on "
+                             "demand and the result is stored.").style(
+                        f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    return
+                with ui.row().classes("w-full gap-3").style("margin-top:4px;"):
+                    _metric_card("Pressed & unmet", str(f.get("mismatches", 0)),
+                                 "they pushed back — fix first",
+                                 "#B91C1C" if f.get("mismatches") else "#15803D")
+                    _metric_card("Deferred", str(f.get("deferred", 0)),
+                                 "they'll get it on the callback — the market won't", "#B45309")
+                    _metric_card("Withheld", str(f.get("withheld", 0)),
+                                 "competitive — correct to refuse")
+                    _metric_card("Discharged", str(f.get("discharged", 0)),
+                                 f"of {f.get('numeric_questions',0)} numeric", "#15803D")
+                ui.label("DEFERRED is the cheap one: nobody pushed back, so nobody in the room knows "
+                         "it's missing — the analyst simply picks it up on the callback afterwards, "
+                         "and every other holder is left without it. WITHHELD is competitively "
+                         "sensitive and correct to refuse; the cost is market uncertainty, which is a "
+                         "trade rather than a mistake.").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;")
+                order = {"MISMATCH": 0, "DEFERRED": 1, "WITHHELD": 2, "DISCHARGED": 3, "NOT_NUMERIC": 4}
+                for x in sorted(f.get("frames", []), key=lambda z: order.get(z.get("verdict"), 9)):
+                    if x.get("verdict") == "NOT_NUMERIC":
+                        continue
+                    v = x.get("verdict")
+                    clr = {"MISMATCH": "#B91C1C", "DEFERRED": "#B45309",
+                           "WITHHELD": "#64748B"}.get(v, "#15803D")
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            f"border-left:3px solid {clr};padding:6px 10px;margin-top:3px;"):
+                        ui.label(f"{v} · anchor: {x.get('anchor')} "
+                                 f"({x.get('valence')} → owes {x.get('demand')})").style(
+                            f"color:{clr};font-size:12px;font-weight:700;")
+                        if v in ("MISMATCH", "DEFERRED") and x.get("missing"):
+                            ui.label(f"OMITTED: {x['missing']}").style(
+                                f"color:{clr};font-size:11.5px;font-weight:600;")
+                        if v == "WITHHELD" and x.get("competitive_why"):
+                            ui.label(f"Correctly withheld — {x['competitive_why']}").style(
+                                "color:#64748B;font-size:11px;")
+                        ui.label(x.get("why") or "").style(
+                            f"color:{COLORS['text_body']};font-size:11px;")
+                        # Evidence, so a verdict can be checked rather than trusted.
+                        with ui.expansion("show the exchange").classes("w-full").style("font-size:10.5px;"):
+                            for lbl, key in (("Q", "question"), ("A", "answer"), ("Then", "reaction")):
+                                if x.get(key):
+                                    ui.label(f"{lbl}: {x[key]}").style(
+                                        f"color:{COLORS['text_muted']};font-size:10.5px;")
+                ui.label("Each verdict names the anchor, the demand and the omission so you can check "
+                         "it against the transcript. No accuracy rate is claimed — it hasn't been "
+                         "validated against human labels.").style(
+                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:4px;")
+
+        async def _run_frames():
+            ui.notify("Framing the Q&A — one model call per exchange, ~1 min…")
+            try:
+                f = await asyncio.to_thread(morning_after.frame_qa, state["q"], None, True)
+            except Exception as e:
+                ui.notify(f"Failed: {e}", type="negative")
+                return
+            _render_frames(f)
+            ui.notify("Done." if f else "Nothing to frame.", type="positive" if f else "warning")
+
+        ui.button("Analyse the Q&A" if not fr else "Re-analyse", icon="troubleshoot",
+                  on_click=_run_frames).props("color=primary dense")
+        _render_frames(fr)
+
+        # ── What the Q&A exposed ────────────────────────────────────────────
+        if p and p.get("error"):
+            ui.label(p["error"]).style("color:#B45309;font-size:11.5px;margin-top:10px;")
+        elif p:
+            ui.label("What the Q&A exposed").classes("section-head").style("margin-top:10px;")
+            with ui.row().classes("w-full gap-3"):
+                _metric_card("Material gaps", str(p["material_gaps"]), "these cost money",
+                             "#B91C1C" if p["material_gaps"] else "#15803D")
+                _metric_card("Not addressed", str(p["unaddressed"]), "they'd have asked anyway")
+                _metric_card("Probing", str(p["probing"]), "wanted more — opportunity")
+                _metric_card("Ritual", str(p["ritual"]), "on-record questions")
+            # Material first — that's the whole point of the ordering.
+            order = {"material_gap": 0, "unaddressed": 1, "probing": 2, "ritual": 3}
+            for x in sorted(p["topics"], key=lambda x: order.get(x["verdict"], 9)):
+                clr, lbl = _VERDICT_STYLE.get(x["verdict"], (COLORS["border"], x["verdict"]))
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                        f"border-left:3px solid {clr};padding:6px 10px;margin-top:3px;"):
+                    flags = " · ".join(f for f, on in [("management conceded", x["conceded"]),
+                                                       ("pressed", x["pressed"]),
+                                                       ("recurs", x["recurs"])] if on)
+                    ui.label(f"{lbl} · {x['severity']} — {x['topic']}").style(
+                        f"color:{clr};font-size:12px;font-weight:700;")
+                    if flags:
+                        ui.label(flags).style(f"color:{clr};font-size:10px;")
+                    ui.label(x["read"]).style(f"color:{COLORS['text_body']};font-size:11px;")
+                    if x.get("why"):
+                        ui.label(x["why"][:260]).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                    if x.get("evidence"):
+                        ui.label(f"Script said: {x['evidence'][:190]}").style(
+                            f"color:{COLORS['text_secondary']};font-size:10px;font-style:italic;")
+
+        # ── Written critique ────────────────────────────────────────────────
+        ui.markdown("---")
+        out = {"box": None}
+
+        async def _write():
+            ui.notify("Writing the critique…")
+            try:
+                text, was_ai, unverified = await asyncio.to_thread(
+                    morning_after.narrative, state["q"])
+            except Exception as e:
+                ui.notify(f"Failed: {e}", type="negative")
+                return
+            if out["box"]:
+                out["box"].clear()
+            with out["box"]:
+                if unverified:
+                    with ui.card().classes("w-full").style(
+                            "background:#FEF2F2;border:1px solid #B91C1C;padding:6px 10px;"):
+                        ui.label(f"{len(unverified)} number(s) in this draft could not be traced to the "
+                                 "transcript or the measured facts — verify before using:").style(
+                            "color:#B91C1C;font-size:11.5px;font-weight:700;")
+                        for u in unverified:
+                            ui.label(f"• {u['value']} — {u['context']}").style(
+                                "color:#B91C1C;font-size:10.5px;")
+                ui.markdown(text)
+                ui.label("Written from the measured facts above; every figure must carry the sentence it "
+                         "came from. Numbers are auto-checked against the transcript — but that only "
+                         "catches invention, not a real number attached to the wrong thing. Read it."
+                         + ("" if was_ai else "  [model unavailable — deterministic summary]")).style(
+                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:6px;")
+
+        def _dl_pdf():
+            from core import report_pdf
+            try:
+                ui.download(report_pdf.morning_after_pdf(state["q"]),
+                            f"{CT('ticker')}_Morning_After_{state['q'].replace(' ', '_')}.pdf")
+                ui.notify("Downloaded — the tape, the delivery, and every unmet demand.")
+            except Exception as e:
+                ui.notify(f"PDF failed: {e}", type="negative")
+
+        with ui.row().classes("gap-2"):
+            ui.button("Write the critique", icon="rate_review", on_click=_write).props("color=primary dense")
+            ui.button("Download report (PDF)", icon="picture_as_pdf",
+                      on_click=_dl_pdf).props("outline dense")
+        ui.label("The PDF is the script-writing report: what the tape did, how the call ran, whether "
+                 "you answered, and what each question demanded — unmet demands first, because that's "
+                 "what tells you what next quarter's script has to say.").style(
+            f"color:{COLORS['text_muted']};font-size:10.5px;")
+        out["box"] = ui.column().classes("w-full")
+
+    sel.on_value_change(lambda e: (state.update(q=e.value), _body.refresh()))
+    _body()
+
+
+def _metric_card(label, value, sub="", color=None):
+    with ui.card().classes("flex-1").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "min-width:120px;padding:8px 10px;"):
+        ui.label(value).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:18px;")
+        ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
+        if sub:
+            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:10px;")
 
 
 def _guidance_template_draft(action, new_low, new_hi, rationale):
-    """Rule-based fallback if the Claude call fails/no key — same role as
-    _fallback_draft above, ported from app.py's 4 hardcoded script variants.
-    Catalysts, closing line, and operator handoff now come from the active
-    client's guidance_policy (CGP()) instead of hardcoded USIO text."""
+    """Rule-based fallback if the Claude call fails/no key.
+
+    Now a thin delegate to core.guidance_engine.render_guidance_prose(), which
+    owns the deterministic rendering so the decision path (set_decision) and this
+    page render the SAME words from the SAME inputs. Two copies of this template
+    is how the prose and the decision drifted apart in the first place."""
+    return guidance_engine.render_guidance_prose(action, new_low, new_hi, rationale)
+
+
+def _guidance_template_draft_legacy(action, new_low, new_hi, rationale):
+    """Superseded by render_guidance_prose() in core — kept only for reference."""
     policy = CGP()
     catalysts = policy.get("known_h2_catalysts", [])
     closing_line = policy.get("closing_line", "").strip()
@@ -1154,14 +1458,14 @@ def _guidance_template_draft(action, new_low, new_hi, rationale):
     h2_signal = ("[FLS] We expect the second half of the year to be sequentially stronger than the first half as "
                  "implementations currently in progress begin to scale and as newer initiatives contribute more "
                  "meaningfully to our revenue base. [/FLS]")
-    catalysts_block = "\n".join(f"  ☐ {c}" for c in catalysts) or "  ☐ [No H2 catalysts configured for this client]"
+    catalysts_block = "\n".join(f"  {c}" for c in catalysts) or "  [No H2 catalysts configured for this client]"
     closing_bit = f"I thank our shareholders for their trust and support. {closing_line}\n\n" if closing_line else ""
     handoff_bit = handoff or ""
     return (
         f"{openers[action]}\n\n{ranges[action]}\n\n{tones[action]}\n\n{h2_signal}\n\n"
         f"[SPECIFIC H2 CATALYST LANGUAGE — reference at least 2 named catalysts here]\n"
         f"[CFO to confirm which are disclosure-appropriate before delivery:]\n{catalysts_block}\n"
-        f"  ☐ [Add any Q2-specific new wins from Stage 1 notes]\n\n"
+        f"  [Add any Q2-specific new wins from Stage 1 notes]\n\n"
         f"{closing_bit}{handoff_bit}"
     )
 
@@ -1201,52 +1505,49 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     return _guidance_template_draft(action, new_low, new_hi, rationale), False
 
 
-def _render_guidance_decision(ss):
+def _render_guidance_decision(ss, context="script"):
     """Guidance & Outlook Decision Engine — renders ahead of the CEO's own
     Step 1 review in _render_persona_steps, since the CEO narrative's tone/
     H2-confidence language/closing are all supposed to flow from whichever
     guidance action is decided here (matching app.py's "Workflow note" —
     aspirational there since the widgets sat below the CEO editor in the
-    same tab; enforced by placement here instead)."""
+    same tab; enforced by placement here instead).
+
+    context="markets" is passed when this same engine is rendered inline on
+    the Market Intelligence guidance card (so the CFO can set the decision
+    there and have it write through to the script) — it only adjusts the
+    Workflow note, which otherwise refers to the CEO narrative "below" that
+    exists on the script page but not on Markets."""
     gd = ss.setdefault("guidance_decision", {})
     math_ = _guidance_math(ss)
 
-    with ui.card().classes("w-full").style("background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);"):
-        ui.label("⚡ Workflow note").classes("font-bold").style("color:#FDE68A;font-size:12.5px;")
-        ui.label("Complete this Guidance Decision before drafting the CEO narrative below — the tone, H2 "
-                  "confidence language, and closing should all flow from whichever action you pick here.").style(
-            "color:#FDE68A;font-size:12px;")
+    # Deep-link anchor — the Markets "Open the Guidance Decision Engine"
+    # buttons scroll here (see render_earnings_page's scroll_to_guidance).
+    ui.html('<div id="guidance-engine-anchor" style="scroll-margin-top:80px"></div>')
 
-    ui.label("📐 Guidance & Outlook Decision Engine").classes("font-bold").style("margin-top:8px;")
+    with ui.card().classes("w-full").style("background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);"):
+        ui.label("Workflow note").classes("font-bold").style("color:#92400E;font-size:12.5px;")
+        _note_tail = ("finalizing the CEO narrative in Script Generation" if context == "markets"
+                      else "drafting the CEO narrative below")
+        ui.label(f"Complete this Guidance Decision before {_note_tail} — the tone, H2 "
+                  "confidence language, and closing should all flow from whichever action you pick here.").style(
+            "color:#B45309;font-size:12px;")
+
+    # Framed as the same Step 1 (review) / Step 2 (decide) / Step 3 (generate)
+    # flow the persona Script Canvases use (_render_persona_steps), so the
+    # guidance section matches the rest of the script-generation cycle instead of
+    # being a differently-shaped page.
+    ui.label("Guidance & Outlook Decision Engine").classes("font-bold").style("margin-top:8px;")
     ui.label("CFO and CEO decide · Platform drafts language for each scenario · Every word signals to the Street").style(
         f"color:{COLORS['text_muted']};font-size:11.5px;")
 
-    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-        _metric("YTD vs seasonal pace", f"{math_['pace_vs_seasonal']:+.1f}pp", f"{math_['ytd_pct_of_mid']:.1f}% of midpoint banked")
-        _metric("FY implied from H1", f"${math_['fy_implied_from_h1']:.1f}M", f"vs ${math_['fy_low']:.1f}-{math_['fy_hi']:.1f}M range")
-        _metric("H2 needed (low end)", f"${math_['h2_needed_low']:.1f}M", f"{math_['h2_growth_needed']:+.1f}% YoY vs H2 2025")
-        _metric("Beat vs Street", f"{math_['beat_vs_street']:+.2f}M", "")
-
-    with ui.card().classes("w-full").style("background:rgba(59,130,246,.08);border:2px solid rgba(59,130,246,.3);margin-top:6px;"):
-        ui.label(f"RECOMMENDED ACTION: {math_['scenario_label']}").classes("font-bold").style("color:#93C5FD;")
-        ui.label("Based on YTD revenue as % of guidance midpoint, beat/miss vs Street, and H2 growth required vs "
-                  "prior-year H2. CFO and CEO must confirm before finalizing script language.").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
-
-    ui.label("Choose your guidance action — script adapts automatically:").classes("font-bold").style(
-        "margin-top:8px;font-size:12.5px;")
-    default_action = {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate")
-    action_select = ui.radio({a: lbl for a, lbl in _GUIDANCE_ACTIONS},
-                              value=gd.get("action", default_action)).classes("w-full")
-    ack_label = ui.label(_GUIDANCE_ACK.get(action_select.value, "")).style(
-        f"color:{COLORS['accent_light']};font-size:11.5px;font-style:italic;")
-
-    def on_action_change(e, ack_label=ack_label):
-        ack_label.text = _GUIDANCE_ACK.get(e.value, "")
-
-    action_select.on_value_change(on_action_change)
-
-    with ui.expansion("📚 IR Guidance Protocol — What the Street Expects at Each Quarter (read before finalizing)").classes("w-full").style("margin-top:6px;"):
+    ui.label("Guidance Step 1 — Review: What the Street Expects & Where Guidance Stands").classes("font-bold").style(
+        "font-size:12.5px;margin-top:8px;")
+    # The Street-expectations briefing renders FIRST — open by default — so the
+    # CFO reads what the Street looks for before working the decision below
+    # (moved above the metrics/action selector 2026-07-14 at the user's ask).
+    with ui.expansion("IR Guidance Protocol — What the Street Expects at Each Quarter (read before finalizing)",
+                      value=True).classes("w-full").style("margin-top:6px;"):
         ui.markdown(f"""
 **Why guidance language is the most consequential section of the call**
 
@@ -1269,6 +1570,68 @@ Every institutional investor on this call is doing the same math in real time. T
 - "We are updating our guidance to reflect..." → typically precedes a cut — Street will ask why immediately
 """)
 
+    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+        _metric("YTD vs seasonal pace", f"{math_['pace_vs_seasonal']:+.1f}pp", f"{math_['ytd_pct_of_mid']:.1f}% of midpoint banked")
+        _metric("FY implied from H1", f"${math_['fy_implied_from_h1']:.1f}M", f"vs ${math_['fy_low']:.1f}-{math_['fy_hi']:.1f}M range")
+        _metric("H2 needed (low end)", f"${math_['h2_needed_low']:.1f}M", f"{math_['h2_growth_needed']:+.1f}% YoY vs H2 2025")
+        _metric("Beat vs Street", f"{math_['beat_vs_street']:+.2f}M", "")
+
+    # Restored from the original engine: what each remaining quarter must
+    # actually produce to hold the range (the "can H2 get there?" reality
+    # check), the range itself, and the H2 growth ask.
+    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+        _metric("Seasonal Q3 target", f"${math_['q3_target_mid']:.1f}M",
+                f"needs {math_['q3_yoy_needed']:+.0f}% vs {math_['prior_fy_label']} Q3")
+        _metric("Seasonal Q4 target", f"${math_['q4_target_mid']:.1f}M",
+                f"needs {math_['q4_yoy_needed']:+.0f}% vs {math_['prior_fy_label']} Q4")
+        _metric("Guidance range", f"${math_['fy_low']:.1f}–{math_['fy_hi']:.1f}M", f"midpoint ${math_['fy_mid']:.1f}M")
+        _metric("H2 YoY growth needed", f"{math_['h2_growth_needed']:+.0f}%",
+                f"vs {math_['prior_fy_label']} H2 ${math_['h2_2025_rev']:.1f}M")
+
+    if math_["comp_note"]:
+        with ui.card().classes("w-full").style(
+                "background:rgba(180,83,9,.06);border:1px solid rgba(180,83,9,.28);margin-top:6px;"):
+            ui.label(f"Comp distortion — {math_['comp_note']}").style("color:#B45309;font-size:11.5px;")
+
+    with ui.card().classes("w-full").style("background:rgba(59,130,246,.08);border:2px solid rgba(59,130,246,.3);margin-top:6px;"):
+        ui.label(f"RECOMMENDED ACTION: {math_['scenario_label']}").classes("font-bold").style("color:#1E3A8A;")
+        ui.label("Based on YTD revenue as % of guidance midpoint, beat/miss vs Street, and H2 growth required vs "
+                  "prior-year H2. CFO and CEO must confirm before finalizing script language.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+    # Morning-after read — the same synthesis the Markets 'Update guidance'
+    # panel shows, built from the shared core.guidance_engine, so the CFO sees
+    # the buy-side reaction next to the action buttons that drive it.
+    _q2_actual = ss.get("q2_numbers", {}).get("rev") or 0
+    _street_q2 = round(_q2_actual - math_["beat_vs_street"], 2)
+    _dec_backend = guidance_engine.backend_weighting(math_["fy_implied_from_h1"], math_["ytd_rev"])
+    _dec_parts = guidance_engine.morning_read_parts(
+        "Q2 2026E", "FY 2026E", _q2_actual, _street_q2,
+        round(math_["fy_implied_from_h1"], 1), math_["fy_mid"], _dec_backend)
+    if _dec_parts:
+        with ui.card().classes("w-full").style(
+                "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+                "border-radius:10px;margin-top:6px;"):
+            ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
+                "color:#1E3A8A;font-size:11px;font-weight:700;letter-spacing:.04em;")
+            ui.label(" ".join(_dec_parts)).style(
+                f"color:{COLORS['text_heading']};font-size:13.5px;line-height:1.65;font-weight:500;margin-top:4px;")
+
+    ui.label("Guidance Step 2 — Decide: Choose Your Guidance Action").classes("font-bold").style(
+        "margin-top:8px;font-size:12.5px;")
+    ui.label("The script adapts automatically to the action you pick.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+    default_action = {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate")
+    action_select = ui.radio({a: lbl for a, lbl in _GUIDANCE_ACTIONS},
+                              value=gd.get("action", default_action)).classes("w-full")
+    ack_label = ui.label(_GUIDANCE_ACK.get(action_select.value, "")).style(
+        f"color:{COLORS['accent_light']};font-size:11.5px;font-style:italic;")
+
+    def on_action_change(e, ack_label=ack_label):
+        ack_label.text = _GUIDANCE_ACK.get(e.value, "")
+
+    action_select.on_value_change(on_action_change)
+
     guidance_context_input = ui.input(
         "Add any H2 visibility or guidance context before drafting:",
         placeholder="e.g. 'We are raising the low end. H2 visibility is good because school voucher starts Q3 "
@@ -1283,7 +1646,7 @@ Every institutional investor on this call is doing the same math in real time. T
     def render_guidance_draft_box(text):
         draft_area.clear()
         with draft_area:
-            ui.label("📄 Guidance draft — edit as needed, then submit to script (all [FLS] blocks need Legal review):").style(
+            ui.label("Guidance draft — edit as needed, then submit to script (all [FLS] blocks need Legal review):").style(
                 f"color:{COLORS['text_muted']};font-size:11px;")
             box = ui.textarea(value=text).classes("w-full").props("rows=10")
             pace_note, pace_clr = _pacing_estimate(text, "guidance")
@@ -1303,9 +1666,17 @@ Every institutional investor on this call is doing the same math in real time. T
                 gd["text"] = box.value
                 ss["guidance_decision"] = gd
                 _save_json("script_workflow_state.json", ss)
-                ui.notify("Guidance & Outlook submitted to script.", type="positive")
+                # Write-through: the decided FY range flows into the canonical
+                # period_guidance store, so the Markets consensus matrix and
+                # impact analysis reflect this decision — one number, one store.
+                fy = (guidance_engine.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
+                      if gd.get("new_low") is not None else None)
+                msg = "Guidance & Outlook submitted to script."
+                if fy:
+                    msg += f" {fy} guidance updated across the platform."
+                ui.notify(msg, type="positive")
 
-            ui.button("✅ Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
+            ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
 
     def generate_guidance(action_select=action_select, guidance_context_input=guidance_context_input):
         ui.notify("Generating guidance draft…", type="info")
@@ -1325,7 +1696,8 @@ Every institutional investor on this call is doing the same math in real time. T
             ui.notify(f"Guidance draft generation failed: {exc}", type="negative")
             raise
 
-    ui.button("🤖 Draft Guidance Section with AI", on_click=generate_guidance).props("color=primary dense").style("margin-top:8px;")
+    ui.label("Guidance Step 3 — Generate Draft").classes("font-bold").style("font-size:12.5px;margin-top:8px;")
+    ui.button("Draft Guidance Section with AI", on_click=generate_guidance).props("color=primary dense").style("margin-top:4px;")
 
     draft_area = ui.column().classes("w-full").style("margin-top:8px;")
 
@@ -1387,7 +1759,7 @@ def _render_persona_steps(ss, role, key):
     # transcripts.compute_qa_preemption_delta can't infer that from raw
     # qa_risk_topics text without guessing — its items all carry
     # persona_role=None by design (see core/transcripts.py) and surface
-    # instead in the ❓ Q&A Prep tab, which isn't persona-scoped. Once a
+    # instead in the Q&A Prep tab, which isn't persona-scoped. Once a
     # second quarter exists, someone should hand-curate persona_role
     # assignments the same way this quarter's list was, rather than have
     # this silently guess.
@@ -1438,7 +1810,7 @@ def _render_persona_steps(ss, role, key):
     def render_draft_box(text, key=key, role=role):
         draft_area.clear()
         with draft_area:
-            ui.label("📄 Draft — edit as needed, then submit it into the script:").style(
+            ui.label("Draft — edit as needed, then submit it into the script:").style(
                 f"color:{COLORS['text_muted']};font-size:11px;")
             box = ui.textarea(value=text).classes("w-full").props("rows=8")
             pace_note, pace_clr = _pacing_estimate(text, role)
@@ -1458,7 +1830,7 @@ def _render_persona_steps(ss, role, key):
                 _save_json("script_workflow_state.json", ss)
                 ui.notify(f"Submitted to script — {role} section updated.", type="positive")
 
-            ui.button("✅ Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
+            ui.button("Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
 
     def generate(role=role, key=key, whats_new_input=whats_new_input, final_notes_input=final_notes_input):
         # Wrapped in try/except + an immediate "Generating…" notify — a bare
@@ -1481,7 +1853,7 @@ def _render_persona_steps(ss, role, key):
             ui.notify(f"Draft generation failed: {exc}", type="negative")
             raise
 
-    ui.button("🤖 Generate with AI", on_click=generate).props("color=primary dense").style("margin-top:6px;")
+    ui.button("Generate with AI", on_click=generate).props("color=primary dense").style("margin-top:6px;")
 
     draft_area = ui.column().classes("w-full").style("margin-top:8px;")
 
@@ -1533,7 +1905,7 @@ def _build_qa_prep(ss):
 
 
 def _render_qa_prep_tab(ss):
-    ui.label("❓ Q&A Prep — Predicted Questions").classes("font-bold")
+    ui.label("Q&A Prep — Predicted Questions").classes("font-bold")
     ui.label("Topics that weren't pre-empted last quarter, plus catalysts/risks flagged in ingested sell-side "
               "research notes. Deterministic — no AI call needed, always available.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
@@ -1542,15 +1914,15 @@ def _render_qa_prep_tab(ss):
         ui.label("Nothing carried over from last quarter, and no research notes with catalysts/risks have "
                   "been ingested yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
         return
-    sev_color = {"HIGH": "#F87171", "MEDIUM": "#F59E0B", "LOW": "#94A3B8"}
+    sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
     for item in items:
-        clr = sev_color.get(item["severity"], "#94A3B8")
+        clr = sev_color.get(item["severity"], "#64748B")
         with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {clr};margin-bottom:6px;"):
             ui.label(f"{item['severity']} · {item['topic']}").classes("font-bold").style(f"color:{clr};font-size:13px;")
             ui.label(item["source"]).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
             if item.get("detail"):
                 ui.label(item["detail"]).style(f"color:{COLORS['text_body']};font-size:12px;")
-            ui.label(f"💡 {item['suggested_angle']}").style(f"color:{COLORS['accent_light']};font-size:11.5px;font-style:italic;")
+            ui.label(f"{item['suggested_angle']}").style(f"color:{COLORS['accent_light']};font-size:11.5px;font-style:italic;")
 
 
 def _ensure_script_drafted(ss):
@@ -1619,7 +1991,7 @@ def _full_script_text(ss):
 
 def _render_script_canvas(ss):
     _ensure_script_drafted(ss)
-    ui.label("📝 Script Canvas").classes("font-bold")
+    ui.label("Script Canvas").classes("font-bold")
     ui.label("Every speaker's section, in order — scroll through IR, then CFO, then Business Operations, then "
               "CEO, then Q&A Prep and the assembled Full Script at the bottom. Nothing is behind a tab click.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
@@ -1637,11 +2009,11 @@ def _render_script_canvas(ss):
                 f"border:1px solid {COLORS['border']};border-radius:8px;margin-bottom:8px;"):
             _render_persona_steps(ss, role, key)
 
-    with ui.expansion("❓ Q&A Prep", value=True).classes("w-full").style(
+    with ui.expansion("Q&A Prep", value=True).classes("w-full").style(
             f"border:1px solid {COLORS['border']};border-radius:8px;margin-bottom:8px;"):
         _render_qa_prep_tab(ss)
 
-    with ui.expansion("📋 Full Script (assembled)", value=True).classes("w-full").style(
+    with ui.expansion("Full Script (assembled)", value=True).classes("w-full").style(
             f"border:1px solid {COLORS['border']};border-radius:8px;"):
         ui.label("Editable — for final full-script-level tweaks (e.g. smoothing the handoff between two "
                   "speakers). Edits autosave as you type, but click Save for an explicit confirmation that "
@@ -1651,9 +2023,9 @@ def _render_script_canvas(ss):
 
         saved_at = ss.get("full_script_override_saved_at")
         status_label = ui.label(
-            f"✅ Saved {saved_at} — this is the version moving forward." if saved_at
-            else "Not yet explicitly saved — click 💾 Save below."
-        ).style(f"color:{'#4ADE80' if saved_at else COLORS['text_muted']};font-size:11px;font-weight:{'600' if saved_at else '400'};")
+            f"Saved {saved_at} — this is the version moving forward." if saved_at
+            else "Not yet explicitly saved — click Save below."
+        ).style(f"color:{'#15803D' if saved_at else COLORS['text_muted']};font-size:11px;font-weight:{'600' if saved_at else '400'};")
 
         def save_full_edit(e):
             # Autosave on every change so nothing is lost if the tab closes,
@@ -1669,22 +2041,22 @@ def _render_script_canvas(ss):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M")
             ss["full_script_override_saved_at"] = ts
             _save_json("script_workflow_state.json", ss)
-            lbl.text = f"✅ Saved {ts} — this is the version moving forward."
-            lbl.style("color:#4ADE80;font-size:11px;font-weight:600;")
+            lbl.text = f"Saved {ts} — this is the version moving forward."
+            lbl.style("color:#15803D;font-size:11px;font-weight:600;")
             ui.notify("Saved. This is the version that will go to CFO/CEO review.", type="positive")
 
         with ui.row().classes("w-full items-center gap-2").style("margin-top:6px;"):
-            ui.button("💾 Save", on_click=save_final).props("color=primary dense")
+            ui.button("Save", on_click=save_final).props("color=primary dense")
 
             def export_txt(box=full_box):
                 fname = f"{CT('ticker')}_{CE().get('current_quarter','')}_Script_v{ss.get('version',1)}.txt".replace(" ", "_")
                 ui.download(box.value.encode(), fname)
 
-            ui.button("⬇️ Download Current Draft", on_click=export_txt).props("flat")
+            ui.button("Download Current Draft", on_click=export_txt).props("flat")
 
             fp = ss.get("first_pass_complete")
             if fp:
-                ui.label(f"✅ First Pass Completed — {fp}").style("color:#4ADE80;font-size:12px;font-weight:600;")
+                ui.label(f"First Pass Completed — {fp}").style("color:#15803D;font-size:12px;font-weight:600;")
             else:
                 def mark_first_pass(box=full_box, lbl=status_label):
                     ss["full_script_override"] = box.value
@@ -1696,7 +2068,7 @@ def _render_script_canvas(ss):
                     ui.notify("Saved and marked First Pass Completed.", type="positive")
                     _refresh()
 
-                ui.button("✅ Save & Mark First Pass Completed", on_click=mark_first_pass).props("color=primary dense")
+                ui.button("Save & Mark First Pass Completed", on_click=mark_first_pass).props("color=primary dense")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1730,8 +2102,12 @@ def _render_stage1(ss):
             fn_buyback = ui.number("Buyback ($K)", value=n.get("buyback"), step=10.0).classes("w-full")
 
     fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).classes("w-full")
-    fn_by = ui.select(["Michael White (CFO)", "Louis Hoch (CEO)", "Paul Manley (IR)"],
-                       value=n.get("submitted_by", "Michael White (CFO)"), label="Submitted by").classes("w-full")
+    # Roster comes from the active client's profile, not hardcoded USIO execs.
+    _team_opts = team_labels()
+    _default_by = n.get("submitted_by")
+    if _default_by not in _team_opts:
+        _default_by = _team_opts[0] if _team_opts else None
+    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").classes("w-full")
 
     def submit():
         if fn_rev.value is None:
@@ -1767,7 +2143,7 @@ def _render_stage1(ss):
         ui.notify("Numbers submitted. Draft v1 generated for all sections. Stage 2 active.")
         _refresh()
 
-    ui.button("📤 Submit for Draft Generation", on_click=submit).props("color=primary").style("margin-top:8px;")
+    ui.button("Submit for Draft Generation", on_click=submit).props("color=primary").style("margin-top:8px;")
 
     # CFO's own "one last look" — previously Stage 1 only ever showed the
     # numbers form, and the generated script itself only appeared several
@@ -1779,10 +2155,10 @@ def _render_stage1(ss):
     if ss["stages"]["cfo_numbers"]["status"] == "complete":
         _ensure_script_drafted(ss)
         ui.markdown("---")
-        ui.label("📄 Auto-Generated Script — one last look before it moves to IR").classes("font-bold").style(
+        ui.label("Auto-Generated Script — one last look before it moves to IR").classes("font-bold").style(
             f"color:{COLORS['accent_light']};font-size:14px;")
         ui.label("This is the draft that was just generated from the numbers above. You'll formally sign off "
-                  "on it (with a notes box) on the \"👔 3 · CEO+CFO Review\" tab after IR's pass.").style(
+                  "on it (with a notes box) on the \"3 · CEO+CFO Review\" tab after IR's pass.").style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
         ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly")
 
@@ -1847,7 +2223,7 @@ def _render_stage1b(ss):
                 value=ops.get("new_leads", []), label="New Lead Sources Active", multiple=True).classes("w-full")
 
     ui.markdown("---")
-    ui.label("🏦 ACH & Payments").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+    ui.label("ACH & Payments").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
     with ui.row().classes("w-full gap-4"):
         with ui.column().classes("flex-1"):
             om_ach_txn_yoy = ui.number("ACH Transactions YoY (%)", value=ops.get("ach_txn_yoy"), step=0.5).classes("w-full")
@@ -1864,8 +2240,8 @@ def _render_stage1b(ss):
         missing = [label for key, label in _OPS_METRIC_LABELS.items() if ops.get(key) in (None, "", 0)]
         if missing:
             with ui.card().classes("w-full").style("background:rgba(252,211,77,.08);border:1px solid rgba(252,211,77,.25);margin-top:8px;"):
-                ui.label(f"⚠️ {len(missing)} metric(s) disclosed last quarter aren't entered yet:").style(
-                    "color:#FCD34D;font-weight:bold;font-size:12.5px;")
+                ui.label(f"{len(missing)} metric(s) disclosed last quarter aren't entered yet:").style(
+                    "color:#A16207;font-weight:bold;font-size:12.5px;")
                 for m in missing:
                     ui.label(f"• {m}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
@@ -1899,7 +2275,7 @@ def _render_stage1b(ss):
             ui.notify(f"Operating metrics submitted. {len(missing)} disclosure gap(s) noted.")
         _refresh()
 
-    ui.button("📊 Submit Operating Metrics", on_click=submit_ops).props("color=primary").style("margin-top:8px;")
+    ui.button("Submit Operating Metrics", on_click=submit_ops).props("color=primary").style("margin-top:8px;")
 
 
 def _check_script_consistency(ss):
@@ -1953,13 +2329,13 @@ def _check_script_consistency(ss):
 def _render_stage2(ss):
     ui.label("Stage 2 — IR Review").classes("font-bold")
     if ss["stages"]["cfo_numbers"]["status"] != "complete":
-        ui.label("⏳ Nothing here yet — go to the \"📥 1 · CFO Numbers\" tab and click \"📤 Submit for Draft "
+        ui.label("Nothing here yet — go to the \"1 · CFO Numbers\" tab and click \"Submit for Draft "
                   "Generation\" first.").style(f"color:{COLORS['warning']};")
         return
     n = ss["q2_numbers"]
     beat = n.get("rev", 0) > CT("q2_consensus_rev", 0)
     with ui.row().classes("w-full gap-3"):
-        _metric("Revenue", f"${n.get('rev',0):.1f}M", "✅ BEAT" if beat else "vs consensus")
+        _metric("Revenue", f"${n.get('rev',0):.1f}M", "BEAT" if beat else "vs consensus")
         _metric("GAAP EPS", f"${n.get('eps',0):.2f}", "Positive" if n.get("eps", 0) >= 0.01 else "")
         _metric("Adj. EBITDA", f"${n.get('ebitda',0):.1f}M", "")
         _metric("Volume Growth", f"+{n.get('vol_yoy',0):.0f}% YoY", "")
@@ -1970,8 +2346,8 @@ def _render_stage2(ss):
     if consistency_warnings:
         ui.markdown("---")
         with ui.card().classes("w-full").style("background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);"):
-            ui.label("⚠️ Consistency check — review before advancing to Stage 3").classes("font-bold").style(
-                "color:#FCD34D;font-size:13px;")
+            ui.label("Consistency check — review before advancing to Stage 3").classes("font-bold").style(
+                "color:#A16207;font-size:13px;")
             for w in consistency_warnings:
                 ui.label(f"• {w}").style(f"color:{COLORS['text_body']};font-size:12px;")
 
@@ -1992,14 +2368,14 @@ def _render_stage2(ss):
                     ui.notify(f"Script v1 queued for {c['email']}")
                     _refresh()
 
-                ui.button("📤 Generate v1 + Send to IR", on_click=send_ir).props("color=primary")
+                ui.button("Generate v1 + Send to IR", on_click=send_ir).props("color=primary")
             elif rv["status"] == "sent":
                 sent_dt = datetime.strptime(rv["sent"], "%Y-%m-%d %H:%M")
                 hrs = (datetime.now() - sent_dt).total_seconds() / 3600
                 if hrs >= 24:
-                    ui.label(f"🔴 Overdue — {hrs:.0f}h since sent.").style(f"color:{COLORS['danger']};")
+                    ui.label(f"Overdue — {hrs:.0f}h since sent.").style(f"color:{COLORS['danger']};")
                 else:
-                    ui.label(f"🔵 Sent {hrs:.0f}h ago — awaiting return").style(f"color:{COLORS['accent_light']};")
+                    ui.label(f"Sent {hrs:.0f}h ago — awaiting return").style(f"color:{COLORS['accent_light']};")
                 notes_in = ui.textarea("IR edit notes", value=rv.get("notes", "")).classes("w-full")
 
                 def mark_complete():
@@ -2013,9 +2389,9 @@ def _render_stage2(ss):
                     ui.notify("IR review complete. Stage 3 active.")
                     _refresh()
 
-                ui.button("✅ Mark IR Complete", on_click=mark_complete).props("color=primary")
+                ui.button("Mark IR Complete", on_click=mark_complete).props("color=primary")
             else:
-                ui.label("✅ IR review complete").style("color:#4ADE80;")
+                ui.label("IR review complete").style("color:#15803D;")
         with ui.column().classes("flex-1"):
             ui.label("IR Review Checklist").classes("font-bold")
             for item in ["Numbers match exactly", "Beat/miss language correct", "All fields populated", "Tone calibrated", "FLS flagged", "Talking points approved"]:
@@ -2040,14 +2416,14 @@ def _check_stage3_advance(ss):
 def _render_stage3(ss):
     ui.label("Stage 3 — CFO + CEO + CRO Simultaneous Review").classes("font-bold")
     if ss["stages"]["ir_review"]["status"] != "complete":
-        ui.label("⏳ Nothing here yet — go to the \"✏️ 2 · IR Review\" tab and click \"✅ Mark IR Complete\" "
+        ui.label("Nothing here yet — go to the \"2 · IR Review\" tab and click \"Mark IR Complete\" "
                   "first (the tabs above aren't locked, so it's easy to land here before that step).").style(
             f"color:{COLORS['warning']};")
         return
     # Open by default — this used to be a collapsed ui.expansion, which meant
     # CFO/CEO/CRO landing on this stage saw no script at all unless they
     # thought to click it open. It's the whole point of this stage, so show it.
-    with ui.expansion("📝 Script Canvas — View & Edit", value=True).classes("w-full"):
+    with ui.expansion("Script Canvas — View & Edit", value=True).classes("w-full"):
         _render_script_canvas(ss)
     ui.markdown("---")
     contacts = _contacts()
@@ -2059,7 +2435,7 @@ def _render_stage3(ss):
                 ui.label(f"{role} — {c['name']}").classes("font-bold")
                 ui.label(c["email"]).style(f"color:{COLORS['accent_light']};font-size:12px;")
                 if rv["status"] == "complete":
-                    ui.label("✅ Review complete").style("color:#4ADE80;")
+                    ui.label("Review complete").style("color:#15803D;")
                     if rv.get("notes"):
                         ui.label(f"Notes: {rv['notes']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
                 else:
@@ -2072,16 +2448,16 @@ def _render_stage3(ss):
                         sent_dt = datetime.strptime(rv["sent"], "%Y-%m-%d %H:%M")
                         hrs = (datetime.now() - sent_dt).total_seconds() / 3600
                         if hrs >= 24:
-                            ui.label(f"🔴 Overdue {hrs:.0f}h — send reminder").style(f"color:{COLORS['danger']};")
+                            ui.label(f"Overdue {hrs:.0f}h — send reminder").style(f"color:{COLORS['danger']};")
                         else:
-                            ui.label(f"🔵 Sent {hrs:.0f}h ago").style(f"color:{COLORS['accent_light']};")
+                            ui.label(f"Sent {hrs:.0f}h ago").style(f"color:{COLORS['accent_light']};")
                     else:
                         def send(role=role):
                             ss["reviewers"][role].update({"status": "sent", "sent": datetime.now().strftime("%Y-%m-%d %H:%M")})
                             _save_json("script_workflow_state.json", ss)
                             _refresh()
 
-                        ui.button(f"📤 Send v2 to {c['name']}", on_click=send).props("color=primary dense outline")
+                        ui.button(f"Send v2 to {c['name']}", on_click=send).props("color=primary dense outline")
 
                     notes_in = ui.textarea(f"{role} comments", value=rv.get("notes", "")).classes("w-full")
 
@@ -2091,16 +2467,16 @@ def _render_stage3(ss):
                         _check_stage3_advance(ss)
                         _refresh()
 
-                    ui.button(f"✅ Mark {role} Complete", on_click=mark).props("dense")
+                    ui.button(f"Mark {role} Complete", on_click=mark).props("dense")
 
 
 def _render_stage4(ss):
     ui.label("Stage 4 — Consolidation").classes("font-bold")
     if ss["stages"]["exec_review"]["status"] != "complete":
-        ui.label("⏳ Nothing here yet — go to the \"👔 3 · CEO+CFO Review\" tab and get both \"✅ Mark CFO "
-                  "Complete\" and \"✅ Mark CEO Complete\" clicked first.").style(f"color:{COLORS['warning']};")
+        ui.label("Nothing here yet — go to the \"3 · CEO+CFO Review\" tab and get both \"Mark CFO "
+                  "Complete\" and \"Mark CEO Complete\" clicked first.").style(f"color:{COLORS['warning']};")
         return
-    with ui.expansion("📝 Script Canvas — View & Edit", value=True).classes("w-full"):
+    with ui.expansion("Script Canvas — View & Edit", value=True).classes("w-full"):
         _render_script_canvas(ss)
     ui.markdown("---")
     ui.label("Comments Side-by-Side").classes("font-bold")
@@ -2128,16 +2504,16 @@ def _render_stage4(ss):
         ui.notify("v3 ready. Stage 5 active.")
         _refresh()
 
-    ui.button("🔀 Generate v3 — Pre-Legal Clean Copy", on_click=generate_v3).props("color=primary")
+    ui.button("Generate v3 — Pre-Legal Clean Copy", on_click=generate_v3).props("color=primary")
 
 
 def _render_stage5(ss):
     ui.label("Stage 5 — Legal Sign-Off").classes("font-bold")
     if ss["stages"]["consolidate"]["status"] != "complete":
-        ui.label("⏳ Nothing here yet — go to the \"🔀 4 · Consolidation\" tab, check the confirmation box, and "
-                  "click \"🔀 Generate v3 — Pre-Legal Clean Copy\" first.").style(f"color:{COLORS['warning']};")
+        ui.label("Nothing here yet — go to the \"4 · Consolidation\" tab, check the confirmation box, and "
+                  "click \"Generate v3 — Pre-Legal Clean Copy\" first.").style(f"color:{COLORS['warning']};")
         return
-    with ui.expansion("📝 Script Canvas — View & Edit", value=True).classes("w-full"):
+    with ui.expansion("Script Canvas — View & Edit", value=True).classes("w-full"):
         _render_script_canvas(ss)
     ui.markdown("---")
     fls_items = _fls_items()
@@ -2151,7 +2527,7 @@ def _render_stage5(ss):
             for fls_id, fls_text in fls_items:
                 cleared = ss["fls_checklist"].get(fls_id, False)
                 with ui.row().classes("w-full items-center gap-2"):
-                    ui.label("✅" if cleared else "⬜")
+                    ui.label("" if cleared else "")
                     ui.label(f"{fls_id} {fls_text}").classes("flex-1").style(
                         f"color:{COLORS['text_body'] if cleared else COLORS['text_muted']};font-size:12.5px;")
                     if cleared:
@@ -2178,7 +2554,7 @@ def _render_stage5(ss):
                     rv.update({"status": "sent", "sent": datetime.now().strftime("%Y-%m-%d %H:%M")})
                     _save_json("script_workflow_state.json", ss)
                     _refresh()
-                ui.button("📤 Send v3 + FLS Memo to Legal", on_click=send_legal).props("color=primary")
+                ui.button("Send v3 + FLS Memo to Legal", on_click=send_legal).props("color=primary")
             elif rv["status"] == "sent":
                 ui.label(f"Sent {rv['sent']}").style(f"color:{COLORS['text_muted']};")
                 leg_notes = ui.textarea("Legal comments", value=rv.get("notes", "")).classes("w-full")
@@ -2190,20 +2566,71 @@ def _render_stage5(ss):
                         ss["version"] = 4
                         _add_version(ss, "FINAL", f"FINAL — Legal cleared {datetime.now().strftime('%Y-%m-%d %H:%M')}", "Legal")
                         _save_json("script_workflow_state.json", ss)
-                        ui.notify("🎉 SCRIPT FINALIZED — Legal cleared.")
+                        ui.notify("SCRIPT FINALIZED — Legal cleared.")
                         _refresh()
-                    ui.button("⚖️ MARK FINAL — Legal Cleared", on_click=finalize).props("color=primary")
+                    ui.button("MARK FINAL — Legal Cleared", on_click=finalize).props("color=primary")
                 else:
                     ui.label(f"Clear all {len(fls_items)-cleared_n} remaining FLS items first").style(f"color:{COLORS['warning']};font-size:12px;")
             elif rv["status"] == "complete":
-                ui.label("✅ FINAL — Legal Cleared").style("color:#4ADE80;")
+                ui.label("FINAL — Legal Cleared").style("color:#15803D;")
                 ui.label(f"Cleared: {rv['received']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
     if ss.get("current_stage") == "FINAL":
         ui.markdown("---")
-        with ui.card().classes("w-full text-center").style("background:#152A1E;border:2px solid #4ADE80;"):
-            ui.label("✅").style("font-size:22px;")
-            ui.label("SCRIPT FINALIZED — LEGAL CLEARED").classes("font-bold").style("color:#4ADE80;font-size:18px;")
-            ui.label("This is the approved earnings call script. Do not use any other version.").style("color:#4ADE80;font-size:13px;")
+        with ui.card().classes("w-full text-center").style("background:#E9F6EF;border:2px solid #15803D;"):
+            ui.label("Script finalized — legal cleared").classes("font-bold").style("color:#15803D;font-size:18px;")
+            ui.label("This is the approved earnings call script. Do not use any other version.").style("color:#15803D;font-size:13px;")
+
+
+def _render_narrative_momentum_tab():
+    """Standalone Narrative Momentum tab (promoted from a section inside
+    Tomorrow's Setup). Same shared renderer the Setup view uses — narrative_engine
+    via markets_page._render_narrative_momentum — reached directly here. Lazy
+    import: markets_page pulls from this module too (guidance-stance fallback), so
+    a top-level import would risk a circular dependency."""
+    from core import consensus as consensus_store
+    from page_modules_nicegui.markets_page import _render_narrative_momentum
+    seed = consensus_store.get_consensus(get_active_client_id())
+    _render_narrative_momentum(seed)
+
+
+def _render_tomorrow_setup(ss):
+    """The forward bookend to Prior-Quarter Review. Given the guidance decided
+    and the H2 catalysts named in the script above, this shows what the print
+    likely brings: the guidance morning-after read (shared guidance_engine, same
+    as the Decision Engine's inline read). The full Narrative Momentum signal is
+    now its own tab — this view links to it rather than re-rendering it."""
+    ui.markdown("---")
+    ui.label("Tomorrow's Setup — what the print likely brings").classes("text-lg font-bold").style(
+        f"color:{COLORS['text_heading']};")
+    ui.label("The forward bookend to Prior-Quarter Review. Given the guidance you've decided and the H2 "
+             "catalysts you're naming above, here is the market setup the morning after the print.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
+
+    # 1) Guidance morning-after read — same shared engine as the Decision
+    #    Engine (above) and the Markets 'Update guidance' panel.
+    math_ = _guidance_math(ss)
+    q2_actual = ss.get("q2_numbers", {}).get("rev") or 0
+    street_q2 = round(q2_actual - math_["beat_vs_street"], 2)
+    backend = guidance_engine.backend_weighting(math_["fy_implied_from_h1"], math_["ytd_rev"])
+    parts = guidance_engine.morning_read_parts(
+        "Q2 2026E", "FY 2026E", q2_actual, street_q2,
+        round(math_["fy_implied_from_h1"], 1), math_["fy_mid"], backend)
+    if parts:
+        with ui.card().classes("w-full").style(
+                "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+                "border-radius:10px;margin-top:6px;"):
+            ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
+                "color:#1E3A8A;font-size:11px;font-weight:700;letter-spacing:.04em;")
+            ui.label(" ".join(parts)).style(
+                f"color:{COLORS['text_heading']};font-size:13.5px;line-height:1.65;font-weight:500;margin-top:4px;")
+
+    # 2) Narrative Momentum now has its own tab (promoted out of this synthesis
+    #    view) — link to it instead of re-rendering the full read here.
+    ui.button("Open Narrative Momentum →",
+              on_click=lambda: nav.go_to("Earnings", "Narrative Momentum")).props(
+        "flat dense color=primary").style("margin-top:10px;")
+    ui.label("The full narrative read — signal, guidance stance, analyst-PT direction, and the named H2 "
+             "catalysts — is now its own tab.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _render_script_workflow_tab():
@@ -2225,7 +2652,7 @@ def _render_script_workflow_tab():
             ss["script_text"].setdefault(key, "")
             ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
-    ui.label("📝 Earnings Script Approval Workflow").classes("text-lg font-bold")
+    ui.label("Earnings Script Approval Workflow").classes("text-lg font-bold")
     ui.label("5-stage approval pipeline · CFO numbers in → IR → CFO+CEO+CRO → Consolidation → Legal sign-off").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.row().classes("w-full gap-2"):
@@ -2241,11 +2668,11 @@ def _render_script_workflow_tab():
             # keeps using the theme's own surface_bg/text_heading pair,
             # which are always coherent with each other by construction.
             if status == "complete":
-                bc, tc, ico, label_tc, name_tc = "#152A1E", "#4ADE80", "✅", "#86EFAC", "#F0FDF4"
+                bc, tc, ico, label_tc, name_tc = "#E9F6EF", "#15803D", "", "#15803D", "#0F172A"
             elif status == "active":
-                bc, tc, ico, label_tc, name_tc = "#1E2D45", "#60A5FA", "🔵", "#93C5FD", "#EFF6FF"
+                bc, tc, ico, label_tc, name_tc = "#E8EEF7", "#1E40AF", "", "#1E3A8A", "#0F172A"
             else:
-                bc, tc, ico, label_tc, name_tc = COLORS["surface_bg"], COLORS["text_muted"], "⬜", COLORS["accent_light2"], COLORS["text_heading"]
+                bc, tc, ico, label_tc, name_tc = COLORS["surface_bg"], COLORS["text_muted"], "", COLORS["accent_light2"], COLORS["text_heading"]
             with ui.card().classes("flex-1 text-center").style(f"background:{bc};border:1px solid {COLORS['border']};"):
                 ui.label(stage["icon"]).style("font-size:20px;")
                 ui.label(stage["label"]).style(f"color:{label_tc};font-size:11px;font-weight:bold;text-transform:uppercase;")
@@ -2254,11 +2681,11 @@ def _render_script_workflow_tab():
 
     ui.markdown("---")
     with ui.tabs().classes("w-full") as sw_tabs:
-        sw1 = ui.tab("📥 1 · CFO Numbers")
-        sw2 = ui.tab("✏️ 2 · IR Review")
-        sw3 = ui.tab("👔 3 · CEO+CFO+CRO Review")
-        sw4 = ui.tab("🔀 4 · Consolidation")
-        sw5 = ui.tab("⚖️ 5 · Legal Sign-Off")
+        sw1 = ui.tab("1 · CFO Numbers")
+        sw2 = ui.tab("2 · IR Review")
+        sw3 = ui.tab("3 · CEO+CFO+CRO Review")
+        sw4 = ui.tab("4 · Consolidation")
+        sw5 = ui.tab("5 · Legal Sign-Off")
 
     # Land on whichever tab is actually the workflow's current stage,
     # instead of always defaulting to Tab 1. Previously this was hardcoded
@@ -2287,24 +2714,26 @@ def _render_script_workflow_tab():
         with ui.tab_panel(sw5):
             _render_stage5(ss)
 
+    _render_tomorrow_setup(ss)
+
     if ss.get("versions"):
         ui.markdown("---")
-        ui.label("📋 Version History").classes("font-bold")
+        ui.label("Version History").classes("font-bold")
         for v in reversed(ss["versions"]):
             if "version" in v:
-                icon = "🔒" if v["version"] == "FINAL" else "📄"
+                icon = "" if v["version"] == "FINAL" else ""
                 ui.label(f"{icon} {v['version']} — {v.get('label','')} · {v.get('created','')} · {v.get('by','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
             else:
                 # Legacy shape from the earlier simplified port
                 ui.label(f"{v.get('completed','')} — {v.get('stage','')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     ui.markdown("---")
-    with ui.expansion("⚠️ Reset Workflow — Start New Quarter").classes("w-full"):
+    with ui.expansion("Reset Workflow — Start New Quarter").classes("w-full"):
         def reset():
             _save_json("script_workflow_state.json", _blank_script_state())
             ui.notify("Reset. Ready for next quarter.")
             _refresh()
-        ui.button("🔄 Reset All Stages", on_click=reset).props("color=negative")
+        ui.button("Reset All Stages", on_click=reset).props("color=negative")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -2326,13 +2755,13 @@ def _render_surprise_tracker_tab():
         surprises = _default_surprises()
         _save_json("earnings_surprise_log.json", surprises)
 
-    ui.label("🎯 Consensus Tracker").classes("text-lg font-bold")
+    ui.label("Consensus Tracker").classes("text-lg font-bold")
     ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.tabs().classes("w-full") as es_tabs:
-        e1 = ui.tab("📊 Beat/Miss History")
-        e2 = ui.tab("➕ Log Quarter")
-        e3 = ui.tab("🔮 Pre-Call Assessment")
+        e1 = ui.tab("Beat/Miss History")
+        e2 = ui.tab("Log Quarter")
+        e3 = ui.tab("Pre-Call Assessment")
     with ui.tab_panels(es_tabs, value=e1).classes("w-full"):
         with ui.tab_panel(e1):
             if surprises:
@@ -2361,12 +2790,12 @@ def _render_surprise_tracker_tab():
                             f"background:{'rgba(74,222,128,.08)' if beat else 'rgba(239,68,68,.08)'};border:1px solid {COLORS['border']};"):
                         with ui.row().classes("w-full justify-between"):
                             ui.label(f"{row['quarter']} · {row['date']}").classes("font-bold").style(f"color:{COLORS['accent_light']};")
-                            ui.label("✅ BEAT" if beat else "❌ MISS").style(f"color:{'#4ADE80' if beat else '#F87171'};font-weight:bold;")
+                            ui.label("BEAT" if beat else "MISS").style(f"color:{'#15803D' if beat else '#B91C1C'};font-weight:bold;")
                         with ui.row().classes("w-full gap-4"):
                             ui.label(f"Actual: ${row['rev_actual']}M").style(f"color:{COLORS['text_body']};font-size:12px;")
-                            ui.label(f"vs Consensus: {surp:+.1f}%").style(f"color:{'#4ADE80' if surp>0 else '#F87171'};font-size:12px;")
-                            ui.label(f"vs Whisper: {wh_s:+.1f}%").style(f"color:{'#4ADE80' if wh_s>0 else '#F87171'};font-size:12px;")
-                            ui.label(f"AH Move: {ah:+.1f}%").style(f"color:{'#4ADE80' if ah>0 else '#F87171'};font-size:12px;")
+                            ui.label(f"vs Consensus: {surp:+.1f}%").style(f"color:{'#15803D' if surp>0 else '#B91C1C'};font-size:12px;")
+                            ui.label(f"vs Whisper: {wh_s:+.1f}%").style(f"color:{'#15803D' if wh_s>0 else '#B91C1C'};font-size:12px;")
+                            ui.label(f"AH Move: {ah:+.1f}%").style(f"color:{'#15803D' if ah>0 else '#B91C1C'};font-size:12px;")
                             ui.label(f"Implied ±{row['implied_move']*100:.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
                         ui.label(f"Guidance vs embedded: {row.get('guidance_vs_embedded','—')} · "
                                  f"PT changes: {row.get('pt_changes',0)} · Call score: {row.get('call_score','—')}/100").style(
@@ -2379,7 +2808,7 @@ def _render_surprise_tracker_tab():
                 for row in surprises:
                     gve = row.get("guidance_vs_embedded", "—")
                     excess = (row["ah_move"] - row["implied_move"]) * 100
-                    icon = "✅" if gve in ["Beat", "Above"] else "🟡" if gve == "In-line" else "⚠️"
+                    icon = "" if gve in ["Beat", "Above"] else "" if gve == "In-line" else ""
                     ui.label(f"{icon} {row['quarter']}: Guidance {gve} embedded · AH "
                              f"{'exceeded' if excess>0 else 'undershot'} implied by {abs(excess):.1f}pp").style(
                         f"color:{COLORS['text_body']};font-size:12.5px;")
@@ -2427,20 +2856,68 @@ def _render_surprise_tracker_tab():
                 ui.notify(f"{s_q.value} logged.")
                 _refresh()
 
-            ui.button("💾 Log Quarter", on_click=log_quarter).props("color=primary")
+            ui.button("Log Quarter", on_click=log_quarter).props("color=primary")
 
         with ui.tab_panel(e3):
             ui.label(f"Pre-Call Assessment — {CE().get('current_quarter','')}").classes("font-bold")
             ui.label(f"Fill BEFORE {CE().get('earnings_date','')} earnings. Captures the embedded expectation for post-call scoring.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-            q2_guidance = get_seed_consensus(get_active_client_id()).get("period_guidance", {}).get("Q2 2026E", {})
-            guidance_rev = q2_guidance.get("Revenue Est ($M)")
+            # ── The bar, live. Every field here used to be wrong in a way that only
+            # showed up on the morning of the call:
+            #   * "Street consensus" read CT('q2_consensus_rev') — a HARDCODED config
+            #     constant of $25.1M. The real street is $23.67M from the market feed.
+            #   * "Guidance midpoint" read get_seed_consensus() DIRECTLY, bypassing the
+            #     period_guidance.json override. Invisible while the override matched the
+            #     seed; the moment the CFO revises guidance, this panel keeps the old number
+            #     while every other surface updates.
+            #   * The comparison note was the literal string "-$0.6M below street" — which
+            #     is the demo framing. On real numbers the guide is ABOVE the street, so the
+            #     panel asserted the exact inverse of the truth, right before the call.
+            #   * The period was hardcoded "Q2 2026E" and would silently break at Q3.
+            _period = CE().get("current_quarter") or ""
+            _period_key = _period if _period.endswith("E") else f"{_period}E"
+            _cons = consensus.get_consensus(get_active_client_id())
+            _guide = (_cons.get("period_guidance", {}) or {}).get(_period_key, {}) or {}
+            guidance_rev = _guide.get("Revenue Est ($M)")
+
+            _street = None
+            try:
+                _fin = CF()
+                _street = market_data.street_for_quarter(
+                    CT("ticker"),
+                    fy_revenue_actual=_fin.get("fy_revenue") or 85.4,
+                    q_year_ago_actual=_fin.get("q_year_ago_rev") or 19.90)
+            except Exception:
+                _street = None
+            _st_ok = bool(_street and _street.get("verified") and _street.get("avg_m") is not None)
+
+            if _st_ok and guidance_rev is not None:
+                _gap = guidance_rev - _street["avg_m"]
+                _above_all = _street.get("high_m") is not None and guidance_rev > _street["high_m"]
+                _note = (f"${abs(_gap):.2f}M {'ABOVE' if _gap > 0 else 'below'} street"
+                         + (" — above EVERY published estimate" if _above_all else ""))
+                _risk = ("LOW" if _above_all else "MEDIUM" if _gap > 0 else "HIGH")
+                _risk_note = ("delivering the guide beats the whole street"
+                              if _above_all else
+                              "we can hit the guide and still miss the street" if _gap < 0 else
+                              "guide sits above the street mean")
+            else:
+                _note, _risk, _risk_note = "street not sourced", "—", "market feed unavailable"
 
             with ui.row().classes("w-full gap-3"):
-                _pc_metric("Street consensus", f"${CT('q2_consensus_rev', 0)}M", "Beat bar")
-                _pc_metric("Guidance midpoint", f"${guidance_rev}M" if guidance_rev is not None else CT("fy_guidance", "—"),
-                           CT("guidance_vs_street_note", "vs street consensus"))
-                _pc_metric("Bar risk", CT("bar_risk_level", "—"), CT("bar_risk_note", "assess vs sector performance"))
+                _pc_metric("Street consensus",
+                           f"${_street['avg_m']:.2f}M" if _st_ok else "—",
+                           f"mean of {_street['n']} analysts · market feed" if _st_ok
+                           else "not sourced — no beat bar shown")
+                _pc_metric("Guidance midpoint",
+                           f"${guidance_rev}M" if guidance_rev is not None else "—", _note)
+                _pc_metric("Bar risk", _risk, _risk_note)
+            if _st_ok:
+                ui.label(f"Street range ${_street['low_m']:.2f}–{_street['high_m']:.2f}M. Street and "
+                         f"guidance are both live — the street from the market feed with its period "
+                         f"mapping reconciled against filed actuals, the guidance from the CFO's "
+                         f"decision. Neither is a stored constant.").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;")
 
             precall = _load_json("q2_precall.json", {})
             with ui.row().classes("w-full gap-4"):
@@ -2457,7 +2934,7 @@ def _render_surprise_tracker_tab():
                 ui.notify("Saved. Compare to actuals after earnings.")
                 _refresh()
 
-            ui.button("💾 Save Pre-Call Assessment", on_click=save_precall).props("color=primary")
+            ui.button("Save Pre-Call Assessment", on_click=save_precall).props("color=primary")
             if precall:
                 ui.label(f"Pre-call logged {precall.get('saved','')} · Implied ±{precall.get('implied',0):.1f}% · "
                          f"Whisper ${precall.get('whisper',0):.1f}M · 30d vs sector {precall.get('30d_sector',0):+.1f}%").style(
@@ -2486,7 +2963,7 @@ def _pc_metric(label, value, sub):
 # Topics" indicator on the Markets page automatically — see that module.
 # ─────────────────────────────────────────────────────────────────────────
 def _render_transcripts_tab():
-    ui.label("🎙️ Call Transcripts").classes("text-lg font-bold")
+    ui.label("Call Transcripts").classes("text-lg font-bold")
     ui.label(
         "Archive of ingested earnings call transcripts — full-text searchable, with an AI summary, key quotes, "
         "guidance language, and flagged Q&A risk topics per call. ChorusCall has no public API, so bring the PDF "
@@ -2494,7 +2971,7 @@ def _render_transcripts_tab():
     ).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     ui.markdown("---")
-    with ui.expansion("➕ Ingest a transcript", value=True).classes("w-full"):
+    with ui.expansion("Ingest a transcript", value=True).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
             t_quarter = ui.input("Quarter", placeholder="Q1 2026", value=CE().get("current_quarter", "")).classes("flex-1")
             t_date = ui.input("Call date (YYYY-MM-DD)").classes("flex-1")
@@ -2509,12 +2986,12 @@ def _render_transcripts_tab():
             if extracted:
                 pasted_text_holder["text"] = extracted
                 pasted_text_holder["filename"] = e.file.name
-                pdf_status.text = f"✅ Extracted {len(extracted.split()):,} words from {e.file.name}. Click Ingest below."
-                pdf_status.style("color:#4ADE80;font-size:11.5px;")
+                pdf_status.text = f"Extracted {len(extracted.split()):,} words from {e.file.name}. Click Ingest below."
+                pdf_status.style("color:#15803D;font-size:11.5px;")
             else:
-                pdf_status.text = ("⚠️ Couldn't extract text from that PDF (it may be scanned/image-only). "
+                pdf_status.text = ("Couldn't extract text from that PDF (it may be scanned/image-only). "
                                     "Paste the transcript text below instead.")
-                pdf_status.style("color:#F0A830;font-size:11.5px;")
+                pdf_status.style("color:#B45309;font-size:11.5px;")
 
         ui.upload(on_upload=handle_pdf_upload, auto_upload=True).props("accept=.pdf").classes("w-full")
 
@@ -2535,13 +3012,13 @@ def _render_transcripts_tab():
             )
             activity_log.log_event("transcript_ingested", entity=t_quarter.value, word_count=len(text.split()))
             ui.notify(f"{t_quarter.value} transcript ingested ({len(text.split()):,} words). "
-                      f"Click 🤖 Generate AI Summary below to analyze it.")
+                      f"Click Generate AI Summary below to analyze it.")
             _refresh()
 
-        ui.button("📥 Ingest Transcript", on_click=ingest).props("color=primary").style("margin-top:8px;")
+        ui.button("Ingest Transcript", on_click=ingest).props("color=primary").style("margin-top:8px;")
 
     ui.markdown("---")
-    ui.label("🔍 Search across all calls").classes("font-bold")
+    ui.label("Search across all calls").classes("font-bold")
     with ui.row().classes("w-full gap-2"):
         search_input = ui.input(placeholder="e.g. margin, PayFac, guidance").classes("flex-1")
         search_results = ui.column().classes("w-full")
@@ -2564,7 +3041,7 @@ def _render_transcripts_tab():
         ui.button("Search", on_click=do_search).props("dense")
 
     ui.markdown("---")
-    ui.label("📚 Ingested transcripts").classes("font-bold")
+    ui.label("Ingested transcripts").classes("font-bold")
     records = transcripts.list_transcripts()
     if not records:
         ui.label("No transcripts ingested yet — use the form above.").style(f"color:{COLORS['text_muted']};font-size:12px;")
@@ -2583,7 +3060,7 @@ def _render_transcripts_tab():
                         transcripts.delete_transcript(q)
                         ui.notify(f"{q} transcript deleted.")
                         _refresh()
-                    ui.button("🗑️", on_click=delete_this).props("flat dense")
+                    ui.button("", on_click=delete_this).props("flat dense")
 
             if not rec.get("ai_summary"):
                 summary_area = ui.column().classes("w-full")
@@ -2601,12 +3078,12 @@ def _render_transcripts_tab():
                             _refresh()
                         else:
                             ui.label(
-                                "⚠️ Couldn't generate a summary — check that ANTHROPIC_API_KEY is set in .env, "
+                                "Couldn't generate a summary — check that ANTHROPIC_API_KEY is set in .env, "
                                 "and that this machine has network access to api.anthropic.com. Try again, or "
                                 "review the transcript manually."
-                            ).style("color:#F0A830;font-size:12px;")
+                            ).style("color:#B45309;font-size:12px;")
 
-                ui.button("🤖 Generate AI Summary", on_click=generate_summary).props("flat dense").style("margin-top:6px;")
+                ui.button("Generate AI Summary", on_click=generate_summary).props("flat dense").style("margin-top:6px;")
             else:
                 ui.markdown("---")
                 ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:12.5px;")
@@ -2627,9 +3104,9 @@ def _render_transcripts_tab():
                 topics = rec.get("qa_risk_topics") or []
                 if topics:
                     ui.label("Q&A risk topics").classes("font-bold").style("font-size:12px;margin-top:6px;")
-                    sev_color = {"HIGH": "#F87171", "MEDIUM": "#F0A830", "LOW": "#94A3B8"}
+                    sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
                     for t in topics:
-                        clr = sev_color.get(t.get("severity"), "#94A3B8")
+                        clr = sev_color.get(t.get("severity"), "#64748B")
                         ui.label(f"{t.get('severity','?')} · {t.get('topic','')} — {t.get('why','')}").style(f"color:{clr};font-size:11.5px;")
                 else:
                     ui.label("No Q&A risk topics flagged by AI review.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
@@ -2647,8 +3124,8 @@ def _render_transcripts_tab():
                         ui.notify(f"{q} summary regenerated.")
                         _refresh()
                     else:
-                        status.text = ("⚠️ Couldn't regenerate — check that ANTHROPIC_API_KEY is set in .env "
+                        status.text = ("Couldn't regenerate — check that ANTHROPIC_API_KEY is set in .env "
                                         "and this machine can reach api.anthropic.com.")
-                        status.style("color:#F0A830;font-size:11.5px;")
+                        status.style("color:#B45309;font-size:11.5px;")
 
-                ui.button("🔄 Re-run AI Summary", on_click=rerun_summary).props("flat dense")
+                ui.button("Re-run AI Summary", on_click=rerun_summary).props("flat dense")

@@ -16,13 +16,13 @@ three states and the same audit trail, but:
   the same recipient checkboxes and editable email draft
 
 All content is ported, including the two informational-signal popovers
-(🔍 Disconnect Drivers on "138% upside to consensus PT", and 🎯 Update
+(Disconnect Drivers on "138% upside to consensus PT", and Update
 Institutional Target List on "1 ownership change" / "1 conference
 confirmed" — both are now ui.dialog()s) and the Activity & Responses /
 Model Requests tracker that appears once model requests have been sent
 (per-analyst Sent/Replied/Model Received status, a notes field for
 replies, and a CSV upload + old-vs-new revenue comparison + "Accept —
-recalculate consensus" action for received models). The 🎯 dialog's
+recalculate consensus" action for received models). The dialog's
 Target Database cross-reference is simplified to the same static
 candidate list app.py hardcoded for its illustrative New York-route
 example, rather than a live query against a Target Database module —
@@ -39,7 +39,7 @@ from nicegui import ui
 
 from config.client_config import C, CA, CE, CI, CT
 from config.theme_tokens import ACTIVE as COLORS
-from core import activity_log, db, inbox_queue, market_data, signals
+from core import activity_log, db, inbox_queue, market_data, signals, ui_context
 from data.seed.institution_contacts import get_institution_contacts
 from page_modules_nicegui import nav
 
@@ -51,12 +51,20 @@ def _load_state():
 
 
 def _save_state(state):
+    # RBAC choke point: the Today page has many mark-noted/mark-sent/consensus
+    # actions across nested dialogs, all of which persist through here. Rather
+    # than gate each button, a view-only role (e.g. CRO/Legal, who have 'read'
+    # access to Today) has its writes swallowed at this single point, so no
+    # change from this page can stick. The read-only banner at the top of
+    # render_today_page tells the user why.
+    if ui_context.is_read_only():
+        return
     db.save_json(STATE_PATH_NAME, state)
 
 
 def _mailto(to, subject, body, label):
     href = f"mailto:{to}?subject={quote(subject)}&body={quote(body)}"
-    ui.link(f"✉️ {label}", href).style(f"color:{COLORS['accent_light']};")
+    ui.link(f"{label}", href).style(f"color:{COLORS['accent_light']};")
 
 
 def _open_signal_count(state):
@@ -92,9 +100,14 @@ def _consensus_pt_avg(period="Q2 2026E"):
     CA()'s active-analyst PTs from the seed consensus data (same source
     Markets already uses), so a PT change or an analyst going
     active/inactive is reflected here automatically."""
-    from data.seed.consensus_estimates import get_seed_consensus
+    # READ THROUGH get_consensus(), NOT THE SEED. This function's own docstring promises
+    # "a PT change or an analyst going active/inactive is reflected here automatically" —
+    # and while it read get_seed_consensus() that was false: update_estimate() writes
+    # period_estimates.json, which the seed never sees. The Today page would have shown a
+    # stale consensus PT forever, on the landing screen, while every other surface moved.
     from config.client_config import get_active_client_id
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
     active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
     pts = [ests[f]["Price Target"] for f in ests if f in active_firms and ests.get(f, {}).get("Price Target") is not None]
@@ -182,7 +195,13 @@ def render_today_page():
     cfo = C().get("executives", {}).get("CFO", {})
     greet_name = cfo.get("name") or CI().get("name", "there")
     first_name = (greet_name.split() or ["there"])[0]
-    ui.label(f"Good morning, {first_name}.").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};font-family:Georgia,serif;")
+    ui.label(f"Good morning, {first_name}.").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+
+    # RBAC: view-only roles (e.g. CRO/Legal) can read the morning brief but not
+    # persist mark-noted/sent/consensus actions — enforced at the _save_state
+    # choke point above; this just tells them why nothing sticks.
+    if ui_context.is_read_only():
+        ui_context.read_only_banner(ui)
 
     # ── Computed values — every number below is a real query against
     # activity_log / market_data / script_workflow_state, not a literal.
@@ -211,7 +230,7 @@ def render_today_page():
         nav.go_to("Today")
 
     ui.button(
-        "▴ Hide automation stats" if show_roi else "▾ Show automation stats",
+        "Hide automation stats" if show_roi else "Show automation stats",
         on_click=toggle_roi,
     ).props("flat dense").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;padding-left:0;")
 
@@ -226,21 +245,21 @@ def render_today_page():
             ]:
                 with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                     ui.label(val).classes("text-lg font-bold").style(f"color:{clr};")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:10px;")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
         ui.markdown("---")
 
     # ── Today's Story + Key Metrics ──
     with ui.row().classes("w-full gap-4 items-stretch"):
         with ui.card().classes("flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:14px;"):
-            ui.label("TODAY'S STORY").classes("section-eyebrow")
+            ui.label("Today's story").classes("section-head")
             ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:15px;line-height:1.7;")
-            ui.label("TALKING POINTS FOR MANAGEMENT").classes("section-eyebrow").style("margin-top:12px;")
+            ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
             for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
                 ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:13.5px;line-height:1.6;")
 
         with ui.card().classes("flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:14px;"):
             with ui.row().classes("w-full justify-between items-center"):
-                ui.label("KEY MARKET METRICS").classes("section-eyebrow")
+                ui.label("Key market metrics").classes("section-head")
                 ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm")
             if snap and snap.get("last_price") is not None:
                 chg = snap.get("pct_change") or 0
@@ -254,7 +273,7 @@ def render_today_page():
                 else:
                     ui.label("—").style(f"color:{COLORS['text_muted']};")
                 as_of = (snap.get("as_of") or "")[:16].replace("T", " ")
-                ui.label(f"as of {as_of} · up to 60-min delay").style(f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
+                ui.label(f"as of {as_of} · up to 60-min delay").style(f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:2px;")
             else:
                 ui.label("Not yet fetched — refreshes automatically shortly after startup.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
@@ -269,25 +288,22 @@ def render_today_page():
             else:
                 ui.label("No active-analyst price targets on file.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-    ui.markdown("---")
-
-    # ── Row 1: Risk Signals + Investor Pipeline ──
-    with ui.row().classes("w-full gap-6 items-start"):
-        with ui.column().classes("flex-1"):
+    # ── Dashboard sections in two height-balanced columns ──
+    # Sections are grouped to keep the two columns close in height rather than
+    # pairing fixed rows (which left a tall section next to a short one with a
+    # big empty void beneath it). Risk signals is the tallest block, so it
+    # anchors the left column with analyst coverage below; the three shorter
+    # sections stack on the right. `items-start` + this grouping keeps the
+    # trailing whitespace minimal.
+    with ui.row().classes("w-full gap-5 items-start").style("margin-top:4px;"):
+        with ui.column().classes("flex-1 gap-4"):
             _render_risk_signals(state, days, snap, pt_avg)
-        with ui.column().classes("flex-1"):
-            _render_investor_pipeline()
-
-    _render_activity_responses(state)
-
-    ui.markdown("---")
-
-    # ── Row 2: Earnings Readiness + Analyst Coverage ──
-    with ui.row().classes("w-full gap-6 items-start"):
-        with ui.column().classes("flex-1"):
             _render_earnings_readiness(days)
-        with ui.column().classes("flex-1"):
+        with ui.column().classes("flex-1 gap-4"):
+            _render_investor_pipeline()
             _render_analyst_coverage()
+            _render_peer_watch()
+            _render_activity_responses(state)
 
 
 def _signal_card(dot, title, desc):
@@ -297,75 +313,79 @@ def _signal_card(dot, title, desc):
 
 
 def _render_risk_signals(state, days, snap=None, pt_avg=None):
-    ui.label("RISK SIGNALS").classes("section-eyebrow")
+    ui.label("Risk signals").classes("section-head")
 
     missing_model_analysts = [a for a in CA() if a.get("status") != "active"]
 
     # 1. Missing models — 4-state: default / sent / noted / muted
     if signals.is_muted(state, "models_request"):
-        _signal_card("🔇", "Missing models — muted",
+        _signal_card("", "Missing models — muted",
                       f"Snoozed until {signals.muted_until_label(state, 'models_request')} — still unresolved, just hidden till then.")
-        ui.button("🔔 Unmute now", on_click=lambda: _unmute_signal(state, "models_request")).props("flat dense")
+        ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "models_request")).props("flat dense")
     elif state.get("models_request_sent"):
-        _signal_card("🟢", "Emails sent to 3 analysts",
+        _signal_card("", "Emails sent to 3 analysts",
                       f"Requests sent {state.get('models_request_sent_date','')} — pending responses.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "models_request_sent", "models_request_sent_date", "models_sent_names")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "models_request_sent", "models_request_sent_date", "models_sent_names")).props("flat dense")
     elif state.get("models_marked_noted"):
         reason = f" — {state['models_noted_reason_val']}" if state.get("models_noted_reason_val") else ""
-        _signal_card("🔵", "Model requests noted — not pursued",
+        _signal_card("", "Model requests noted — not pursued",
                       f"Reviewed {state.get('models_noted_date','')} — no outreach sent{reason}.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "models_marked_noted", "models_noted_date", "models_noted_reason_val")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "models_marked_noted", "models_noted_date", "models_noted_reason_val")).props("flat dense")
     else:
-        _signal_card("🔴", "3 of 5 analyst models missing",
+        _signal_card("", "3 of 5 analyst models missing",
                       "Maxim, Litchfield Hills, Barrington have no model on file — consensus unreliable")
         with ui.row().classes("gap-2").style("margin:-4px 0 8px;"):
-            ui.button("✉️ Resolve", on_click=lambda: _open_models_dialog(state, missing_model_analysts)).props("flat dense")
+            ui.button("Resolve", on_click=lambda: _open_models_dialog(state, missing_model_analysts)).props("flat dense")
             _mute_button(state, "models_request", "Today · Risk Signals · Missing Models")
 
     # 2. Beat bar above guidance
     if signals.is_muted(state, "guidance_gap"):
-        _signal_card("🔇", "Beat bar above guidance — muted",
+        _signal_card("", "Beat bar above guidance — muted",
                       f"Snoozed until {signals.muted_until_label(state, 'guidance_gap')} — still unresolved, just hidden till then.")
-        ui.button("🔔 Unmute now", on_click=lambda: _unmute_signal(state, "guidance_gap")).props("flat dense")
+        ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "guidance_gap")).props("flat dense")
     elif state.get("guidance_marked_sent"):
-        _signal_card("🟢", "Guidance clarification sent",
+        _signal_card("", "Guidance clarification sent",
                       f"Sent {state.get('guidance_sent_date','')} — pending analyst response.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "guidance_marked_sent", "guidance_sent_date")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_sent", "guidance_sent_date")).props("flat dense")
     elif state.get("guidance_marked_noted"):
         reason = f" — {state['guidance_noted_reason_val']}" if state.get("guidance_noted_reason_val") else ""
-        _signal_card("🔵", "Guidance gap noted — not pursued",
+        _signal_card("", "Guidance gap noted — not pursued",
                       f"Reviewed {state.get('guidance_noted_date','')} — no outreach sent{reason}.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "guidance_marked_noted", "guidance_noted_date", "guidance_noted_reason_val")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_noted", "guidance_noted_date", "guidance_noted_reason_val")).props("flat dense")
     else:
-        _signal_card("🟠", "Beat bar above guidance",
+        _signal_card("", "Beat bar above guidance",
                       "Street consensus $25.1M sits 2.7% above your $24.5M guidance midpoint")
         with ui.row().classes("gap-2").style("margin:-4px 0 8px;"):
-            ui.button("⚡ Draft clarification", on_click=lambda: _open_guidance_dialog(state)).props("flat dense")
+            ui.button("Draft clarification", on_click=lambda: _open_guidance_dialog(state)).props("flat dense")
             _mute_button(state, "guidance_gap", "Today · Risk Signals · Beat Bar Above Guidance")
 
     # 3. Days to consensus lock
     checkin_days = max(days - 20, 0)
     if signals.is_muted(state, "checkin"):
-        _signal_card("🔇", "Days to consensus lock — muted",
+        _signal_card("", "Days to consensus lock — muted",
                       f"Snoozed until {signals.muted_until_label(state, 'checkin')} — still unresolved, just hidden till then.")
-        ui.button("🔔 Unmute now", on_click=lambda: _unmute_signal(state, "checkin")).props("flat dense")
+        ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "checkin")).props("flat dense")
     elif state.get("checkin_marked_sent"):
-        _signal_card("🟢", "Check-in proposed",
+        _signal_card("", "Check-in proposed",
                       f"Sent {state.get('checkin_sent_date','')} — pending analyst confirmation.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "checkin_marked_sent", "checkin_sent_date")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_sent", "checkin_sent_date")).props("flat dense")
     elif state.get("checkin_marked_noted"):
         reason = f" — {state['checkin_noted_reason_val']}" if state.get("checkin_noted_reason_val") else ""
-        _signal_card("🔵", "Check-in outreach noted — not pursued",
+        _signal_card("", "Check-in outreach noted — not pursued",
                       f"Reviewed {state.get('checkin_noted_date','')} — no check-in scheduled{reason}.")
-        ui.button("↺ Reset", on_click=lambda: _reset(state, "checkin_marked_noted", "checkin_noted_date", "checkin_noted_reason_val")).props("flat dense")
+        ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_noted", "checkin_noted_date", "checkin_noted_reason_val")).props("flat dense")
     else:
-        _signal_card("🟠", f"{checkin_days} days to consensus lock",
+        _signal_card("", f"{checkin_days} days to consensus lock",
                       f"Quiet period starts in {checkin_days} days — model requests need to close by Aug 1")
         with ui.row().classes("gap-2").style("margin:-4px 0 8px;"):
-            ui.button("📅 Propose check-in", on_click=lambda: _open_checkin_dialog(state, missing_model_analysts, checkin_days)).props("flat dense")
+            ui.button("Propose check-in", on_click=lambda: _open_checkin_dialog(state, missing_model_analysts, checkin_days)).props("flat dense")
             _mute_button(state, "checkin", "Today · Risk Signals · Days to Consensus Lock")
 
-    # 4-6. Informational signals
+    # 4-6. Informational signals — collapsed by default. These are market
+    # context (PT gap, an ownership change, a confirmed conference), not daily
+    # to-dos, so they're tucked behind an expander. That keeps the three
+    # actionable signals above front-and-center and stops this section from
+    # dominating the column height (see the Today layout-balance pass).
     if snap and snap.get("last_price") and pt_avg:
         upside_pct = (pt_avg / snap["last_price"] - 1) * 100
         pt_desc = f"${pt_avg:.2f} consensus vs ${snap['last_price']:.2f} last trade — active analysts Buy-rated"
@@ -373,14 +393,15 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
     else:
         pt_desc = "Consensus PT or last price not yet available — see Key Market Metrics above."
         pt_title = "Upside to consensus PT — pending market data"
-    _signal_card("🟢", pt_title, pt_desc)
-    ui.button("🔍 Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense")
+    with ui.expansion("More market signals", value=False).classes("w-full").style("margin-top:4px;"):
+        _signal_card("", pt_title, pt_desc)
+        ui.button("Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense")
 
-    _signal_card("🔵", "1 ownership change", "Perkins Inv. Mgmt added shares — 13F filed Jul 18")
-    ui.button("🎯 Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
+        _signal_card("", "1 ownership change", "Perkins Inv. Mgmt added shares — 13F filed Jul 18")
+        ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
 
-    _signal_card("🟢", "1 conference confirmed", "H.C. Wainwright Sep 8 — Scott Buck attending in person")
-    ui.button("🎯 Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
+        _signal_card("", "1 conference confirmed", "H.C. Wainwright Sep 8 — Scott Buck attending in person")
+        ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
 
 
 def _reset(state, *keys):
@@ -414,7 +435,7 @@ def _unmute_signal(state, key):
 
 def _mute_button(state, key, launched_from):
     """A small flat button + dropdown menu with the 4 mute windows."""
-    with ui.button("🔇 Mute").props("flat dense"):
+    with ui.button("Mute").props("flat dense"):
         with ui.menu():
             for days, label in signals.MUTE_OPTIONS:
                 ui.menu_item(label, on_click=lambda days=days: _mute_signal(state, key, days, launched_from))
@@ -449,7 +470,7 @@ def _open_models_dialog(state, missing_model_analysts):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("✅ Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
+        ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
         reason_input = ui.input("Reason (optional, if not sending)").classes("w-full")
 
         def mark_noted():
@@ -462,7 +483,7 @@ def _open_models_dialog(state, missing_model_analysts):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("🚫 Do not send — mark as noted", on_click=mark_noted).props("flat")
+        ui.button("Do not send — mark as noted", on_click=mark_noted).props("flat")
         ui.button("Cancel", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -492,7 +513,7 @@ def _open_guidance_dialog(state):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("✅ Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
+        ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
         reason_input = ui.input("Reason (optional, if not sending)").classes("w-full").style("margin-top:8px;")
 
         def mark_noted():
@@ -505,7 +526,7 @@ def _open_guidance_dialog(state):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("🚫 Do not send — mark as noted", on_click=mark_noted).props("flat")
+        ui.button("Do not send — mark as noted", on_click=mark_noted).props("flat")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -534,7 +555,7 @@ def _open_checkin_dialog(state, missing_model_analysts, checkin_days):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("✅ Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
+        ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
         reason_input = ui.input("Reason (optional, if not sending)").classes("w-full").style("margin-top:8px;")
 
         def mark_noted():
@@ -547,7 +568,7 @@ def _open_checkin_dialog(state, missing_model_analysts, checkin_days):
             dialog.close()
             nav.go_to("Today")
 
-        ui.button("🚫 Do not send — mark as noted", on_click=mark_noted).props("flat")
+        ui.button("Do not send — mark as noted", on_click=mark_noted).props("flat")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -563,11 +584,11 @@ def _open_disconnect_dialog(snap=None, pt_avg=None):
         vol_line = f"{ratio:.1f}x average volume — no specific catalyst logged, worth watching for confirmation."
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Disconnect Drivers").classes("text-lg font-bold")
-        ui.label("⚠️ This app has no short-interest or sector-index data source — the drivers below use only "
+        ui.label("This app has no short-interest or sector-index data source — the drivers below use only "
                  "what's actually tracked here (model coverage, active PT count, volume), not a full quant "
                  "correlation.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
         ui.html(
-            "<div style='background:#1E2D42;border-radius:6px;padding:10px 14px;font-size:13px;color:#C8D8E8;line-height:1.6;'>"
+            "<div style='background:#EEF2F7;border-radius:6px;padding:10px 14px;font-size:13px;color:#1E293B;line-height:1.6;'>"
             "<b>Likely contributors, from data on file:</b><br>"
             f"• <b>Thin coverage</b> — only {active_n} of {total_n} analysts have an active model; {pt_line}<br>"
             f"• <b>Volume signal</b> — {vol_line}<br>"
@@ -593,12 +614,12 @@ def _open_target_list_dialog():
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Update Institutional Target List").classes("text-lg font-bold")
         ui.html(
-            "<div style='background:#173321;border:1px solid #22C55E;border-radius:6px;padding:8px 12px;"
-            "font-size:12.5px;color:#4ADE80;'>"
-            "✅ Perkins Inv. Mgmt is already Tier 1 (100/100) in the Investor Pipeline — this 13F add reinforces "
+            "<div style='background:#E9F6EF;border:1px solid #15803D55;border-radius:6px;padding:8px 12px;"
+            "font-size:12.5px;color:#15803D;'>"
+            "Perkins Inv. Mgmt is already Tier 1 (100/100) in the Investor Pipeline — this 13F add reinforces "
             "that, no action needed there.</div>"
         )
-        ui.label("⚠️ No confirmed attendee list exists for the H.C. Wainwright conference — this app doesn't have "
+        ui.label("No confirmed attendee list exists for the H.C. Wainwright conference — this app doesn't have "
                  "RSVP data. Below is a same-profile candidate list from the Target Database (New York route, "
                  "small-cap value/growth mandate), not a verified roster of who's actually attending.").style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
@@ -621,8 +642,7 @@ def _render_activity_responses(state):
     # received recalculates the consensus input for that analyst.
     if not state.get("models_request_sent"):
         return
-    ui.markdown("---")
-    ui.label("📋 ACTIVITY & RESPONSES — Model Requests").classes("section-eyebrow")
+    ui.label("Activity & responses — model requests").classes("section-head")
     ui.label("You mark status yourself as replies come in — this app has no email inbox connected, so nothing "
              "here is auto-detected.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -678,14 +698,14 @@ def _render_activity_row(state, a):
                         with result_area:
                             with ui.row().classes("w-full gap-3"):
                                 ui.html(
-                                    f"<div style='background:#1E2D42;border-radius:6px;padding:8px 12px;'>"
-                                    f"<span style='font-size:11px;color:#8B9DB8;'>OLD MODEL</span><br>"
-                                    f"<b style='color:#94A3B8;'>Revenue: ${old_rev}M</b></div>"
+                                    f"<div style='background:#EEF2F7;border-radius:6px;padding:8px 12px;'>"
+                                    f"<span style='font-size:11px;color:#64748B;'>OLD MODEL</span><br>"
+                                    f"<b style='color:#1E293B;'>Revenue: ${old_rev}M</b></div>"
                                 )
                                 ui.html(
-                                    f"<div style='background:#173321;border-radius:6px;padding:8px 12px;'>"
-                                    f"<span style='font-size:11px;color:#8B9DB8;'>NEW MODEL</span><br>"
-                                    f"<b style='color:#4ADE80;'>Revenue: ${new_rev}M</b></div>"
+                                    f"<div style='background:#E9F6EF;border-radius:6px;padding:8px 12px;'>"
+                                    f"<span style='font-size:11px;color:#64748B;'>NEW MODEL</span><br>"
+                                    f"<b style='color:#15803D;'>Revenue: ${new_rev}M</b></div>"
                                 )
 
                             def commit(a=a, new_rev=new_rev):
@@ -695,11 +715,11 @@ def _render_activity_row(state, a):
                                 ui.notify(f"{a['name']}'s model committed — consensus inputs updated.")
                                 nav.go_to("Today")
 
-                            ui.button("✅ Accept — recalculate consensus", on_click=commit).props("color=primary")
+                            ui.button("Accept — recalculate consensus", on_click=commit).props("color=primary")
                     except Exception:
                         with result_area:
                             ui.label("Couldn't read that file as a two-column Metric,Value CSV — check the format "
-                                     "and try again.").style("color:#F87171;font-size:12px;")
+                                     "and try again.").style("color:#B91C1C;font-size:12px;")
 
                 ui.upload(on_upload=handle_upload, auto_upload=True).props("accept=.csv").classes("w-full")
 
@@ -721,7 +741,7 @@ def _render_investor_pipeline():
     written to both activity_log (counts toward "N tasks automated today")
     and meeting_log (shows up on that fund's record everywhere else in
     the app, including its Interaction Score)."""
-    ui.label("INVESTOR PIPELINE — STRONGEST SIGNAL").classes("section-eyebrow")
+    ui.label("Investor pipeline — strongest signal").classes("section-head")
     from core.investor_scoring import load_meeting_log, save_meeting_log, top_engagement_targets
     targets = top_engagement_targets(limit=5)
     if not targets:
@@ -733,9 +753,9 @@ def _render_investor_pipeline():
     for inst in targets:
         nm = inst["Fund"]
         score = inst["Engagement_Score"]
-        hld = "✅ Holder" if inst["USIO_Holder"] else "Non-holder"
+        hld = "Holder" if inst["USIO_Holder"] else "Non-holder"
         nt = inst.get("Action", "—")
-        dot = "🔵" if inst["USIO_Holder"] else ("🟢" if score >= 80 else "🟡")
+        dot = "" if inst["USIO_Holder"] else ("" if score >= 80 else "")
         info = contacts.get(nm, {"name": "Contact", "email": ""})
         detail = (f"{inst.get('Action', '')} · {inst.get('IR_Visits_30d', 0)} IR site visits in the last 30 days "
                   f"(last: {inst.get('Last_Visit', '—')}) · {inst.get('Metro', '—')}.")
@@ -775,44 +795,49 @@ def _render_investor_pipeline():
                         d.close()
                         nav.go_to("Today")
 
-                    ui.button("✅ Mark as sent", on_click=mark_sent).props("color=primary")
+                    ui.button("Mark as sent", on_click=mark_sent).props("color=primary")
                     ui.button("Close", on_click=d.close).props("flat")
                 d.open()
 
             ui.button("Details", on_click=open_detail).props("flat dense")
 
-    ui.button("👥 Open Full Investor Pipeline →", on_click=lambda: nav.go_to("Investors")).props("color=primary")
+    # Deep-link straight to the Target Database (the searchable investor database),
+    # not the default Buy-Side tab — matches "open the database" and keeps the
+    # sidebar highlight in sync. Pure navigation: it reads cached data only and
+    # never triggers a SEC/market pull (those live on their own explicit buttons).
+    ui.button("Open Full Investor Pipeline →",
+              on_click=lambda: nav.go_to("Investors", "Target Database")).props("color=primary")
 
 
 def _render_earnings_readiness(days):
-    ui.label(f"EARNINGS READINESS — {days} DAYS OUT").classes("section-eyebrow")
+    ui.label(f"Earnings readiness — {days} days out").classes("section-head")
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};"):
         ui.label(f"{days} days").classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
         ui.label("Aug 12 · 4:30 PM ET").style(f"color:{COLORS['accent_light2']};font-size:12px;")
 
     readiness = [
-        ("Script", "✓", COLORS["success"], "Stage 2 — IR review"),
-        ("Slides", "✓", COLORS["success"], "Investor deck current"),
+        ("Script", "", COLORS["success"], "Stage 2 — IR review"),
+        ("Slides", "", COLORS["success"], "Investor deck current"),
         ("Q&A prep", "70%", COLORS["warning"], "3 analyst-specific gaps"),
-        ("Guidance", "⏳", COLORS["warning"], "Waiting on CFO numbers"),
+        ("Guidance", "", COLORS["warning"], "Waiting on CFO numbers"),
         ("Legal review", "—", COLORS["text_muted"], "Not yet started"),
-        ("Webcast", "✓", COLORS["success"], "Chorus Call confirmed"),
+        ("Webcast", "", COLORS["success"], "Chorus Call confirmed"),
     ]
     for item, stat, clr, note in readiness:
         with ui.row().classes("w-full justify-between items-center").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
             ui.label(f"{item} — {note}").style(f"color:{COLORS['text_body']};font-size:12.5px;")
             ui.label(stat).style(f"color:{clr};font-weight:bold;")
 
-    # earnings_tab="script" deep-links straight into the Script Generation
-    # tab — previously this just called nav.go_to("Earnings") with no
-    # target, which silently landed on Earnings' default "Prior Qtr
-    # Review" tab instead. That's exactly why the button looked like it
-    # "did nothing" when clicked. See earnings_page.py's render_earnings_page().
-    ui.button("📝 Open Script Generation →", on_click=lambda: nav.go_to("Earnings", earnings_tab="script")).props("flat").style("margin-top:8px;")
+    # Deep-link straight into the Script Generation tab by passing it as the
+    # explicit nav target, so the page opens there AND the sidebar highlights the
+    # matching sub-item. (The earlier earnings_tab="script" highlight opened the
+    # tab but left the sidebar on the first tab, so it looked like it "did
+    # nothing" / went to the wrong place.) See earnings_page.render_earnings_page.
+    ui.button("Open Script Generation →", on_click=lambda: nav.go_to("Earnings", "Script Generation")).props("flat").style("margin-top:8px;")
 
 
 def _render_analyst_coverage():
-    ui.label("ANALYST COVERAGE").classes("section-eyebrow")
+    ui.label("Analyst coverage").classes("section-head")
     all_analysts = [
         ("H.C. Wainwright", "Scott Buck", "$4.00", "Buy", "No change", COLORS["success"]),
         ("Ladenburg Thalmann", "Jon Hickman", "$6.25", "Buy", "No change", COLORS["success"]),
@@ -835,9 +860,13 @@ def _render_analyst_coverage():
                             ui.label(pt).classes("font-bold").style(f"color:{clr};")
                         ui.label(f"{an} · {rt} · {chg}").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
-                    def jump(firm=firm):
-                        nav.go_to("Markets", highlight_analyst=firm)
-                    ui.button("→", on_click=jump).props("flat dense")
+                    # Deep-link straight to Consensus / Guidance with this analyst
+                    # highlighted. Pass the tab explicitly (not just the highlight)
+                    # so the sidebar's active-tab highlight matches the tab that
+                    # opens; the `e=None` swallows the click event NiceGUI passes so
+                    # it can't clobber the captured `firm`.
+                    ui.button("→", on_click=lambda e=None, firm=firm: nav.go_to(
+                        "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense")
 
             if not expanded["value"]:
                 ui.button(f"+ Load {len(all_analysts)-3} more", on_click=toggle).props("flat")
@@ -849,3 +878,65 @@ def _render_analyst_coverage():
         render_list()
 
     render_list()
+
+
+def _render_peer_watch():
+    """Daily peer monitor on the front page — notable price moves, recent SEC
+    filings, and a rolling 7-day news window across the segmented peer group
+    (core.peer_watch + core.news_feed, cache-only reads)."""
+    from core import news_feed, peer_watch
+    s = peer_watch.summary()
+
+    ui.label("Peer watch").classes("section-head")
+    ui.label("Daily monitor of the segmented peer group — price moves and SEC filings.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+
+    movers = s["movers"] or s["all_movers"][:4]
+    with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+        if not movers:
+            ui.label("Peer market data refreshing — check back shortly.").style(
+                f"color:{COLORS['text_muted']};font-size:11.5px;")
+        else:
+            ui.label("Today's moves").classes("font-bold").style(
+                f"color:{COLORS['text_body']};font-size:11.5px;")
+            for m in movers[:5]:
+                clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
+                tag = ("  ◆ closest analog" if m.get("closest_analog")
+                       else ("  · reference" if m.get("tier") == "reference"
+                             else ("  · USIO" if m.get("is_client") else "")))
+                with ui.row().classes("w-full items-center justify-between").style("padding:1px 0;"):
+                    with ui.row().classes("items-baseline gap-1").style("min-width:0;"):
+                        ui.label(m["ticker"]).classes("font-bold").style(
+                            f"color:{COLORS['text_body']};font-size:12.5px;")
+                        ui.label(f"{m.get('segment', '') or ''}{tag}").style(
+                            f"color:{COLORS['text_muted']};font-size:10px;")
+                    ui.label(f"{m['pct']:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:12.5px;")
+
+    if s["filings"]:
+        with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+            ui.label("Recent peer SEC filings").classes("font-bold").style(
+                f"color:{COLORS['text_body']};font-size:11.5px;")
+            for f in s["filings"][:5]:
+                who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
+                with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
+                    with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
+                        ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:10.5px;width:42px;")
+                        ui.label(f"{who} · {f['form']}").style(
+                            f"color:{COLORS['text_secondary']};font-size:11.5px;")
+
+    news = news_feed.recent(limit=6)
+    if news:
+        with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+            ui.label("Recent peer news · rolling 7 days").classes("font-bold").style(
+                f"color:{COLORS['text_body']};font-size:11.5px;")
+            for n in news:
+                with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
+                    with ui.column().classes("gap-0").style("padding:2px 0;"):
+                        ui.label(f"{n['ticker']} · {n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
+                            f"color:{COLORS['text_muted']};font-size:10px;")
+                        ui.label(n["title"]).style(
+                            f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
+
+    ui.label("Prices & news via Yahoo (≤60-min delay); filings via SEC EDGAR. A licensed feed would add breaking "
+             "speed and deeper M&A/press-wire coverage.").style(
+        f"color:{COLORS['text_muted']};font-size:9.5px;margin-top:2px;")

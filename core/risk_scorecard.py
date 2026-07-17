@@ -45,8 +45,8 @@ def _consensus_pt_avg(period="Q2 2026E"):
     shared by both compute_scorecard() and compute_actionable_signals() so
     the "138% upside" style figure is computed once, consistently, the
     same way page_modules_nicegui/today_page.py computes its own."""
-    from data.seed.consensus_estimates import get_seed_consensus
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
     active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
     pts = [ests[f]["Price Target"] for f in ests if f in active_firms and ests.get(f, {}).get("Price Target") is not None]
@@ -139,8 +139,8 @@ def get_revision_momentum(period="Q2 2026E"):
     stat callout (short label + sub-caption), "full" is the single-sentence
     form the scorecard tile displays.
     """
-    from data.seed.consensus_estimates import get_seed_consensus
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     pt_hist = seed.get("pt_history", {})
     labels = pt_hist.get("labels", [])
     by_firm = pt_hist.get("by_firm", {})
@@ -179,8 +179,8 @@ def get_revision_momentum(period="Q2 2026E"):
 
 
 def _estimate_guidance_risk(period="Q2 2026E"):
-    from data.seed.consensus_estimates import get_seed_consensus
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     items = []
 
     g = seed.get("period_guidance", {}).get(period, {})
@@ -195,11 +195,25 @@ def _estimate_guidance_risk(period="Q2 2026E"):
     else:
         items.append(("Consensus Revenue", "GRAY", "No ingested analyst estimates for this period yet."))
 
+    # COUNT MODELS, NOT STATUS. This used to count analysts whose status == "active"
+    # and call the result "covering analysts' models" — but an analyst being active
+    # means they publish research, NOT that we hold their spreadsheet. Verified
+    # 2026-07-16: 2 analysts are active and we have 0 of their models, so the old
+    # logic reported "2 of 5 models" while the true figure was zero.
     total = len(CA())
     active = sum(1 for a in CA() if a.get("status") == "active")
-    cov = active / total if total else 0
+    with_model = sum(1 for v in ests.values() if v.get("Revenue Est ($M)") is not None)
+    cov = with_model / total if total else 0
     status = "GREEN" if cov >= 0.8 else "YELLOW" if cov >= 0.5 else "ORANGE" if cov > 0 else "RED"
-    items.append(("EBITDA / EPS Risk", status, f"Consensus built on {active} of {total} covering analysts' models — {'broad' if cov >= 0.8 else 'thin'} coverage."))
+    if with_model:
+        items.append(("EBITDA / EPS Risk", status,
+                      f"Consensus built on {with_model} of {total} analysts' models "
+                      f"({'broad' if cov >= 0.8 else 'thin'} coverage)."))
+    else:
+        items.append(("EBITDA / EPS Risk", "RED",
+                      f"NO analyst models on file — {active} of {total} analysts actively cover "
+                      f"{CT('ticker')}, but not one of their models has been ingested. Any 'consensus' "
+                      f"computed here would be from the market feed's aggregate, not from models we hold."))
 
     surprises = db.load_json("earnings_surprise_log.json", [])
     if surprises:
@@ -248,7 +262,6 @@ def log_ndr_objection(trip_name, objection="", narrative_gap=""):
 
 
 def _investor_narrative_risk(period="Q2 2026E"):
-    from data.seed.consensus_estimates import get_seed_consensus
     items = [("Equity Story Clarity", "GRAY", "Subjective — no quantified source in this app.")]
 
     objections = db.load_json(NDR_OBJECTIONS_KEY, default=[])
@@ -272,7 +285,8 @@ def _investor_narrative_risk(period="Q2 2026E"):
 
     active = [a for a in CA() if a.get("status") == "active"]
     snap = market_data.get_snapshot(CT("ticker"))
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
     if active and snap and snap.get("last_price"):
         buy_count = sum(1 for a in active if ests.get(a["firm"], {}).get("Rating") == "Buy")
@@ -383,21 +397,100 @@ def compute_scorecard(period="Q2 2026E"):
 # ─────────────────────────────────────────────────────────────────────────
 # "Actionable IR signals" list
 # ─────────────────────────────────────────────────────────────────────────
+def _model_request_email(inactive, to):
+    """Build a ready-to-send model-request email (recipients + subject + body,
+    raw — the UI URL-encodes it into a mailto link) for the analysts with no
+    model on file, so the IR lead can email them directly from the risk-signal
+    dialog instead of being pointed off to another surface."""
+    from config.client_config import CE, CI
+    ce, ir = CE(), CI()
+    quarter = ce.get("current_quarter", "the upcoming quarter")
+    edate = ce.get("earnings_date", "")
+    name, ticker = CT("name"), CT("ticker")
+    ir_name = ir.get("name", "")
+    ir_title = ir.get("title", "Investor Relations")
+    first_names = ", ".join(a["name"].split()[0] for a in inactive)
+    subject = f"{ticker} — Estimates / model request ahead of {quarter} earnings"
+    body = (
+        f"Hi {first_names},\n\n"
+        f"Ahead of our {quarter} earnings" + (f" on {edate}" if edate else "") + ", I want to make sure you "
+        f"have everything you need to publish an updated model on {name} ({ticker}) — we'd value having your "
+        f"estimates reflected in consensus.\n\n"
+        f"I'm happy to walk through our latest disclosures or set up a brief call, whatever is most useful. "
+        f"Just let me know.\n\n"
+        f"Best regards,\n{ir_name}\n{ir_title}\n{name} ({ticker})"
+    )
+    return {"to": to, "subject": subject, "body": body}
+
+
+def _guidance_gap_email(con_rev, guid_mid, gap_pct):
+    """Street-vs-guidance gap → a note to the CFO to align on whether to walk
+    analysts toward guidance or revisit the range before the print."""
+    from config.client_config import CE, CI, get_client
+    ce, ir = CE(), CI()
+    cfo = get_client().get("executives", {}).get("CFO", {})
+    quarter = ce.get("current_quarter", "the quarter")
+    ticker = CT("ticker")
+    first = cfo.get("name", "").split()[0] if cfo.get("name") else "there"
+    subject = f"{ticker} — Street {gap_pct:+.1f}% vs our {quarter} guidance midpoint"
+    body = (
+        f"Hi {first},\n\n"
+        f"Flagging ahead of {quarter}: Street revenue consensus is ${con_rev:.1f}M against our ${guid_mid:.1f}M "
+        f"guidance midpoint ({gap_pct:+.1f}%). Hitting our own number would screen as a miss versus the Street.\n\n"
+        f"Worth a quick discussion on whether we walk analysts toward guidance or revisit the range before the "
+        f"print. Free to connect?\n\n"
+        f"Best,\n{ir.get('name','')}\n{ir.get('title','Investor Relations')}"
+    )
+    return {"to": [cfo["email"]] if cfo.get("email") else [], "subject": subject, "body": body}
+
+
+def _outreach_upside_email(pt_avg, last_price, upside_pct):
+    """PT upside → a ready outreach note the IR lead sends to a target investor.
+    No fixed recipient (they pick the investor), so `to` is left blank — the
+    dialog opens a compose window with the subject and body pre-filled."""
+    from config.client_config import CE, CI
+    ce, ir = CE(), CI()
+    name, ticker = CT("name"), CT("ticker")
+    quarter = ce.get("current_quarter", "the upcoming quarter")
+    subject = f"{ticker} — {upside_pct:+.0f}% upside to consensus PT into {quarter}"
+    body = (
+        f"Hi,\n\n"
+        f"Wanted to put {name} ({ticker}) on your radar ahead of {quarter} earnings. The stock last traded "
+        f"around ${last_price:.2f} versus a consensus price target of ${pt_avg:.2f} — roughly {upside_pct:+.0f}% "
+        f"upside on the Street's own numbers.\n\n"
+        f"Happy to set up time with management or share our latest materials if useful.\n\n"
+        f"Best regards,\n{ir.get('name','')}\n{ir.get('title','Investor Relations')}\n{name} ({ticker})"
+    )
+    return {"to": [], "subject": subject, "body": body}
+
+
 def compute_actionable_signals(period="Q2 2026E"):
-    from data.seed.consensus_estimates import get_seed_consensus
-    seed = get_seed_consensus(get_active_client_id())
+    from core.consensus import get_consensus
+    seed = get_consensus(get_active_client_id())
     signals = []
 
     total = len(CA())
+    # Same conflation as above: this counted INACTIVE analysts and called them "missing
+    # models". Coverage status and model-on-file are different facts, and the fix
+    # matters because an ACTIVE analyst with no model on file is the more actionable
+    # gap — they publish, we just haven't collected it.
+    ests_now = (get_consensus(get_active_client_id()).get("period_estimates", {}) or {}).get(period, {})
+    no_model = [a for a in CA() if ests_now.get(a["firm"], {}).get("Revenue Est ($M)") is None]
     inactive = [a for a in CA() if a.get("status") != "active"]
-    if inactive:
-        names = ", ".join(a["name"].split()[-1] for a in inactive)
+    if no_model:
+        names = ", ".join(a["name"].split()[-1] for a in no_model)
+        _to = [a["email"] for a in no_model if a.get("email")]
         signals.append({
             "level": "red", "icon": "🔴",
-            "title": f"{len(inactive)} of {total} analyst models missing — consensus is unreliable",
-            "desc": f"{names} have no model on file. Consensus is built on only {total - len(inactive)} data point(s). "
-                    f"If one analyst moves their PT, blended consensus can swing sharply.",
-            "action": "Send model request emails — see Today → Risk Signals, or Mail Gateway",
+            "title": f"{len(no_model)} of {total} analyst models missing — no consensus can be built from models we hold",
+            "desc": f"{names} have no model on file — {len(no_model)} of {total}. No revenue or EPS "
+                    f"consensus can be computed from models we hold, so any street figure shown in this "
+                    f"platform comes from the market feed's aggregate, not from us. "
+                    + (f"{len([a for a in no_model if a.get('status') == 'active'])} of them actively "
+                       f"cover the stock and publish — those models are collectable today."
+                       if any(a.get("status") == "active" for a in no_model) else ""),
+            "action": "Send model request emails to the analysts with no model on file",
+            "email": _model_request_email(no_model, _to) if _to else None,
         })
     else:
         signals.append({
@@ -421,6 +514,7 @@ def compute_actionable_signals(period="Q2 2026E"):
             "desc": f"Street revenue consensus is {gap_pct:+.1f}% {'above' if gap_pct > 0 else 'below'} guidance midpoint — "
                     f"{'hitting your own number would be a miss vs street' if is_beat_risk else 'in line with guidance'}.",
             "action": "Discuss with CFO: walk analysts toward guidance, or tighten guidance upward" if is_beat_risk else "In line — no action needed",
+            "email": _guidance_gap_email(con_rev, g["Revenue Est ($M)"], gap_pct) if is_beat_risk else None,
         })
 
     pt_avg = _consensus_pt_avg(period)
@@ -432,6 +526,7 @@ def compute_actionable_signals(period="Q2 2026E"):
             "title": f"{upside_pct:+.0f}% {'upside' if upside_pct >= 0 else 'downside'} to consensus PT",
             "desc": f"Consensus PT of ${pt_avg:.2f} vs last trade of ${snap['last_price']:.2f}.",
             "action": "Lead with this in institutional outreach" if upside_pct > 50 else "Monitor",
+            "email": _outreach_upside_email(pt_avg, snap["last_price"], upside_pct) if upside_pct > 50 else None,
         })
 
     # Static, documented gaps — no real data source exists in this app for

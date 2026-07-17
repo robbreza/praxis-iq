@@ -58,7 +58,7 @@ def log_event(event_type, entity=None, client_id=None, **detail):
     amounts, etc.) — stored but not required by any query helper below."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         if pg:
@@ -83,7 +83,7 @@ def log_event(event_type, entity=None, client_id=None, **detail):
 def _rows_since(since_dt, event_type=None, client_id=None):
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -147,7 +147,7 @@ def recent_events(limit=20, client_id=None):
     trail, and for spot-checking that logging is actually happening."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -182,7 +182,7 @@ def overdue_sent_without_response(sent_event_type, complete_event_types, hours=2
     cid = _resolve_client_id(client_id)
     cutoff = datetime.now() - timedelta(hours=hours)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"

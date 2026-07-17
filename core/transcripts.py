@@ -63,6 +63,49 @@ def _resolve_client_id(client_id):
 # ─────────────────────────────────────────────────────────────────────────
 # PDF text extraction
 # ─────────────────────────────────────────────────────────────────────────
+def extract_text_from_docx(file_bytes):
+    """Plain text from a .docx's raw bytes. A .docx is a zip containing
+    word/document.xml, so this needs no third-party library (python-docx isn't
+    installed) — just stdlib zipfile + ElementTree. Returns None (never raises)
+    on any failure, same contract as extract_text_from_pdf.
+
+    Paragraph boundaries are preserved because a call transcript's speaker turns
+    are paragraphs; losing them would run every speaker together and make the
+    Q&A section unparseable.
+    """
+    try:
+        import io
+        import zipfile
+        from xml.etree import ElementTree as ET
+        ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            root = ET.fromstring(z.read("word/document.xml"))
+        paras = []
+        for p in root.iter(f"{{{ns}}}p"):
+            t = "".join(n.text or "" for n in p.iter(f"{{{ns}}}t")).strip()
+            if t:
+                paras.append(t)
+        text = "\n".join(paras).strip()
+        return text or None
+    except Exception as e:
+        print(f"[transcripts] .docx extraction failed: {e}")
+        return None
+
+
+def extract_text(file_bytes, filename=""):
+    """Route to the right extractor by extension; .docx and .pdf both land as
+    plain text for ingest_transcript()."""
+    low = (filename or "").lower()
+    if low.endswith(".docx"):
+        return extract_text_from_docx(file_bytes)
+    if low.endswith(".pdf"):
+        return extract_text_from_pdf(file_bytes)
+    try:
+        return file_bytes.decode("utf-8", errors="replace").strip() or None
+    except Exception:
+        return None
+
+
 def extract_text_from_pdf(file_bytes):
     """Best-effort plain-text extraction from an uploaded PDF's raw bytes.
     Returns None (never raises) on any failure — a scanned/image-only PDF,
@@ -90,7 +133,7 @@ def ingest_transcript(full_text, quarter, call_date=None, source="upload", sourc
     again after re-ingesting."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         now = datetime.now()
@@ -154,7 +197,7 @@ def list_transcripts(client_id=None):
     get_transcript() for that), newest quarter first by upload time."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -174,7 +217,7 @@ def get_transcript(quarter, client_id=None):
     nothing's been ingested for it yet."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -193,7 +236,7 @@ def get_transcript(quarter, client_id=None):
 def delete_transcript(quarter, client_id=None):
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -215,7 +258,7 @@ def search_transcripts(query, client_id=None, context_chars=120):
     q = query.strip().lower()
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         ph = "%s" if pg else "?"
@@ -329,7 +372,7 @@ def summarize_transcript(quarter, client_id=None):
 
     cid = _resolve_client_id(cid)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         summary = parsed.get("summary", "")

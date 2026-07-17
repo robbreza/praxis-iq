@@ -61,7 +61,7 @@ def save_document(contact, firm, doc_type, filename, file_bytes,
     match on both."""
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
-    pg = db.is_postgres()
+    pg = db.connection_is_postgres(conn)
     try:
         cur = conn.cursor()
         if pg:
@@ -105,9 +105,9 @@ def list_documents(contact=None, firm=None, doc_type=None, client_id=None):
     """Metadata only (no file_bytes — keep listing cheap). Filters are
     AND'ed together; any left as None is not filtered on. Newest first."""
     cid = _resolve_client_id(client_id)
-    pg = db.is_postgres()
-    ph = "%s" if pg else "?"
     conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
     try:
         cur = conn.cursor()
         clauses, params = [f"client_id = {ph}"], [cid]
@@ -143,9 +143,9 @@ def get_document_bytes(doc_id, client_id=None):
     """Returns (filename, content_type, file_bytes) for download, or None
     if doc_id doesn't exist (or belongs to a different client)."""
     cid = _resolve_client_id(client_id)
-    pg = db.is_postgres()
-    ph = "%s" if pg else "?"
     conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
     try:
         cur = conn.cursor()
         cur.execute(
@@ -163,9 +163,9 @@ def get_document_bytes(doc_id, client_id=None):
 
 def delete_document(doc_id, client_id=None):
     cid = _resolve_client_id(client_id)
-    pg = db.is_postgres()
-    ph = "%s" if pg else "?"
     conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
     try:
         cur = conn.cursor()
         cur.execute(f"DELETE FROM documents WHERE id = {ph} AND client_id = {ph}", (doc_id, cid))

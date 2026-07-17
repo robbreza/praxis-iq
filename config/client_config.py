@@ -175,17 +175,45 @@ CLIENT_REGISTRY = {
             {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "status": "inactive", "email": "bsine@litchfieldhills.com"},
             {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "status": "inactive", "email": "gprestopino@barrington.com"},
         ],
+        # Tiered peer architecture (2026-07): USIO is a hybrid — Merchant
+        # Services (PayFac / card / ACH / prepaid) + Output Solutions (billing /
+        # print). "primary" peers drive the valuation median; "reference"
+        # large-caps set the industry growth/margin bar but are excluded from the
+        # median (you don't apply a $100B processor's multiple to a micro-cap).
+        # closest_analog flags the single tightest operating comp.
         "peers": [
-            {"ticker": "GDOT", "name": "Green Dot", "ev_rev": 1.2},
-            {"ticker": "PRTH", "name": "Priority Technology", "ev_rev": 1.8},
-            {"ticker": "FOUR", "name": "Shift4 Payments", "ev_rev": 4.2},
-            {"ticker": "RPAY", "name": "Repay Holdings", "ev_rev": 2.8},
+            {"ticker": "RPAY", "name": "Repay Holdings", "ev_rev": 2.8, "tier": "primary",
+             "segment": "Integrated card + ACH + billing/output", "closest_analog": True},
+            {"ticker": "FOUR", "name": "Shift4 Payments", "ev_rev": 4.2, "tier": "primary",
+             "segment": "Card acceptance / PayFac"},
+            {"ticker": "PSFE", "name": "Paysafe", "ev_rev": 1.5, "tier": "primary",
+             "segment": "Integrated payments"},
+            {"ticker": "CSGS", "name": "CSG Systems", "ev_rev": 2.2, "tier": "primary",
+             "segment": "Billing / customer comms (output)"},
+            {"ticker": "PAY", "name": "Paymentus Holdings", "ev_rev": 2.5, "tier": "primary",
+             "segment": "Bill presentment / EBPP (output)"},
+            {"ticker": "CASS", "name": "Cass Information Systems", "ev_rev": 2.2, "tier": "primary",
+             "segment": "Payment information / billing"},
+            {"ticker": "GDOT", "name": "Green Dot", "ev_rev": 1.2, "tier": "primary",
+             "segment": "Prepaid / card issuing"},
+            # Fiserv (FI) removed 2026-07-16 — too big to inform a micro-cap comp, and it
+            # carried no live data on either side: Yahoo has no quote for the post-rebrand
+            # ticker, and SEC still indexes it under the pre-2023 FISV. Its whole row was
+            # curated estimate (ev_rev 5.0 / gm 60.0 -> an 8.3x EV/GP that is one guess
+            # divided by another) sitting next to live peers.
+            {"ticker": "GPN", "name": "Global Payments", "ev_rev": 4.5, "tier": "reference",
+             "segment": "Large-cap processor (reference)"},
+            {"ticker": "TOST", "name": "Toast", "ev_rev": 3.5, "tier": "reference",
+             "segment": "Large-cap fintech (reference)"},
         ],
         "earnings": {"current_quarter": "Q2 2026", "earnings_date": "2026-08-12",
             "call_time": "4:30 PM ET", "dial_in": "+1-844-883-3890",
-            "quiet_start": "2026-07-20", "quiet_end": "2026-08-12"},
+            "quiet_start": "2026-07-20", "quiet_end": "2026-08-13"},
         "financials": {"last_quarter": "Q1 2026", "last_rev": 25.47, "last_rev_yoy": 16.0,
-            "last_eps": 0.00, "last_gm": 20.2, "last_ebitda": 0.8, "cash_m": 7.7},
+            "last_eps": 0.00, "last_gm": 20.2, "last_ebitda": 0.8, "cash_m": 7.7,
+            # Shares out + debt feed the live EV/Revenue in the peer-benchmarking
+            # analysis (core/benchmarking_engine.py); USIO is roughly net-cash.
+            "shares_out_m": 26.8, "debt_m": 0.0},
         # Note: not referenced anywhere in the original demo (verified — dead
         # data in the old single-file version). Kept here, not deleted, in
         # case a future guidance-tracking feature wants it.
@@ -200,6 +228,156 @@ CLIENT_REGISTRY = {
 }
 
 DEFAULT_CLIENT_ID = "usio"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Role-based access (RBAC) — roles & responsibilities
+# ─────────────────────────────────────────────────────────────────────────
+# WHO fills each role comes from the active client's profile (ir_contact +
+# executives above) — never hardcoded person names in app logic. WHAT each
+# role may do (which pages it sees/edits, whether it can change Settings or
+# send outbound email) is a PLATFORM concern, identical across clients, so it
+# lives here once instead of being copied into every client record.
+#
+# Role keys line up with the profile roster: "IR" is filled by ir_contact;
+# every other key ("CEO", "CFO", "CRO", "Legal", ...) is filled by the
+# matching key in the client's "executives" dict. A client whose executives
+# dict omits a role simply doesn't offer that role in the selector — nothing
+# else changes. Access level per page is one of: "full", "read", "none".
+PAGES = ["Today", "Calendar", "Markets", "Investors",
+         "Outreach", "Earnings", "Reports", "Settings"]
+
+ROLE_PERMISSIONS = {
+    "IR": {
+        "label": "IR Director",
+        # Power user / platform admin — full run of the app.
+        "pages": {p: "full" for p in PAGES},
+        "can_change_settings": True,
+        "can_send_email": True,
+    },
+    "CFO": {
+        "label": "CFO",
+        # Full access — the CFO is backing up / taking over from the IR role
+        # (IR departure, noted 2026-07-13), so the CFO now has the same run of
+        # the app the IR Director does, including Settings and outbound send.
+        "pages": {p: "full" for p in PAGES},
+        "can_change_settings": True,
+        "can_send_email": True,
+    },
+    "CEO": {
+        "label": "CEO",
+        "pages": {"Today": "full", "Earnings": "full", "Calendar": "full",
+                  "Markets": "read", "Reports": "read", "Investors": "none",
+                  "Outreach": "none", "Settings": "none"},
+        "can_change_settings": False,
+        "can_send_email": False,
+    },
+    "CRO": {
+        "label": "CRO",
+        # Owns investor demand/outreach + carries a script persona. Can DRAFT
+        # outreach but NOT send — send is IR-only per client policy.
+        "pages": {"Investors": "full", "Outreach": "full", "Calendar": "full",
+                  "Markets": "full", "Earnings": "full", "Reports": "read",
+                  "Today": "read", "Settings": "none"},
+        "can_change_settings": False,
+        "can_send_email": False,
+    },
+    "Legal": {
+        "label": "Legal",
+        # Disclosure/sign-off focus: FLS checklist in Earnings + the Reg FD log.
+        "pages": {"Earnings": "full", "Reports": "full", "Today": "read",
+                  "Calendar": "read", "Investors": "none", "Outreach": "none",
+                  "Markets": "none", "Settings": "none"},
+        "can_change_settings": False,
+        "can_send_email": False,
+    },
+}
+
+# The default role a session lands in before any explicit selection — the IR
+# Director, who has full access (matches the original demo's implicit "you are
+# Paul Manley" assumption, now expressed as a role rather than a person name).
+DEFAULT_ROLE_KEY = "IR"
+
+
+def _role_entry(role_key, name, title):
+    """Combine the platform permission set for role_key with WHO fills it
+    (name/title) from the active client's profile."""
+    perms = ROLE_PERMISSIONS[role_key]
+    return {
+        "role_key": role_key,
+        "label": perms["label"],
+        "name": name,
+        "title": title or perms["label"],
+        # Human-facing selector string, e.g. "Paul Manley — IR Director".
+        # Person name is data pulled from the profile, not a literal.
+        "display": f"{name} — {perms['label']}",
+        "permissions": perms,
+    }
+
+
+def role_roster(client_id=None):
+    """Ordered list of roles the active client actually staffs, each merging
+    platform permissions with the profile's person for that role. IR first
+    (from ir_contact), then executives in registry order. Roles with no
+    permission definition, or with no person assigned, are skipped."""
+    client = get_client(client_id)
+    roster = []
+    ir = client.get("ir_contact", {})
+    if ir.get("name") and "IR" in ROLE_PERMISSIONS:
+        roster.append(_role_entry("IR", ir.get("name"), ir.get("title")))
+    for role_key, info in client.get("executives", {}).items():
+        if role_key in ROLE_PERMISSIONS and info.get("name"):
+            roster.append(_role_entry(role_key, info.get("name"), info.get("title")))
+    return roster
+
+
+def role_permissions(role_key):
+    """Permission set for a role key, falling back to the default role rather
+    than crashing on an unknown key."""
+    return ROLE_PERMISSIONS.get(role_key, ROLE_PERMISSIONS[DEFAULT_ROLE_KEY])
+
+
+def role_access_level(role_key, page):
+    """'full' | 'read' | 'none' for a given role/page pair."""
+    return role_permissions(role_key).get("pages", {}).get(page, "none")
+
+
+def role_can_view(role_key, page):
+    """True if the role may open the page at all (full or read)."""
+    return role_access_level(role_key, page) in ("full", "read")
+
+
+def role_can_edit(role_key, page):
+    """True only for full (read/write) access to the page."""
+    return role_access_level(role_key, page) == "full"
+
+
+def role_has_full_access(role_key):
+    """True if the role has IR-equivalent full run of the app — every page at
+    'full' plus both sensitive-action flags. Used to decide whether a role
+    gets the complete app or a restricted curated landing: a role elevated to
+    back up / cover the IR Director (e.g. the CFO after an IR departure) has
+    full access and should see the full app, not an exec briefing view."""
+    perms = role_permissions(role_key)
+    pages_full = all(perms.get("pages", {}).get(p) == "full" for p in PAGES)
+    return pages_full and perms.get("can_change_settings", False) and perms.get("can_send_email", False)
+
+
+def role_can_send_email(role_key):
+    return role_permissions(role_key).get("can_send_email", False)
+
+
+def role_can_change_settings(role_key):
+    return role_permissions(role_key).get("can_change_settings", False)
+
+
+def role_key_from_display(display, client_id=None):
+    """Map a selector string (e.g. 'Paul Manley — IR Director') back to its
+    role_key. Falls back to DEFAULT_ROLE_KEY if nothing matches."""
+    for entry in role_roster(client_id):
+        if entry["display"] == display:
+            return entry["role_key"]
+    return DEFAULT_ROLE_KEY
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -333,8 +511,18 @@ def CP():
     client = get_client()
     peers = db.load_json("peer_universe.csv", default=None)
     if peers:
+        # The peer store is shared with the Fit-Score "Peer Universe" manager,
+        # which tags peers with its own vocab (core / close / large). Normalize to
+        # the valuation vocab: "large" (mega-cap) -> "reference" (out of the
+        # median); everything else -> "primary". A peer with no tier defaults to
+        # primary so it still counts. segment falls back to the Fit-Score sector.
+        def _val_tier(t):
+            return "reference" if t in ("large", "reference") else "primary"
         return [{"ticker": p["ticker"], "name": p["name"],
-                  "ev_rev": float(p["ev_rev"]) if p.get("ev_rev") not in (None, "") else None}
+                  "ev_rev": float(p["ev_rev"]) if p.get("ev_rev") not in (None, "") else None,
+                  "tier": _val_tier(p.get("tier")),
+                  "segment": p.get("segment") or p.get("sector") or "",
+                  "closest_analog": bool(p.get("closest_analog"))}
                  for p in peers]
     return client.get("peers", [])
 
@@ -354,6 +542,26 @@ def client_data_path(filename, client_id=None):
     if not os.path.exists(new_path) and os.path.exists(legacy_path):
         return legacy_path
     return new_path
+
+
+def team_labels():
+    """'<Name> (<ROLE>)' labels for everyone on the active client's team,
+    built from the profile (ir_contact + executives) instead of a hardcoded
+    ['Louis Hoch (CEO)', 'Paul Manley (IR)', ...] list. Used by participant
+    pickers — Reg FD meeting attendees, the earnings "Submitted by" selector,
+    etc. — so those rosters are correct for whichever client is active. IR
+    first, then executives in registry order. A role slot with no assigned
+    name is skipped."""
+    client = get_client()
+    labels = []
+    ir = client.get("ir_contact", {})
+    if ir.get("name"):
+        labels.append(f"{ir['name']} (IR)")
+    for role_key, info in client.get("executives", {}).items():
+        name = info.get("name")
+        if name:
+            labels.append(f"{name} ({role_key})")
+    return labels
 
 
 def team_email_lookup():

@@ -39,7 +39,7 @@ the same information architecture, but with these documented simplifications
   a raw environment-variable read), with the same rule-based fallback if the
   API call fails. NOT yet ported: the "Current Full Meeting Schedule" table
   (a sortable dataframe of every scheduled meeting, not just upcoming ones)
-  and its "⬇️ Export schedule as CSV" / "⬇️ Export meeting notes CSV"
+  and its "Export schedule as CSV" / "Export meeting notes CSV"
   download buttons, and the Q&A Theme Tracker (a 4th Meeting Hub view that
   aggregates recurring questions/concerns/positives across every structured
   post-meeting note, to surface what to address on the next earnings call).
@@ -61,8 +61,8 @@ the same information architecture, but with these documented simplifications
   tickers) IS now ported — see Target Database below, where it's grouped
   with the rest of the prospecting pipeline instead of Buy-Side Intelligence
   (same reasoning as Peer Cross-Targeting's placement, below).
-- The "📧 Scan IRConnect Inbox for Meeting Confirmations" feature is ported,
-  but folded into the existing "🔄 Sync IR Inbox" pipeline above (see
+- The "Scan IRConnect Inbox for Meeting Confirmations" feature is ported,
+  but folded into the existing "Sync IR Inbox" pipeline above (see
   core/email_classifier.py's "meeting_confirmation" category) rather than
   rebuilt as its own ad hoc button — app.py's version prompted for the
   IRConnect mailbox password on every scan instead of using the .env-based
@@ -118,7 +118,7 @@ from nicegui import ui
 
 from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
-from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, prospecting, risk_scorecard, sec_filings
+from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, nobo_engine, prospecting, risk_scorecard, sec_filings
 from core.investor_scoring import (
     INTERACTION_SCORE_MAX,
     OUTCOME_POINTS,
@@ -214,7 +214,13 @@ def _save_ndr_requests(records):
 
 def _mailto(to, subject, body, label):
     href = f"mailto:{to}?subject={quote(subject)}&body={quote(body)}"
-    return ui.link(f"✉️ {label}", href).style(f"color:{COLORS['accent_light']};")
+    return ui.link(f"{label}", href).style(f"color:{COLORS['accent_light']};")
+
+
+def _tel_href(phone):
+    """A tel: link target from a display phone string — keeps digits and a
+    leading +, drops spaces/dashes/parens so the dialer gets a clean number."""
+    return "tel:" + "".join(ch for ch in str(phone) if ch.isdigit() or ch == "+")
 
 
 def _refresh():
@@ -236,14 +242,24 @@ def _refresh():
 # direct comps; EEFT/FOUR are larger-cap with weaker signal; the rest
 # default to "close" until reviewed — same "seed is default, edit persists"
 # pattern as everywhere else, editable in Manage Peer Universe below.
+# Aligned with the valuation peer set (config.CP()). The Fit-Score tier vocab is
+# core (tight comp, weight 2) / close (broader, weight 1) / large (mega-cap
+# reference, weight 0.5); CP() normalizes "large" -> valuation "reference" (out
+# of the median) and core/close -> "primary". segment / closest_analog feed the
+# benchmarking display. Kept in sync so the two systems (which share the DB key
+# "peer_universe.csv") never fight — dropping the retired PRTH/EEFT/PAX here is
+# what stops _load_peer_universe re-adding them.
 DEFAULT_PEER_UNIVERSE = [
-    {"ticker": "GDOT", "name": "Green Dot Corporation", "sector": "Prepaid / Banking", "ev_rev": 1.2, "weight": 2.0, "tier": "core"},
-    {"ticker": "PRTH", "name": "Priority Technology Holdings", "sector": "PayFac / SMB Payments", "ev_rev": 1.8, "weight": 2.0, "tier": "core"},
-    {"ticker": "EEFT", "name": "Euronet Worldwide", "sector": "ACH / International Payments", "ev_rev": None, "weight": 0.5, "tier": "large"},
-    {"ticker": "FOUR", "name": "Shift4 Payments", "sector": "PayFac / Hospitality", "ev_rev": 4.2, "weight": 0.5, "tier": "large"},
-    {"ticker": "CASS", "name": "Cass Information Systems", "sector": "B2B Payments / AP Automation", "ev_rev": None, "weight": 1.0, "tier": "close"},
-    {"ticker": "RPAY", "name": "Repay Holdings", "sector": "ACH / Vertical Payments", "ev_rev": 2.8, "weight": 1.0, "tier": "close"},
-    {"ticker": "PAX", "name": "PAX Global Technology", "sector": "Payment Terminals", "ev_rev": None, "weight": 1.0, "tier": "close"},
+    {"ticker": "RPAY", "name": "Repay Holdings", "sector": "Integrated card + ACH + billing/output", "ev_rev": 2.8, "weight": 2.0, "tier": "core", "segment": "Integrated card + ACH + billing/output", "closest_analog": True},
+    {"ticker": "CASS", "name": "Cass Information Systems", "sector": "Payment information / billing", "ev_rev": 2.2, "weight": 2.0, "tier": "core", "segment": "Payment information / billing"},
+    {"ticker": "CSGS", "name": "CSG Systems", "sector": "Billing / customer comms", "ev_rev": 2.2, "weight": 2.0, "tier": "core", "segment": "Billing / customer comms (output)"},
+    {"ticker": "PSFE", "name": "Paysafe", "sector": "Integrated payments", "ev_rev": 1.5, "weight": 2.0, "tier": "core", "segment": "Integrated payments"},
+    {"ticker": "PAY", "name": "Paymentus Holdings", "sector": "Bill presentment / EBPP", "ev_rev": 2.5, "weight": 2.0, "tier": "core", "segment": "Bill presentment / EBPP (output)"},
+    {"ticker": "FOUR", "name": "Shift4 Payments", "sector": "Card acceptance / PayFac", "ev_rev": 4.2, "weight": 1.0, "tier": "close", "segment": "Card acceptance / PayFac"},
+    {"ticker": "GDOT", "name": "Green Dot", "sector": "Prepaid / card issuing", "ev_rev": 1.2, "weight": 1.0, "tier": "close", "segment": "Prepaid / card issuing"},
+    {"ticker": "FI", "name": "Fiserv", "sector": "Large-cap processor", "ev_rev": 5.0, "weight": 0.5, "tier": "large", "segment": "Large-cap processor (reference)"},
+    {"ticker": "GPN", "name": "Global Payments", "sector": "Large-cap processor", "ev_rev": 4.5, "weight": 0.5, "tier": "large", "segment": "Large-cap processor (reference)"},
+    {"ticker": "TOST", "name": "Toast", "sector": "Large-cap fintech", "ev_rev": 3.5, "weight": 0.5, "tier": "large", "segment": "Large-cap fintech (reference)"},
 ]
 
 
@@ -315,12 +331,17 @@ def _client_ev_rev(period="Q2 2026E"):
     seed financial-position/guidance fields aren't available yet, so
     callers can fall back to a peer-agnostic outreach line instead of
     showing a stale or fabricated multiple."""
-    from data.seed.consensus_estimates import get_seed_consensus
+    # get_consensus(), not the seed: this reads period_guidance to build an EV/Revenue
+    # multiple for outreach copy, and the guidance override is exactly the thing that
+    # moves when the CFO revises. Reading the seed here would put a stale multiple in
+    # front of an investor — which is the failure this function's docstring says it
+    # exists to avoid.
+    from core.consensus import get_consensus
     snap = market_data.get_snapshot(CT("ticker"))
     last_price = snap["last_price"] if snap and snap.get("last_price") is not None else CT("last_price", None)
     if last_price is None:
         return None
-    seed = get_seed_consensus(get_active_client_id())
+    seed = get_consensus(get_active_client_id())
     fin = seed.get("financial_position", {})
     shares_out = fin.get("shares_out_m")
     net_debt = fin.get("net_debt_m", 0)
@@ -502,6 +523,187 @@ def _enrich_peer_holdings_with_live_13f(institutions, peer_tickers):
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# Data provenance — every name in the universe carries a Source tag so the UI
+# shows where it came from. The seed is "Seed (demo)"; real SEC-sourced names
+# (13F holders, 13D/13G filers, funds holding the peer set) are merged in from
+# cached EDGAR data, each with its own tag. This is the honest answer to "why
+# isn't the database bigger": it grows from authoritative sources, not by hand.
+# ─────────────────────────────────────────────────────────────────────────
+SOURCE_COLORS = {
+    "Seed (demo)": "#64748B", "Seed + SEC-confirmed": "#0F766E",
+    "SEC 13F": "#15803D", "SEC 13D/G": "#B45309", "SEC 13F + 13D/G": "#15803D",
+    "Peer 13F": "#1E40AF", "Peer 13F (T1)": "#1E3A8A", "Peer 13F (T2)": "#4F46E5",
+}
+
+# Comp tiering for peer-overlap prospecting — peers first, then industry.
+# Tier 1 = tightest small/mid-cap payment comps (highest-signal holders — a fund
+# in Repay or Cass but not USIO is a real conversion target); Tier 2 = broader
+# payments names. Anything not listed defaults to T2. The large-cap REFERENCE
+# peers (FI / GPN / TOST) are deliberately excluded from prospecting entirely —
+# a fund holding Fiserv because it's in the S&P 500 tells you nothing about
+# micro-cap-payments interest, so their index/pension holders would be pure noise
+# (see the tier=="reference" skip in _sec_universe_records).
+_PEER_TIER = {"RPAY": 1, "CASS": 1, "CSGS": 1, "PSFE": 1, "PAY": 1, "FOUR": 2, "GDOT": 2}
+
+
+def _source_color(src):
+    return SOURCE_COLORS.get(src, "#15803D")
+
+
+def _apply_peer_tier(rec, tier):
+    """Stamp a peer-overlap prospect with its comp tier — the tighter the comp
+    it holds, the higher-signal the prospect."""
+    rec["_peer_tier"] = tier
+    rec["Source"] = f"Peer 13F (T{tier})"
+    rec["Peer_Score"] = 35 if tier == 1 else 20
+    rec["Action"] = ("Holds a close comp — high-signal NDR prospect" if tier == 1
+                     else "Holds an industry name — broader prospect")
+
+
+_NORM_SUFFIXES = {"inc", "incorporated", "llc", "lp", "llp", "corp", "corporation", "co", "company",
+                  "ltd", "limited", "plc", "trust", "sa", "ag", "nv", "the", "group", "holdings"}
+
+
+def _norm_name(n):
+    """Normalize a manager name for cross-source dedup — lowercase, drop
+    punctuation, and strip common corporate suffixes so 'Dimensional Fund
+    Advisors' (seed) and 'DIMENSIONAL FUND ADVISORS LP' (SEC) match."""
+    tokens = "".join(c if c.isalnum() else " " for c in str(n).lower()).split()
+    return "".join(t for t in tokens if t not in _NORM_SUFFIXES)
+
+
+# SEC 13F filer cities → the same metro-region labels the seed universe uses,
+# so real filers unify into the geographic breakdown ("Where they are") instead
+# of a flat "Unknown (SEC)" bucket. Keyed by uppercase city. Unmapped US cities
+# fall back to "City, ST"; non-US filers group under "International".
+_US_STATES = {"AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
+              "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI",
+              "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC",
+              "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT",
+              "VT", "VA", "WA", "WV", "WI", "WY", "DC"}
+_SEC_CITY_METRO = {
+    "NEW YORK": "New York Metro", "BROOKLYN": "New York Metro",
+    "GREENWICH": "New York Metro", "STAMFORD": "New York Metro",
+    "JERSEY CITY": "New York Metro", "SHORT HILLS": "New York Metro",
+    "BOSTON": "Boston / New England", "CAMBRIDGE": "Boston / New England",
+    "WELLESLEY": "Boston / New England",
+    "CHICAGO": "Chicago / Midwest", "OAK BROOK": "Chicago / Midwest",
+    "WAYZATA": "Chicago / Midwest", "MINNEAPOLIS": "Chicago / Midwest",
+    "MILWAUKEE": "Chicago / Midwest",
+    "SOUTH PASADENA": "Los Angeles / SoCal", "PASADENA": "Los Angeles / SoCal",
+    "LOS ANGELES": "Los Angeles / SoCal", "IRVINE": "Los Angeles / SoCal",
+    "NEWPORT BEACH": "Los Angeles / SoCal",
+    "SAN FRANCISCO": "San Francisco / Bay Area", "FOLSOM": "San Francisco / Bay Area",
+    "SAN MATEO": "San Francisco / Bay Area", "PALO ALTO": "San Francisco / Bay Area",
+    "MALVERN": "Philadelphia / Baltimore", "BALA CYNWYD": "Philadelphia / Baltimore",
+    "PHILADELPHIA": "Philadelphia / Baltimore", "RADNOR": "Philadelphia / Baltimore",
+    "BALTIMORE": "Philadelphia / Baltimore",
+    "HOUSTON": "Texas (Dallas / Austin)", "AUSTIN": "Texas (Dallas / Austin)",
+    "DALLAS": "Texas (Dallas / Austin)", "FORT WORTH": "Texas (Dallas / Austin)",
+    "DENVER": "Denver / Mountain West", "BOULDER": "Denver / Mountain West",
+    "MIAMI": "Florida (Miami / Tampa)", "TAMPA": "Florida (Miami / Tampa)",
+    "PALM BEACH": "Florida (Miami / Tampa)", "NAPLES": "Florida (Miami / Tampa)",
+}
+
+
+def _metro_from_city(city, state):
+    """Map a 13F filer's HQ city/state to a metro-region label matching the seed
+    universe's Metro values, so SEC-sourced holders land in the same geographic
+    buckets. Falls back to 'City, ST' for unmapped US cities and 'International'
+    for non-US filers (SEC uses non-US state codes like X0/V8/M0/K3)."""
+    c = (city or "").strip().upper()
+    st = (state or "").strip().upper()
+    if c in _SEC_CITY_METRO:
+        return _SEC_CITY_METRO[c]
+    if st and st not in _US_STATES:
+        return "International"
+    if city and st:
+        return f"{str(city).title()}, {st}"
+    if city:
+        return str(city).title()
+    return "Unknown (SEC)"
+
+
+def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
+    """A full institution record for a real SEC-sourced name, with honest
+    'unknown' defaults for every enrichment field the scorer and cards read —
+    so a 13F/13D-G/peer-overlap holder lives in the same universe as the seed
+    without breaking scoring. It simply scores low until it's enriched.
+    city/state (from the 13F filing address) drive the Metro breakdown."""
+    action = {
+        "SEC 13F": "Confirmed 13F holder — enrich & prioritize",
+        "Peer 13F": "Holds a peer — real NDR prospect",
+        "SEC 13D/G": "Filed a 5%+ stake — engage directly",
+    }.get(source, "SEC-sourced name")
+    return {
+        "Fund": name, "Type": "Institutional (SEC)", "AUM": "—", "Coverage_Priority": 3,
+        "USIO_Holder": holder, "Shares": 0, "QoQ_Change": 0, "Call_Listener": False,
+        "Listen_Duration": "—", "Peer_Holdings": ([peer_of] if peer_of else []),
+        "IR_Visits_30d": 0, "Last_Visit": "—", "Conviction": "—",
+        "Call_Score": 0, "Peer_Score": 0, "Visit_Score": 0,
+        "Turnover_Style": "Unknown (SEC)", "Metro": _metro_from_city(city, state), "Ownership_Style": "Active",
+        "Action": action, "Source": source,
+    }
+
+
+def _sec_universe_records(client_id):
+    """Build source-tagged institution records from CACHED SEC data (no live
+    calls at render): USIO 13F holders, 13D/13G filers, and funds holding the
+    peer set (real NDR prospects). Deduped by filer name."""
+    recs = {}
+    ticker = CT("ticker")
+    for h in (sec_filings.get_cached_13f_holders(ticker).get("holders", []) or []):
+        name = (h.get("filer") or "").strip()
+        if not name:
+            continue
+        r = recs.setdefault(name, _sec_holder_record(
+            name, "SEC 13F", True, city=h.get("city"), state=h.get("state")))
+        # Real, exact position size from the bulk 13F dataset (size_known).
+        if h.get("size_known") and h.get("shares"):
+            r["Shares"] = h["shares"]
+        # Backfill metro if this record was first created from a 13D/G (no city).
+        if r.get("Metro") == "Unknown (SEC)" and h.get("city"):
+            r["Metro"] = _metro_from_city(h.get("city"), h.get("state"))
+    for f in (sec_filings.get_cached_13d_13g(ticker, refresh_if_stale=False).get("filings", []) or []):
+        name = (f.get("filer") or f.get("name") or "").strip()
+        if not name:
+            continue
+        if name in recs:
+            recs[name]["Source"] = "SEC 13F + 13D/G"
+            recs[name]["Action"] = "Holder with a 5%+ filing — engage directly"
+        else:
+            recs[name] = _sec_holder_record(name, "SEC 13D/G", True)
+    # Peer-overlap prospects are NO LONGER auto-injected here. Dumping every
+    # comp's top holders into the universe filled it with index/passive noise and
+    # false positives (funds that already own USIO sub-13F-threshold). They now go
+    # through a reviewed, conviction-ranked queue (core.peer_prospects, the "Peer
+    # Prospects" tab) and only enter the pipeline when the IR lead promotes one —
+    # at which point it lands in prospects.json like any other manual prospect.
+    for r in recs.values():
+        r.pop("_peer_tier", None)  # internal ranking key — not part of the record
+    return list(recs.values())
+
+
+def _merge_sec_universe(seed_institutions, client_id):
+    """Append real SEC-sourced names to the seed universe. A name that already
+    matches a seed fund (normalized) doesn't duplicate — the seed record wins
+    and is marked 'Seed + SEC-confirmed' so the demo shows it's validated by a
+    real filing."""
+    by_norm = {}
+    for i in seed_institutions:
+        by_norm.setdefault(_norm_name(i["Fund"]), i)
+    for rec in _sec_universe_records(client_id):
+        key = _norm_name(rec["Fund"])
+        if key in by_norm:
+            s = by_norm[key]
+            if "SEC" not in s.get("Source", ""):
+                s["Source"] = "Seed + SEC-confirmed"
+            continue
+        seed_institutions.append(rec)
+    return seed_institutions
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # Main entry point
 # ─────────────────────────────────────────────────────────────────────────
 def render_investors_page():
@@ -516,6 +718,11 @@ def render_investors_page():
     q2_listeners = set(mode_state.get("q2_listeners", []))
     meeting_log = _load_meeting_log()
     raw_institutions = get_seed_buyside_institutions(client_id)
+    # Merge real SEC-sourced names (13F holders, 13D/G filers, peer-overlap
+    # prospects) from cached EDGAR data — each carries its own Source tag, and
+    # this is what the "Refresh from SEC EDGAR" button on the SEC Intelligence
+    # tab grows. Reads cache only here (no live network call at page render).
+    raw_institutions = _merge_sec_universe(raw_institutions, client_id)
     # Upgrades Peer_Holdings from static seed data to real SEC 13F filings
     # wherever a ticker has actually been refreshed (see
     # _enrich_peer_holdings_with_live_13f's docstring) — must run BEFORE
@@ -526,17 +733,49 @@ def render_investors_page():
 
     ui.label(f"{CT('name')} — Investor Pipeline & Engagement").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
-    _render_big_picture(institutions)
+    # Mode-dependent sections re-render in place when the Pre/Post toggle
+    # changes — no full page reload (which was fragile on a reconnecting tab
+    # and reset the whole page). Only the parts that actually depend on mode
+    # refresh: Big Picture, the mode description, and the Buy-Side tab (the
+    # other four tabs don't use mode).
+    _mode_ctx = {"mode": mode, "institutions": institutions}
+
+    @ui.refreshable
+    def _big_picture_section():
+        _render_big_picture(_mode_ctx["institutions"])
+
+    @ui.refreshable
+    def _mode_desc_section():
+        _render_mode_description(_mode_ctx["mode"])
+
+    @ui.refreshable
+    def _buyside_section():
+        _render_buyside_tab(_mode_ctx["institutions"], meeting_log, _mode_ctx["mode"])
+
+    def on_mode_change(new_mode):
+        _mode_ctx["mode"] = new_mode
+        _mode_ctx["institutions"] = _score_institutions(raw_institutions, new_mode, q2_listeners, meeting_log)
+        mode_state["mode"] = new_mode
+        _save_json("buyside_mode.json", mode_state)
+        _big_picture_section.refresh()
+        _mode_desc_section.refresh()
+        _buyside_section.refresh()
+        _invalidate_mode_tabs()
+
+    _big_picture_section()
     ui.markdown("---")
-    _render_mode_toggle(mode, mode_state)
+    _render_mode_toggle_control(_mode_ctx["mode"], on_mode_change)
+    _mode_desc_section()
     ui.markdown("---")
 
     with ui.tabs().classes("w-full") as tabs:
-        t1 = ui.tab("👥 Buy-Side Intelligence")
-        t2 = ui.tab("✈️ NDR Planner")
-        t3 = ui.tab("🤝 Meeting Hub")
-        t4 = ui.tab("🎯 Target Database")
-        t5 = ui.tab("🏛️ SEC Intelligence")
+        t1 = ui.tab("Buy-Side Intelligence")
+        t2 = ui.tab("NDR Planner")
+        t3 = ui.tab("Meeting Hub")
+        t4 = ui.tab("Target Database")
+        t5 = ui.tab("SEC Intelligence")
+        t6 = ui.tab("NOBO Ownership")
+        t7 = ui.tab("Peer Prospects")
 
     # Lazy tab loading — this page used to build ALL FIVE tabs' content
     # (each with its own set of database reads) on every single visit,
@@ -551,9 +790,14 @@ def render_investors_page():
     # for real — with a visible spinner while that happens — the first
     # time each one is actually clicked, then cached so switching back
     # doesn't rebuild it again.
-    with ui.tab_panels(tabs, value=t1).classes("w-full"):
-        with ui.tab_panel(t1):
-            _render_buyside_tab(institutions, meeting_log, mode)
+    # A sidebar sub-item can deep-link straight to any tab; map the label back to
+    # its tab object so lazy loading opens (and eager-builds) the right one. All
+    # tabs are lazy now — whichever we open on is built by the eager block below.
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7)}
+    default_tab = _by_name.get(nav.consume_target_tab(), t1)
+    with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
+        with ui.tab_panel(t1) as p1:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t2) as p2:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t3) as p3:
@@ -562,20 +806,46 @@ def render_investors_page():
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t5) as p5:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t6) as p6:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t7) as p7:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
 
+    # NDR Planner and Target Database read the mode-scored institutions, so
+    # they pull from _mode_ctx (current mode) rather than capturing the initial
+    # list — a tab built after a mode toggle uses the fresh scores.
     lazy_panels = {
-        t2.props["name"]: (p2, lambda: _render_ndr_tab(institutions, meeting_log, client_id)),
+        t1.props["name"]: (p1, lambda: _buyside_section()),
+        t2.props["name"]: (p2, lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id)),
         t3.props["name"]: (p3, lambda: _render_meeting_hub_tab()),
-        t4.props["name"]: (p4, lambda: _render_target_db_tab(institutions, client_id)),
+        t4.props["name"]: (p4, lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id)),
         t5.props["name"]: (p5, lambda: _render_sec_intelligence_tab()),
+        # NOBO Ownership relocated here from Market Intelligence — its render
+        # (with the Broadridge upload) is the shared one in markets_page, called
+        # cross-module the same way Earnings calls _render_narrative_momentum.
+        t6.props["name"]: (p6, lambda: _render_nobo_tab()),
+        t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
     }
     loaded_tabs = set()
+    # A mode toggle also invalidates the two mode-dependent lazy tabs so they
+    # rebuild with fresh scores next time they're opened (harmless no-op if
+    # they haven't been built yet).
+    _mode_dependent_tabs = (t2.props["name"], t4.props["name"])
+    _invalidate_mode_tabs = lambda: [loaded_tabs.discard(n) for n in _mode_dependent_tabs]
 
     async def _load_tab_on_demand(e):
         name = e.value
+        # Keep the sidebar's sub-item highlight in sync with in-page tab clicks.
+        # Guard it: on a STALE client (e.g. after a server restart while the
+        # page stayed open) render_nav() raises "client has been deleted".
+        # That must not abort the tab build below and strand the panel on its
+        # spinner forever.
+        try:
+            nav.tab_changed(name)
+        except Exception:
+            pass
         if name not in lazy_panels or name in loaded_tabs:
             return
-        loaded_tabs.add(name)
         container, build_fn = lazy_panels[name]
         # Yield to the event loop once so the spinner that's already in
         # `container` actually reaches the browser before this function
@@ -584,23 +854,198 @@ def render_investors_page():
         # get flushed to the browser in the same batch, i.e. no visible
         # "loading" feedback at all, just a delay.
         await asyncio.sleep(0)
-        container.clear()
-        with container:
-            build_fn()
+        try:
+            container.clear()
+            with container:
+                build_fn()
+        except Exception as ex:
+            # Never leave the tab stuck on its spinner. Replace it with an
+            # actionable error and — critically — do NOT mark the tab loaded,
+            # so re-selecting it retries the build.
+            try:
+                container.clear()
+                with container:
+                    ui.label("This tab didn't finish loading.").style(
+                        f"color:{COLORS['text_heading']};font-weight:600;")
+                    ui.label(str(ex)).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label("If this persists, reload the page (Ctrl-R) — the server may "
+                             "have restarted.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.button("Reload page", on_click=lambda: ui.navigate.reload()).props("outline dense")
+            except Exception:
+                pass  # client is truly gone; only a browser refresh can recover
+            return
+        # Success — now it's safe to remember it's built.
+        loaded_tabs.add(name)
 
     tabs.on_value_change(_load_tab_on_demand)
 
+    # Eager-build whichever tab we open on (deep-linked or the default t1) — its
+    # panel currently shows only a spinner and _load_tab_on_demand fires on
+    # change, not initial load.
+    _dname = default_tab.props["name"]
+    loaded_tabs.add(_dname)
+    _dcont, _dbuild = lazy_panels[_dname]
+    _dcont.clear()
+    with _dcont:
+        _dbuild()
 
-def _render_mode_toggle(mode, mode_state):
+
+def _render_nobo_tab():
+    """NOBO Ownership tab — relocated here from Market Intelligence, where it sat
+    among market-data views; it belongs with the investor base. The renderer
+    (CEO's-read BLUF, composition/concentration, two-pull flow, 13D/13G threshold
+    watch, pipeline cross-reference, and the Broadridge NOBO-file upload) stays in
+    markets_page as the single home for the nobo_engine surface; imported lazily
+    to keep module load order simple."""
+    from page_modules_nicegui.markets_page import _render_nobo
+    _render_nobo()
+
+
+def _render_peer_prospects_tab(client_id):
+    """Reviewed, conviction-ranked peer-overlap candidates (core.peer_prospects).
+    Funds that hold a close comp but not USIO, filtered for noise and false
+    positives, each with its evidence and a promote/dismiss gate — nothing enters
+    the pipeline unvetted."""
+    from core import peer_prospects
+
+    ui.label("Peer Prospects — comp overlap, to qualify").classes("text-lg font-bold")
+    ui.label("Funds that hold a close payment comp (Repay / Cass / CSG / Paysafe / Paymentus) but not USIO, "
+             "ranked by conviction — position weight in their own book, focus on the tightest comps, active "
+             "vs. index breadth, and micro-cap fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
+             "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
+
+    # Sort toggle — conviction (the smart default) vs raw 13F position size (what
+    # a plain 13F screen shows) vs concentration. Lives outside the refreshable so
+    # flipping it just re-ranks the list.
+    _state = {"sort": "conviction"}
+    with ui.row().classes("items-center gap-2").style("margin-top:6px;"):
+        ui.label("Rank by").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _sort_toggle = ui.toggle(
+            {"conviction": "Conviction", "size": "Position size", "concentration": "Concentration"},
+            value="conviction").props("dense no-caps")
+
+    @ui.refreshable
+    def _list():
+        cands = peer_prospects.build_candidates(client_id, limit=40, sort=_state["sort"])
+        c = peer_prospects.counts(client_id)
+        with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+            for lbl, val, clr in [("To qualify", c["candidates"], COLORS["accent"]),
+                                  ("RIA / wealth", c.get("rias", 0), "#B45309"),
+                                  ("Promoted", c["promoted"], "#15803D"),
+                                  ("Dismissed", c["dismissed"], COLORS["text_muted"])]:
+                with ui.card().classes("flex-1").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:110px;"):
+                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:20px;")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+        if not cands:
+            ui.label("No candidates to qualify. Run the SEC 13F refresh on the SEC Intelligence tab if you "
+                     "haven't yet, or you've reviewed them all.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
+            return
+
+        for r in cands:
+            promoted = r.get("promoted")
+            border = "#15803D" if promoted else COLORS["border"]
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {border};"
+                    f"border-left:4px solid {'#15803D' if promoted else COLORS['accent']};margin-top:4px;"):
+                with ui.row().classes("w-full items-start justify-between no-wrap"):
+                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                        _nm = r["filer"] + ("  ✓ promoted" if promoted else "")
+                        ui.label(_nm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13.5px;")
+                        loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                        conc = f"{r['concentration']*100:.1f}% of book" if r.get("concentration") is not None else "book n/a"
+                        bp = f"{r['book_positions']} positions" if r.get("book_positions") else "breadth n/a"
+                        pv = f"${r['peer_value']/1e6:.1f}M position" if r.get("peer_value") else ""
+                        ui.label(f"{loc} · {conc} in payment comps{(' · ' + pv) if pv else ''} · {bp} · "
+                                 f"filed {(r.get('file_date') or '—')}").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
+                        with ui.row().classes("gap-1 flex-wrap").style("margin-top:3px;"):
+                            for ct, cv in sorted(r["comps"].items(), key=lambda kv: -kv[1]["value"]):
+                                tight = cv["tight"]
+                                ui.label(ct + (" ◆" if tight else "")).style(
+                                    f"background:{'rgba(30,64,175,.10)' if tight else COLORS['surface_hover_bg']};"
+                                    f"color:{COLORS['accent_strong'] if tight else COLORS['text_secondary']};"
+                                    "border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:600;")
+                    with ui.column().classes("gap-1 items-end").style("flex-shrink:0;"):
+                        ui.label(f"{r['conviction']:.0f}").classes("font-bold").style(
+                            f"color:{COLORS['accent']};font-size:20px;line-height:1;")
+                        ui.label("conviction").style(f"color:{COLORS['text_muted']};font-size:9px;")
+                        with ui.row().classes("gap-1").style("margin-top:2px;"):
+                            if promoted:
+                                ui.button("Undo", on_click=lambda r=r: (peer_prospects.reset(r["key"]), _list.refresh())).props(
+                                    "flat dense size=sm")
+                            else:
+                                def _promote(r=r):
+                                    peer_prospects.promote(r)
+                                    ui.notify(f"Promoted {r['filer']} to the pipeline (Target Database).", type="positive")
+                                    _list.refresh()
+
+                                def _dismiss(r=r):
+                                    peer_prospects.dismiss(r["key"])
+                                    _list.refresh()
+
+                                ui.button("Promote", on_click=_promote).props("dense size=sm color=primary")
+                                ui.button("Dismiss", on_click=_dismiss).props("flat dense size=sm")
+
+        # ── RIA / wealth bucket ─────────────────────────────────────────────
+        # These genuinely own the comps but have no PM to pitch, so they're a
+        # video-call tier rather than an NDR target. Previously discarded
+        # outright; now surfaced separately, ranked by position size.
+        # No limit: the header count must match the "RIA / wealth" card above, and
+        # a capped list would silently hide names the card says exist.
+        _rias = peer_prospects.build_candidates(client_id, limit=None, kind="ria")
+        if _rias:
+            with ui.expansion(f"RIA / wealth managers holding your comps ({len(_rias)})",
+                              icon="account_balance_wallet", value=False).classes("w-full").style(
+                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:12px;"):
+                ui.label("Real positions in your peer set, but held through client accounts — no portfolio "
+                         "manager to pitch. Video-call tier: an assistant can set these up, no management "
+                         "travel. Ranked by position size; a large one can still be worth a call.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                for r in _rias:
+                    with ui.row().classes("w-full items-center justify-between no-wrap").style(
+                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                        with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                            ui.label(r["filer"]).style(
+                                f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                            loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                            comps = ", ".join(sorted(r["comps"].keys()))
+                            ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps}").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                        with ui.row().classes("gap-1").style("flex-shrink:0;"):
+                            if r.get("promoted"):
+                                ui.button("Undo", on_click=lambda r=r: (
+                                    peer_prospects.reset(r["key"]), _list.refresh())).props("flat dense size=sm")
+                            else:
+                                def _promote_ria(r=r):
+                                    peer_prospects.promote(r)
+                                    ui.notify(f"Promoted {r['filer']} — video-call tier.", type="positive")
+                                    _list.refresh()
+
+                                def _dismiss_ria(r=r):
+                                    peer_prospects.dismiss(r["key"])
+                                    _list.refresh()
+
+                                ui.button("Promote", on_click=_promote_ria).props("flat dense size=sm color=primary")
+                                ui.button("Dismiss", on_click=_dismiss_ria).props("flat dense size=sm")
+
+    _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
+    _list()
+
+
+def _render_mode_toggle_control(mode, on_change_cb):
+    """Just the Pre/Post toggle buttons. Stays put when the mode changes (it's
+    not inside the refreshed region), so it keeps focus and doesn't flicker;
+    the change is applied in place by on_change_cb rather than a page reload."""
     with ui.row().classes("w-full items-center gap-4"):
-        toggle = ui.toggle({"pre": "🎯 Pre-Earnings — Engagement Mode", "post": "🚀 Post-Earnings — Prospecting Mode"}, value=mode)
+        toggle = ui.toggle({"pre": "Pre-Earnings — Engagement Mode", "post": "Post-Earnings — Prospecting Mode"}, value=mode)
+        toggle.on_value_change(lambda: on_change_cb(toggle.value))
 
-        def on_change():
-            mode_state["mode"] = toggle.value
-            _save_json("buyside_mode.json", mode_state)
-            _refresh()
 
-        toggle.on_value_change(on_change)
+def _render_mode_description(mode):
     # Was: solid fixed-dark background (from the old dark theme) with the
     # descriptive text left uncolored — it inherited the page's default text
     # color, which under the active CREAM (light) theme resolves dark/near-
@@ -697,18 +1142,18 @@ def _render_big_picture(institutions):
     bp_denom = max(new_total + holder_count, 1)
     new_pct = round(new_total / bp_denom * 100)
     if new_pct >= 70:
-        mix_label, mix_color = "🟢 Strong — well above the 50/50 baseline management would be happy with", "#4ADE80"
+        mix_label, mix_color = "Strong — well above the 50/50 baseline management would be happy with", "#15803D"
     elif new_pct >= 45:
-        mix_label, mix_color = "🟡 Balanced — roughly the 50/50 mix management would be content with", "#F0A830"
+        mix_label, mix_color = "Balanced — roughly the 50/50 mix management would be content with", "#B45309"
     else:
-        mix_label, mix_color = "🔴 Existing-heavy — below the mix that keeps management happy; needs more new-investor prospecting", "#F87171"
+        mix_label, mix_color = "Existing-heavy — below the mix that keeps management happy; needs more new-investor prospecting", "#B91C1C"
 
     new_from_recent_trip = sum(n for m, n in call_by_metro.items() if m in visited_metros)
     recency_note = ""
     if call_signal > 0 and visited_metros:
         recent_pct = round(new_from_recent_trip / call_signal * 100)
         if recent_pct >= 50:
-            recency_note = (f"⚠️ {recent_pct}% of the call-engagement signal ties back to a city you just visited "
+            recency_note = (f"{recent_pct}% of the call-engagement signal ties back to a city you just visited "
                              f"({', '.join(visited_metros & set(call_by_metro.keys()))}) — worth watching whether this holds up "
                              f"once that trip's momentum fades, not just banking it as durable growth.")
         else:
@@ -758,7 +1203,7 @@ def _render_big_picture(institutions):
     except Exception:
         quiet_period_days = 0
 
-    ui.label("🧭 Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:10px;")
+    ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:10px;")
 
     with ui.row().classes("w-full gap-3"):
         _bp_metric("NDR Requests/City", str(len(ndr_requests)),
@@ -777,7 +1222,7 @@ def _render_big_picture(institutions):
         f"<div style='display:flex;height:20px;border-radius:5px;overflow:hidden;'>"
         f"<div style='width:{new_pct}%;background:#3B82F6;'></div>"
         f"<div style='width:{100-new_pct}%;background:#475569;'></div></div>"
-        f"<div style='font-size:11.5px;color:{COLORS['text_muted']};margin-top:4px;'>🔵 New/prospective: {new_total} &nbsp; ⚪ Existing holders: {holder_count}</div>"
+        f"<div style='font-size:11.5px;color:{COLORS['text_muted']};margin-top:4px;'>New/prospective: {new_total} &nbsp; Existing holders: {holder_count}</div>"
         f"<div style='font-size:12px;color:{mix_color};margin-top:4px;'>{mix_label} ({new_pct}% new / {100-new_pct}% existing)</div>"
         + (f"<div style='font-size:11px;color:{COLORS['text_muted']};margin-top:2px;'>{recency_note}</div>" if recency_note else "")
     )
@@ -785,8 +1230,8 @@ def _render_big_picture(institutions):
     most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
     if most_visited and most_visited[1] >= 2 and most_visited[0] != top_metro:
         ui.html(
-            f"<div style='font-size:13px;color:#F0A830;margin-top:10px;'>"
-            f"⚠️ By contrast, <b>{most_visited[0]}</b> has had {most_visited[1]} trips already for only "
+            f"<div style='font-size:13px;color:#B45309;margin-top:10px;'>"
+            f"By contrast, <b>{most_visited[0]}</b> has had {most_visited[1]} trips already for only "
             f"{metro_summary.get(most_visited[0], {}).get('count', '?')} tracked institution(s) — before scheduling a third trip "
             f"there, weigh it against the untapped opportunity in {top_metro}.</div>"
         )
@@ -799,10 +1244,10 @@ def _render_big_picture(institutions):
                      f"{top_metro_request['city']} meetings on {top_metro_request['received']} — {top_metro_request['reason']}"
                      if top_metro_request else "")
     ui.html(
-        f"<div style='background:linear-gradient(135deg,#152230,#1A2D45);border:1px solid #3B82F6;border-radius:12px;padding:18px 22px;'>"
-        f"<div class='section-eyebrow'>🧭 THIS WEEK'S PRIORITY</div>"
-        f"<div style='font-size:16px;font-weight:700;color:#F1F5F9;margin-top:4px;'>Focus city: {top_metro}</div>"
-        f"<div style='font-size:13px;color:#C8D8E8;line-height:1.6;margin-top:6px;'>"
+        f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid {COLORS['accent']};border-radius:12px;padding:18px 22px;'>"
+        f"<div class='section-head' style='margin:0;'>This week's priority</div>"
+        f"<div style='font-size:16px;font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>Focus city: {top_metro}</div>"
+        f"<div style='font-size:13px;color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
         f"{top_d['count']} tracked institution(s) here"
         + (f", including <b>{top_d['top']}</b> (score {top_d['top_score']})" if top_d.get('top') else "")
         + f" — {top_d['tier1_nonholder']} non-holder(s) at Tier 1 ready to convert and {top_d['holders']} existing holder(s) to defend — "
@@ -819,6 +1264,30 @@ def _render_big_picture(institutions):
         + (f", timed around {top_metro_request['analyst']}'s request" if top_metro_request else "")
         + " — it now outranks every other market on an opportunity-per-visit-and-request basis.</li></ol>"
     )
+
+    # Geographic breakdown — answers the obvious question the counts above raise:
+    # "these institutions... where ARE they?" One row per metro with its holders,
+    # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
+    ui.markdown("---")
+    ui.label("Where they are — tracked institutions by metro").classes("section-head").style("margin-top:6px;")
+    geo_rows = sorted(
+        [{"metro": m, "n": d["count"], "holders": d["holders"], "nonholders": d["count"] - d["holders"],
+          "t1": d["tier1_nonholder"], "trips": visits_by_metro.get(m, 0), "top": d.get("top") or "—"}
+         for m, d in metro_summary.items()],
+        key=lambda r: (-r["n"], -r["t1"]))
+    geo_cols = [
+        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left"},
+        {"name": "n", "label": "Institutions", "field": "n", "align": "right"},
+        {"name": "holders", "label": "Holders", "field": "holders", "align": "right"},
+        {"name": "nonholders", "label": "Non-holders", "field": "nonholders", "align": "right"},
+        {"name": "t1", "label": "Tier-1 ready", "field": "t1", "align": "right"},
+        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right"},
+        {"name": "top", "label": "Top name", "field": "top", "align": "left"},
+    ]
+    ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes("w-full").props("dense flat")
+    ui.label(f"{tracked_total} tracked institutions across {len(metro_summary)} metros · {holder_count} current "
+             "holders. Filter the full list to any of these on the Buy-Side Intelligence list below or in Target "
+             "Database → search by metro.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _bp_metric(label, value, detail_lines):
@@ -837,29 +1306,32 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     contacts = get_institution_contacts()
 
     if mode == "pre":
-        ui.label("💼 Buy-Side Intelligence — Pre-Earnings Engagement").classes("text-lg font-bold")
+        ui.label("Buy-Side Intelligence — Pre-Earnings Engagement").classes("text-lg font-bold")
         ui.label("Three-layer institutional targeting · Engagement score 0-100 · Prioritized by probability of buying into the re-rating story").style(f"color:{COLORS['text_muted']};font-size:12px;")
     else:
-        ui.label("🚀 Buy-Side Intelligence — Post-Earnings Prospecting").classes("text-lg font-bold")
+        ui.label("Buy-Side Intelligence — Post-Earnings Prospecting").classes("text-lg font-bold")
         ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     tier1 = [i for i in institutions if i["Engagement_Score"] >= 80]
     tier2 = [i for i in institutions if 40 <= i["Engagement_Score"] < 80]
     tier3 = [i for i in institutions if i["Engagement_Score"] < 40]
 
-    ui.label("🎯 Engagement Funnel").classes("font-bold").style("margin-top:10px;")
-    with ui.row().classes("w-full gap-3"):
-        _tier_card(tier1, "🟥 Tier 1 — Defend / Convert", "Direct 1x1 calls this week", COLORS["negative"])
-        _tier_card(tier2, "🟨 Tier 2 — Nurture", "Send the Q2 preview deck", COLORS["warning"])
-        _tier_card(tier3, "🟦 Tier 3 — Passive", "Add to the next NDR queue", COLORS["accent"])
+    ui.label("Engagement Funnel").classes("font-bold").style("margin-top:10px;")
+    with ui.row().classes("w-full gap-3 items-stretch"):
+        _tier_card(tier1, "Tier 1 — Defend / Convert", "Direct 1x1 calls this week", COLORS["negative"])
+        _tier_card(tier2, "Tier 2 — Nurture", "Send the Q2 preview deck", COLORS["warning"])
+        _tier_card(tier3, "Tier 3 — Passive", "Add to the next NDR queue", COLORS["accent"])
 
     ui.markdown("---")
 
-    with ui.row().classes("w-full items-center justify-between"):
+    # One left-aligned summary line — "Q1 call listeners" reads as a
+    # continuation of the tracked count rather than floating off to the far
+    # right (justify-between) disconnected from anything.
+    with ui.row().classes("items-baseline gap-2"):
         ui.label(f"{len(institutions)} institutions tracked").classes("font-bold")
-        ui.label(f"Q1 call listeners: {sum(1 for i in institutions if i['Call_Listener'])}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label(f"· {sum(1 for i in institutions if i['Call_Listener'])} were Q1 call listeners").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-    with ui.expansion("🔍 Filter Criteria — Coverage Priority, Holder Status, Turnover, Metro, Intent, Ownership", value=False).classes("w-full"):
+    with ui.expansion("Filter Criteria — Coverage Priority, Holder Status, Turnover, Metro, Intent, Ownership", value=False).classes("w-full"):
         ui.label("These narrow the institution list below — they don't affect the Engagement Funnel or metrics "
                  "above, which always show the complete tracked set. All defaults below are unfiltered (everything "
                  "shown), so the list you see with no filters applied matches the same ranked order Today's "
@@ -881,8 +1353,12 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             metro_options = ["All Regions"] + sorted({i["Metro"] for i in institutions})
             metro_filter = ui.select(metro_options, value="All Regions").classes("min-w-[160px]").props("label='Metro'")
         turnover_options = ["Low (Long-Term Value)", "Medium (Growth/GARP)", "High (Hedge/Trading)"]
-        # Previously defaulted to excluding "High (Hedge/Trading)" — same
-        # silent-hiding issue as the tier filter above.
+        # Include any other turnover value actually present in the universe
+        # (e.g. "Unknown (SEC)" on real SEC-sourced names) so the default
+        # all-selected filter doesn't silently hide them — same silent-hiding
+        # issue as the tier filter above.
+        turnover_options = turnover_options + sorted(
+            {i["Turnover_Style"] for i in institutions} - set(turnover_options))
         turnover_filter = ui.select(turnover_options, multiple=True,
                                      value=list(turnover_options)).classes("w-full").props("label='Fund Turnover Style'")
         # Previously defaulted to 40, hiding any fund with Digital_Intent_Score
@@ -935,7 +1411,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
 
 
 def _render_repeat_alert_banner(filtered, meeting_log):
-    """Global '🔔 Repeat Meeting Alerts' banner above the institution list —
+    """Global 'Repeat Meeting Alerts' banner above the institution list —
     surfaces every institution in the current filter set with a repeat
     meeting inside the 45-day window, classified by QoQ direction and
     outcome tone, before the per-institution cards render."""
@@ -948,7 +1424,7 @@ def _render_repeat_alert_banner(filtered, meeting_log):
     if not alerts:
         return
 
-    ui.label("🔔 Repeat Meeting Alerts — Investigate Signal").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("Repeat Meeting Alerts — Investigate Signal").classes("font-bold").style(f"color:{COLORS['text_heading']};")
     for alert in alerts:
         inst, gap, meetings = alert["inst"], alert["gap"], alert["meetings"]
         last_m, prev_m = meetings[0], meetings[1]
@@ -960,13 +1436,13 @@ def _render_repeat_alert_banner(filtered, meeting_log):
         # the active CREAM (light) theme. Now a light card with a colored
         # left border for the status, and theme-token text throughout.
         if qoq > 0:
-            sig_icon, sig_txt, sig_clr = "🟢", "Likely diligence — shares increasing", COLORS["positive"]
+            sig_icon, sig_txt, sig_clr = "", "Likely diligence — shares increasing", COLORS["positive"]
         elif "positive" in outcome.lower() or "interested" in outcome.lower():
-            sig_icon, sig_txt, sig_clr = "🟡", "Monitor — positive tone but verify intent", COLORS["warning"]
+            sig_icon, sig_txt, sig_clr = "", "Monitor — positive tone but verify intent", COLORS["warning"]
         elif qoq < 0:
-            sig_icon, sig_txt, sig_clr = "🔴", "Flag — shares declining, possible exit diligence", COLORS["negative"]
+            sig_icon, sig_txt, sig_clr = "", "Flag — shares declining, possible exit diligence", COLORS["negative"]
         else:
-            sig_icon, sig_txt, sig_clr = "🟡", "Unknown intent — escalate to CFO for next call", COLORS["warning"]
+            sig_icon, sig_txt, sig_clr = "", "Unknown intent — escalate to CFO for next call", COLORS["warning"]
 
         ui.html(
             f"<div style='border:1px solid {COLORS['border']};border-left:4px solid {sig_clr};border-radius:8px;"
@@ -991,24 +1467,30 @@ def _tier_card(institutions, label, action, accent_color):
     # does it below: theme-aware light card background + a colored left
     # border for the tier accent, so every text color in here can just use
     # the normal theme tokens and stay correct under either theme.
-    with ui.card().classes("flex-1").style(
+    with ui.card().classes("flex-1 column").style(
         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {accent_color};"):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
                 ui.label(label).style(f"color:{accent_color};font-weight:bold;")
                 ui.label(action).style(f"color:{COLORS['text_muted']};font-size:12px;")
             ui.label(str(len(institutions))).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
-        if institutions:
-            with ui.expansion(f"Show {len(institutions)} institution(s)").classes("w-full"):
+        ui.space()
+        # Always render the disclosure — even when empty — so all three tier
+        # cards share the same structure and height and each gets an arrow
+        # (Tier 1 with 0 institutions used to have none, so it sat shorter).
+        with ui.expansion(f"Show {len(institutions)} institution(s)").classes("w-full"):
+            if institutions:
                 for inst in institutions:
                     ui.label(f"{inst['Fund']} — {inst['Engagement_Score']}/100").style(f"color:{COLORS['text_body']};font-size:12px;")
+            else:
+                ui.label("No institutions currently in this tier.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
 
 def _institution_card(inst, meeting_log, contacts):
     fund_meetings = _get_fund_meetings(meeting_log, inst["Fund"])
     repeat_gap = _get_repeat_signal(fund_meetings)
     score = inst["Engagement_Score"]
-    holder_badge = "✅ Current Holder" if inst["USIO_Holder"] else "🆕 Non-Holder"
+    holder_badge = "Current Holder" if inst["USIO_Holder"] else "Non-Holder"
     qoq_str = f"{inst['QoQ_Change']:+,}" if inst["QoQ_Change"] else "—"
     shares_str = f"{inst['Shares']:,}" if inst["Shares"] else "—"
 
@@ -1022,30 +1504,35 @@ def _institution_card(inst, meeting_log, contacts):
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {border_clr};"):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
-                ownership_badge = "⚙️ Passive" if inst.get("Ownership_Style") == "Passive" else "🎯 Active"
-                ui.label(f"{inst['Fund']}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
-                ui.label(f"📍 {inst['Metro']}  ·  🔄 {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ownership_badge = "Passive" if inst.get("Ownership_Style") == "Passive" else "Active"
+                with ui.row().classes("items-center gap-2"):
+                    ui.label(f"{inst['Fund']}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+                    _src = inst.get("Source", "Seed (demo)")
+                    ui.label(_src).style(
+                        f"background:{_source_color(_src)};color:#fff;border-radius:4px;padding:1px 6px;"
+                        "font-size:9.5px;font-weight:700;letter-spacing:.02em;white-space:nowrap;")
+                ui.label(f"{inst['Metro']}  ·  {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
                 if repeat_gap is not None:
-                    ui.label(f"🔔 Repeat meeting in {repeat_gap}d").style(f"color:#FB923C;font-size:12px;font-weight:bold;")
+                    ui.label(f"Repeat meeting in {repeat_gap}d").style(f"color:#B45309;font-size:12px;font-weight:bold;")
                 if days_contacted is not None and days_contacted <= 7:
-                    ui.label(f"📞 Contacted {days_contacted}d ago — off Today's Investor Pipeline until day 8").style(
+                    ui.label(f"Contacted {days_contacted}d ago — off Today's Investor Pipeline until day 8").style(
                         f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
             with ui.column().classes("items-center"):
                 ui.label(str(score)).classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
-                ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
 
         with ui.row().classes("w-full gap-6").style("margin-top:6px;"):
             ui.label(f"Shares: {shares_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
             ui.label(f"QoQ: {qoq_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"Q1 call: {'✅ ' + inst['Listen_Duration'] if inst['Call_Listener'] else '⭕ Did not listen'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Q1 call: {'' + inst['Listen_Duration'] if inst['Call_Listener'] else 'Did not listen'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
             ui.label(f"IR visits (30d): {inst['IR_Visits_30d']} · {inst['Last_Visit']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-        # ✅ marks a peer holding confirmed by a real SEC 13F filing (see
+        # marks a peer holding confirmed by a real SEC 13F filing (see
         # _enrich_peer_holdings_with_live_13f); an unmarked ticker is still
         # the original hand-typed seed guess — that ticker hasn't been
         # 13F-refreshed yet (SEC Intelligence tab's "Refresh 13F
         # Institutional Holders" button).
         _peer_src = inst.get("Peer_Holdings_Source", {})
-        _peer_labels = [t + (" ✅" if _peer_src.get(t) == "live" else "") for t in inst["Peer_Holdings"]]
+        _peer_labels = [t + (" " if _peer_src.get(t) == "live" else "") for t in inst["Peer_Holdings"]]
         ui.label(f"Peers held: {', '.join(_peer_labels) or '—'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
         ui.label(f"Action: {inst['Action']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;")
 
@@ -1053,8 +1540,8 @@ def _institution_card(inst, meeting_log, contacts):
         with ui.row().classes("gap-3 items-center").style("margin-top:6px;"):
             if contact.get("email"):
                 _mailto(contact["email"], f"{CT('ticker')} — Following up, {inst['Fund']}", "Hi,\n\n", f"Email {contact.get('name','Contact')}")
-            ui.button("📝 Draft Pre-Earnings Outreach", on_click=lambda inst=inst, contact=contact: _open_outreach_dialog(inst, contact)).props("flat dense")
-            ui.button(f"📅 Meeting Log ({len(fund_meetings)})", on_click=lambda inst=inst, fm=fund_meetings, rg=repeat_gap: _open_meeting_log_dialog(inst, fm, rg)).props("flat dense")
+            ui.button("Draft Pre-Earnings Outreach", on_click=lambda inst=inst, contact=contact: _open_outreach_dialog(inst, contact)).props("flat dense")
+            ui.button(f"Meeting Log ({len(fund_meetings)})", on_click=lambda inst=inst, fm=fund_meetings, rg=repeat_gap: _open_meeting_log_dialog(inst, fm, rg)).props("flat dense")
 
 
 def _open_outreach_dialog(inst, contact):
@@ -1099,11 +1586,11 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
         if repeat_gap is not None:
             qoq = inst.get("QoQ_Change", 0)
             if qoq > 0:
-                ui.label(f"🟢 Likely diligence — shares +{qoq:,} and repeat meeting in {repeat_gap}d. Escalate to CFO.").style("color:#4ADE80;font-size:12px;")
+                ui.label(f"Likely diligence — shares +{qoq:,} and repeat meeting in {repeat_gap}d. Escalate to CFO.").style("color:#15803D;font-size:12px;")
             elif qoq < 0:
-                ui.label(f"🔴 Flag — shares {qoq:,} and repeat meeting in {repeat_gap}d. Possible pre-exit diligence.").style("color:#F87171;font-size:12px;")
+                ui.label(f"Flag — shares {qoq:,} and repeat meeting in {repeat_gap}d. Possible pre-exit diligence.").style("color:#B91C1C;font-size:12px;")
             else:
-                ui.label(f"🟡 Intent unclear — repeat meeting in {repeat_gap}d, no share change. Ask directly.").style("color:#F0A830;font-size:12px;")
+                ui.label(f"Intent unclear — repeat meeting in {repeat_gap}d, no share change. Ask directly.").style("color:#B45309;font-size:12px;")
 
         if fund_meetings:
             for mtg in fund_meetings:
@@ -1129,7 +1616,7 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
         # is the closest available notion of "who is using this session."
         logged_by = CI().get("name") or "IR Team"
 
-        ui.markdown("**➕ Log a new meeting**")
+        ui.markdown("**Log a new meeting**")
         m_date = ui.input("Date (YYYY-MM-DD)", value=datetime.now().strftime("%Y-%m-%d")).classes("w-full")
         m_type = ui.select(["1x1 — Investor Conference", "Intro call", "Follow-up call", "NDR meeting",
                              "Earnings call Q&A", "Other"], label="Meeting Type", value="Follow-up call").classes("w-full")
@@ -1162,16 +1649,16 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
             delta = new_interaction - old_interaction
             delta_str = f"+{delta}" if delta >= 0 else str(delta)
             if new_gap is not None:
-                ui.notify(f"⚠️ Repeat meeting alert — {inst['Fund']} met {len(updated)}x in {new_gap}d. "
+                ui.notify(f"Repeat meeting alert — {inst['Fund']} met {len(updated)}x in {new_gap}d. "
                           f"Interaction Score {delta_str} → {new_interaction}/{INTERACTION_SCORE_MAX} · "
                           f"Engagement Score → {new_engagement}/100", type="warning")
             else:
-                ui.notify(f"✅ Meeting logged for {inst['Fund']} · Interaction Score {delta_str} → "
+                ui.notify(f"Meeting logged for {inst['Fund']} · Interaction Score {delta_str} → "
                           f"{new_interaction}/{INTERACTION_SCORE_MAX} · Engagement Score → {new_engagement}/100")
             dialog.close()
             _refresh()
 
-        ui.button("📅 Log Meeting", on_click=log_meeting).props("color=primary")
+        ui.button("Log Meeting", on_click=log_meeting).props("color=primary")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -1179,6 +1666,115 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
 # ─────────────────────────────────────────────────────────────────────────
 # NDR Planner tab
 # ─────────────────────────────────────────────────────────────────────────
+def _parse_time_min(s):
+    """A meeting time string ('2:00 PM', '14:00', '9 AM') → minutes since
+    midnight, or None if unscheduled/unparseable."""
+    s = (s or "").strip().upper().replace(".", "")
+    if not s or s == "—":
+        return None
+    for fmt in ("%I:%M %p", "%I %p", "%H:%M"):
+        try:
+            t = datetime.strptime(s, fmt)
+            return t.hour * 60 + t.minute
+        except Exception:
+            continue
+    return None
+
+
+def _meeting_street(m):
+    """The best STREET address for a meeting: its own address override, else the
+    fund's office address from the address book (SEC-sourced or manual). Returns
+    '' when only a metro/city is known — i.e. no street-level location."""
+    own = (m.get("address") or "").strip()
+    if own:
+        return own
+    try:
+        from core import fund_addresses
+        return (fund_addresses.address_for(m.get("institution", "")) or "").strip()
+    except Exception:
+        return ""
+
+
+def _meeting_loc(m, trip):
+    """Best location string for the travel calc: the meeting's own address, then
+    the fund's office address, then its stored metro, then the trip city."""
+    return (_meeting_street(m)
+            or (m.get("metro") or "").strip()
+            or (trip.get("city") or "").strip())
+
+
+def _sorted_day_meetings(meetings):
+    """Meetings ordered by parsed time; unscheduled ones sink to the end keeping
+    their original order (stable), so the itinerary reads chronologically."""
+    keyed = [(_parse_time_min(m.get("time")), i, m) for i, m in enumerate(meetings)]
+    scheduled = sorted((k for k in keyed if k[0] is not None), key=lambda x: (x[0], x[1]))
+    unscheduled = [k for k in keyed if k[0] is None]
+    return [m for _, _, m in scheduled] + [m for _, _, m in unscheduled]
+
+
+def _travel_leg_between(prev_m, m, trip):
+    """Travel estimate between two consecutive in-person stops, plus a
+    feasibility read from their scheduled times. Prefers REAL routed driving
+    distance/time (core.routing / OpenRouteService) and falls back to the
+    offline great-circle estimate (core.geo) when there's no API key or an
+    address can't be resolved. Returns (leg_dict, tight_note_or_None) or
+    (None, None) when a leg can't be estimated (virtual stop or unknown city)."""
+    if (prev_m.get("format", "In-person") != "In-person"
+            or m.get("format", "In-person") != "In-person"):
+        return None, None
+    from_loc, to_loc = _meeting_loc(prev_m, trip), _meeting_loc(m, trip)
+    # Real routing is only meaningful when BOTH stops have a real street address.
+    # If either falls back to a metro/city label, both endpoints collapse to the
+    # same city point and routing would report a misleading "0 mi · 0 min" — so
+    # for those we use the offline "same city — allow ~20 min" allowance instead.
+    both_have_addr = bool(_meeting_street(prev_m)) and bool(_meeting_street(m))
+    lg = None
+    try:
+        from core import routing
+        if routing.is_configured() and both_have_addr:
+            # Bias geocoding toward the trip's business district so ambiguous
+            # street addresses (e.g. "745 5th Ave") resolve in the right metro.
+            focus = routing.focus_for(trip.get("city")) or routing.focus_for(from_loc)
+            lg = routing.leg(from_loc, to_loc, focus=focus)
+            if lg and lg.get("miles", 0) < 0.1:
+                lg = None  # addresses collapsed to one point — not a real leg
+    except Exception:
+        lg = None
+    if not lg:
+        from core import geo
+        lg = geo.leg(from_loc, to_loc)
+    if not lg:
+        return None, None
+    tight = None
+    t0, t1 = _parse_time_min(prev_m.get("time")), _parse_time_min(m.get("time"))
+    if t0 is not None and t1 is not None and lg.get("drive_min") is not None:
+        gap = t1 - t0
+        needed = lg["drive_min"] + 30  # +30 min minimum turnaround after a meeting
+        if 0 <= gap < needed:
+            tight = f"TIGHT — {gap} min between starts vs ~{needed} min needed (meeting + travel)"
+    return lg, tight
+
+
+def _travel_total_line(total_miles, leg_count, routed_count, routing_on=False):
+    """The trip-level travel summary, honestly labelled by whether the legs were
+    really routed (driving) or fell back to the offline straight-line estimate."""
+    if not leg_count:
+        return None
+    miles = f"~{total_miles:,.0f} mi"
+    if routed_count == leg_count:
+        return (f"Est. driving distance: {miles} across {leg_count} leg(s) — "
+                "real driving miles/time, routed via OpenRouteService.")
+    if routed_count:
+        return (f"Est. travel: {miles} across {leg_count} leg(s) — {routed_count} routed "
+                "(driving), the rest straight-line city-level (stops without a street "
+                "address). Confirm with your car service.")
+    # No leg routed. If the key IS set, the blocker is missing addresses, not the key.
+    nudge = ("add a street address to each meeting to get routed driving miles/time"
+             if routing_on else "add a maps API key in Settings for routed driving miles")
+    return (f"Est. in-person travel: {miles} across {leg_count} leg(s) — straight-line, "
+            f"city-level (not driving miles). To upgrade, {nudge}.")
+
+
 def _build_ndr_itinerary(trip, ticker):
     lines = [f"{ticker} — NON-DEAL ROADSHOW ITINERARY", trip["name"],
               f"{trip['dates']}  ·  {trip['city']}  ·  {'Virtual' if trip['ndr_type']=='virtual' else 'In-Person'}"]
@@ -1195,11 +1791,27 @@ def _build_ndr_itinerary(trip, ticker):
     by_day = {}
     for m in trip.get("meetings", []):
         by_day.setdefault(m.get("day", 1), []).append(m)
+    try:
+        from core import routing as _routing
+        _routing_on = _routing.is_configured()
+    except Exception:
+        _routing_on = False
+    total_miles, leg_count, routed_count = 0.0, 0, 0
     for day_num in sorted(by_day.keys()):
         if len(by_day) > 1:
             lines.append(f"DAY {day_num}")
             lines.append("-" * 64)
-        for m in by_day[day_num]:
+        day_ms = _sorted_day_meetings(by_day[day_num])
+        prev = None
+        for m in day_ms:
+            if prev is not None:
+                lg, tight = _travel_leg_between(prev, m, trip)
+                if lg:
+                    total_miles += lg["miles"]
+                    leg_count += 1
+                    routed_count += 1 if lg.get("basis") == "routed" else 0
+                    lines.append(f"        ↳ travel: {lg['label']}"
+                                 + (f"   [!] {tight}" if tight else ""))
             tag = "Non-Holder — Priority Target" if m.get("non_holder", True) else "Existing Holder"
             time_lbl = m.get("time") or "—"
             lines.append(f"  {time_lbl:>10}   {m.get('institution','')}")
@@ -1207,11 +1819,124 @@ def _build_ndr_itinerary(trip, ticker):
                 lines.append(f"              {m.get('format','In-person')} · {tag} · Engagement Score {m['score']}/100")
             else:
                 lines.append(f"              {m.get('format','In-person')} · {tag}")
+            known_c = get_institution_contacts().get(m.get("institution", ""), {})
+            who = m.get("contact") or ", ".join(p for p in (known_c.get("name"), known_c.get("title")) if p)
+            if who:
+                lines.append(f"              Meeting with: {who}")
+            if m.get("address"):
+                lines.append(f"              Location: {m['address']}")
+            _virtual = m.get("format", "In-person") != "In-person"
+            if _virtual:
+                _link = (m.get("meeting_link") or "").strip()
+                lines.append(f"              Join ({m.get('format')}): {_link or 'link TBD — add on the Active NDRs tab'}")
             if m.get("notes"):
                 lines.append(f"              Note: {m['notes']}")
+            prev = m
     lines.append("=" * 64)
+    _tl = _travel_total_line(total_miles, leg_count, routed_count, _routing_on)
+    if _tl:
+        lines.append(_tl)
     lines.append(f"Prepared {datetime.now().strftime('%b %d, %Y')}")
     return "\n".join(lines)
+
+
+def _build_ndr_itinerary_html(trip, ticker):
+    """Print-formatted itinerary — a clean, self-contained HTML document opened
+    in a new window for the browser's print dialog, so the app chrome/nav isn't
+    printed. Same content as the .txt export, laid out as a schedule table."""
+    import html as _html
+
+    def esc(s):
+        return _html.escape(str(s))
+
+    rows = []
+    by_day = {}
+    for m in trip.get("meetings", []):
+        by_day.setdefault(m.get("day", 1), []).append(m)
+    try:
+        from core import routing as _routing
+        _routing_on = _routing.is_configured()
+    except Exception:
+        _routing_on = False
+    total_miles, leg_count, routed_count = 0.0, 0, 0
+    for day_num in sorted(by_day.keys()):
+        if len(by_day) > 1:
+            rows.append(f'<tr><td class="day" colspan="2">Day {day_num}</td></tr>')
+        prev = None
+        for m in _sorted_day_meetings(by_day[day_num]):
+            if prev is not None:
+                lg, tight = _travel_leg_between(prev, m, trip)
+                if lg:
+                    total_miles += lg["miles"]
+                    leg_count += 1
+                    routed_count += 1 if lg.get("basis") == "routed" else 0
+                    warn = (f' <span class="tight">&#9888; {esc(tight)}</span>') if tight else ""
+                    rows.append(
+                        f'<tr><td class="time travel">&#8627;</td>'
+                        f'<td class="travel">{esc(lg["label"])}{warn}</td></tr>')
+            known_c = get_institution_contacts().get(m.get("institution", ""), {})
+            who = m.get("contact") or ", ".join(p for p in (known_c.get("name"), known_c.get("title")) if p)
+            tag = "Non-Holder — Priority Target" if m.get("non_holder", True) else "Existing Holder"
+            meta = " · ".join(x for x in [m.get("format", "In-person"), tag,
+                    (f"Score {m['score']}/100" if m.get("score") is not None else "")] if x)
+            _virtual = m.get("format", "In-person") != "In-person"
+            _link = (m.get("meeting_link") or "").strip()
+            _join = ""
+            if _virtual:
+                _join = (f'<b>Join ({esc(m.get("format"))}):</b> <a href="{esc(_link)}">{esc(_link)}</a>'
+                         if _link else f'<b>Join ({esc(m.get("format"))}):</b> link TBD')
+            det = "<br>".join(filter(None, [
+                f"<b>Meeting with:</b> {esc(who)}" if who else "",
+                f"<b>Location:</b> {esc(m['address'])}" if m.get("address") else "",
+                _join,
+                f"<b>Note:</b> {esc(m['notes'])}" if m.get("notes") else "",
+            ]))
+            rows.append(
+                f'<tr><td class="time">{esc(m.get("time", "—"))}</td>'
+                f'<td class="firm">{esc(m.get("institution", ""))}'
+                f'<div class="meta">{esc(meta)}</div>'
+                f'{("<div class=det>" + det + "</div>") if det else ""}</td></tr>')
+            prev = m
+    _tl = _travel_total_line(total_miles, leg_count, routed_count, _routing_on)
+    if _tl:
+        rows.append(f'<tr><td class="time travel"></td>'
+                    f'<td class="travel"><b>{esc(_tl)}</b></td></tr>')
+
+    meta_line = (f"{esc(trip.get('dates', ''))} &nbsp;·&nbsp; {esc(trip.get('city', ''))} &nbsp;·&nbsp; "
+                 f"{'Virtual' if trip.get('ndr_type') == 'virtual' else 'In-Person'}")
+    blocks = []
+    if trip.get("sponsor_bank"):
+        blocks.append(f"<div><b>Sponsoring Bank:</b> {esc(trip['sponsor_bank'])}</div>")
+    blocks.append(f"<div><b>Company Attendees:</b> {esc(', '.join(trip.get('team', [])) or '—')}</div>")
+    blocks.append(f"<div><b>Focus:</b> {esc(trip.get('focus', '—'))}</div>")
+    if trip.get("notes"):
+        blocks.append(f"<div><b>Objectives:</b> {esc(trip['notes'])}</div>")
+
+    return (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        f"<title>{esc(ticker)} NDR — {esc(trip.get('name', ''))}</title><style>"
+        "body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0F172A;margin:32px;}"
+        "h1{font-size:20px;margin:0 0 2px;}.sub{color:#475569;font-size:13px;margin-bottom:12px;}"
+        ".meta-block div{font-size:12.5px;margin:2px 0;color:#334155;}"
+        "table{width:100%;border-collapse:collapse;margin-top:14px;}"
+        "td{border-bottom:1px solid #E2E8F0;padding:8px 6px;vertical-align:top;font-size:12.5px;}"
+        "td.time{white-space:nowrap;width:90px;color:#475569;font-weight:600;}"
+        "td.firm{font-weight:600;}.meta{font-weight:400;color:#64748B;font-size:11px;margin-top:2px;}"
+        ".det{font-weight:400;color:#334155;font-size:11.5px;margin-top:4px;}"
+        "td.travel{border-bottom:none;color:#64748B;font-size:11px;font-style:italic;padding:2px 6px;}"
+        "td.time.travel{text-align:right;color:#94A3B8;font-weight:400;}"
+        ".tight{color:#B45309;font-style:normal;font-weight:600;}"
+        "td.day{background:#F1F5F9;font-weight:700;font-size:12px;letter-spacing:.03em;}"
+        ".foot{margin-top:18px;color:#94A3B8;font-size:11px;}"
+        "@media print{body{margin:12px;}}"
+        "</style></head><body>"
+        f"<h1>{esc(ticker)} — Non-Deal Roadshow Itinerary</h1>"
+        f"<div class='sub'>{esc(trip.get('name', ''))} &nbsp;|&nbsp; {meta_line}</div>"
+        f"<div class='meta-block'>{''.join(blocks)}</div>"
+        f"<table>{''.join(rows)}</table>"
+        f"<div class='foot'>Prepared {datetime.now().strftime('%b %d, %Y')} · {esc(ticker)} Investor Relations</div>"
+        "</body></html>"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1290,13 +2015,103 @@ def _ndr_talking_points(inst):
     return points
 
 
+def _fmt_time_12h(t):
+    """Convert a picker's 24-hour 'HH:MM' into the '2:00 PM' style the rest of
+    the itinerary displays and _build_ndr_itinerary expects. Leaves anything it
+    can't parse (incl. a hand-typed '2:00 PM') untouched, so the field stays
+    manually editable."""
+    try:
+        hh, mm = t.split(":")[:2]
+        h, m = int(hh), int(mm)
+        ap = "AM" if h < 12 else "PM"
+        return f"{h % 12 or 12}:{m:02d} {ap}"
+    except Exception:
+        return t
+
+
+def _time_picker_input(label="Time", placeholder="e.g. 2:00 PM", value=""):
+    """A text time field with an attached clock (ui.time in a popup menu). The
+    field stays hand-editable — the clock just fills it — so a planner can nudge
+    a time freely to absorb travel, which is the whole point of an NDR schedule.
+    Returns the ui.input element (read .value)."""
+    ti = ui.input(label, placeholder=placeholder, value=value).classes("flex-1")
+    with ti:
+        with ui.menu().props("no-parent-event") as _tmenu:
+            ui.time(on_change=lambda e: ti.set_value(_fmt_time_12h(e.value)))
+        with ti.add_slot("append"):
+            ui.icon("schedule").on("click", _tmenu.open).classes("cursor-pointer")
+    return ti
+
+
+def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metro, on_added):
+    """Ask for a time (with a clock) before dropping an investor onto a trip,
+    instead of the old silent time='—' quick-add. Captures day / time / format /
+    optional address, and stashes the metro so the itinerary's travel calc can
+    resolve a city even when no street address is entered yet."""
+    # RIAs / wealth managers are a low-touch tier: no PM to pitch, so they get a
+    # video call an assistant can set up — never management travel time. Default
+    # the format to Virtual so they can't silently land on the in-person route
+    # (and so they never enter the itinerary's driving-distance calc).
+    try:
+        from core import peer_prospects as _pp
+        _is_ria_fund = _pp.is_ria(fund)
+    except Exception:
+        _is_ria_fund = False
+
+    dialog = ui.dialog()
+    with dialog, ui.card().style("min-width:380px;"):
+        ui.label(f"Schedule {fund}").style(
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:15px;")
+        ui.label("Pick a meeting time — flexible, adjust later for travel.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        if _is_ria_fund:
+            with ui.row().classes("items-center gap-1").style("margin-top:2px;"):
+                ui.icon("videocam").style("color:#B45309;font-size:15px;")
+                ui.label("RIA / wealth manager — video call tier. An assistant can set this up; "
+                         "it doesn't need management travel.").style("color:#B45309;font-size:11.5px;")
+        with ui.row().classes("w-full gap-3 items-end").style("margin-top:6px;"):
+            day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20")
+            time_in = _time_picker_input()
+            format_in = ui.select(["In-person", "Virtual", "Zoom", "Teams", "Phone", "Jitsi"],
+                                  value=("Zoom" if _is_ria_fund else "In-person"),
+                                  label="Format").props("dense outlined").classes("w-32")
+        address_in = ui.input("Address / location (optional — powers the travel calc)",
+                              placeholder=f"street, {default_metro or 'city'}").classes("w-full")
+        # Virtual meetings carry a join link that flows onto the itinerary. Shown
+        # only when the format isn't in-person.
+        link_in = ui.input("Meeting link", placeholder="Zoom / Teams / Meet URL").classes("w-full")
+        link_in.bind_visibility_from(format_in, "value", backward=lambda v: v != "In-person")
+
+        def commit():
+            trips_ = _load_json("ndr_trips.json", [])
+            trips_[idx].setdefault("meetings", []).append({
+                "institution": fund, "contact": contact,
+                "address": (address_in.value or "").strip(), "notes": "",
+                "day": int(day_in.value or 1),
+                "time": (time_in.value or "").strip() or "—",
+                "type": "1x1", "format": format_in.value, "status": "scheduled",
+                "meeting_link": (link_in.value or "").strip(),
+                "non_holder": non_holder, "score": score, "metro": default_metro or "",
+            })
+            _save_json("ndr_trips.json", trips_)
+            _t = (time_in.value or "").strip()
+            ui.notify(f"{fund} added to trip{(' at ' + _t) if _t else ' — time TBD'}.")
+            dialog.close()
+            on_added()
+
+        with ui.row().classes("gap-2").style("margin-top:8px;"):
+            ui.button("Add to trip", on_click=commit).props("color=primary")
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+    dialog.open()
+
+
 def _render_ndr_tab(institutions, meeting_log, client_id):
     with ui.tabs().classes("w-full") as ndr_tabs:
-        nt1 = ui.tab("🗺️ Plan New NDR")
-        nt2 = ui.tab("📋 Active NDRs")
-        nt3 = ui.tab("📨 Requests")
-        nt4 = ui.tab("📄 Prep Cards")
-        nt5 = ui.tab("📊 Post-NDR Debrief")
+        nt1 = ui.tab("Plan New NDR")
+        nt2 = ui.tab("Active NDRs")
+        nt3 = ui.tab("Requests")
+        nt4 = ui.tab("Prep Cards")
+        nt5 = ui.tab("Post-NDR Debrief")
     with ui.tab_panels(ndr_tabs, value=nt1).classes("w-full"):
         with ui.tab_panel(nt1):
             ui.label("Plan a New Non-Deal Roadshow").classes("font-bold")
@@ -1304,15 +2119,43 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                 with ui.column().classes("flex-1"):
                     name_in = ui.input("NDR name / label", placeholder="Post-Q2 Boston NDR").classes("w-full")
                     bank_options = [f"{a['firm']} — {a['name']}" for a in CA()] + ["Other / Non-Covering Bank"]
-                    sponsor_in = ui.select(bank_options, value=bank_options[0]).classes("w-full").props("label='Sponsoring Bank'")
-                    dates_in = ui.input("Dates", placeholder="e.g. Aug 20-21, 2026").classes("w-full")
-                    type_in = ui.toggle({"in_person": "✈️ In-Person", "virtual": "💻 Virtual"}, value="in_person")
-                    # Combo box over the real, live Metro labels (same ones the NDR
-                    # Requests tab and Big Picture's Metro Priority scoring already
-                    # use) — with_input still allows typing a city that isn't in the
-                    # tracked list yet; it just won't have any auto-suggested targets.
-                    city_in = ui.select(_ndr_location_options(institutions), label="City / Region", with_input=True) \
-                        .classes("w-full").props("use-input hide-selected fill-input input-debounce=0 new-value-mode=add-unique")
+                    sponsor_in = ui.input("Sponsoring Bank", value=bank_options[0],
+                                          autocomplete=bank_options).classes("w-full")
+                    # Calendar-backed date field — click the field (or the
+                    # calendar icon) to pick a start/end range; the input shows
+                    # a friendly "Aug 20–21, 2026" and is what save_trip stores.
+                    dates_in = ui.input("Dates", placeholder="Click to pick trip dates").classes("w-full")
+
+                    def _fmt_ndr_dates():
+                        v = _dates_picker.value
+                        if isinstance(v, dict) and v.get("from"):
+                            a = datetime.strptime(v["from"], "%Y-%m-%d")
+                            b = datetime.strptime(v["to"], "%Y-%m-%d") if v.get("to") else a
+                            if a == b:
+                                dates_in.value = f"{a.strftime('%b')} {a.day}, {a.year}"
+                            elif a.month == b.month and a.year == b.year:
+                                dates_in.value = f"{a.strftime('%b')} {a.day}–{b.day}, {a.year}"
+                            else:
+                                dates_in.value = f"{a.strftime('%b')} {a.day} – {b.strftime('%b')} {b.day}, {b.year}"
+                        elif isinstance(v, str) and v:
+                            d = datetime.strptime(v, "%Y-%m-%d")
+                            dates_in.value = f"{d.strftime('%b')} {d.day}, {d.year}"
+
+                    with dates_in:
+                        with ui.menu().props("no-parent-event") as _dates_menu:
+                            _dates_picker = ui.date().props("range")
+                            _dates_picker.on_value_change(lambda: _fmt_ndr_dates())
+                        with dates_in.add_slot("append"):
+                            ui.icon("edit_calendar").on("click", _dates_menu.open).classes("cursor-pointer")
+                    type_in = ui.toggle({"in_person": "In-Person", "virtual": "Virtual"}, value="in_person")
+                    # Free-text city with autocomplete suggestions from the live
+                    # Metro labels (same ones the NDR Requests tab and Metro
+                    # Priority scoring use). A plain input guarantees manual entry
+                    # always works — a QSelect's new-value-add did not reliably
+                    # commit a typed city. Typing a metro that isn't tracked yet
+                    # just yields no auto-suggested targets.
+                    city_in = ui.input("City / Region", placeholder="Type a city, or pick a tracked metro",
+                                       autocomplete=_ndr_location_options(institutions)).classes("w-full")
                 with ui.column().classes("flex-1"):
                     focus_in = ui.select([
                         "Post-earnings — deliver results story", "Pre-earnings — build anticipation",
@@ -1350,11 +2193,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                     if ndr_type == "in_person":
                         prior = _last_city_visit(_load_json("ndr_trips.json", []), location)
                         if prior:
-                            ui.label(f"📍 Last time in {location}: {prior.get('dates','—')} — \"{prior.get('name','')}\" "
+                            ui.label(f"Last time in {location}: {prior.get('dates','—')} — \"{prior.get('name','')}\" "
                                       f"({len(prior.get('meetings', []))} meeting(s) scheduled).").style(
                                 f"color:{COLORS['text_muted']};font-size:11.5px;margin-bottom:4px;")
                         else:
-                            ui.label(f"📍 No prior NDR trip on file to {location} — this would be a first visit.").style(
+                            ui.label(f"No prior NDR trip on file to {location} — this would be a first visit.").style(
                                 f"color:{COLORS['text_muted']};font-size:11.5px;margin-bottom:4px;")
                     candidates = _ndr_target_candidates(institutions, location, ndr_type)
                     if not candidates:
@@ -1375,7 +2218,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                     for idx, inst in enumerate(candidates):
                         default_check = idx < max_auto and not inst["USIO_Holder"]
                         days_since = _days_since_last_contact(inst["Fund"], meeting_log)
-                        border_clr = "#4ADE80" if inst["Engagement_Score"] >= 80 else "#F0A830" if inst["Engagement_Score"] >= 50 else "#94A3B8"
+                        border_clr = "#15803D" if inst["Engagement_Score"] >= 80 else "#B45309" if inst["Engagement_Score"] >= 50 else "#94A3B8"
                         with cols[idx % 2]:
                             with ui.row().classes("w-full items-start gap-2").style(
                                     f"background:{COLORS['surface_hover_bg']};border-left:3px solid {border_clr};"
@@ -1387,9 +2230,9 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                                         ui.label(str(inst["Engagement_Score"])).style(
                                             f"background:{border_clr}22;color:{border_clr};font-size:11px;font-weight:700;"
                                             f"padding:1px 6px;border-radius:5px;")
-                                    ui.label(f"{inst['Metro']} · {'✅ Holder' if inst['USIO_Holder'] else '🆕 Non-holder'} · {inst.get('Type','—')}").style(
+                                    ui.label(f"{inst['Metro']} · {'Holder' if inst['USIO_Holder'] else 'Non-holder'} · {inst.get('Type','—')}").style(
                                         f"color:{COLORS['text_muted']};font-size:11px;")
-                                    ui.label(f"🤝 Contacted {days_since}d ago" if days_since is not None else "🤝 No prior contact logged").style(
+                                    ui.label(f"Contacted {days_since}d ago" if days_since is not None else "No prior contact logged").style(
                                         f"color:{COLORS['text_muted']};font-size:10.5px;")
                             target_checks[inst["Fund"]] = (cb, inst)
 
@@ -1432,13 +2275,19 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                 })
                 _save_json("ndr_trips.json", trips)
                 n_non = sum(1 for _, i in selected if not i["USIO_Holder"])
-                ui.notify(f"NDR '{name_in.value}' created — {len(selected)} meeting(s) scheduled "
-                          f"({n_non} non-holders, {len(selected) - n_non} holders) across {days} day(s).")
-                _refresh()
+                ui.notify(f"NDR '{name_in.value}' created — {len(selected)} meeting(s) "
+                          f"({n_non} non-holders, {len(selected) - n_non} holders) across {days} day(s). "
+                          "Now showing under Active NDRs.")
+                # Refresh just the Active NDRs list and switch to it, instead of
+                # a full page reload that bounced the user back to Buy-Side
+                # Intelligence (the "I created it but where did it go?" problem).
+                _active_ndrs_panel.refresh()
+                ndr_tabs.set_value(nt2)
 
-            ui.button("✈️ Create NDR Trip", on_click=save_trip).props("color=primary").style("margin-top:8px;")
+            ui.button("Create NDR Trip", on_click=save_trip).props("color=primary").style("margin-top:8px;")
 
-        with ui.tab_panel(nt2):
+        @ui.refreshable
+        def _active_ndrs_panel():
             trips = _load_json("ndr_trips.json", [])
             if not trips:
                 ui.label("No NDR trips logged yet.").style(f"color:{COLORS['text_muted']};")
@@ -1449,7 +2298,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                 done_m = sum(1 for m in real_meetings if m.get("status") == "completed")
                 non_h = sum(1 for m in real_meetings if m.get("non_holder", True))
                 trip_status = trip.get("status", "Planning")
-                status_icon = {"Planning": "🟡", "In Progress": "🔵", "Completed": "🟢"}.get(trip_status, "🟡")
+                status_icon = {"Planning": "", "In Progress": "", "Completed": ""}.get(trip_status, "")
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                     with ui.row().classes("w-full justify-between items-start"):
                         with ui.column().classes("gap-0"):
@@ -1466,7 +2315,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                                 trips_[idx]["status"] = e.value
                                 _save_json("ndr_trips.json", trips_)
                                 ui.notify(f"Trip marked {e.value}.")
-                                _refresh()
+                                _active_ndrs_panel.refresh()
 
                             ui.select(["Planning", "In Progress", "Completed"], value=trip_status,
                                       on_change=set_trip_status).props("dense outlined").classes("min-w-[130px]")
@@ -1479,8 +2328,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                             current_day = d
                             ui.label(f"Day {d}" if len(meetings_with_idx) and any(mm.get("day", 1) != 1 for _, mm in meetings_with_idx) else "Meetings").style(
                                 f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;margin-top:8px;")
-                        nh_badge = "🆕" if m.get("non_holder", True) else "✅"
-                        fmt_badge = "💻" if m.get("format") in ("Zoom", "Teams") else "🏢"
+                        nh_badge = "" if m.get("non_holder", True) else ""
+                        fmt_badge = "" if m.get("format") in ("Zoom", "Teams") else ""
                         with ui.row().classes("w-full items-center gap-2").style(
                                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                             ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:11.5px;width:110px;")
@@ -1492,34 +2341,342 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                                 trips_ = _load_json("ndr_trips.json", [])
                                 trips_[idx]["meetings"][flat_idx]["status"] = e.value
                                 _save_json("ndr_trips.json", trips_)
-                                _refresh()
+                                _active_ndrs_panel.refresh()
 
                             ui.select(status_options, value=m.get("status", "scheduled"),
                                       on_change=set_meeting_status).props("dense outlined").classes("min-w-[110px]")
+
+                            # Call / email the contact at this institution —
+                            # to reschedule or send materials. Uses the known
+                            # institution contact; each icon only appears when
+                            # we actually have that number/email on file (a
+                            # hand-added firm with no contact shows neither).
+                            _mc = get_institution_contacts().get(m.get("institution", ""), {})
+                            if _mc.get("phone"):
+                                with ui.link(target=_tel_href(_mc["phone"])).tooltip(
+                                        f"Call {_mc.get('name', '')} · {_mc['phone']}"):
+                                    ui.icon("call").style(f"color:{COLORS['accent_light']};font-size:18px;")
+                            if _mc.get("email"):
+                                _first = _mc.get("name", "").split()[0] if _mc.get("name") else ""
+                                _slot = f" for our {m.get('time')} slot" if m.get("time") and m.get("time") != "—" else ""
+                                _subj = f"{CT('ticker')} — {m.get('institution', '')} meeting during {trip.get('city', '')} NDR"
+                                _bodym = (f"Hi {_first},\n\nLooking forward to our meeting during the "
+                                          f"{trip.get('city', '')} NDR ({trip.get('dates', '')}). I wanted to confirm "
+                                          f"logistics{_slot} and share some materials ahead of time.\n\n")
+                                _href = f"mailto:{_mc['email']}?subject={quote(_subj)}&body={quote(_bodym)}"
+                                with ui.link(target=_href).tooltip(f"Email {_mc.get('name', '')} · {_mc['email']}"):
+                                    ui.icon("mail").style(f"color:{COLORS['accent_light']};font-size:18px;")
+
+                            # Per-meeting remove — confirmed, since it's
+                            # destructive and there's no undo. flat_idx is the
+                            # index into the trip's own meetings list, so the
+                            # delete lands on the right row even though the
+                            # display is re-sorted by day.
+                            _m_name = m.get("institution") or "this meeting"
+                            with ui.dialog() as _del_dialog, ui.card():
+                                ui.label(f"Remove {_m_name} from this trip?").classes("font-bold")
+                                ui.label("This can't be undone.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                with ui.row().classes("justify-end w-full"):
+                                    ui.button("Cancel", on_click=_del_dialog.close).props("flat dense")
+
+                                    def do_remove(idx=idx, flat_idx=flat_idx, name=_m_name, dlg=_del_dialog):
+                                        trips_ = _load_json("ndr_trips.json", [])
+                                        try:
+                                            del trips_[idx]["meetings"][flat_idx]
+                                        except (IndexError, KeyError):
+                                            dlg.close()
+                                            ui.notify("List changed — reloading.", type="warning")
+                                            _active_ndrs_panel.refresh()
+                                            return
+                                        _save_json("ndr_trips.json", trips_)
+                                        dlg.close()
+                                        ui.notify(f"Removed {name} from trip.")
+                                        _active_ndrs_panel.refresh()
+
+                                    ui.button("Remove", on_click=do_remove).props("color=negative dense")
+
+                            # Edit meeting — set/adjust time, format, address, and
+                            # (for a virtual meeting) the join link that flows to
+                            # the itinerary. The key path for making a stop virtual
+                            # and pushing its link to the schedule.
+                            with ui.dialog() as _edit_dialog, ui.card().classes("w-96"):
+                                ui.label(f"Edit — {_m_name}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+                                with ui.row().classes("w-full gap-3 items-end"):
+                                    _e_time = ui.input("Time", value=m.get("time", "")).classes("flex-1")
+                                    with _e_time:
+                                        with ui.menu().props("no-parent-event") as _etmenu:
+                                            ui.time(on_change=lambda e, ti=_e_time: ti.set_value(_fmt_time_12h(e.value)))
+                                        with _e_time.add_slot("append"):
+                                            ui.icon("schedule").on("click", _etmenu.open).classes("cursor-pointer")
+                                    _e_fmt = ui.select(["In-person", "Virtual", "Zoom", "Teams", "Phone", "Jitsi"],
+                                                       value=m.get("format", "In-person"),
+                                                       label="Format").props("dense outlined").classes("w-32")
+                                _e_addr = ui.input("Address / location", value=m.get("address", "")).classes("w-full")
+                                _e_link = ui.input("Meeting link", value=m.get("meeting_link", ""),
+                                                   placeholder="Zoom / Teams / Meet URL").classes("w-full")
+                                _e_link.bind_visibility_from(_e_fmt, "value", backward=lambda v: v != "In-person")
+
+                                async def create_zoom(idx=idx, flat_idx=flat_idx, trip=trip, m=m,
+                                                      e_time=_e_time, e_link=_e_link, dlg=_edit_dialog):
+                                    import asyncio
+                                    from zoneinfo import ZoneInfo
+                                    from core import ndr_calendar, zoom_meetings
+                                    if not zoom_meetings.is_configured():
+                                        ui.notify("Add Zoom credentials in Settings → Data Sources first.", type="warning")
+                                        return
+                                    m_now = dict(m); m_now["time"] = (e_time.value or "").strip()
+                                    local = ndr_calendar.meeting_datetime(trip, m_now)
+                                    start_utc = local.astimezone(ZoneInfo("UTC")) if local else None
+                                    tzname = ndr_calendar.tz_name_for(trip.get("city"))
+                                    topic = f"{CT('ticker')} NDR — {m.get('institution', '')}"
+                                    ui.notify("Creating Zoom meeting…")
+                                    try:
+                                        res = await asyncio.to_thread(
+                                            zoom_meetings.create_meeting, topic, start_utc, 45, tzname)
+                                    except Exception as ex:
+                                        ui.notify(f"Zoom create failed: {ex}", type="negative")
+                                        return
+                                    link = res.get("join_url") or ""
+                                    e_link.value = link
+                                    # Persist immediately so a created Zoom meeting is never orphaned.
+                                    trips_ = _load_json("ndr_trips.json", [])
+                                    try:
+                                        mm = trips_[idx]["meetings"][flat_idx]
+                                    except (IndexError, KeyError):
+                                        ui.notify("List changed — reloading.", type="warning")
+                                        dlg.close(); _active_ndrs_panel.refresh(); return
+                                    mm["format"] = "Zoom"; mm["meeting_link"] = link
+                                    mm["zoom_meeting_id"] = str(res.get("id") or "")
+                                    _save_json("ndr_trips.json", trips_)
+                                    ui.notify("Zoom meeting created — join link added to the schedule.", type="positive")
+
+                                _zoom_btn = ui.button("Create Zoom meeting", icon="videocam",
+                                                      on_click=create_zoom).props("outline dense color=primary")
+                                _zoom_btn.bind_visibility_from(_e_fmt, "value", backward=lambda v: v == "Zoom")
+
+                                def create_jitsi(idx=idx, flat_idx=flat_idx, m=m, e_link=_e_link, dlg=_edit_dialog):
+                                    from core import jitsi_meetings
+                                    link = jitsi_meetings.create_link(f"{CT('ticker')} NDR {m.get('institution', '')}")
+                                    e_link.value = link
+                                    trips_ = _load_json("ndr_trips.json", [])
+                                    try:
+                                        mm = trips_[idx]["meetings"][flat_idx]
+                                    except (IndexError, KeyError):
+                                        ui.notify("List changed — reloading.", type="warning")
+                                        dlg.close(); _active_ndrs_panel.refresh(); return
+                                    mm["format"] = "Jitsi"; mm["meeting_link"] = link
+                                    _save_json("ndr_trips.json", trips_)
+                                    ui.notify("Jitsi link generated — added to the schedule.", type="positive")
+
+                                _jitsi_btn = ui.button("Generate Jitsi link", icon="link",
+                                                       on_click=create_jitsi).props("outline dense color=primary")
+                                _jitsi_btn.bind_visibility_from(_e_fmt, "value", backward=lambda v: v == "Jitsi")
+                                with ui.row().classes("justify-end w-full"):
+                                    ui.button("Cancel", on_click=_edit_dialog.close).props("flat dense")
+
+                                    def do_edit(idx=idx, flat_idx=flat_idx, dlg=_edit_dialog,
+                                                e_time=_e_time, e_fmt=_e_fmt, e_addr=_e_addr, e_link=_e_link):
+                                        trips_ = _load_json("ndr_trips.json", [])
+                                        try:
+                                            mm = trips_[idx]["meetings"][flat_idx]
+                                        except (IndexError, KeyError):
+                                            dlg.close(); ui.notify("List changed — reloading.", type="warning")
+                                            _active_ndrs_panel.refresh(); return
+                                        mm["time"] = (e_time.value or "").strip() or "—"
+                                        mm["format"] = e_fmt.value
+                                        mm["address"] = (e_addr.value or "").strip()
+                                        mm["meeting_link"] = (e_link.value or "").strip() if e_fmt.value != "In-person" else ""
+                                        _save_json("ndr_trips.json", trips_)
+                                        dlg.close()
+                                        ui.notify("Meeting updated.")
+                                        _active_ndrs_panel.refresh()
+
+                                    ui.button("Save", on_click=do_edit).props("color=primary dense")
+
+                            ui.button(icon="edit", on_click=_edit_dialog.open).props(
+                                "flat dense round size=sm color=grey-7").tooltip("Edit meeting")
+                            ui.button(icon="close", on_click=_del_dialog.open).props(
+                                "flat dense round size=sm color=grey-7").tooltip("Remove meeting")
+                        # Who they're meeting at the firm — the meeting's own
+                        # contact if set, else fall back to the known
+                        # institution contact so seeded meetings still show a
+                        # name instead of a blank.
+                        _known_c = get_institution_contacts().get(m.get("institution", ""), {})
+                        _who = m.get("contact") or (
+                            ", ".join(p for p in (_known_c.get("name"), _known_c.get("title")) if p))
+                        if _who:
+                            ui.label(f"   Meeting with: {_who}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                        if m.get("address"):
+                            ui.label(f"   Location: {m['address']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                        if m.get("format", "In-person") != "In-person":
+                            _lk = (m.get("meeting_link") or "").strip()
+                            if _lk:
+                                with ui.row().classes("items-center gap-1").style("margin-left:6px;"):
+                                    ui.label(f"   Join ({m.get('format')}):").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    with ui.link(target=_lk, new_tab=True):
+                                        ui.label(_lk[:48] + ("…" if len(_lk) > 48 else "")).style(f"color:{COLORS['accent_light']};font-size:11px;")
+                            else:
+                                ui.label(f"   {m.get('format')} · link TBD — click ✎ to add").style(
+                                    f"color:#B45309;font-size:11px;margin-left:6px;")
                         if m.get("notes"):
-                            ui.label(f"   💬 {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                            ui.label(f"   {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
 
-                    with ui.expansion("➕ Add a meeting to this trip by hand").classes("w-full").style("margin-top:6px;"):
-                        inst_in = ui.input("Institution").classes("w-full")
-                        notes_m = ui.input("Notes").classes("w-full")
+                    # Filler-meeting finder — a light day (like 3 meetings)
+                    # is the IR person's cue to fill open slots. Rather than
+                    # hunting around, surface tracked funds in this trip's metro
+                    # that aren't already scheduled, ranked by engagement score
+                    # (non-holders first — the conversion targets), each with
+                    # one-click Call / Email / Add-to-trip. Same targeting
+                    # engine as Plan New NDR.
+                    _scheduled = {mm.get("institution") for mm in all_meetings}
+                    _all_cands = [c for c in _ndr_target_candidates(
+                                      institutions, trip.get("city"), trip.get("ndr_type", "in-person"))
+                                  if c["Fund"] not in _scheduled]
+                    _fillers = _all_cands[:6]
+                    if _fillers:
+                        with ui.expansion(
+                                f"Fill open slots — {len(_all_cands)} available targets in {trip.get('city', 'this metro')}",
+                                value=len(real_meetings) < 4).classes("w-full").style("margin-top:6px;"):
+                            _n_non = sum(1 for c in _all_cands if not c.get("USIO_Holder", False))
+                            _more = f" Showing the top {len(_fillers)}." if len(_all_cands) > len(_fillers) else ""
+                            ui.label(f"Tracked funds in this metro you're not already meeting, ranked by engagement "
+                                     f"score — non-holders first ({_n_non} non-holder{'s' if _n_non != 1 else ''}, "
+                                     f"{len(_all_cands) - _n_non} holder{'s' if (len(_all_cands) - _n_non) != 1 else ''}). "
+                                     f"Call or email to invite, then add them to the trip.{_more}").style(
+                                f"color:{COLORS['text_muted']};font-size:11px;")
+                            for c in _fillers:
+                                cc = get_institution_contacts().get(c["Fund"], {})
+                                with ui.row().classes("w-full items-center gap-2").style(
+                                        f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
+                                    ui.label(str(c["Engagement_Score"])).style(
+                                        f"color:{COLORS['accent_light']};font-size:12px;font-weight:700;width:34px;")
+                                    with ui.column().classes("gap-0 flex-1"):
+                                        ui.label(c["Fund"]).style(f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;")
+                                        _bits = [c.get("Metro"), c.get("Type")]
+                                        if cc.get("name"):
+                                            _bits.append(f"{cc['name']} ({cc.get('title', '')})")
+                                        _bits.append(cc.get("phone") or "no contact on file")
+                                        ui.label(" · ".join(x for x in _bits if x)).style(
+                                            f"color:{COLORS['text_muted']};font-size:11px;")
+                                    if cc.get("phone"):
+                                        ui.link("Call", _tel_href(cc["phone"])).style(
+                                            f"color:{COLORS['accent_light']};font-size:12px;")
+                                    if cc.get("email"):
+                                        _first = cc.get("name", "").split()[0] if cc.get("name") else ""
+                                        _mailto(cc["email"],
+                                                f"{CT('ticker')} — meeting during {trip.get('city', '')} NDR?",
+                                                f"Hi {_first},\n\nWe'll be in {trip.get('city', '')} for a non-deal "
+                                                f"roadshow ({trip.get('dates', '')}). Would you have time to meet with "
+                                                f"{CT('name')} management? Happy to work around your schedule.\n\n",
+                                                "Email")
 
-                        def add_meeting(idx=idx, inst_in=inst_in, notes_m=notes_m):
+                                    def add_filler(c=c, cc=cc, idx=idx):
+                                        _open_add_to_trip_dialog(
+                                            idx, c["Fund"],
+                                            ", ".join(p for p in (cc.get("name"), cc.get("title")) if p),
+                                            not c.get("USIO_Holder", False),
+                                            c.get("Engagement_Score"), c.get("Metro"),
+                                            _active_ndrs_panel.refresh)
+
+                                    ui.button("Add to trip", on_click=add_filler).props("flat dense color=primary")
+
+                    with ui.expansion("Add a meeting to this trip by hand").classes("w-full").style("margin-top:6px;"):
+                        with ui.row().classes("w-full gap-4"):
+                            inst_in = ui.input("Institution *").classes("flex-1")
+                            contact_in = ui.input(
+                                "Who you're meeting (name / title)",
+                                placeholder="e.g. Michael Perkins, PM; Jane Doe, Analyst").classes("flex-1")
+                        with ui.row().classes("w-full gap-4"):
+                            address_in = ui.input(
+                                "Address / location",
+                                placeholder="e.g. 55 E 52nd St, 12th Fl, New York, NY").classes("flex-1")
+                        with ui.row().classes("w-full gap-4 items-end"):
+                            day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20")
+                            time_in = ui.input("Time", placeholder="e.g. 2:00 PM").classes("flex-1")
+                            with time_in:
+                                with ui.menu().props("no-parent-event") as _tmenu:
+                                    ui.time(on_change=lambda e, ti=time_in: ti.set_value(_fmt_time_12h(e.value)))
+                                with time_in.add_slot("append"):
+                                    ui.icon("schedule").on("click", _tmenu.open).classes("cursor-pointer")
+                            type_in = ui.select(["1x1", "Group", "Fireside", "Call"], value="1x1",
+                                                label="Type").props("dense outlined").classes("w-32")
+                            format_in = ui.select(["In-person", "Virtual", "Zoom", "Teams", "Phone", "Jitsi"], value="In-person",
+                                                  label="Format").props("dense outlined").classes("w-32")
+                        with ui.row().classes("w-full gap-4 items-end"):
+                            holder_in = ui.select(["Non-holder", "Holder"], value="Non-holder",
+                                                  label="Holder status").props("dense outlined").classes("w-40")
+                            notes_m = ui.input("Notes").classes("flex-1")
+                        link_m = ui.input("Meeting link (virtual)",
+                                          placeholder="Zoom / Teams / Meet URL").classes("w-full")
+                        link_m.bind_visibility_from(format_in, "value", backward=lambda v: v != "In-person")
+
+                        def add_meeting(idx=idx, inst_in=inst_in, contact_in=contact_in, address_in=address_in,
+                                        day_in=day_in, time_in=time_in, type_in=type_in, format_in=format_in,
+                                        holder_in=holder_in, notes_m=notes_m, link_m=link_m):
+                            if not (inst_in.value or "").strip():
+                                ui.notify("Institution is required.", type="warning")
+                                return
                             trips_ = _load_json("ndr_trips.json", [])
                             trips_[idx].setdefault("meetings", []).append({
-                                "institution": inst_in.value, "notes": notes_m.value, "day": 1, "time": "—",
-                                "type": "1x1", "format": "In-person", "status": "scheduled",
-                                "non_holder": True, "score": None, "contact": "",
+                                "institution": inst_in.value.strip(),
+                                "contact": (contact_in.value or "").strip(),
+                                "address": (address_in.value or "").strip(),
+                                "notes": notes_m.value,
+                                "day": int(day_in.value or 1),
+                                "time": (time_in.value or "").strip() or "—",
+                                "type": type_in.value, "format": format_in.value, "status": "scheduled",
+                                "meeting_link": (link_m.value or "").strip(),
+                                "non_holder": holder_in.value == "Non-holder", "score": None,
+                                "metro": trip.get("city", ""),
                             })
                             _save_json("ndr_trips.json", trips_)
-                            ui.notify("Meeting added to trip.")
-                            _refresh()
+                            ui.notify(f"{inst_in.value.strip()} added to trip.")
+                            _active_ndrs_panel.refresh()
 
                         ui.button("Add", on_click=add_meeting).props("dense")
 
                     def download_itinerary(trip=trip):
                         ui.download(_build_ndr_itinerary(trip, CT("ticker")).encode(), filename=f"{trip['name'].replace(' ','_')}_itinerary.txt")
 
-                    ui.button("⬇️ Export itinerary (.txt)", on_click=download_itinerary).props("flat dense").style("margin-top:6px;")
+                    def download_calendar(trip=trip):
+                        from core import fund_addresses, ndr_calendar
+                        ics = ndr_calendar.build_ics(
+                            trip, CT("ticker"),
+                            contacts=get_institution_contacts(),
+                            address_for=fund_addresses.address_for)
+                        ui.download(ics.encode(),
+                                    filename=f"{trip['name'].replace(' ','_')}.ics")
+                        ui.notify("Calendar file downloaded — open it to add every meeting "
+                                  "(with join links) to your calendar.")
+
+                    def print_itinerary(trip=trip):
+                        # Open the print-formatted itinerary in a new window and
+                        # trigger the browser print dialog, so app nav isn't
+                        # printed. Pop-up-blocked case falls back to an alert.
+                        doc = _build_ndr_itinerary_html(trip, CT("ticker"))
+                        ui.run_javascript(
+                            "const w=window.open('','_blank');"
+                            "if(w){"
+                            f"w.document.write({json.dumps(doc)});"
+                            "w.document.close();w.focus();setTimeout(()=>w.print(),350);"
+                            "}else{alert('Please allow pop-ups to print the itinerary.');}"
+                        )
+
+                    def email_itinerary(trip=trip):
+                        # Opens the user's own mail client (mailto) with the
+                        # itinerary pre-filled — no recipient, they choose who.
+                        href = (f"mailto:?subject={quote(CT('ticker') + ' NDR Itinerary — ' + trip['name'])}"
+                                f"&body={quote(_build_ndr_itinerary(trip, CT('ticker')))}")
+                        ui.run_javascript(f"window.location.href={json.dumps(href)};")
+
+                    with ui.row().classes("gap-2 items-center").style("margin-top:6px;"):
+                        ui.button("Export itinerary (.txt)", on_click=download_itinerary).props("flat dense")
+                        ui.button("Add to calendar (.ics)", icon="event", on_click=download_calendar).props("flat dense")
+                        ui.button("Print", icon="print", on_click=print_itinerary).props("flat dense")
+                        ui.button("Email", icon="mail", on_click=email_itinerary).props("flat dense")
+
+        with ui.tab_panel(nt2):
+            _active_ndrs_panel()
 
         with ui.tab_panel(nt3):
             _render_ndr_requests_tab()
@@ -1532,22 +2689,22 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
 
 
 def _render_ndr_requests_tab():
-    ui.label("📨 Inbound NDR / Meeting Requests").classes("font-bold")
+    ui.label("Inbound NDR / Meeting Requests").classes("font-bold")
     ui.label(
         "Analyst requests to slot a management meeting into a city — feeds the Big Picture panel's Metro "
         "Priority scoring and 'This Week's Priority' recommendation above. Resolve a request once it's been "
         "scheduled (or declined) so it stops counting as open demand."
     ).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
 
-    with ui.expansion("➕ Log a new request", value=False).classes("w-full"):
+    with ui.expansion("Log a new request", value=False).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
             r_analyst = ui.input("Analyst name *").classes("flex-1")
             bank_options = [a["firm"] for a in CA()] + ["Other / Non-Covering Bank"]
-            r_firm = ui.select(bank_options, value=bank_options[0], label="Firm").classes("flex-1")
+            r_firm = ui.input("Firm", value=bank_options[0], autocomplete=bank_options).classes("flex-1")
         with ui.row().classes("w-full gap-4"):
             r_city = ui.input("City *").classes("flex-1")
-            r_metro = ui.select(sorted({i["Metro"] for i in get_seed_buyside_institutions(get_active_client_id())}),
-                                 label="Metro region").classes("flex-1")
+            r_metro = ui.input("Metro region",
+                               autocomplete=sorted({i["Metro"] for i in get_seed_buyside_institutions(get_active_client_id())})).classes("flex-1")
         r_reason = ui.textarea("Reason / context", placeholder="What did they ask for, and why?").classes("w-full")
 
         def log_request():
@@ -1564,7 +2721,7 @@ def _render_ndr_requests_tab():
             ui.notify(f"Request from {r_analyst.value} logged.")
             _refresh()
 
-        ui.button("💾 Log Request", on_click=log_request).props("color=primary")
+        ui.button("Log Request", on_click=log_request).props("color=primary")
 
     ui.markdown("---")
     reqs = _load_ndr_requests()
@@ -1575,28 +2732,26 @@ def _render_ndr_requests_tab():
     if not open_reqs:
         ui.label("No open requests.").style(f"color:{COLORS['text_muted']};")
     for r in open_reqs:
-        with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-            with ui.row().classes("w-full items-start justify-between"):
-                with ui.column().classes("gap-0"):
-                    seed_tag = " · example" if r.get("seeded") else ""
-                    ui.label(f"{r['analyst']} ({r['firm']}) → {r['city']}{seed_tag}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                    ui.label(f"Received {r['received']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                    ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:12px;")
+        seed_tag = " · example" if r.get("seeded") else ""
+        with ui.expansion(f"{r['analyst']} ({r['firm']}) → {r['city']}{seed_tag}",
+                          caption=f"Received {r['received']}").classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"):
+            ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
-                def mark_resolved(rid=r["id"]):
-                    current = _load_ndr_requests()
-                    for rr in current:
-                        if rr["id"] == rid:
-                            rr["resolved"] = True
-                            rr["resolved_at"] = datetime.now().strftime("%b %d, %Y")
-                    _save_ndr_requests(current)
-                    ui.notify("Marked resolved.")
-                    _refresh()
+            def mark_resolved(rid=r["id"]):
+                current = _load_ndr_requests()
+                for rr in current:
+                    if rr["id"] == rid:
+                        rr["resolved"] = True
+                        rr["resolved_at"] = datetime.now().strftime("%b %d, %Y")
+                _save_ndr_requests(current)
+                ui.notify("Marked resolved.")
+                _refresh()
 
-                ui.button("✅ Resolve", on_click=mark_resolved).props("flat dense")
+            ui.button("Resolve", on_click=mark_resolved).props("flat dense").style("margin-top:6px;")
 
     if resolved_reqs:
-        with ui.expansion(f"✅ {len(resolved_reqs)} resolved").classes("w-full").style("margin-top:8px;"):
+        with ui.expansion(f"{len(resolved_reqs)} resolved").classes("w-full").style("margin-top:8px;"):
             for r in resolved_reqs:
                 ui.label(f"{r['analyst']} ({r['firm']}) → {r['city']} · resolved {r.get('resolved_at','—')}").style(
                     f"color:{COLORS['text_muted']};font-size:12px;")
@@ -1620,7 +2775,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
         ui.label("No NDR trips yet — create one in Plan New NDR.").style(f"color:{COLORS['text_muted']};")
         return
 
-    ui.label("📄 Meeting Prep Cards").classes("font-bold")
+    ui.label("Meeting Prep Cards").classes("font-bold")
     ui.label("Pick a trip to generate a prep card per meeting — pulled live from tracked institution data.").style(
         f"color:{COLORS['text_muted']};font-size:11.5px;")
 
@@ -1648,30 +2803,22 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                     current_day = d
                     ui.label(f"Day {d}").style(f"color:{COLORS['text_muted']};font-size:12px;font-weight:700;margin-top:10px;")
                 inst = inst_by_name.get(m.get("institution", ""))
-                fmt_badge = "💻" if m.get("format") in ("Zoom", "Teams") else "🏢"
-                with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-                    with ui.row().classes("w-full justify-between items-start"):
-                        with ui.column().classes("gap-0"):
-                            ui.label(f"{fmt_badge} {m.get('time','—')} — {m.get('institution','—')}").classes("font-bold").style(
-                                f"color:{COLORS['text_heading']};")
-                            if inst:
-                                holder_tag = "✅ Existing holder" if inst["USIO_Holder"] else "🆕 Non-holder"
-                                ui.label(f"{inst.get('Metro','—')} · {inst.get('Type','—')} · {holder_tag}").style(
-                                    f"color:{COLORS['text_muted']};font-size:12px;")
-                            else:
-                                ui.label("Not in tracked institution list — added by hand.").style(
-                                    f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;")
-                        if inst:
-                            score = inst["Engagement_Score"]
-                            score_clr = COLORS["positive"] if score >= 80 else COLORS["warning"] if score >= 50 else COLORS["text_muted"]
-                            ui.label(f"{score}/100").style(f"color:{score_clr};font-size:16px;font-weight:700;")
-
+                # Collapsed to a scannable agenda line (time — institution,
+                # with holder status + score in the caption); expand a meeting
+                # to see last-contact, strategy note, and talking points.
+                if inst:
+                    holder_tag = "Existing holder" if inst["USIO_Holder"] else "Non-holder"
+                    caption = f"{inst.get('Metro','—')} · {inst.get('Type','—')} · {holder_tag} · score {inst['Engagement_Score']}/100"
+                else:
+                    caption = "Not in tracked institution list — added by hand"
+                with ui.expansion(f"{m.get('time','—')} — {m.get('institution','—')}", caption=caption).classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"):
                     days_since = _days_since_last_contact(m.get("institution", ""), meeting_log) if inst else None
                     if days_since is not None:
-                        ui.label(f"🤝 Last contact: {days_since} day(s) ago").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                        ui.label(f"Last contact: {days_since} day(s) ago").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
 
                     if m.get("notes"):
-                        ui.label(f"💬 Strategy note: {m['notes']}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                        ui.label(f"Strategy note: {m['notes']}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
 
                     ui.label("Talking points").style(f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;margin-top:6px;")
                     if inst:
@@ -1701,7 +2848,7 @@ def _render_ndr_debrief_tab():
     trips = _load_json("ndr_trips.json", [])
     completed = [t for t in trips if t.get("status") == "Completed"]
 
-    ui.label("📊 Post-NDR Debrief").classes("font-bold")
+    ui.label("Post-NDR Debrief").classes("font-bold")
     if not completed:
         ui.label("No completed NDR trips yet — mark a trip \"Completed\" in Active NDRs once it wraps, "
                   "then debrief it here.").style(f"color:{COLORS['text_muted']};")
@@ -1757,7 +2904,7 @@ def _render_ndr_debrief_tab():
                 ui.notify(f"Debrief saved for '{trip_name}'.")
                 _refresh()
 
-            ui.button("💾 Save Debrief", on_click=save_debrief).props("color=primary").style("margin-top:8px;")
+            ui.button("Save Debrief", on_click=save_debrief).props("color=primary").style("margin-top:8px;")
 
             if debrief:
                 ui.markdown("---")
@@ -1767,11 +2914,11 @@ def _render_ndr_debrief_tab():
                     _bp_metric("Effectiveness", f"{debrief.get('effectiveness', '—')}/100", [])
                     _bp_metric("Best meeting", debrief.get("best_meeting") or "—", [])
                 if debrief.get("key_objection"):
-                    ui.label(f"⚠️ Key objection: {debrief['key_objection']}").style(f"color:{COLORS['warning']};font-size:12px;margin-top:6px;")
+                    ui.label(f"Key objection: {debrief['key_objection']}").style(f"color:{COLORS['warning']};font-size:12px;margin-top:6px;")
                 if debrief.get("narrative_gap"):
-                    ui.label(f"📉 Narrative gap: {debrief['narrative_gap']}").style(f"color:{COLORS['warning']};font-size:12px;")
+                    ui.label(f"Narrative gap: {debrief['narrative_gap']}").style(f"color:{COLORS['warning']};font-size:12px;")
                 if debrief.get("next_targets"):
-                    ui.label(f"➡️ Next targets: {debrief['next_targets']}").style(f"color:{COLORS['accent_light']};font-size:12px;")
+                    ui.label(f"Next targets: {debrief['next_targets']}").style(f"color:{COLORS['accent_light']};font-size:12px;")
 
     trip_sel.on_value_change(rebuild_form)
     rebuild_form()
@@ -1819,17 +2966,42 @@ def _render_meeting_hub_tab():
             contact_field.value = info["name"]
 
     with ui.tabs().classes("w-full") as hub_tabs:
-        h1 = ui.tab("📅 Upcoming Meetings")
-        h2 = ui.tab("➕ Schedule Meeting")
-        h3 = ui.tab("📝 Post-Meeting Notes")
+        h1 = ui.tab("Upcoming Meetings")
+        h2 = ui.tab("Schedule Meeting")
+        h3 = ui.tab("Post-Meeting Notes")
     with ui.tab_panels(hub_tabs, value=h1).classes("w-full"):
         with ui.tab_panel(h1):
             upcoming = sorted([m for m in scheduled if _safe_date(m["Date"]) >= today], key=lambda x: x["Date"])
-            with ui.row().classes("w-full gap-3"):
-                _hub_metric("Upcoming", len(upcoming))
-                _hub_metric("Sell-side", sum(1 for m in upcoming if m["Side"] == "Sell-side"))
-                _hub_metric("Buy-side", sum(1 for m in upcoming if m["Side"] == "Buy-side"))
-                _hub_metric("Notes captured", len(notes))
+            # Tiles are clickable filters over the meeting list below (by side);
+            # "Notes captured" jumps to the Post-Meeting Notes tab.
+            _hub_filter = {"mode": "all"}
+            hub_cards_row = ui.row().classes("w-full gap-3")
+
+            def _hub_shown():
+                if _hub_filter["mode"] == "sell":
+                    return [m for m in upcoming if m["Side"] == "Sell-side"]
+                if _hub_filter["mode"] == "buy":
+                    return [m for m in upcoming if m["Side"] == "Buy-side"]
+                return upcoming
+
+            def set_hub_filter(mode):
+                _hub_filter["mode"] = mode
+                render_hub_cards()
+                render_hub_list()
+
+            def render_hub_cards():
+                hub_cards_row.clear()
+                with hub_cards_row:
+                    _hub_metric("Upcoming", len(upcoming), "All scheduled ahead",
+                                _hub_filter["mode"] == "all", lambda: set_hub_filter("all"))
+                    _hub_metric("Sell-side", sum(1 for m in upcoming if m["Side"] == "Sell-side"),
+                                "Analyst meetings", _hub_filter["mode"] == "sell", lambda: set_hub_filter("sell"))
+                    _hub_metric("Buy-side", sum(1 for m in upcoming if m["Side"] == "Buy-side"),
+                                "Investor meetings", _hub_filter["mode"] == "buy", lambda: set_hub_filter("buy"))
+                    _hub_metric("Notes captured", len(notes), "Open the Notes tab", False,
+                                lambda: hub_tabs.set_value(h3))
+
+            render_hub_cards()
 
             def sync_inbox():
                 # "kind" tells mail_gateway who's who — sell-side analysts
@@ -1846,18 +3018,18 @@ def _render_meeting_hub_tab():
                         contact_lookup[a["email"].lower()] = {"name": a["name"], "firm": a.get("firm"), "kind": "analyst"}
                 result = mail_gateway.sync_inbox(contact_lookup)
                 if not result["ok"]:
-                    ui.notify(f"📧 {result['message']}", type="warning")
+                    ui.notify(f"{result['message']}", type="warning")
                 else:
                     n = len(result["messages"])
                     routed = sum(1 for m in result["messages"] if m.get("category") != "general")
                     if n:
                         extra = f" · {routed} item(s) flagged for review below" if routed else ""
-                        ui.notify(f"📧 Synced — {n} message(s) from known contacts.{extra}")
+                        ui.notify(f"Synced — {n} message(s) from known contacts.{extra}")
                     else:
-                        ui.notify("📧 Synced — no new messages from known contacts.")
+                        ui.notify("Synced — no new messages from known contacts.")
                     _refresh()
 
-            ui.button("🔄 Sync IR Inbox", on_click=sync_inbox).props("flat dense").style(
+            ui.button("Sync IR Inbox", on_click=sync_inbox).props("flat dense").style(
                 f"color:{COLORS['accent_light']};font-size:12px;margin-top:4px;")
             if not mail_gateway.is_configured():
                 ui.label("Email sync isn't configured yet (no IMAP credentials in .env) — this button will "
@@ -1866,23 +3038,36 @@ def _render_meeting_hub_tab():
 
             _render_pending_inbox_items()
 
-            if not upcoming:
-                ui.label("No upcoming meetings scheduled.").style(f"color:{COLORS['text_muted']};")
-            for mtg in upcoming:
-                with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-                    ui.label(f"{mtg['Date']} {mtg.get('Time','')} — {mtg['Contact']} ({mtg['Firm']})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                    ui.label(f"{mtg['Type']} · {mtg.get('Status','—')} · Priority: {mtg.get('Priority','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                    if mtg.get("Topic"):
-                        ui.label(f"Topic: {mtg['Topic']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                    _render_linked_documents(mtg["Contact"], mtg["Firm"])
+            hub_list = ui.column().classes("w-full gap-2").style("margin-top:8px;")
+
+            def render_hub_list():
+                hub_list.clear()
+                shown = _hub_shown()
+                with hub_list:
+                    label = {"all": "Upcoming", "sell": "Sell-side", "buy": "Buy-side"}[_hub_filter["mode"]]
+                    clear = "" if _hub_filter["mode"] == "all" else "  ·  click Upcoming to clear"
+                    ui.label(f"Showing {len(shown)} meeting(s) — {label}{clear}").style(
+                        f"color:{COLORS['text_muted']};font-size:12px;")
+                    if not shown:
+                        ui.label("No upcoming meetings in this view.").style(f"color:{COLORS['text_muted']};")
+                    for mtg in shown:
+                        cap = f"{mtg['Date']} {mtg.get('Time','')} · {mtg['Firm']} · {mtg.get('Side','')} · {mtg.get('Status','—')}"
+                        with ui.expansion(f"{mtg['Contact']} ({mtg['Firm']})", caption=cap).classes("w-full").style(
+                                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"):
+                            ui.label(f"{mtg['Type']} · Priority: {mtg.get('Priority','—')}").style(
+                                f"color:{COLORS['text_secondary']};font-size:12.5px;")
+                            if mtg.get("Topic"):
+                                ui.label(f"Topic: {mtg['Topic']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            _render_linked_documents(mtg["Contact"], mtg["Firm"])
+
+            render_hub_list()
 
         with ui.tab_panel(h2):
             ui.label("Schedule a New Meeting or Callback").classes("font-bold")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
                     s_contact = ui.input("Contact name *").classes("w-full")
-                    s_firm = ui.select(firm_options, label="Firm *", with_input=True).classes("w-full") \
-                        .props("use-input hide-selected fill-input input-debounce=0 new-value-mode=add-unique")
+                    s_firm = ui.input("Firm *", autocomplete=firm_options).classes("w-full")
                     s_firm.on_value_change(lambda e: _autofill_contact(e, s_contact))
                     s_side = ui.select(["Buy-side", "Sell-side"], value="Buy-side").classes("w-full")
                     s_priority = ui.select(["High", "Medium", "Low"], value="Medium").classes("w-full")
@@ -1905,8 +3090,8 @@ def _render_meeting_hub_tab():
                 pending_upload["bytes"] = await e.file.read()
                 pending_upload["filename"] = e.file.name
                 pending_upload["content_type"] = e.file.type
-                upload_status.text = f"📎 Attached: {e.file.name} — will be saved when you add this to the queue."
-                upload_status.style(f"color:#4ADE80;font-size:11.5px;")
+                upload_status.text = f"Attached: {e.file.name} — will be saved when you add this to the queue."
+                upload_status.style(f"color:#15803D;font-size:11.5px;")
 
             ui.label("Attach the analyst's model or agenda doc (optional):").style(
                 f"color:{COLORS['text_muted']};font-size:12px;margin-top:6px;")
@@ -1933,7 +3118,7 @@ def _render_meeting_hub_tab():
                           + (" — model attached" if pending_upload["bytes"] else ""))
                 _refresh()
 
-            ui.button("📅 Add to Meeting Queue", on_click=add_meeting).props("color=primary")
+            ui.button("Add to Meeting Queue", on_click=add_meeting).props("color=primary")
 
         with ui.tab_panel(h3):
             ui.label("Post-Meeting Note Capture — AI Structures Your Raw Notes").classes("font-bold")
@@ -1941,8 +3126,7 @@ def _render_meeting_hub_tab():
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
                     n_contact = ui.input("Contact name").classes("w-full")
-                    n_firm = ui.select(firm_options, label="Firm", with_input=True).classes("w-full") \
-                        .props("use-input hide-selected fill-input input-debounce=0 new-value-mode=add-unique")
+                    n_firm = ui.input("Firm", autocomplete=firm_options).classes("w-full")
                     n_firm.on_value_change(lambda e: _autofill_contact(e, n_contact))
                     n_side = ui.select(["Buy-side", "Sell-side"], label="Side", value="Buy-side").classes("w-full")
                     n_type = ui.select(["Intro call", "Follow-up call", "1x1 — Investor Conference",
@@ -1975,8 +3159,8 @@ def _render_meeting_hub_tab():
                 n_pending_upload["bytes"] = await e.file.read()
                 n_pending_upload["filename"] = e.file.name
                 n_pending_upload["content_type"] = e.file.type
-                n_upload_status.text = f"📎 Attached: {e.file.name}"
-                n_upload_status.style("color:#4ADE80;font-size:11.5px;")
+                n_upload_status.text = f"Attached: {e.file.name}"
+                n_upload_status.style("color:#15803D;font-size:11.5px;")
 
             ui.label("Attach anything that came with this note (updated model, PDF, etc.) — optional:").style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
@@ -2005,10 +3189,10 @@ def _render_meeting_hub_tab():
                 result_area.clear()
                 with result_area:
                     _render_structured_note(structured)
-                ui.notify(f"✅ Submitted — notes saved for {n_contact.value} at {n_firm.value}"
+                ui.notify(f"Submitted — notes saved for {n_contact.value} at {n_firm.value}"
                           + (" (with attachment)" if n_pending_upload["bytes"] else ""))
 
-            ui.button("🤖 Structure Notes with AI", on_click=structure_notes).props("color=primary")
+            ui.button("Structure Notes with AI", on_click=structure_notes).props("color=primary")
             ui.markdown("---")
 
             if notes:
@@ -2022,14 +3206,14 @@ def _render_meeting_hub_tab():
 
 def _render_structured_note(structured):
     sent = structured.get("sentiment", "—")
-    sent_clr = "#4ADE80" if sent == "Positive" else "#F87171" if sent == "Negative" else "#F0A830"
+    sent_clr = "#15803D" if sent == "Positive" else "#B91C1C" if sent == "Negative" else "#B45309"
     ui.label(f"Sentiment: {sent}").style(f"color:{sent_clr};font-weight:bold;")
     if structured.get("summary"):
         ui.label(structured["summary"]).style(f"color:{COLORS['text_body']};font-size:13px;")
-    for key, title in [("financial_kpi_takeaways", "📊 Financial/KPI takeaways"),
-                        ("key_questions", "❓ Key questions"), ("positive_signals", "✅ Positive signals"),
-                        ("concerns_raised", "⚠️ Concerns raised"), ("follow_up_actions", "📋 Follow-up actions"),
-                        ("commitments_made", "🤝 Commitments made")]:
+    for key, title in [("financial_kpi_takeaways", "Financial/KPI takeaways"),
+                        ("key_questions", "Key questions"), ("positive_signals", "Positive signals"),
+                        ("concerns_raised", "Concerns raised"), ("follow_up_actions", "Follow-up actions"),
+                        ("commitments_made", "Commitments made")]:
         items = structured.get(key)
         if items:
             ui.label(title).style("font-weight:bold;font-size:12.5px;margin-top:4px;")
@@ -2038,9 +3222,9 @@ def _render_structured_note(structured):
 
 
 _CATEGORY_LABELS = {
-    "model": "📊 Model", "research_note": "📄 Research Note", "ndr_request": "✈️ NDR Request",
-    "conference_invite": "🎤 Conference Invite", "speak_to_management": "☎️ Speak to Management",
-    "meeting_confirmation": "📅 Meeting Confirmation",
+    "model": "Model", "research_note": "Research Note", "ndr_request": "NDR Request",
+    "conference_invite": "Conference Invite", "speak_to_management": "Speak to Management",
+    "meeting_confirmation": "Meeting Confirmation",
 }
 
 
@@ -2077,7 +3261,7 @@ def _render_pending_inbox_items():
     firms_with_data = {a["firm"] for a in CA()}
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};margin-top:8px;"):
-        ui.label(f"📋 Pending Inbox Items ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label(f"Pending Inbox Items ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Classified and pre-filled from the email by AI where possible — review, correct if needed, "
                   "and confirm to send it where it belongs, or dismiss if it was mis-tagged.").style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
@@ -2098,7 +3282,7 @@ def _render_pending_inbox_items():
                         if result:
                             fname, _ctype, raw = result
                             ui.download(raw, filename=fname)
-                    ui.button(f"📎 {item['filename']}", on_click=_download).props("flat dense size=sm").style(
+                    ui.button(f"{item['filename']}", on_click=_download).props("flat dense size=sm").style(
                         f"color:{COLORS['accent_light']};font-size:11px;")
 
                 def dismiss(item_id=item["id"]):
@@ -2136,7 +3320,7 @@ def _render_pending_inbox_items():
                         else:
                             ui.notify("That item was already actioned.", type="warning")
                         _refresh()
-                    confirm_label = "✅ Confirm & Update Consensus"
+                    confirm_label = "Confirm & Update Consensus"
 
                 elif category == "research_note":
                     # CFA-lens breakdown, not just a summary — the reviewer
@@ -2197,7 +3381,7 @@ def _render_pending_inbox_items():
                             inbox_queue.mark_confirmed(item_id, outcome=outcome)
                             ui.notify(f"Research note from {firm} — {outcome.lower()}.")
                             _refresh()
-                    confirm_label = "✅ Confirm Review"
+                    confirm_label = "Confirm Review"
 
                 elif category == "ndr_request":
                     n_city = ui.input("City *", value=extracted.get("city") or "").classes("w-full").style("margin-top:6px;")
@@ -2219,7 +3403,7 @@ def _render_pending_inbox_items():
                         inbox_queue.mark_confirmed(item_id, outcome=f"Logged NDR request for {n_city.value}")
                         ui.notify(f"NDR request from {contact} logged — see NDR Planner → Requests.")
                         _refresh()
-                    confirm_label = "✅ Log NDR Request"
+                    confirm_label = "Log NDR Request"
 
                 elif category == "conference_invite":
                     c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;")
@@ -2241,7 +3425,7 @@ def _render_pending_inbox_items():
                         inbox_queue.mark_confirmed(item_id, outcome=f"Added '{c_event.value}' to Calendar")
                         ui.notify(f"'{c_event.value}' added to Calendar — confirm details there.")
                         _refresh()
-                    confirm_label = "✅ Add to Calendar"
+                    confirm_label = "Add to Calendar"
 
                 elif category == "speak_to_management":
                     m_contact_role = ui.input("Requested contact", value=extracted.get("requested_contact") or "CFO / IR").classes("w-full").style("margin-top:6px;")
@@ -2261,7 +3445,7 @@ def _render_pending_inbox_items():
                         inbox_queue.mark_confirmed(item_id, outcome=f"Scheduled meeting request for {contact}")
                         ui.notify(f"Meeting request from {contact} added to Meeting Hub — confirm date/time there.")
                         _refresh()
-                    confirm_label = "✅ Schedule Meeting"
+                    confirm_label = "Schedule Meeting"
 
                 else:  # meeting_confirmation
                     mc_type = ui.select(["1x1 call", "Conference call", "Video call", "In-person", "Other"],
@@ -2283,7 +3467,7 @@ def _render_pending_inbox_items():
                         inbox_queue.mark_confirmed(item_id, outcome=f"Logged confirmed meeting with {contact} on {mc_date.value}")
                         ui.notify(f"Confirmed meeting with {contact} added to Meeting Hub.")
                         _refresh()
-                    confirm_label = "✅ Log Confirmed Meeting"
+                    confirm_label = "Log Confirmed Meeting"
 
                 with ui.row().classes("w-full gap-2").style("margin-top:6px;"):
                     ui.button(confirm_label, on_click=confirm).props("color=primary dense")
@@ -2310,19 +3494,34 @@ def _render_linked_documents(contact, firm):
 
     with ui.row().classes("w-full gap-2").style("margin-top:4px;flex-wrap:wrap;"):
         if model_doc:
-            ui.button(f"📎 Latest model — {model_doc['filename']}",
+            ui.button(f"Latest model — {model_doc['filename']}",
                       on_click=lambda doc_id=model_doc["id"]: _download(doc_id)) \
                 .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
         if note_doc:
-            ui.button(f"📝 Latest note attachment — {note_doc['filename']}",
+            ui.button(f"Latest note attachment — {note_doc['filename']}",
                       on_click=lambda doc_id=note_doc["id"]: _download(doc_id)) \
                 .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
 
 
-def _hub_metric(label, value):
-    with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+def _hub_metric(label, value, hint="", active=False, on_click=None):
+    """Summary tile shared across Meeting Hub / Target Database / SEC
+    Intelligence. `hint` adds a one-line explanation so it isn't just a bare
+    number; passing `on_click` makes it a clickable filter that highlights
+    (accent top edge) when `active`."""
+    border = COLORS["accent"] if active else COLORS["border"]
+    bg = COLORS["surface_hover_bg"] if active else COLORS["surface_bg"]
+    edge = COLORS["accent"] if active else "transparent"
+    classes = "flex-1 text-center" + (" cursor-pointer" if on_click else "")
+    card = ui.card().classes(classes).style(
+        f"background:{bg};border:1px solid {border};border-top:3px solid {edge};")
+    with card:
         ui.label(str(value)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:10px;")
+        ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:11.5px;font-weight:600;")
+        if hint:
+            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+    if on_click:
+        card.on("click", on_click)
+    return card
 
 
 def _safe_date(s):
@@ -2338,32 +3537,57 @@ def _safe_date(s):
 def _render_target_db_tab(institutions, client_id):
     prospects = _load_json("prospects.json", [])
 
-    ui.label("🎯 Target Database").classes("text-lg font-bold")
+    ui.label("Target Database").classes("text-lg font-bold")
     ui.label("Search and filter the tracked institution universe, plus manually-added prospects. The automated "
              "prospecting pipeline below (Analyst Coverage Network, live-13F auto-generation, NOBO cross-reference, "
              "bulk paste) is ported and rebuilt on the live SEC 13F fetcher — see each section for details.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
-    search_in = ui.input("Search by fund name").classes("w-full")
-    results = ui.column().classes("w-full gap-2")
+    _db_filter = {"mode": "all"}
+    db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
+    # The full 91-row list dominated the tab, so search + results live in a
+    # collapsed expansion — the cards above are the summary. It auto-opens when
+    # a card filter is clicked, a search runs, or a global-search prefill lands,
+    # so a filtered view is never hidden behind a closed panel.
+    _search_exp = ui.expansion("Search by fund name", icon="search", value=False).classes("w-full").style(
+        f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;")
+    with _search_exp:
+        search_in = ui.input("Search by fund name").classes("w-full")
+        _search_btn_row = ui.row().classes("gap-2 items-center")
+        results = ui.column().classes("w-full gap-2")
 
     _OUTCOME_OPTIONS = {"— unresolved —": None, "Won (meeting set / met / owns)": "positive", "Passed": "negative"}
     _OUTCOME_REVERSE = {"positive": "Won (meeting set / met / owns)", "negative": "Passed", None: "— unresolved —"}
 
+    def _db_combined():
+        combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
+                    "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None} for i in institutions]
+        for idx, p in enumerate(_load_json("prospects.json", [])):
+            combined.append({"Fund": p["fund"], "Metro": p.get("metro", "—"), "Type": p.get("style", "—"),
+                             "USIO_Holder": False, "Score": p.get("score", 0), "Source": "Prospect", "_pidx": idx,
+                             "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown"))})
+        return combined
+
     def do_search():
         results.clear()
         q = (search_in.value or "").lower().strip()
-        combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
-                    "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None} for i in institutions]
-        current_prospects = _load_json("prospects.json", [])
-        combined += [{"Fund": p["fund"], "Metro": p.get("metro", "—"), "Type": p.get("style", "—"),
-                     "USIO_Holder": False, "Score": p.get("score", 0), "Source": "Prospect", "_pidx": idx,
-                     "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown"))}
-                     for idx, p in enumerate(current_prospects)]
+        combined = _db_combined()
         if q:
             combined = [c for c in combined if q in c["Fund"].lower()]
+        mode = _db_filter["mode"]
+        if mode == "holders":
+            combined = [c for c in combined if c["USIO_Holder"]]
+        elif mode == "nonholders":
+            combined = [c for c in combined if not c["USIO_Holder"]]
+        elif mode == "prospects":
+            combined = [c for c in combined if c["Source"] == "Prospect"]
         combined.sort(key=lambda x: -x["Score"])
         with results:
+            _labels = {"all": "All targets", "holders": "Current holders",
+                       "nonholders": "Non-holders", "prospects": "Prospects"}
+            clear = "" if mode == "all" else "  ·  click All targets to clear"
+            ui.label(f"{len(combined)} result(s) — {_labels[mode]}{clear}").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
             if not combined:
                 ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
             for c in combined:
@@ -2387,12 +3611,40 @@ def _render_target_db_tab(institutions, client_id):
                         ui.select(list(_OUTCOME_OPTIONS.keys()), value=_OUTCOME_REVERSE.get(c.get("_outcome")),
                                   on_change=set_outcome).props("dense outlined").classes("min-w-[220px]")
 
+    def set_db_filter(mode):
+        _db_filter["mode"] = mode
+        render_db_cards()
+        do_search()
+        _search_exp.set_value(True)  # a filtered list must not stay hidden
+
+    def render_db_cards():
+        c = _db_combined()
+        db_cards_row.clear()
+        with db_cards_row:
+            _hub_metric("All targets", len(c), "Tracked + prospects",
+                        _db_filter["mode"] == "all", lambda: set_db_filter("all"))
+            _hub_metric("Current holders", sum(1 for x in c if x["USIO_Holder"]), "Own USIO now",
+                        _db_filter["mode"] == "holders", lambda: set_db_filter("holders"))
+            _hub_metric("Non-holders", sum(1 for x in c if not x["USIO_Holder"]), "Conversion targets",
+                        _db_filter["mode"] == "nonholders", lambda: set_db_filter("nonholders"))
+            _hub_metric("Prospects", sum(1 for x in c if x["Source"] == "Prospect"), "Added to database",
+                        _db_filter["mode"] == "prospects", lambda: set_db_filter("prospects"))
+
+    # A global-search result for a fund lands here pre-searched (nav.go_to passes
+    # the fund name as search_prefill), so the user sees exactly the record they
+    # clicked instead of the full list.
+    _prefill = nav.highlights.pop("search_prefill", None)
+    if _prefill:
+        search_in.value = _prefill
+        _search_exp.set_value(True)  # arrived from global search — show the hit
     search_in.on("keydown.enter", do_search)
-    ui.button("Search", on_click=do_search).props("dense")
+    with _search_btn_row:
+        ui.button("Search", on_click=do_search).props("dense")
+    render_db_cards()
     do_search()
 
     ui.markdown("---")
-    with ui.expansion("✍️ Add a prospect manually").classes("w-full"):
+    with ui.expansion("Add a prospect manually").classes("w-full"):
         p_fund = ui.input("Fund name *").classes("w-full")
         p_metro = ui.input("Metro / region").classes("w-full")
         p_style = ui.input("Investment style").classes("w-full")
@@ -2410,10 +3662,10 @@ def _render_target_db_tab(institutions, client_id):
             ui.notify(f"Added {p_fund.value} to the prospect list.")
             _refresh()
 
-        ui.button("➕ Add Prospect", on_click=add_prospect).props("color=primary")
+        ui.button("Add Prospect", on_click=add_prospect).props("color=primary")
 
     ui.markdown("---")
-    with ui.expansion("📋 Bulk paste-from-website", value=False).classes("w-full"):
+    with ui.expansion("Bulk paste-from-website", value=False).classes("w-full"):
         ui.label("Some sites (WhaleWisdom in particular) render holder tables as styled grids, not plain HTML "
                   "tables — copy/paste from those won't preserve columns cleanly through a file upload. Paste raw "
                   "text here instead; it's parsed by tab or by runs of 2+ spaces.").style(
@@ -2464,16 +3716,16 @@ def _render_target_db_tab(institutions, client_id):
                         existing_names.add(name)
                         added += 1
                     _save_json("prospects.json", plist)
-                    ui.notify(f"✅ Added {added} funds to the prospect queue.")
+                    ui.notify(f"Added {added} funds to the prospect queue.")
                     _refresh()
 
-                ui.button(f"➕ Add all parsed rows to Prospect Queue", on_click=add_all).props("dense").style("margin-top:6px;")
+                ui.button(f"Add all parsed rows to Prospect Queue", on_click=add_all).props("dense").style("margin-top:6px;")
 
         bp_raw.on_value_change(bp_parse)
         ui.button("Parse", on_click=bp_parse).props("dense flat")
 
     ui.markdown("---")
-    with ui.expansion("🔬 Analyst Coverage Network Targeting", value=False).classes("w-full"):
+    with ui.expansion("Analyst Coverage Network Targeting", value=False).classes("w-full"):
         ui.label("Institutions already owning other stocks a covering analyst rates Buy have demonstrated they "
                   "trust that analyst's research and understand the surrounding sector thesis — the "
                   "highest-probability prospects once that analyst raises this client's target.").style(
@@ -2499,7 +3751,7 @@ def _render_target_db_tab(institutions, client_id):
                         f"color:{COLORS['text_heading']};font-size:12.5px;")
                     for stock in sorted(data["coverage"], key=lambda s: -s.get("relevance", 0)):
                         rel = stock.get("relevance", 0)
-                        rel_clr = "#4ADE80" if rel >= 80 else "#F0A830" if rel >= 50 else "#94A3B8"
+                        rel_clr = "#15803D" if rel >= 80 else "#B45309" if rel >= 50 else "#94A3B8"
                         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};margin-top:4px;"):
                             with ui.row().classes("w-full justify-between items-center"):
                                 ui.label(f"{stock['ticker']} — {stock['name']} · {stock.get('sector', '—')}").classes("font-bold").style(
@@ -2516,7 +3768,7 @@ def _render_target_db_tab(institutions, client_id):
             render_coverage_list()
 
             ui.markdown("---")
-            with ui.expansion("➕ Add stock to this analyst's coverage").classes("w-full"):
+            with ui.expansion("Add stock to this analyst's coverage").classes("w-full"):
                 ac_ticker = ui.input("Ticker").classes("w-full")
                 ac_name = ui.input("Company name").classes("w-full")
                 ac_pt = ui.number("Price target ($)", value=0.0, step=0.25)
@@ -2539,10 +3791,10 @@ def _render_target_db_tab(institutions, client_id):
                     else:
                         ui.notify(f"{ac_ticker.value.upper()} is already in this analyst's coverage.", type="warning")
 
-                ui.button("➕ Add", on_click=add_coverage_entry).props("dense")
+                ui.button("Add", on_click=add_coverage_entry).props("dense")
 
     ui.markdown("---")
-    with ui.expansion("🤖 Automated Prospecting Pipeline — Live 13F Holders of Coverage-Network Stocks", value=False).classes("w-full"):
+    with ui.expansion("Automated Prospecting Pipeline — Live 13F Holders of Coverage-Network Stocks", value=False).classes("w-full"):
         ui.label("For the selected analyst's other Buy-rated stocks scoring at or above the threshold, pulls real "
                   "SEC 13F institutional holders (already fetched via the SEC Intelligence tab's 'Refresh 13F "
                   "Institutional Holders' button — this does not trigger a new download itself), excludes anyone "
@@ -2568,13 +3820,33 @@ def _render_target_db_tab(institutions, client_id):
                 )
                 with auto_results:
                     if result["not_fetched_tickers"]:
-                        ui.label(f"⚠️ No live 13F data cached yet for: {', '.join(result['not_fetched_tickers'])} — "
+                        ui.label(f"No live 13F data cached yet for: {', '.join(result['not_fetched_tickers'])} — "
                                   f"add them to the Peer Universe below and refresh 13F on the SEC Intelligence tab "
                                   f"to include their holders here.").style(f"color:{COLORS['warning']};font-size:11px;")
+                    # Show what the quality gates removed, so a short (or empty) list
+                    # reads as "the filter worked", not "the pipeline is broken".
+                    _filt = result.get("filtered_passive", 0) + result.get("filtered_breadth", 0)
                     if not result["prospects"]:
-                        ui.label("No new prospects found at this relevance threshold.").style(f"color:{COLORS['text_muted']};")
-                        return
-                    ui.label(f"{len(result['prospects'])} prospect(s) found:").classes("font-bold")
+                        msg = ("No new prospects found at this relevance threshold."
+                               if not _filt else
+                               f"No qualifying institutional prospects — {_filt} holder(s) were found but "
+                               "filtered out as index/passive books, market makers, banks, or ETF issuers. "
+                               "Lower the relevance threshold or add more coverage tickers to widen the net.")
+                        ui.label(msg).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        # NB: no early return — the RIA bucket below must still render;
+                        # "no institutional targets, but 6 RIAs own it" is a real answer.
+                    # Deliberately NOT called "prospects found" — that collided with the
+                    # "Prospects" card above and read like the two numbers should match.
+                    # They're disjoint by construction: this list EXCLUDES everything
+                    # already tracked or already in the prospect queue (known_fund_names),
+                    # so these are candidates that are not in the database until ADDed.
+                    if result["prospects"]:
+                        ui.label(f"{len(result['prospects'])} new suggestion(s) — not in your database yet").classes("font-bold")
+                        _fnote = (f" · {_filt} filtered out as passive / market-maker / index noise"
+                                  if _filt else "")
+                        ui.label("Already-tracked funds and prospects you've added are filtered out of this list. "
+                                 f"Click ADD to move one into the Prospects count on the cards above.{_fnote}").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
                     for p in result["prospects"][:25]:
                         with ui.row().classes("w-full items-start justify-between").style(
                                 f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
@@ -2606,13 +3878,63 @@ def _render_target_db_tab(institutions, client_id):
                                 ui.notify(f"{p['fund']} added to prospect queue.")
                                 _refresh()
 
-                            ui.button("➕ Add", on_click=add_this).props("flat dense")
+                            ui.button("Add", on_click=add_this).props("flat dense")
 
-            ui.button("🚀 Auto-Generate Prospect List", on_click=run_auto_prospecting).props("color=primary dense")
+                    # ── RIA / wealth bucket ──────────────────────────────────
+                    # These own the stock but aren't institutional NDR targets —
+                    # kept out of the list above, yet visible here (only ones with
+                    # a real position) since who owns adjacent names through the
+                    # advisory channel is still worth knowing.
+                    _rias = result.get("ria_holders") or []
+                    if _rias:
+                        with ui.expansion(f"RIA / wealth managers holding these names ({len(_rias)})",
+                                          icon="account_balance_wallet", value=False).classes("w-full").style(
+                                f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:10px;"):
+                            ui.label("Real positions, but held through client accounts — there's no portfolio "
+                                     "manager to pitch, so these aren't NDR targets. Video-call tier: an "
+                                     "assistant can set these up, no management travel needed. Add one and the "
+                                     "NDR scheduler defaults it to a video call. Ranked by position size.").style(
+                                f"color:{COLORS['text_muted']};font-size:11px;")
+                            for r in _rias[:25]:
+                                with ui.row().classes("w-full items-center justify-between").style(
+                                        f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                                    with ui.column().classes("gap-0 flex-1"):
+                                        ui.label(r["fund"]).style(
+                                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                                        ui.label(f"{r['shares']:,} shares of {r['source_ticker']} "
+                                                 f"({r['source_name']})").style(
+                                            f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+                                    def add_ria(r=r):
+                                        plist = _load_json("prospects.json", [])
+                                        if any(x["fund"] == r["fund"] for x in plist):
+                                            ui.notify(f"{r['fund']} is already in the prospect queue.", type="warning")
+                                            return
+                                        plist.append({
+                                            "fund": r["fund"], "metro": "—", "style": "RIA / wealth manager",
+                                            "score": r["relevance"],
+                                            # Low-touch tier: video call an assistant schedules, not
+                                            # management travel. The NDR scheduler reads is_ria() and
+                                            # defaults these to a video format for the same reason.
+                                            "touch": "video-call",
+                                            "outreach": "Video call — assistant can schedule",
+                                            "notes": f"RIA/wealth manager — holds {r['shares']:,} shares of "
+                                                     f"{r['source_ticker']} ({r['source_name']}). Video-call "
+                                                     f"tier: no PM to pitch, so an assistant can set up a call.",
+                                            "added": datetime.now().strftime("%Y-%m-%d"),
+                                            "source": f"Coverage Network (RIA) — {r['source_ticker']}",
+                                        })
+                                        _save_json("prospects.json", plist)
+                                        ui.notify(f"{r['fund']} added to prospect queue.")
+                                        _refresh()
+
+                                    ui.button("Add", on_click=add_ria).props("flat dense")
+
+            ui.button("Auto-Generate Prospect List", on_click=run_auto_prospecting).props("color=primary dense")
             run_auto_prospecting()
 
     ui.markdown("---")
-    with ui.expansion("📋 NOBO Cross-Reference", value=False).classes("w-full"):
+    with ui.expansion("NOBO Cross-Reference", value=False).classes("w-full"):
         ui.label("Request from the transfer agent (e.g. Computershare) quarterly — Excel or CSV with holder name "
                   "and shares. Compares a list of names (the prospect queue, tracked institutions, the call "
                   "listener log, the IR website visitor log, or a pasted list) against this client's actual NOBO "
@@ -2624,7 +3946,7 @@ def _render_target_db_tab(institutions, client_id):
         def refresh_nobo_status():
             cur = prospecting.get_nobo_list(client_id)
             if cur.get("rows"):
-                nobo_status.text = f"✅ {cur['source_label']} — {len(cur['rows'])} holders on file (loaded {cur['_fetched_at'][:10]})"
+                nobo_status.text = f"{cur['source_label']} — {len(cur['rows'])} holders on file (loaded {cur['_fetched_at'][:10]})"
             else:
                 nobo_status.text = "No NOBO file on hand yet — request one from your transfer agent, or upload one below."
         refresh_nobo_status()
@@ -2664,7 +3986,7 @@ def _render_target_db_tab(institutions, client_id):
                     if name and name.lower() != "nan":
                         parsed.append({"holder_name": name, "shares": shares})
                 prospecting.save_nobo_list(parsed, source_label=f"Uploaded: {fname}", client_id=client_id)
-                ui.notify(f"✅ NOBO list updated — {len(parsed)} holders.")
+                ui.notify(f"NOBO list updated — {len(parsed)} holders.")
                 refresh_nobo_status()
             except Exception as ex:
                 ui.notify(f"Couldn't read that file: {ex}", type="negative")
@@ -2713,14 +4035,14 @@ def _render_target_db_tab(institutions, client_id):
                           f"prospects, not already-known shareholders").classes("font-bold")
                 with ui.row().classes("w-full gap-4"):
                     with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
-                        ui.label("✅ Identified shareholders").classes("font-bold").style("color:#4ADE80;font-size:12px;")
+                        ui.label("Identified shareholders").classes("font-bold").style("color:#15803D;font-size:12px;")
                         if matched:
                             for nm, mn, sh in matched:
                                 ui.label(f"{nm} → {mn} — {sh:,} shares").style(f"color:{COLORS['text_body']};font-size:11px;")
                         else:
                             ui.label("None matched.").style(f"color:{COLORS['text_muted']};font-size:11px;")
                     with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
-                        ui.label("🎯 Not on the NOBO file (genuine prospects)").classes("font-bold").style(
+                        ui.label("Not on the NOBO file (genuine prospects)").classes("font-bold").style(
                             f"color:{COLORS['text_heading']};font-size:12px;")
                         if unmatched:
                             for nm in unmatched:
@@ -2735,10 +4057,10 @@ def _render_target_db_tab(institutions, client_id):
 
 
 def _render_peer_universe_manager(institutions):
-    ui.label("🎯 Peer Cross-Targeting — Find Institutions Owning Peers But Not This Client").classes("font-bold")
+    ui.label("Peer Cross-Targeting — Find Institutions Owning Peers But Not This Client").classes("font-bold")
     peers = _load_peer_universe()
 
-    with ui.expansion("⚙️ Manage Peer Universe — Add or Remove Tickers", value=False).classes("w-full"):
+    with ui.expansion("Manage Peer Universe — Add or Remove Tickers", value=False).classes("w-full"):
         ui.label(f"Custom peer group saved to peer_universe.csv · Persists across restarts · {len(peers)} peers currently tracked").style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
 
@@ -2784,7 +4106,7 @@ def _render_peer_universe_manager(institutions):
                                   on_change=set_tier).props("dense outlined").classes("min-w-[90px]")
                         ui.number(value=p.get("weight", 1.0), min=0.1, max=5.0, step=0.5,
                                   on_change=set_weight).props("dense outlined").classes("min-w-[70px]")
-                        ui.button("🗑", on_click=do_delete).props("flat dense")
+                        ui.button("", on_click=do_delete).props("flat dense")
 
         render_manage_list()
         ui.label("Tier: \"core\" = closest-size direct comp (full Fit Score points, +5 conviction bonus) · "
@@ -2820,17 +4142,17 @@ def _render_peer_universe_manager(institutions):
             cur.append({"ticker": tkr, "name": nm, "sector": new_sector.value or "Payments / Fintech", "ev_rev": ev_val,
                         "tier": new_tier.value or "close", "weight": float(new_weight.value or 1.0)})
             _save_peer_universe(cur)
-            ui.notify(f"✅ {tkr} — {nm} added and saved" + (f" with EV/Rev {ev_val}x." if ev_val else " — no EV/Rev yet, flagged as needing research."))
+            ui.notify(f"{tkr} — {nm} added and saved" + (f" with EV/Rev {ev_val}x." if ev_val else " — no EV/Rev yet, flagged as needing research."))
             new_ticker.value, new_name.value, new_sector.value, new_ev.value = "", "", "", ""
             new_tier.value, new_weight.value = "close", 1.0
             render_manage_list()
             _refresh()
 
-        ui.button("➕ Add", on_click=add_peer).props("dense")
+        ui.button("Add", on_click=add_peer).props("dense")
 
         missing_ev = [p["ticker"] for p in peers if not p.get("ev_rev")]
         if missing_ev:
-            ui.label(f"⚠️ No EV/Revenue multiple on file for: {', '.join(missing_ev)} — these won't get a specific "
+            ui.label(f"No EV/Revenue multiple on file for: {', '.join(missing_ev)} — these won't get a specific "
                      f"valuation comparison in outreach drafts until a multiple is added here.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -2852,7 +4174,7 @@ def _render_peer_universe_manager(institutions):
                     _refresh()
 
                 if qt in existing_tickers:
-                    ui.label(f"✅ {qt}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    ui.label(f"{qt}").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
                 else:
                     ui.button(f"+ {qt}", on_click=add_quick).props("flat dense")
 
@@ -2871,9 +4193,9 @@ def _render_peer_universe_manager(institutions):
     _seed_tickers = [t for t in all_tickers if t not in _live_tickers]
     _freshness_bits = []
     if _live_tickers:
-        _freshness_bits.append(f"✅ Live SEC 13F data: {', '.join(_live_tickers)}")
+        _freshness_bits.append(f"Live SEC 13F data: {', '.join(_live_tickers)}")
     if _seed_tickers:
-        _freshness_bits.append(f"⚠️ Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
+        _freshness_bits.append(f"Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
     ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:11px;")
     if _seed_tickers:
         ui.label("Refresh a ticker from the SEC Intelligence tab's \"Refresh 13F Institutional Holders\" "
@@ -2925,20 +4247,20 @@ def _render_peer_universe_manager(institutions):
             ui.label(f"{len(cross_targets)} institutions own {', '.join(sel)} but NOT this client (AUM ≥ {aum_select.value}):").classes("font-bold").style("margin-top:6px;")
             for ct in sorted(cross_targets, key=lambda x: x["Engagement_Score"], reverse=True):
                 overlap = [p for p in sel if p in ct["Peer_Holdings"]]
-                # Same ✅ = confirmed-by-real-13F-filing marker as the
+                # Same = confirmed-by-real-13F-filing marker as the
                 # institution card's "Peers held" line — kept consistent so
                 # the same overlap doesn't look "more real" in one place
                 # than the other.
                 ct_src = ct.get("Peer_Holdings_Source", {})
-                overlap_labels = [p + (" ✅" if ct_src.get(p) == "live" else "") for p in overlap]
+                overlap_labels = [p + (" " if ct_src.get(p) == "live" else "") for p in overlap]
                 score = ct["Engagement_Score"]
-                score_clr = "#4ADE80" if score >= 80 else "#F0A830" if score >= 50 else "#94A3B8"
+                score_clr = "#15803D" if score >= 80 else "#B45309" if score >= 50 else "#94A3B8"
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
                     with ui.row().classes("w-full justify-between items-center"):
                         ui.label(f"{ct['Fund']} — {ct['Type']} · AUM {ct['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
                         ui.label(f"Score: {score}").style(f"color:{score_clr};font-weight:bold;")
                     ui.label(f"Owns: {', '.join(overlap_labels)} · IR visits (30d): {ct['IR_Visits_30d']} · "
-                             f"Q1 call: {'✅ Yes' if ct['Call_Listener'] else '⭕ No'} · Does NOT own this client").style(
+                             f"Q1 call: {'Yes' if ct['Call_Listener'] else 'No'} · Does NOT own this client").style(
                         f"color:{COLORS['text_muted']};font-size:11.5px;")
             if from_click:
                 ui.notify(f"Cross-targeting run — {len(cross_targets)} institution(s) found.", type="positive")
@@ -2947,7 +4269,7 @@ def _render_peer_universe_manager(institutions):
     run_cross_targeting()
 
     ui.markdown("---")
-    ui.label("🏆 Fit Score Ranking — All Confirmed Peer Holders (Live 13F)").classes("font-bold")
+    ui.label("Fit Score Ranking — All Confirmed Peer Holders (Live 13F)").classes("font-bold")
     ui.label(
         "Different scope from the watchlist-only Peer Cross-Targeting above: this scores EVERY institution with "
         "a confirmed live 13F position in your selected peers — not just names already on your tracked buy-side "
@@ -2998,7 +4320,7 @@ def _render_peer_universe_manager(institutions):
                     ui.notify("No confirmed 13F holders yet for these peers.", type="warning")
                 return
             ui.label(f"{len(scored)} institution(s) scored, ranked by Fit Score:").classes("font-bold").style("margin-top:6px;")
-            tier_clrs = {"P1": "#4ADE80", "P2": "#86EFAC", "P3": "#F0A830", "P4": "#94A3B8"}
+            tier_clrs = {"P1": "#15803D", "P2": "#3B8A5C", "P3": "#B45309", "P4": "#94A3B8"}
             for r in scored[:40]:
                 tier_clr = tier_clrs.get(r["tier"], "#94A3B8")
                 def add_scored_prospect(r=r):
@@ -3014,16 +4336,16 @@ def _render_peer_universe_manager(institutions):
                         "added": datetime.now().strftime("%Y-%m-%d"), "source": "Fit Score ranking",
                     })
                     _save_json("prospects.json", plist)
-                    ui.notify(f"✅ {r['fund']} added to prospect queue.")
+                    ui.notify(f"{r['fund']} added to prospect queue.")
 
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
                     with ui.row().classes("w-full justify-between items-center"):
                         ui.label(r["fund"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
                         with ui.row().classes("items-center gap-2"):
                             ui.label(f"{r['tier_label']} · {r['composite']}/100").style(f"color:{tier_clr};font-weight:bold;font-size:12.5px;")
-                            ui.button("➕ Add", on_click=add_scored_prospect).props("flat dense")
+                            ui.button("Add", on_click=add_scored_prospect).props("flat dense")
                     ui.label(f"Holds: {', '.join(r['peers_held'])}" +
-                             (" · 🆕 NEW buyer this quarter" if r["newbuyer_pts"] else "")).style(
+                             (" · NEW buyer this quarter" if r["newbuyer_pts"] else "")).style(
                         f"color:{COLORS['text_muted']};font-size:11.5px;")
                     with ui.row().classes("w-full gap-2").style("margin-top:2px;flex-wrap:wrap;"):
                         for label, val, maxv in [
@@ -3037,13 +4359,13 @@ def _render_peer_universe_manager(institutions):
                     ui.label(f"Turnover: {r['turnover_class']} ({r['turnover_why']}) · "
                               f"Purchasing power: {r['pp_class']} ({r['pp_why']}) · "
                               f"Contactability: {r['contact_class']} ({r['contact_why']})").style(
-                        f"color:{COLORS['text_muted']};font-size:10px;font-style:italic;margin-top:2px;")
+                        f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;margin-top:2px;")
             if from_click:
                 ui.notify(f"Fit Score ranking run — {len(scored)} institution(s) scored.", type="positive")
 
-    ui.button("🏆 Rank by Fit Score", on_click=lambda: run_fit_score_ranking(from_click=True)).props("color=primary dense")
+    ui.button("Rank by Fit Score", on_click=lambda: run_fit_score_ranking(from_click=True)).props("color=primary dense")
 
-    with ui.expansion("⚙️ Fit Score Weights — Re-weight the Components", value=False).classes("w-full"):
+    with ui.expansion("Fit Score Weights — Re-weight the Components", value=False).classes("w-full"):
         ui.label("Current weights (must sum to 100). Same 'transparent, re-weightable' design as the source — "
                   "every component always shows in its own column, the composite is never a black box.").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
@@ -3062,7 +4384,7 @@ def _render_peer_universe_manager(institutions):
                 ui.notify(f"Weights sum to {total}, not 100 — adjust before saving.", type="warning")
                 return
             fit_score.save_weights(new_weights, get_active_client_id())
-            ui.notify("✅ Weights saved — re-run Fit Score ranking to see the effect.", type="positive")
+            ui.notify("Weights saved — re-run Fit Score ranking to see the effect.", type="positive")
 
         ui.button("Save weights", on_click=save_weight_changes).props("dense")
 
@@ -3081,7 +4403,7 @@ def _render_peer_universe_manager(institutions):
                     f"color:{COLORS['text_muted']};font-size:11.5px;")
                 for c in result["components"]:
                     move_str = f"+{c['move']}" if c["move"] > 0 else str(c["move"])
-                    move_clr = "#4ADE80" if c["move"] > 0 else "#F87171" if c["move"] < 0 else COLORS["text_muted"]
+                    move_clr = "#15803D" if c["move"] > 0 else "#B91C1C" if c["move"] < 0 else COLORS["text_muted"]
                     ui.label(f"{c['label']}: current {c['cur']} → suggested {c['suggested']} ({move_str}) · "
                               f"lift {c['lift']} (avg {c['mean_pos']} converters vs {c['mean_neg']} passes)").style(
                         f"color:{move_clr};font-size:11.5px;")
@@ -3100,7 +4422,7 @@ def _render_peer_universe_manager(institutions):
 # and both are explicit, user-initiated actions.
 # ─────────────────────────────────────────────────────────────────────────
 def _render_sec_intelligence_tab():
-    ui.label("🏛️ SEC Intelligence").classes("text-lg font-bold")
+    ui.label("SEC Intelligence").classes("text-lg font-bold")
     ui.label(
         "Ownership-stake filings (13D/13G) and institutional holders (13F) for this client and its full peer "
         "universe — tracked tickers come straight from the Peer Cross-Targeting list in Target Database, so "
@@ -3143,10 +4465,43 @@ def _render_sec_intelligence_tab():
                 f"border-radius:4px;padding:8px 12px;margin-top:4px;"
             ):
                 ui.label(
-                    f"⚠️ 13F refresh failed for all {len(_13f_errors)} tracked ticker(s) — the SEC bulk "
+                    f"13F refresh failed for all {len(_13f_errors)} tracked ticker(s) — the SEC bulk "
                     f"download/parse itself errored before any institutional-holder data could be saved. "
                     f"This is not \"no data exists\"; it's a failed fetch. Error: {_sample_err}"
                 ).style(f"color:{COLORS['text_body']};font-size:12px;")
+
+    # At-a-glance summary of what's cached across the tracked universe.
+    _sec_tickers = sec_filings.tracked_tickers()
+    _sec_13d = sum(len(sec_filings.get_cached_13d_13g(t, refresh_if_stale=False).get("filings", []))
+                   for t, _n in _sec_tickers)
+    _sec_hold = sum(len(sec_filings.get_cached_13f_holders(t).get("holders", []))
+                    for t, _n in _sec_tickers)
+    with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
+        _hub_metric("Tickers tracked", len(_sec_tickers), "Client + peer universe")
+        _hub_metric("13D/13G on file", _sec_13d, "Ownership-stake filings")
+        _hub_metric("Institutional holders", _sec_hold, "From latest 13F")
+
+    # Data-provenance rollup — how big the tracked universe is and where every
+    # name came from. This is the honest, concrete answer to "why isn't the
+    # database bigger?": it grows from authoritative sources, each tagged.
+    _cid = get_active_client_id()
+    _merged = _merge_sec_universe([dict(i) for i in get_seed_buyside_institutions(_cid)], _cid)
+    from collections import Counter as _Counter
+    _by_src = _Counter(i.get("Source", "Seed (demo)") for i in _merged)
+    try:
+        _nobo_inst = sum(1 for h in nobo_engine.get_active_pulls(_cid)["current"]["holders"]
+                         if h.get("type") == "Institutional")
+    except Exception:
+        _nobo_inst = 0
+    ui.label("Universe by data source").classes("font-bold").style("margin-top:12px;")
+    ui.label(f"{len(_merged)} distinct names in the tracked universe · plus {_nobo_inst} institutional NOBO "
+             "holders (Market Intelligence → NOBO). Hand-typed seed today; refresh below to grow the real "
+             "SEC-sourced names live from EDGAR.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+    with ui.row().classes("w-full gap-2 flex-wrap").style("margin-top:4px;"):
+        for _src, _n in _by_src.most_common():
+            ui.label(f"{_src}: {_n}").style(
+                f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:2px 10px;"
+                "font-size:12px;font-weight:600;")
 
     sec_container = ui.column().classes("w-full gap-2").style("margin-top:8px;")
 
@@ -3163,7 +4518,7 @@ def _render_sec_intelligence_tab():
                     label += f" · {len(holders)} institutional holders ({f13['quarter']})"
                 with ui.expansion(label).classes("w-full"):
                     if d13.get("_error"):
-                        ui.label(f"⚠️ 13D/13G fetch error: {d13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
+                        ui.label(f"13D/13G fetch error: {d13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
                     if not filings:
                         ui.label("No 13D/13G filings cached yet for this ticker.").style(f"color:{COLORS['text_muted']};font-size:12px;")
                     else:
@@ -3174,7 +4529,7 @@ def _render_sec_intelligence_tab():
 
                     ui.markdown("---")
                     if f13.get("_error") and f13["_error"] != "not yet fetched":
-                        ui.label(f"⚠️ 13F fetch error: {f13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
+                        ui.label(f"13F fetch error: {f13['_error']}").style(f"color:{COLORS['warning']};font-size:11.5px;")
                     if not holders:
                         ui.label("No 13F institutional-holder data cached yet — use 'Refresh 13F Institutional "
                                  "Holders' below.").style(f"color:{COLORS['text_muted']};font-size:12px;")
@@ -3240,9 +4595,43 @@ def _render_sec_intelligence_tab():
             ui.notify(f"Refresh failed: {e}", type="negative")
         render_sec_list()
 
-    with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
-        ui.button("🔄 Refresh 13D/13G Now", on_click=refresh_13d13g).props("color=primary dense")
-        ui.button("📊 Refresh 13F Institutional Holders (slow)", on_click=refresh_13f).props("flat dense")
+    async def refresh_universe():
+        # One-click: pull COMPLETE 13F holders (bulk structured dataset,
+        # filtered by CUSIP — exact shares, every holder) for USIO and every
+        # peer, plus 13D/13G, then report how many real names populate the
+        # universe by source. This is the "make it bigger, accurately" action.
+        ui.notify("Refreshing from SEC EDGAR — downloading the ~100MB quarterly 13F bulk dataset and pulling "
+                  "13D/13G. This is the complete, by-CUSIP holder list; it takes 1–3 minutes.", type="warning")
+        try:
+            await asyncio.to_thread(sec_filings.refresh_13f_bulk_all, sec_filings.tracked_tickers())
+            await asyncio.to_thread(sec_filings.refresh_all, False, True)
+            recs = _sec_universe_records(get_active_client_id())
+            bs = _Counter(r["Source"] for r in recs)
+            summary = ", ".join(f"{n} {s}" for s, n in bs.most_common()) or "no new names this quarter"
+            ui.notify(f"SEC EDGAR refresh complete — {len(recs)} real names now in your universe ({summary}). "
+                      "Reopen Buy-Side Intelligence to see them tagged by source.", type="positive")
+        except Exception as e:
+            ui.notify(f"Refresh failed: {e}", type="negative")
+        render_sec_list()
+
+    # Data pulls (13F / 13D-G / full universe) are triggered only from
+    # Settings → Data Sources now — one deliberate place for an expensive SEC
+    # refresh, so opening a tab never kicks one off. This tab shows the cached
+    # result; reopen it after a pull to see fresh holders. (The refresh_* handlers
+    # above are unused here — the live controls live in
+    # settings_page._render_data_sources.)
+    ui.markdown("---")
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            f"border-left:4px solid {COLORS['accent']};"):
+        ui.label("Data pulls live in Settings").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:13px;")
+        ui.label("Refreshing SEC 13F / 13D-G data hits the network and can take minutes, so it's kicked off only "
+                 "from Settings → Data Sources — never by navigating here.").style(
+            f"color:{COLORS['text_secondary']};font-size:12px;")
+        ui.button("Open Settings → Data Sources", icon="settings",
+                  on_click=lambda: nav.go_to("Settings", "Data Sources")).props(
+            "flat dense color=primary").style("margin-top:4px;")
 
     ui.markdown("---")
     ui.label(

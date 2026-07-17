@@ -1,6 +1,41 @@
 """
 USIO IR Platform — Main App (with Mail Gateway integrated)
 ===========================================================
+
+⚠ LEGACY STREAMLIT PROTOTYPE — NOT THE LIVE APP.
+The live application is app_nicegui.py (NiceGUI, port 8502). This file is kept
+runnable (`streamlit run app.py`) and is still imported by pages/outreach.py,
+page_modules/calendar_page.py and page_modules/outreach.py, so it is not dead —
+but nothing here is the source of truth for analysis.
+
+⚠ ITS ANALYSIS STRINGS ARE HARD-CODED, NOT COMPUTED.
+Unlike the live app (which recomputes every figure from SEC filings via
+core/forensics.py + core/benchmarking_engine.py), the peer/valuation commentary
+here is static text written against the demo workbook
+USIO_Peer_Benchmarking_Report_v2_2.xlsx — whose verbatim "10-K p.58/p.38/p.94"
+citations are FABRICATED (verified against the primary filings 2026-07-16; see
+CHANGELOG and data/seed/quarantine/peer_forensics_QUARANTINED.py).
+
+Seven such claims were corrected on 2026-07-16. They mattered because several were
+investor-facing talking points, and they were inverted, not merely imprecise:
+
+  * "PRTH holder entry: both net reporters — direct margin comparison valid"
+    -> USIO reports revenue GROSS as a principal (10-K filed 2026-03-18). The
+       comparison it told the IR team to make is invalid.
+  * "GDOT holder entry: USIO adj. GM > GDOT adj. GM after gross vs net normalization"
+    -> GDOT reports no gross profit or cost-of-revenue line AT ALL. There is
+       nothing to normalize and no comparison to offer.
+  * "USIO efficiency ratio 61.2 — #1 in peer group, more than double next-best"
+    -> Live, filing-sourced: 31.2, rank 3 of 6. PSFE and RPAY are ahead.
+  * "0.4x EV/Revenue vs peer median 2.3x — 82% discount not justified"
+    -> EV/Revenue is not comparable across this peer set; it overstates the
+       discount precisely because USIO reports gross.
+
+IF YOU ADD ANALYSIS TEXT HERE, HARD-CODE NOTHING. Import from core/ so it moves
+when the filings move. A number typed into a string is true only on the day it is
+typed, and this file is the proof.
+
+-----------------------------------------------------------------------------
 Replace your existing app.py with this file.
 The only change from your original: the Mail Gateway tab is now live.
 
@@ -33,9 +68,45 @@ import streamlit as st
 from config.client_config import (
     C, CI, CA, CP, CE, CF, CT, CG, get_client, get_active_client_id,
     client_data_path, team_email_lookup,
+    role_roster, role_key_from_display, role_can_view, role_access_level,
+    role_has_full_access, DEFAULT_ROLE_KEY,
 )
 from data.seed.conferences import get_seed_conferences
 from data.seed.institution_contacts import get_institution_contacts
+
+
+def _ir_signoff(closing="Best"):
+    """Email sign-off block built from the ACTIVE CLIENT's IR contact and
+    company name (config/client_config.py) rather than a hardcoded
+    'Paul Manley / SVP, Investor Relations / Usio, Inc.'. Every embedded
+    outreach template below uses this so the default draft is correct for
+    whichever client is active. A client whose ir_contact omits a title or
+    whose record omits a company name just gets those lines dropped."""
+    ir = CI()
+    lines = [f"{closing},"]
+    if ir.get("name"):
+        lines.append(ir["name"])
+    if ir.get("title"):
+        lines.append(ir["title"])
+    company = C().get("name", "")
+    if company:
+        lines.append(company)
+    return "\n".join(lines)
+
+
+def _ir_name():
+    """Active client's IR contact name (e.g. for inline 'Louis Hoch (CEO)
+    and Paul Manley (IR)' style references), never a hardcoded literal."""
+    return CI().get("name", "")
+
+
+def _exec_ref(role_key):
+    """'Name (ROLE)' reference for an executive from the active client's
+    profile, e.g. '{CEO name} (CEO)'. Falls back to just the role label if
+    the client hasn't staffed that role."""
+    info = get_client().get("executives", {}).get(role_key, {})
+    name = info.get("name")
+    return f"{name} ({role_key})" if name else role_key
 
 # ── EMBEDDED REPORT IMAGES — base64-encoded directly in this file so there's
 #    nothing separate to download, organize into folders, or lose track of.
@@ -229,7 +300,7 @@ def render_mail_gateway_ui():
             mg_body = (f"Hi {_an['name'].split()[0]},\n\n"
                        f"With Q2 earnings on August 12, I wanted to make sure you have everything needed to update your USIO model "
                        f"ahead of the print. Happy to set up a call with our CFO if useful, or send the standard model template directly.\n\n"
-                       f"Let me know what works best.\n\nBest,\nPaul Manley\nSVP, Investor Relations\nUsio, Inc.")
+                       f"Let me know what works best.\n\n" + _ir_signoff())
             st.text_input("Subject", value=mg_subj, key="mg_subj_1")
             mg_body = st.text_area("Message", value=mg_body, height=160, key="mg_body_1")
 
@@ -255,8 +326,8 @@ def render_mail_gateway_ui():
             mg_subj = f"USIO Meeting Confirmation — {_mtg['day']}, {_mtg['time']}"
             mg_body = (f"Hi,\n\nConfirming our meeting on {_mtg['day']} at {_mtg['time']}"
                        f"{' at ' + _mtg['location'] if _mtg['location'] != 'Zoom' else ' via Zoom (link to follow)'}.\n\n"
-                       f"Louis Hoch (CEO) and I will be there to walk through Q2 results and the USIO investment thesis. "
-                       f"Let me know if anything changes on your end.\n\nBest,\nPaul Manley\nSVP, Investor Relations\nUsio, Inc.")
+                       f"{_exec_ref('CEO')} and I will be there to walk through Q2 results and the {C().get('ticker','')} investment thesis. "
+                       f"Let me know if anything changes on your end.\n\n" + _ir_signoff())
             st.text_input("Subject", value=mg_subj, key="mg_subj_2")
             mg_body = st.text_area("Message", value=mg_body, height=140, key="mg_body_2")
 
@@ -277,7 +348,7 @@ def render_mail_gateway_ui():
             mg_subj = f"USIO — {_outreach_type}"
             mg_body = (f"Hi,\n\nReaching out re: {_sh['name']} ({_sh['contact']}) — {_outreach_type.lower()}.\n\n"
                        f"USIO posted Q1 2026 revenue of $25.47M, up 16% YoY — a record quarter — with our first profitable quarter on a GAAP basis. "
-                       f"Q2 earnings are scheduled for August 12.\n\nWould welcome the chance to connect.\n\nBest,\nPaul Manley\nSVP, Investor Relations\nUsio, Inc.")
+                       f"Q2 earnings are scheduled for August 12.\n\nWould welcome the chance to connect.\n\n" + _ir_signoff())
             st.text_input("Subject", value=mg_subj, key="mg_subj_3")
             mg_body = st.text_area("Message", value=mg_body, height=140, key="mg_body_3")
 
@@ -287,8 +358,8 @@ def render_mail_gateway_ui():
             _conf = st.selectbox("Conference", ["H.C. Wainwright Annual Conference — Sep 8","Ladenburg Thalmann Conference — Oct 14"])
             mg_to = st.text_input("To", placeholder="conferences@hcwco.com", key="mg_to_4")
             mg_subj = f"USIO Registration — {_conf.split(' — ')[0]}"
-            mg_body = (f"Hi,\n\nConfirming USIO's attendance at {_conf}. Please register Louis Hoch (CEO) and Paul Manley (IR) "
-                       f"for management presentation slots and 1x1 meetings with interested institutions.\n\nBest,\nPaul Manley\nSVP, Investor Relations\nUsio, Inc.")
+            mg_body = (f"Hi,\n\nConfirming {C().get('ticker','')}'s attendance at {_conf}. Please register {_exec_ref('CEO')} and {_ir_name()} (IR) "
+                       f"for management presentation slots and 1x1 meetings with interested institutions.\n\n" + _ir_signoff())
             st.text_input("Subject", value=mg_subj, key="mg_subj_4")
             mg_body = st.text_area("Message", value=mg_body, height=140, key="mg_body_4")
 
@@ -686,16 +757,19 @@ with st.sidebar:
 
     st.markdown("")
 
-    # Role selector — controls what the main view shows
+    # Role selector — controls what the main view shows. Options are built
+    # from the ACTIVE CLIENT's profile (config/client_config.py: ir_contact +
+    # executives) rather than hardcoded person names, so this is correct for
+    # whichever client is active. Each option reads "<Person> — <Role label>";
+    # what each role may see/do comes from the ROLE_PERMISSIONS matrix.
     st.markdown('<div style="font-size:12px;color:#94A3B8;text-transform:uppercase;letter-spacing:.10em;padding:12px 16px 4px;font-weight:700;">LOGGED IN AS</div>', unsafe_allow_html=True)
-    user_role = st.selectbox("", ["Paul Manley — IR Director","Michael White — CFO","Louis Hoch — CEO"],
-        label_visibility="collapsed", key="user_role")
+    _role_roster   = role_roster()
+    _role_options  = [r["display"] for r in _role_roster] or ["—"]
+    user_role      = st.selectbox("", _role_options, label_visibility="collapsed", key="user_role")
 
-    # CEO and CFO roles render a fixed briefing view (see role branches below) and never
-    # reach the page router — so the nav buttons below are locked for those roles rather
-    # than shown as if they work. Only IR Director uses full navigation.
-    _sidebar_role    = user_role.split(" — ")[0]
-    _nav_enabled     = (_sidebar_role == "Paul Manley")
+    # Resolve the selected role back to its role_key (IR/CEO/CFO/CRO/Legal…);
+    # every gating decision below keys off this, never off a person's name.
+    _active_role_key = role_key_from_display(user_role)
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
@@ -726,8 +800,8 @@ with st.sidebar:
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-    if not _nav_enabled:
-        st.caption("🔒 This role sees a fixed briefing view for the demo. Switch to **Paul Manley — IR Director** for full navigation.")
+    if _active_role_key != DEFAULT_ROLE_KEY:
+        st.caption(f"🔒 Viewing as **{_active_role_key}** — pages outside this role's responsibilities are locked below.")
 
     # Navigation — grouped by job, not alphabetically
     if "nav_page" not in st.session_state:
@@ -754,18 +828,28 @@ with st.sidebar:
         st.markdown(f'<div class="nav-section">{group_label}</div>', unsafe_allow_html=True)
         for page, icon, label, desc in items:
             _is_active = st.session_state.get("nav_page") == page
+            # Per-page access from the role matrix: "full" (open + edit),
+            # "read" (open, view-only), or "none" (locked).
+            _access = role_access_level(_active_role_key, page)
+            _page_enabled = _access in ("full", "read")
             # Build two-line label with HTML
             _lines = label.split("\n")
             _line1 = _lines[0]
             _line2 = _lines[1] if len(_lines) > 1 else ""
             _btn_label = f"{icon}  {_line1}" + (f"\n{_line2}" if _line2 else "")
+            if _access == "read":
+                _help = f"{desc} · view-only for the {_active_role_key} role"
+            elif _access == "none":
+                _help = f"Locked — the {_active_role_key} role has no access to this page"
+            else:
+                _help = desc
             if st.button(
                 _btn_label,
                 key=f"nav_{page}",
                 use_container_width=True,
-                help=desc if _nav_enabled else "Locked — switch to Paul Manley — IR Director to use this page",
+                help=_help,
                 type="primary" if _is_active else "secondary",
-                disabled=not _nav_enabled,
+                disabled=not _page_enabled,
             ):
                 st.session_state.nav_page = page
                 st.rerun()
@@ -797,10 +881,24 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 page = st.session_state.nav_page
-role = user_role.split(" — ")[0]
+
+# Guard: if this role can't view the currently-selected page (e.g. the user
+# switched roles while sitting on a page their new role has no access to),
+# fall back to the first page the role's matrix does permit. Keeps a role
+# from ever landing on a page outside its responsibilities.
+if not role_can_view(_active_role_key, page):
+    _viewable = [pg for _grp, _items in NAV_GROUPS
+                 for pg, *_rest in _items if role_can_view(_active_role_key, pg)]
+    page = _viewable[0] if _viewable else "Today"
+    st.session_state.nav_page = page
 
 # ── CEO VIEW ─────────────────────────────────────────────────────────────
-if role == "Louis Hoch":
+# Curated executive landing, shown as the CEO's "Today". The CEO can still
+# navigate to the other pages their role permits (Earnings, Calendar,
+# Markets, Reports) via the nav — those render through the main router below.
+# A role elevated to full IR-equivalent access (role_has_full_access) skips
+# the curated briefing and gets the full app, including the real Today page.
+if _active_role_key == "CEO" and page == "Today" and not role_has_full_access("CEO"):
     st.markdown("<div style='padding:28px 4px 0;'><div style='font-size:13px;color:#6B8FAF;text-transform:uppercase;'>CEO VIEW</div><div style='font-size:26px;font-weight:700;color:#E8EDF5;'>Q2 2026 Earnings · August 12</div></div>",unsafe_allow_html=True)
     _ct = st.tabs(["📝 Approved Script","📞 Call Logistics","📊 Post-Call Results"])
     with _ct[0]:
@@ -815,7 +913,11 @@ if role == "Louis Hoch":
     st.stop()
 
 # ── CFO VIEW ─────────────────────────────────────────────────────────────
-if role == "Michael White":
+# Curated executive landing for a limited CFO. Skipped once the CFO is
+# elevated to full IR-equivalent access (backing up / covering the IR
+# Director) — then the CFO gets the full app and the real Today page, same
+# as the IR Director, rather than this restricted briefing.
+if _active_role_key == "CFO" and page == "Today" and not role_has_full_access("CFO"):
     st.markdown("<div style='padding:28px 4px 0;'><div style='font-size:13px;color:#6B8FAF;text-transform:uppercase;'>CFO VIEW</div><div style='font-size:26px;font-weight:700;color:#E8EDF5;'>Your Actions — Q2 2026</div></div>",unsafe_allow_html=True)
     st.markdown("<div class='ir-card-accent' style='border-left-color:#FB923C;'><div class='section-eyebrow' style='color:#FB923C;'>ACTION REQUIRED</div><div style='font-size:16px;font-weight:700;color:#E8EDF5;'>Script Workflow — Stage 3: CFO + CEO Review</div><div style='font-size:13px;color:#94A3B8;'>Script v2 ready. Review and return annotated copy to Paul within 24 hours.</div></div>",unsafe_allow_html=True)
     _cfo = st.tabs(["📝 Script Workflow","📊 Q2 Numbers","📋 Board Report"])
@@ -1731,7 +1833,7 @@ if page == "Today":
                                      f"I noticed we don't have your updated USIO financial model on file yet.\n\n"
                                      f"We want to ensure consensus figures accurately reflect your latest outlook. Do you require "
                                      f"any updated data, clarification on our recent disclosures, or a quick call with management "
-                                     f"to help finalize your file?\n\nBest regards,\nPaul Manley\nIR, Usio, Inc.")
+                                     f"to help finalize your file?\n\n" + _ir_signoff("Best regards"))
                             st.markdown(f"**{_ma['name']}** — {_ma['firm']}")
                             st.markdown(
                                 mailto_link(_ma.get("email",""), "USIO | Model Update Inquiry Ahead of Q2", _body,
@@ -1791,7 +1893,7 @@ if page == "Today":
                                  f"last call, management's Q2 guidance midpoint stands at ${_guide_mid}M. We've noticed current Street "
                                  f"consensus is modeling slightly above this at ${_street}M. Please let me know if you'd like to review "
                                  f"the core assumptions behind our guidance floor to ensure your upcoming preview note aligns with our "
-                                 f"tracking.\n\nBest,\nPaul Manley")
+                                 f"tracking.\n\n" + _ir_signoff())
                         st.text_area("Memo template — edit before sending", value=_memo, height=170, key="guidance_memo_text")
                         st.caption("Recipients — uncheck anyone you don't want to include:")
                         _selected_guidance = []
@@ -1835,7 +1937,7 @@ if page == "Today":
                                           f"brief, 15-minute check-ins with our covering analysts to answer any final model or data "
                                           f"questions before numbers lock on August 1st.\n\nDo any of the following times work for a quick sync?\n"
                                           + "\n".join(f"  • {s}" for s in _slots) +
-                                          f"\n\nLet me know and I will send over a calendar invite.\n\nBest,\nPaul Manley")
+                                          f"\n\nLet me know and I will send over a calendar invite.\n\n" + _ir_signoff())
                         st.text_area("Invite template — edit before sending", value=_checkin_body, height=190, key="checkin_body_text")
                         st.caption("Recipients — analysts who haven't locked their model yet:")
                         _selected_checkin = []
@@ -3263,8 +3365,8 @@ USIO reports Q2 2026 results on August 12 at 4:30 PM ET. A few points worth flag
 Happy to set up a brief call with our CFO or IR team beforehand if that would be useful.
 
 Best,
-Paul Manley
-SVP, Investor Relations · Usio, Inc. (NASDAQ: USIO)
+{CI().get('name','')}
+{CI().get('title','')} · {C().get('name','')} ({C().get('exchange','')}: {C().get('ticker','')})
 """
                 return _subject, _body
 
@@ -5569,7 +5671,7 @@ SVP, Investor Relations · Usio, Inc. (NASDAQ: USIO)
             {"name":"Putnam Investments",       "city":"Boston","state":"MA","style":"Small-Cap Value",    "aum_tier":"Large", "usio_holder":False,"score":68,"peer":"GDOT,PRTH","fit":"HIGH",  "notes":"Owns GDOT at 0.8%. Payments experience. Good fit for forensic USIO vs GDOT margin story."},
             {"name":"MFS Investment Management","city":"Boston","state":"MA","style":"Small-Cap Growth",   "aum_tier":"Large", "usio_holder":False,"score":55,"peer":"FOUR,PRTH", "fit":"MEDIUM","notes":"Growth-oriented. EPS inflection story most relevant. Approach post Q2 positive EPS."},
             {"name":"Acadian Asset Management", "city":"Boston","state":"MA","style":"Quantitative",       "aum_tier":"Mid",   "usio_holder":False,"score":48,"peer":"RPAY",      "fit":"MEDIUM","notes":"Factor-based. Improving EPS momentum factor may trigger. Watch after Q2."},
-            {"name":"Eaton Vance Management",   "city":"Boston","state":"MA","style":"Small-Cap Value",    "aum_tier":"Large", "usio_holder":False,"score":65,"peer":"GDOT,PRTH","fit":"HIGH",  "notes":"Value-oriented. 0.4x EV/Revenue discount story resonates. Good NDR target."},
+            {"name":"Eaton Vance Management",   "city":"Boston","state":"MA","style":"Small-Cap Value",    "aum_tier":"Large", "usio_holder":False,"score":65,"peer":"GDOT,PRTH","fit":"HIGH",  "notes":"Value-oriented. Lead on EV/Gross Profit (3.2x vs 4.4x peer median), NOT EV/Revenue — USIO reports revenue gross of interchange, so 0.4x overstates the discount and a value analyst will find that. Good NDR target."},
             {"name":"Loomis Sayles",            "city":"Boston","state":"MA","style":"Credit/Equity",      "aum_tier":"Large", "usio_holder":False,"score":42,"peer":"None",      "fit":"LOW",   "notes":"Credit-focused but has equity sleeve. Low priority."},
             {"name":"GMO LLC",                  "city":"Boston","state":"MA","style":"Value/Quant",        "aum_tier":"Large", "usio_holder":False,"score":38,"peer":"None",      "fit":"LOW",   "notes":"Macro/value overlay. Unlikely near-term without index inclusion."},
             {"name":"Constitution Research & Mgmt","city":"Boston","state":"MA","style":"Small-Cap Value",    "aum_tier":"Small", "usio_holder":False,"score":72,"peer":"None",      "fit":"HIGH",  "notes":"Founded 1989 by Wallace 'Wally' Wadman CFA (retired Nov 2024). Now run by John Wadman. ~$40M AUM. Value-based, concentrated small-cap. USIO at 0.4x EV/Rev is exactly on-thesis. Warm intro via prior relationship with Wally — reach out to John directly. constitutionresearch.com (site under construction — call directly)."},
@@ -5662,9 +5764,9 @@ SVP, Investor Relations · Usio, Inc. (NASDAQ: USIO)
                     "date": "Day 1 — Monday August 18",
                     "schedule_note": "Morning: value/forensic buyers. Afternoon: growth-tilted funds.",
                     "meetings": [
-                        {"institution":"Putnam Investments",       "time":"8:30 AM","type":"1x1","format":"In-person","location":"One Post Office Sq, Boston","status":"scheduled","notes":"Owns GDOT at 0.8%. Lead with forensic finding: USIO adj. GM > GDOT adj. GM. Open: peer holder, understands payments, thesis fit is HIGH.","contact":"Portfolio Manager — Small Cap Value desk","non_holder":True,"score":68},
+                        {"institution":"Putnam Investments",       "time":"8:30 AM","type":"1x1","format":"In-person","location":"One Post Office Sq, Boston","status":"scheduled","notes":"Owns GDOT at 0.8%. NOTE: GDOT reports no gross profit or cost-of-revenue line at all (bank holding co) — a margin comparison to it is not possible and must not be offered. Compare on EV/Gross Profit. Open: peer holder, understands payments, thesis fit is HIGH.","contact":"Portfolio Manager — Small Cap Value desk","non_holder":True,"score":68},
                         {"institution":"Fidelity Small Cap Discovery","time":"10:00 AM","type":"1x1","format":"In-person","location":"245 Summer St, Boston","status":"scheduled","notes":"PRTH holder. PayFac angle directly relevant — they understand PayFac economics. Lead with USIO PayFac at 80% of card revenue vs PRTH PayFac ramp.","contact":"Analyst — Fintech/Payments coverage","non_holder":True,"score":72},
-                        {"institution":"Eaton Vance Management",   "time":"11:30 AM","type":"1x1","format":"In-person","location":"Two International Place, Boston","status":"scheduled","notes":"New discovery target. Value-oriented — 0.4x EV/Revenue is the hook. Brief them on the forensic FOUR comparison before discussing USIO valuation.","contact":"Small-Cap Value Portfolio Manager","non_holder":True,"score":65},
+                        {"institution":"Eaton Vance Management",   "time":"11:30 AM","type":"1x1","format":"In-person","location":"Two International Place, Boston","status":"scheduled","notes":"New discovery target. Value-oriented — the hook is 3.2x EV/Gross Profit vs a 4.4x peer median. Do NOT lead with EV/Revenue: USIO reports revenue gross of interchange, so its low EV/Rev overstates how cheap it is and an analyst will catch it.","contact":"Small-Cap Value Portfolio Manager","non_holder":True,"score":65},
                         {"institution":"Working Lunch / Prep","time":"1:00 PM","type":"break","format":"N/A","location":"","status":"scheduled","notes":"Review morning meetings. Adjust afternoon talking points if needed. Call Paul Manley to debrief.","contact":"","non_holder":False,"score":0},
                         {"institution":"MFS Investment Management", "time":"2:00 PM","type":"1x1","format":"In-person","location":"111 Huntington Ave, Boston","status":"scheduled","notes":"Growth-tilted. EPS inflection story is the hook. Do NOT lead with value — lead with 16% revenue growth and PayFac as the FY2027 EPS driver.","contact":"Small/Mid-Cap Growth Analyst","non_holder":True,"score":55},
                         {"institution":"Wellington Management",    "time":"3:30 PM","type":"group","format":"In-person","location":"280 Congress St, Boston","status":"scheduled","notes":"Large AUM firm — multiple analysts may attend. Keep at the analyst level for now (not PM). Goal: get USIO on their screens for when mkt cap crosses $100M threshold post re-rating.","contact":"Fintech/Payments Sector Analyst","non_holder":True,"score":58},
@@ -6305,13 +6407,13 @@ SVP, Investor Relations · Usio, Inc. (NASDAQ: USIO)
                         if inst_data:
                             fit = inst_data.get("fit","MEDIUM")
                             if fit == "HIGH" and not meeting.get("non_holder",True) is False:
-                                points = ["Lead with forensic finding: adj. GM advantage over peers","Volume 28% YoY as leading indicator — teach them before they model","2→5 analyst re-initiation as the multiple expansion catalyst"]
+                                points = ["Lead with EV/Gross Profit: 3.2x vs 4.4x peer median — the one multiple peer accounting does not distort","Volume 28% YoY as leading indicator — teach them before they model","2→5 analyst re-initiation as the multiple expansion catalyst"]
                             elif "GDOT" in (inst_data.get("peer","") or ""):
-                                points = ["GDOT holder entry: USIO adj. GM > GDOT adj. GM after gross vs net normalization","USIO 0.4x EV/Rev vs GDOT 1.2x — 3x discount for comparable/better economics","ACH segment growing 25% YoY vs GDOT flat"]
+                                points = ["GDOT holder entry: GDOT reports NO gross profit or cost-of-revenue line (bank holding co) — there is no GDOT margin to normalize against and no comparison to offer","GDOT's enterprise value is negative (its cash holds customer deposits), so EV multiples against it are not meaningful either","ACH segment growing 25% YoY vs GDOT flat — growth is comparable; margin and EV multiples are not"]
                             elif "PRTH" in (inst_data.get("peer","") or ""):
-                                points = ["PRTH holder entry: both net reporters — direct margin comparison valid","USIO PayFac at 80% of card revenue — same model as PRTH but earlier stage","USIO 0.4x EV/Rev vs PRTH 1.8x — 4.5x discount at equivalent growth stage"]
+                                points = ["PRTH holder entry: USIO reports revenue GROSS as a principal (10-K filed 2026-03-18) — a direct margin comparison is NOT valid; compare gross profit","USIO PayFac at 80% of card revenue — same model as PRTH but earlier stage","Compare on EV/Gross Profit, not EV/Revenue — revenue cancels out of the former and USIO reports gross"]
                             elif "quant" in inst_data.get("style","").lower() or "factor" in inst_data.get("style","").lower():
-                                points = ["EPS momentum factor: $0.00 Q1'26 vs -$0.01 consensus — 50% beat","Earnings surprise factor: +8.75% revenue beat in Q1'26","Low valuation factor: 0.4x EV/Revenue — cheapest in fintech peer group"]
+                                points = ["EPS momentum factor: $0.00 Q1'26 vs -$0.01 consensus — 50% beat","Earnings surprise factor: +8.75% revenue beat in Q1'26","Low valuation factor: USIO screens at 0.4x EV/Revenue — but know WHY before pitching it: USIO reports revenue gross of interchange, so the denominator is inflated and the screen flatters it. A mechanical factor screen will still rank it cheap; a fundamental analyst will not. The defensible figure is 3.2x EV/Gross Profit vs a 4.4x peer median."]
                             else:
                                 points = ["Business model: 4 payment segments with different margin profiles","Investment thesis: valuation disconnect + EPS inflection + analyst re-initiation","Volume 28% YoY is the leading indicator — revenue follows with 1-2Q lag"]
                             st.markdown("**Recommended talking points:**")
@@ -7122,8 +7224,8 @@ SVP, Investor Relations · Usio, Inc. (NASDAQ: USIO)
                         st.markdown(
                             mailto_link(_r_email,
                                         f"USIO — Introduction ahead of Q2 2026 print",
-                                        f"Hi,\n\nI'm reaching out from Usio, Inc. (NASDAQ: USIO) IR ahead of our Q2 2026 print on August 12. "
-                                        f"{_r['Notes / Rationale'] if pd.notna(_r['Notes / Rationale']) else ''}\n\nBest,\nPaul Manley\nSVP, Investor Relations · Usio, Inc.",
+                                        f"Hi,\n\nI'm reaching out from {C().get('name','')} ({C().get('exchange','')}: {C().get('ticker','')}) IR ahead of our Q2 2026 print on August 12. "
+                                        f"{_r['Notes / Rationale'] if pd.notna(_r['Notes / Rationale']) else ''}\n\nBest,\n{CI().get('name','')}\n{CI().get('title','')} · {C().get('name','')}",
                                         label="✉️ Email (unconfirmed contact — verify first)"),
                             unsafe_allow_html=True
                         )
@@ -11472,9 +11574,9 @@ elif page == "Reports":
 
         peer_docs = [
             ("Peer Benchmarking Report v2", "USIO_Peer_Benchmarking_Report_v2", "xlsx", "Current",
-             "USIO efficiency ratio 61.2 (Adj. GM ÷ EV/Rev) — #1 in peer group, more than double next-best (GDOT 30.0). Holds true even before forensic adjustment (55.0). LONG USIO / SHORT FOUR pair trade."),
+             "SUPERSEDED — this described the demo workbook, whose 10-K citations are fabricated (see CHANGELOG 2026-07-16). Live, filing-sourced: USIO gross profit is 31.2% of EV, rank 3 of 6 — PSFE (35.7) and RPAY (33.3) are ahead, and GDOT has no efficiency figure at all because it reports no gross profit line."),
             ("Peer Benchmarking Board Deck", "USIO_Peer_Benchmarking_Board_Deck", "pptx", "Current",
-             "USIO at 0.4x EV/Revenue vs peer median 2.3x — 82% discount not justified by fundamentals."),
+             "SUPERSEDED — EV/Revenue is NOT comparable across this peer set: USIO reports revenue gross of interchange, so the gap overstates how cheap it is. Live, on EV/Gross Profit (where revenue cancels): 3.2x vs a 4.4x peer median, a 27% discount."),
             ("Script Effectiveness Scorecard", "USIO_Script_Effectiveness_Scorecard", "xlsx", "Q1 2026 filled — Q2 pending",
              "Q1 2026: Score 61/100 · +24.22% AH reaction · Pre-empt score 8/12 · Key lesson: interest income bridge was NOT pre-empted — fixed in Q2 script."),
         ]

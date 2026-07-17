@@ -37,9 +37,12 @@ module docstring history). Three independent pieces:
 
 from datetime import datetime
 
-from core import db, sec_filings
+from core import db, peer_prospects, sec_filings
 
 _NOBO_KEY = "nobo_list.json"
+# Above this many 13F positions a book is an index/quant sleeve, not a conviction
+# holder. Matches the breadth reasoning in core.peer_prospects.
+_MAX_BREADTH = 800
 
 
 def _resolve_client_id(client_id):
@@ -88,8 +91,11 @@ def generate_coverage_prospects(analyst_key, min_relevance=50, known_fund_names=
                   if s.get("rating") == "Buy" and s.get("relevance", 0) >= min_relevance]
 
     prospects = []
+    ria_holders = []
     not_fetched = []
     seen_funds = set()
+    filtered_passive = 0
+    filtered_breadth = 0
     for stock in sorted(qualifying, key=lambda s: -s.get("relevance", 0)):
         ticker = stock["ticker"]
         cached = sec_filings.get_cached_13f_holders(ticker)
@@ -101,6 +107,41 @@ def generate_coverage_prospects(analyst_key, min_relevance=50, known_fund_names=
             if not fund or fund in seen_funds:
                 continue
             if any(_name_matches(fund, known) for known in known_fund_names):
+                continue
+            # Quality gates — this pipeline used to dump every 13F holder of the
+            # analyst's coverage stocks straight at the IR lead, surfacing market
+            # makers (Optiver), mega-banks (Wells Fargo) and RIA aggregators as
+            # "prospects". Same two filters the Peer Prospects queue already
+            # applies, sharing peer_prospects' denylist so one list governs both.
+            if peer_prospects.is_passive(fund):
+                seen_funds.add(fund)
+                filtered_passive += 1
+                continue
+            # RIAs / wealth managers aren't institutional NDR targets (no PM to
+            # pitch), but they DO own the stock — so they go to their own bucket
+            # instead of the bin, and only when there's a real position behind
+            # the name. A filer with no known share count tells us nothing
+            # actionable, so it's dropped rather than shown as an empty row.
+            if peer_prospects.is_ria(fund):
+                seen_funds.add(fund)
+                if h.get("size_known", True) and (h.get("shares") or 0) > 0:
+                    ria_holders.append({
+                        "fund": fund,
+                        "source_ticker": ticker,
+                        "source_name": stock.get("name", ticker),
+                        "relevance": stock.get("relevance", 0),
+                        "shares": h.get("shares", 0),
+                        "value": h.get("value", 0),
+                        "size_known": True,
+                    })
+                continue
+            # Generic catch for the noise the denylist doesn't name: a book with
+            # this many positions is an index/quant sleeve, not a conviction
+            # holder who'd take a micro-cap NDR. Only applied when the bulk 13F
+            # data actually gave us a position count.
+            if (h.get("book_positions") or 0) > _MAX_BREADTH:
+                seen_funds.add(fund)
+                filtered_breadth += 1
                 continue
             seen_funds.add(fund)
             bridge = stock.get("bridge", "")
@@ -119,7 +160,13 @@ def generate_coverage_prospects(analyst_key, min_relevance=50, known_fund_names=
             })
 
     prospects.sort(key=lambda p: (-p["relevance"], -p["shares"]))
-    return {"qualifying_stocks": qualifying, "prospects": prospects, "not_fetched_tickers": not_fetched}
+    # RIA bucket ranks by position size — the only thing that makes one of these
+    # worth a look is how much they actually hold.
+    ria_holders.sort(key=lambda p: -p["shares"])
+    return {"qualifying_stocks": qualifying, "prospects": prospects,
+            "ria_holders": ria_holders,
+            "not_fetched_tickers": not_fetched,
+            "filtered_passive": filtered_passive, "filtered_breadth": filtered_breadth}
 
 
 # ─────────────────────────────────────────────────────────────────────────
