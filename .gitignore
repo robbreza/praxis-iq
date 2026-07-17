@@ -12,6 +12,13 @@ venv/
 # Streamlit
 .streamlit/secrets.toml
 
+# Vendored third-party datasets — NOT committed.
+# vendor/loughran_mcdonald is the LM Master Dictionary: commercial-licence-pending
+# (see vendor/loughran_mcdonald/NOTICE.md). Committing licence-pending commercial data
+# is redistribution. Fetch it at deploy time instead; core/lexicon.py loads it from
+# vendor/ at runtime and degrades gracefully when it is absent.
+vendor/
+
 # OS junk
 .DS_Store
 Thumbs.db
