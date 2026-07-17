@@ -57,11 +57,14 @@ drifted, the exceptions raised here are specific enough to show up
 immediately rather than silently returning empty data.
 """
 
+import csv
 import io
 import re
+import threading
 import time
 import zipfile
 import xml.etree.ElementTree as ET
+from collections import Counter
 from datetime import datetime, timedelta
 
 import requests
@@ -85,8 +88,24 @@ SEC_REFRESH_LOG_KEY = "sec_refresh_log.json"
 # ticker that changed after the last time SEC refreshed that file). Format:
 # {"TICKER": "1234567"} — any digit count is fine, resolve_cik() zero-pads.
 MANUAL_CIK_OVERRIDES = {
-    # "EXAMPLE": "1234567",
+    # Fiserv renamed FISV -> FI in 2023, but SEC has not caught up: BOTH
+    # company_tickers.json AND data.sec.gov/submissions/CIK0000798354.json still
+    # list only "FISV" (verified 2026-07-16). No automated lookup — including the
+    # browse-EDGAR fallback below — can resolve "FI", so this override is the only
+    # route. Verified: CIK 798354 = FISERV INC, Nasdaq, 10-K filed 2026-02-19.
+    #
+    # FI was dropped from the peer set on 2026-07-16 (too large to inform a micro-cap
+    # comp), so nothing calls this today. Retained deliberately: it is a verified fact
+    # about SEC's data that cost an investigation to establish, and without it anyone
+    # re-adding FI would hit the same SILENT failure — resolve_cik returning None and
+    # the comp table quietly falling back to estimates.
+    "FI": "798354",
 }
+
+# Negative + positive cache for the browse-EDGAR ticker fallback below, so a miss
+# costs one request per TTL rather than one per call.
+SEC_CIK_FALLBACK_KEY = "sec_cik_fallback.json"
+SEC_CIK_FALLBACK_TTL_DAYS = 30
 
 _REQUEST_DELAY_SEC = 0.15  # stay well under SEC's ~10 req/sec fair-access limit
 _ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
@@ -104,10 +123,42 @@ def _user_agent():
         return "Praxis Point Advisory ir@example.com"
 
 
+# Global, thread-safe pacing for every SEC request.
+#
+# _get() used to sleep _REQUEST_DELAY_SEC AFTER each call. That is a per-CALL delay, not
+# a rate limit: it works only because every caller was sequential. The moment anything
+# fetches in parallel — which is the only way to make a 9-company cold render fast — each
+# thread sleeps on its own clock and the aggregate rate is threads/delay. Four threads at
+# 0.15s is ~26 req/s, well over SEC's ~10 req/s fair-access limit, and SEC blocks abusers.
+#
+# This paces globally instead: one shared "next allowed slot" that every thread advances
+# under a lock, so N threads cannot exceed _MAX_RPS between them no matter how many there
+# are. Sleeping BEFORE the request (not after) also stops the delay being wasted on the
+# last call of a batch.
+_MAX_RPS = 8.0                      # under SEC's ~10/s, with headroom
+_MIN_INTERVAL = 1.0 / _MAX_RPS
+_rate_lock = threading.Lock()
+_next_slot = [0.0]
+
+
+def _throttle():
+    """Block until this thread's turn. Shared across every SEC caller in the process."""
+    while True:
+        with _rate_lock:
+            now = time.monotonic()
+            slot = max(now, _next_slot[0])
+            _next_slot[0] = slot + _MIN_INTERVAL
+        wait = slot - time.monotonic()
+        if wait <= 0:
+            return
+        time.sleep(wait)
+        return
+
+
 def _get(url, params=None, timeout=15):
+    _throttle()
     resp = requests.get(url, params=params, headers={"User-Agent": _user_agent()}, timeout=timeout)
     resp.raise_for_status()
-    time.sleep(_REQUEST_DELAY_SEC)
     return resp
 
 
@@ -126,9 +177,17 @@ def _is_stale(iso_timestamp, max_age):
 # ─────────────────────────────────────────────────────────────────────────
 def resolve_cik(ticker):
     """Ticker -> zero-padded 10-digit CIK string, or None if not found.
-    Uses SEC's free company_tickers.json (no API key needed), cached in
-    SQLite for a week at a time since this list barely changes day to
-    day. MANUAL_CIK_OVERRIDES is checked first."""
+
+    Resolution order: MANUAL_CIK_OVERRIDES, then SEC's company_tickers.json
+    (cached a week), then a browse-EDGAR lookup.
+
+    WHY THE FALLBACK EXISTS: company_tickers.json is NOT exhaustive. It carried
+    ~10,426 tickers on 2026-07-16 and was missing CSGS (CSG Systems International,
+    Nasdaq, 10-K filed 2026-02-19) outright. That miss was silent — resolve_cik
+    returned None, edgar_financials degraded to Yahoo, and the benchmarking table
+    quietly showed a market-sourced margin for a company we appeared to have filing
+    data for. A peer vanishing from EDGAR should be loud, not a shrug.
+    """
     ticker = ticker.upper().strip()
     if ticker in MANUAL_CIK_OVERRIDES:
         return str(MANUAL_CIK_OVERRIDES[ticker]).zfill(10)
@@ -138,7 +197,50 @@ def resolve_cik(ticker):
         cached = _refresh_ticker_cik_map()
 
     cik = (cached or {}).get(ticker)
-    return cik.zfill(10) if cik else None
+    if cik:
+        return cik.zfill(10)
+    return _resolve_cik_via_edgar(ticker)
+
+
+def _resolve_cik_via_edgar(ticker):
+    """Fallback: ask browse-EDGAR directly. Caches hits AND misses (a miss is a
+    real answer worth remembering) so a gap costs one request per TTL.
+
+    Confirms the CIK actually belongs to the ticker before returning it — a name
+    match is not an identity match, and a wrong CIK here would silently attribute
+    another company's financials to a peer.
+    """
+    store = db.load_json(SEC_CIK_FALLBACK_KEY, default=None) or {}
+    hit = store.get(ticker)
+    if hit and not _is_stale(hit.get("at"), timedelta(days=SEC_CIK_FALLBACK_TTL_DAYS)):
+        return hit.get("cik")
+
+    cik = None
+    try:
+        url = ("https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+               f"&CIK={ticker}&type=10-K&dateb=&owner=include&count=1&output=atom")
+        m = re.search(r"<cik>(\d+)</cik>", _get(url, timeout=20).text, re.I)
+        if m:
+            candidate = m.group(1).zfill(10)
+            subs = _get(f"https://data.sec.gov/submissions/CIK{candidate}.json", timeout=25).json()
+            # Only accept it if SEC itself lists this ticker on that CIK.
+            if ticker in [t.upper() for t in (subs.get("tickers") or [])]:
+                cik = candidate
+                print(f"[sec] resolved {ticker} -> CIK {cik} ({subs.get('name')}) via browse-EDGAR "
+                      f"— absent from company_tickers.json")
+            else:
+                print(f"[sec] browse-EDGAR returned CIK {candidate} for {ticker} but SEC lists it as "
+                      f"{subs.get('tickers')} — REJECTED, will not attribute another issuer's filings")
+    except Exception as e:
+        print(f"[sec] CIK fallback lookup failed for {ticker}: {e}")
+        return None  # transient — don't poison the cache with a network blip
+
+    if cik is None:
+        print(f"[sec] {ticker}: NO CIK — not in company_tickers.json and browse-EDGAR could not "
+              f"resolve it. Anything EDGAR-sourced for this ticker will be missing, not estimated.")
+    store[ticker] = {"cik": cik, "at": datetime.now().isoformat()}
+    db.save_json(SEC_CIK_FALLBACK_KEY, store)
+    return cik
 
 
 def _refresh_ticker_cik_map():
@@ -798,6 +900,157 @@ def refresh_13f_for_tracked_tickers(ticker_name_pairs):
     return results
 
 
+def _read_tsv_member(zf, base):
+    """Yield rows (dicts) from a TAB-delimited member of the 13F dataset zip
+    whose name ends with `base` (e.g. 'INFOTABLE.TSV'), streaming rather than
+    loading the whole (large) member into memory."""
+    member = next((n for n in zf.namelist() if n.upper().endswith(base)), None)
+    if not member:
+        return
+    with zf.open(member) as fh:
+        reader = csv.DictReader(io.TextIOWrapper(fh, encoding="utf-8", errors="replace"), delimiter="\t")
+        for row in reader:
+            yield row
+
+
+def refresh_13f_bulk_all(ticker_name_pairs):
+    """Complete institutional 13F holders for every tracked ticker, from SEC's
+    quarterly Form 13F BULK structured dataset — filtered by issuer, joined to
+    the filing manager. Unlike the EDGAR full-text-search path (which only
+    confirms WHO holds a position, sparsely, for issuers its index happens to
+    cover), this returns the EXACT, COMPLETE holder list with real share counts
+    and dollar values — the same source Irwin/S&P consume.
+
+    One ~100MB download covers the whole tracked universe (client + peers), so
+    this streams the INFOTABLE once and fans each row out to whichever tracked
+    issuer it matches (normalized-name token subset — 'Usio, Inc.' ↔ 'USIO INC
+    COM'). Heavy and slow (download + parse) — call from an explicit button or
+    a quarterly schedule in a background thread, never a page render.
+
+    Writes the same per-ticker cache shape (SEC_13F_HOLDERS_KEY_FMT) every
+    existing reader already expects, but with size_known=True and real
+    shares/value, plus city/state and the resolved CUSIP. Returns
+    {ticker: result_dict}."""
+    zip_url, label = _latest_13f_dataset()
+    resp = _get(zip_url, timeout=300)
+    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+
+    # Small tables loaded fully: accession -> manager identity / filing meta.
+    cover = {}
+    for row in _read_tsv_member(zf, "COVERPAGE.TSV"):
+        acc = (row.get("ACCESSION_NUMBER") or "").strip()
+        cover[acc] = (
+            (row.get("FILINGMANAGER_NAME") or "").strip(),
+            (row.get("FILINGMANAGER_CITY") or "").strip(),
+            (row.get("FILINGMANAGER_STATEORCOUNTRY") or "").strip(),
+        )
+    submission = {}
+    for row in _read_tsv_member(zf, "SUBMISSION.TSV"):
+        acc = (row.get("ACCESSION_NUMBER") or "").strip()
+        submission[acc] = ((row.get("FILING_DATE") or "").strip(), (row.get("CIK") or "").strip())
+
+    targets = [(tk, set(_normalize_company_name(nm).split())) for tk, nm in ticker_name_pairs]
+
+    # PASS 1 — name-match (issuer-name token subset) only to DISCOVER each
+    # ticker's CUSIP. The name match is conservative: it misses abbreviated issuer
+    # spellings a filer might use ("REPAY HLDGS CORP" vs our "Repay Holdings"), so
+    # it under-counts holders — but it's reliable enough to learn the security's
+    # 9-char CUSIP, which every filer of the same security reports identically.
+    # While we're streaming the whole INFOTABLE once, also accumulate each
+    # filer's TOTAL book value and position count (per accession) — the
+    # denominator for conviction/concentration and the breadth signal that
+    # separates active managers from quasi-index holders. Free here (one pass),
+    # vs a per-filer XML fetch that needs a filename the bulk rows don't carry.
+    book_val = Counter()
+    book_cnt = Counter()
+    cusip_seen = {tk: Counter() for tk, _t in targets}
+    for row in _read_tsv_member(zf, "INFOTABLE.TSV"):
+        if (row.get("PUTCALL") or "").strip():     # options, not share ownership
+            continue
+        acc = (row.get("ACCESSION_NUMBER") or "").strip()
+        try:
+            book_val[acc] += int(float(row.get("VALUE") or 0))
+        except (TypeError, ValueError):
+            pass
+        book_cnt[acc] += 1
+        issuer_tokens = set(_normalize_company_name(row.get("NAMEOFISSUER") or "").split())
+        if not issuer_tokens:
+            continue
+        matched = [tk for tk, toks in targets if toks and toks.issubset(issuer_tokens)]
+        if not matched:
+            continue
+        cusip = (row.get("CUSIP") or "").strip()
+        if cusip:
+            for tk in matched:
+                cusip_seen[tk][cusip] += 1
+
+    # Resolve each ticker to its CUSIP(s) and invert to CUSIP -> tickers. Keep the
+    # dominant CUSIP plus any share-class variant with a meaningful share of the
+    # count; drop one-off typos so a fat-fingered CUSIP can't pull a wrong issuer.
+    resolved_cusip = {}
+    cusip_to_tk = {}
+    for tk, ctr in cusip_seen.items():
+        if not ctr:
+            continue
+        top_cusip, top_n = ctr.most_common(1)[0]
+        resolved_cusip[tk] = top_cusip
+        for c, n in ctr.items():
+            if c and (c == top_cusip or n >= max(3, top_n * 0.2)):
+                cusip_to_tk.setdefault(c, []).append(tk)
+
+    # PASS 2 — CUSIP-match to collect the COMPLETE holder list: every filing of
+    # that security, however the filer spelled the issuer name. This is what
+    # closes the gap (e.g. RPAY jumps from the name-match subset to the full set).
+    per = {tk: {} for tk, _t in targets}
+    for row in _read_tsv_member(zf, "INFOTABLE.TSV"):
+        if (row.get("PUTCALL") or "").strip():
+            continue
+        cusip = (row.get("CUSIP") or "").strip()
+        tks = cusip_to_tk.get(cusip)
+        if not tks:
+            continue
+        acc = (row.get("ACCESSION_NUMBER") or "").strip()
+        mgr = cover.get(acc)
+        if not mgr or not mgr[0]:
+            continue
+        try:
+            shares = int(float(row.get("SSHPRNAMT") or 0))
+        except (TypeError, ValueError):
+            shares = 0
+        try:
+            value = int(float(row.get("VALUE") or 0))
+        except (TypeError, ValueError):
+            value = 0
+        fdate, cik = submission.get(acc, ("", ""))
+        key = _normalize_company_name(mgr[0]) or mgr[0].upper()
+        for tk in tks:
+            h = per[tk].get(key)
+            if h:
+                h["shares"] += shares
+                h["value"] += value
+            else:
+                per[tk][key] = {
+                    "filer": mgr[0], "shares": shares, "value": value, "size_known": True,
+                    "cik": cik, "accession": acc, "filename": "", "file_date": fdate,
+                    "city": mgr[1], "state": mgr[2], "cusip": cusip,
+                    # Whole-book context for conviction scoring (from the same file).
+                    "book_total": book_val.get(acc) or None, "book_positions": book_cnt.get(acc) or None,
+                }
+
+    results = {}
+    for tk, _t in targets:
+        holders = sorted(per[tk].values(), key=lambda h: -h["shares"])
+        result = {
+            "quarter": label, "holders": holders, "source": "bulk-cusip",
+            "cusip": resolved_cusip.get(tk),
+            "_fetched_at": datetime.now().isoformat(), "_error": None,
+        }
+        _archive_prior_if_new_quarter(tk, label)
+        db.save_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=tk.upper()), result)
+        results[tk] = result
+    return results
+
+
 def get_cached_13f_holders(ticker):
     """Cache-only accessor for page code — 13F refresh is quarterly/manual
     (see refresh_13f_holders), never triggered inline by a page render."""
@@ -874,6 +1127,38 @@ def tracked_tickers():
     tickers = [(client["ticker"], client["name"])]
     tickers += [(p["ticker"], p["name"]) for p in CP()]
     return tickers
+
+
+def coverage_tickers(client_id=None):
+    """The analyst COVERAGE-NETWORK tickers (every stock our covering analysts
+    also rate), as (ticker, name) pairs, excluding anything already in the peer
+    universe.
+
+    Deliberately NOT part of tracked_tickers(): these are not USIO comps and must
+    never leak into valuation/benchmarking or the peer medians — they exist only
+    so the coverage-network prospecting pipeline has real holder data to mine
+    ("who else owns Scott Buck's names?"). Keeping the two sets separate is what
+    lets the curated comp tiering stay clean.
+    """
+    from core.analyst_coverage import get_coverage
+    have = {t.upper() for t, _n in tracked_tickers()}
+    out, seen = [], set()
+    for entry in (get_coverage(client_id) or {}).values():
+        for s in entry.get("coverage", []) or []:
+            tk = (s.get("ticker") or "").strip()
+            if not tk or tk.upper() in have or tk.upper() in seen:
+                continue
+            seen.add(tk.upper())
+            out.append((tk, s.get("name") or tk))
+    return out
+
+
+def holder_pull_tickers(client_id=None):
+    """Every issuer we want COMPLETE 13F holder lists for = the peer universe
+    (benchmarking + peer overlap) PLUS the coverage network (prospecting). This
+    is the set to hand refresh_13f_bulk_all: one ~100MB scan fans out to all of
+    them, so the extra tickers are nearly free."""
+    return tracked_tickers() + coverage_tickers(client_id)
 
 
 def refresh_all(include_13f=False, force_13d13g=False):
