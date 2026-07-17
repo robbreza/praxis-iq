@@ -19,13 +19,36 @@ yet ported shows a "not yet available here" placeholder and can still be
 reached in the original app.py.
 """
 
+import os
+
 from nicegui import app, ui
 
 from config.client_config import (
     CT, get_client, role_roster, role_access_level, role_can_view,
     DEFAULT_ROLE_KEY,
+    CLIENT_REGISTRY, DEFAULT_CLIENT_ID, get_active_client_id, set_active_client_id,
 )
 from config.theme_tokens import ACTIVE as COLORS
+
+
+def _bind_active_client():
+    """Assign this render's tenant from persistent per-browser storage.
+
+    app.storage.user is a cookie-backed dict that survives reconnects, so the
+    tenant a user picks sticks across navigations and reloads. We copy it into
+    the client_config ContextVar at the START OF EVERY RENDER because NiceGUI
+    event handlers can run in fresh async contexts — re-asserting per render
+    keeps get_active_client_id() correct for all the synchronous core calls a
+    render makes, while those calls stay ignorant of NiceGUI. Unknown or absent
+    values fall back to DEFAULT_CLIENT_ID rather than raising."""
+    try:
+        cid = app.storage.user.get("active_client_id", DEFAULT_CLIENT_ID)
+    except Exception:
+        cid = DEFAULT_CLIENT_ID
+    if cid not in CLIENT_REGISTRY:
+        cid = DEFAULT_CLIENT_ID
+    set_active_client_id(cid)
+    return cid
 
 # Nav icons are Material Symbols names (rendered via ui.icon), not emoji — a
 # consistent monochrome line set reads more professional and inherits the
@@ -237,6 +260,10 @@ def apply_theme():
 @ui.page("/")
 def main_page():
     apply_theme()
+    # Bind the tenant for this session BEFORE the first get_client()/CT() call, so
+    # the whole page (header, nav, every data pull) reads the active client, not
+    # the default. Re-asserted in render_page() for later navigations.
+    _bind_active_client()
     client = get_client()
     # "role" is the active RBAC role_key for this session (IR/CEO/CFO/CRO/
     # Legal…). Starts on the default role (IR — full access). The role
@@ -268,6 +295,11 @@ def main_page():
 
     def render_page():
         content.clear()
+        # Re-assert the tenant from session storage every render: a nav click can
+        # execute in a fresh async context where the ContextVar set at page load
+        # is not visible, so without this the core calls below could fall back to
+        # the default tenant mid-session.
+        _bind_active_client()
         # Record who's viewing which page for this render, so page modules can
         # gate mutating controls (core.ui_context.can_edit / is_read_only).
         from core import ui_context
@@ -364,7 +396,26 @@ def main_page():
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
         ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round")
-        ui.label(client.get("name", "")).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']}")
+        # Tenant identity / switcher. One client -> a static name label (no reason
+        # to show a dropdown of one). Two or more -> a switcher that writes the
+        # choice to persistent per-browser storage and reloads, so the whole app
+        # re-renders for the new tenant from a clean slate.
+        if len(CLIENT_REGISTRY) > 1:
+            _client_opts = {cid: rec.get("name", cid) for cid, rec in CLIENT_REGISTRY.items()}
+
+            def _switch_client(e):
+                new_id = getattr(e, "value", None)
+                if new_id in CLIENT_REGISTRY:
+                    app.storage.user["active_client_id"] = new_id
+                    ui.navigate.reload()
+
+            ui.select(_client_opts, value=get_active_client_id(), on_change=_switch_client) \
+                .props("dense outlined") \
+                .classes("text-lg font-bold") \
+                .style(f"min-width:210px;color:{COLORS['text_heading']};")
+        else:
+            ui.label(client.get("name", "")).classes("text-lg font-bold").style(
+                f"color:{COLORS['text_heading']}")
         ui.space()
 
         # Global database search — one box, reachable from every page, spanning
@@ -631,4 +682,11 @@ app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
 app.on_startup(_kick_off_cache_warm)
 
-ui.run(title=f"{CT('name')} IR Platform", port=8502, reload=False)
+# storage_secret is REQUIRED for app.storage.user (the per-browser tenant
+# selection). Set IRCONNECT_STORAGE_SECRET in the environment for any real
+# deployment; the fallback is a dev-only default and is deliberately named so an
+# unset production instance is obvious. Title is the product ("IRconnect"), not a
+# single tenant — this app now serves multiple clients.
+ui.run(title="IRconnect", port=8502, reload=False,
+       storage_secret=os.environ.get("IRCONNECT_STORAGE_SECRET",
+                                      "irconnect-dev-secret-set-in-env-for-prod"))

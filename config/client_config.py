@@ -62,6 +62,7 @@ added, it just needs to call set_active_client_id(new_id) and every page
 that uses C()/CI()/etc. updates automatically — no other code changes.
 """
 
+import contextvars
 import os
 import pandas as pd
 
@@ -383,42 +384,43 @@ def role_key_from_display(display, client_id=None):
 # ─────────────────────────────────────────────────────────────────────────
 # Active-client helpers
 # ─────────────────────────────────────────────────────────────────────────
-def get_active_client_id():
-    """The client_id currently in view for this browser session. Falls back
-    to DEFAULT_CLIENT_ID if nothing has been selected yet (no switcher UI
-    exists yet), or if Streamlit isn't running (e.g. a script importing this
-    module directly, outside the app — including every NiceGUI page, which
-    is the primary app now).
+# The active tenant for the current execution context. A ContextVar — not a
+# module global, not Streamlit session_state — because get_active_client_id() is
+# called on essentially every CT()/CE()/CA()/C() lookup (hundreds of times per
+# render) and from deep inside core modules that have no UI context. Requirements
+# that ContextVar satisfies and the alternatives did not:
+#   * FAST on the hot path: .get() is a C-level read, no I/O, no framework-context
+#     probe. The old Streamlit path touched session_state on every call and, under
+#     NiceGUI (no ScriptRunContext), printed a warning per call — hundreds of
+#     synchronous stdout writes per render stalled the event loop and dropped the
+#     websocket heartbeat ("Lost connection").
+#   * ASYNC-SAFE: each request/task gets its own value, so two browser sessions
+#     viewing different tenants never bleed into each other.
+#   * SAFE OUTSIDE A UI CONTEXT: a script, a batch job, or a worker thread handed
+#     no explicit client_id reads the default cleanly instead of raising.
+# The NiceGUI app assigns it per render from persistent per-browser storage
+# (app.storage.user) via app_nicegui._bind_active_client(). Nothing here imports
+# NiceGUI, so importing this module elsewhere just yields DEFAULT_CLIENT_ID until
+# someone calls set_active_client_id().
+_active_client_ctx = contextvars.ContextVar("active_client_id", default=None)
 
-    This function is called on essentially every CT()/CE()/CA()/C() lookup,
-    i.e. constantly, on every page render. Under the NiceGUI app there is
-    never a real Streamlit ScriptRunContext, so a plain `st.session_state`
-    access used to print Streamlit's "missing ScriptRunContext! This warning
-    can be ignored when running in bare mode" line on *every single call* —
-    harmless individually, but at that call volume (hundreds per page
-    render on a busy page like Investors) the synchronous stdout writes were
-    slow enough to stall NiceGUI's single-threaded event loop and drop the
-    browser's websocket heartbeat, which is what showed up as "Lost
-    connection" in the UI. get_script_run_ctx(suppress_warning=True) checks
-    for a real context first, silently, so the common (no-context) path
-    never touches session_state or prints anything."""
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-        if get_script_run_ctx(suppress_warning=True) is None:
-            return DEFAULT_CLIENT_ID
-        import streamlit as st
-        return st.session_state.get("active_client_id", DEFAULT_CLIENT_ID)
-    except Exception:
-        return DEFAULT_CLIENT_ID
+
+def get_active_client_id():
+    """The tenant in view for the current context, or DEFAULT_CLIENT_ID.
+
+    Never raises and never blocks — it is on the hottest path in the app."""
+    return _active_client_ctx.get() or DEFAULT_CLIENT_ID
 
 
 def set_active_client_id(client_id):
-    """Switch the active client for this session. Will be wired up to a
-    tenant-switcher dropdown in a later step."""
+    """Make client_id the active tenant for the current context.
+
+    Validated against the registry so a typo fails loudly here rather than
+    silently serving the wrong tenant's data. Returns the id set."""
     if client_id not in CLIENT_REGISTRY:
         raise ValueError(f"Unknown client_id '{client_id}'. Known clients: {list(CLIENT_REGISTRY)}")
-    import streamlit as st
-    st.session_state["active_client_id"] = client_id
+    _active_client_ctx.set(client_id)
+    return client_id
 
 
 def get_client(client_id=None):
