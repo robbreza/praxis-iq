@@ -21,6 +21,14 @@ reached in the original app.py.
 
 import os
 
+# Load .env into os.environ BEFORE anything reads it eagerly. ui.run() reads
+# IRCONNECT_STORAGE_SECRET straight from os.environ at module-load time (bottom of
+# this file), which is earlier than the first lazy load_environment() call that
+# DATABASE_URL relies on — so without this the storage secret would silently fall
+# back to the dev default even when set in .env.
+from core.security import load_environment
+load_environment()
+
 from nicegui import app, ui
 
 from config.client_config import (
