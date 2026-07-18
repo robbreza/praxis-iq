@@ -1,0 +1,150 @@
+"""page_modules_nicegui/console_page.py — the Praxis Point Console portfolio home.
+
+A staff-only surface that sits ABOVE the tenants (see core/portfolio): one card per client,
+built from cheap cached signals, click a card to drill into that tenant's workspace. Rendered
+by app_nicegui's @ui.page("/console") AFTER it has confirmed the user is praxis_staff — so this
+module does no auth of its own; it just draws.
+"""
+from datetime import datetime
+
+from nicegui import app, ui
+
+from config.theme_tokens import ACTIVE as COLORS
+from core import portfolio
+
+_UP, _DOWN, _AMBER, _AMBER_BG = "#15803D", "#B91C1C", "#B45309", "#FEF3C7"
+
+
+def _fmt_date(iso, with_year=False):
+    try:
+        d = datetime.fromisoformat(str(iso).replace("Z", "").split("+")[0].split("T")[0][:10] if "T" not in str(iso)
+                                   else str(iso).split("T")[0])
+        return d.strftime("%b %-d, %Y" if with_year else "%b %-d")
+    except Exception:
+        # %-d isn't portable to Windows strftime; fall back to a manual build
+        try:
+            d = datetime.fromisoformat(str(iso).split("T")[0][:10])
+            mon = d.strftime("%b")
+            return f"{mon} {d.day}, {d.year}" if with_year else f"{mon} {d.day}"
+        except Exception:
+            return "—"
+
+
+def _price_text(r):
+    p, pct = r["last_price"], r["pct_change"]
+    if p is None:
+        return "—", COLORS["text_muted"]
+    if pct is None:
+        return f"${p:,.2f}", COLORS["text_body"]
+    color = _UP if pct >= 0 else _DOWN
+    return f"${p:,.2f}   {'+' if pct >= 0 else ''}{pct:.1f}%", color
+
+
+def _earnings_cell(r):
+    d = r["earnings_date"]
+    if not d:
+        return "—", COLORS["text_body"]
+    n = r["days_to_earnings"]
+    txt = _fmt_date(d)
+    if n is None:
+        return txt, COLORS["text_body"]
+    if n < 0:
+        return f"{txt} · reported", COLORS["text_muted"]
+    color = _AMBER if n <= 14 else COLORS["text_body"]
+    return f"{txt} · in {n}d", color
+
+
+def _f13_cell(r):
+    n = r["holder_count"]
+    if not n:
+        return "none on file", _AMBER
+    fetched = _fmt_date(r["f13_fetched_at"]) if r["f13_fetched_at"] else "?"
+    stale = "13F stale" in r["attention"]
+    return f"{n} · {fetched}", (_AMBER if stale else COLORS["text_body"])
+
+
+def _metric(label, value, value_color=None):
+    with ui.row().classes("w-full items-center").style("gap:8px;"):
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        ui.space()
+        ui.label(value).style(
+            f"color:{value_color or COLORS['text_body']};font-size:12.5px;font-weight:600;"
+            "text-align:right;")
+
+
+def _drill_in(cid):
+    # Reuses the tenant-switch mechanism: set the session's active client, land in the workspace.
+    app.storage.user["active_client_id"] = cid
+    ui.navigate.to("/")
+
+
+def _client_card(r):
+    card = ui.card().classes("cursor-pointer").style(
+        f"padding:16px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+        "border-radius:10px;gap:6px;box-shadow:0 1px 2px rgba(15,23,42,.05);")
+    card.on("click", lambda _e=None, cid=r["cid"]: _drill_in(cid))
+    with card:
+        with ui.row().classes("w-full items-start").style("gap:8px;"):
+            with ui.column().style("gap:1px;"):
+                ui.label(r["name"]).classes("text-base font-bold").style(
+                    f"color:{COLORS['text_heading']};line-height:1.2;")
+                ui.label(f"{r['exchange']}: {r['ticker']}" if r["exchange"] else r["ticker"]).style(
+                    f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.02em;")
+            ui.space()
+            ptxt, pcolor = _price_text(r)
+            ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
+        ui.separator().style("margin:6px 0;")
+        etxt, ecolor = _earnings_cell(r)
+        _metric("Next earnings", etxt, ecolor)
+        _metric("Consensus rev",
+                f"${r['consensus_rev_m']:.1f}M" if r["consensus_rev_m"] is not None else "—")
+        ftxt, fcolor = _f13_cell(r)
+        _metric("13F holders", ftxt, fcolor)
+        if r["attention"]:
+            with ui.row().style("gap:6px;flex-wrap:wrap;margin-top:6px;"):
+                for a in r["attention"]:
+                    ui.label(a).style(
+                        f"background:{_AMBER_BG};color:{_AMBER};font-size:10px;font-weight:700;"
+                        "padding:2px 8px;border-radius:10px;")
+
+
+def render_console_home(user):
+    rows = portfolio.portfolio_overview()
+    needs = sum(1 for r in rows if r["attention"])
+
+    with ui.column().classes("w-full items-center"):
+        wrap = ui.column().style("width:min(1100px,94vw);margin-top:24px;gap:16px;")
+        with wrap:
+            # ── top bar ─────────────────────────────────────────────────────
+            with ui.row().classes("w-full items-center").style("gap:10px;"):
+                ui.label("Praxis Point").classes("text-2xl font-bold").style(
+                    f"color:{COLORS['text_heading']};")
+                ui.label("CONSOLE").style(
+                    f"background:{COLORS['text_heading']};color:white;font-size:10px;font-weight:800;"
+                    "letter-spacing:.08em;padding:3px 9px;border-radius:6px;")
+                ui.space()
+                ui.label(user.get("display_name") or user["user_id"]).style(
+                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ui.button("User Admin", icon="manage_accounts",
+                          on_click=lambda: ui.navigate.to("/admin/users")).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
+
+                def _logout():
+                    app.storage.user.pop("user_id", None)
+                    app.storage.user.pop("active_client_id", None)
+                    ui.navigate.to("/login")
+                ui.button("Sign out", icon="logout", on_click=_logout).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
+
+            # ── sub-header ──────────────────────────────────────────────────
+            n = len(rows)
+            summary = (f"{n} client{'' if n == 1 else 's'} · "
+                       + (f"{needs} need{'s' if needs == 1 else ''} attention" if needs else "all clear"))
+            ui.label(summary).style(f"color:{COLORS['text_muted']};font-size:13px;")
+
+            # ── portfolio grid ──────────────────────────────────────────────
+            with ui.element("div").style(
+                    "display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));"
+                    "gap:16px;width:100%;"):
+                for r in rows:
+                    _client_card(r)

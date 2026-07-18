@@ -315,7 +315,13 @@ def login_page():
             app.storage.user["user_id"] = u["user_id"]
             app.storage.user.pop("active_client_id", None)  # start from the user's default tenant
             auth.touch_login(u["user_id"])
-            ui.navigate.to("/change-password" if u["must_change_password"] else "/")
+            # Where to land: forced rotation first; then staff -> the Console (above the
+            # tenants), client users -> straight into their one tenant's workspace.
+            if u["must_change_password"]:
+                dest = "/change-password"
+            else:
+                dest = "/console" if auth.is_staff(u) else "/"
+            ui.navigate.to(dest)
 
         pw.on("keydown.enter", lambda _: do_login())
         ui.button("Sign in", on_click=do_login).props("color=primary").classes("w-full").style("margin-top:8px;")
@@ -506,9 +512,27 @@ def user_admin_page():
             _render_users()
 
 
+@ui.page("/console")
+def console_page_route():
+    """Praxis Point operator home — the surface ABOVE the tenants (staff-only). Client users
+    have no business here and are bounced to their workspace. Guards mirror /admin/users."""
+    from core import auth
+    apply_theme()
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login"); return
+    if user["must_change_password"]:
+        ui.navigate.to("/change-password"); return
+    if not auth.is_staff(user):
+        ui.navigate.to("/"); return
+    from page_modules_nicegui import console_page
+    console_page.render_console_home(user)
+
+
 @ui.page("/")
 def main_page():
     apply_theme()
+    from core import auth
     # AUTH GATE: no valid session -> login; unchanged bootstrap password -> forced change.
     user = _current_user()
     if not user:
@@ -516,6 +540,11 @@ def main_page():
         return
     if user["must_change_password"]:
         ui.navigate.to("/change-password")
+        return
+    # "/" always means "inside a tenant." A staff member who hasn't picked a client yet
+    # belongs on the Console; send them there instead of silently defaulting a tenant.
+    if auth.is_staff(user) and not app.storage.user.get("active_client_id"):
+        ui.navigate.to("/console")
         return
     # Bind the tenant for this session BEFORE the first get_client()/CT() call, so
     # the whole page (header, nav, every data pull) reads the active client, not
@@ -686,8 +715,12 @@ def main_page():
         ui.label(user.get("display_name") or user["user_id"]).style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
 
-        # Staff-only: user administration (add/reset/disable logins across tenants).
+        # Staff-only: back up to the Console (portfolio home) + user administration.
         if auth.is_staff(user):
+            ui.button(icon="grid_view",
+                      on_click=lambda: ui.navigate.to("/console")) \
+                .props("flat round dense").style(f"color:{COLORS['text_muted']};") \
+                .tooltip("Praxis Point Console")
             ui.button(icon="manage_accounts",
                       on_click=lambda: ui.navigate.to("/admin/users")) \
                 .props("flat round dense").style(f"color:{COLORS['text_muted']};") \

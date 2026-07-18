@@ -5,6 +5,34 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Praxis Point Console, Phase 1 (the operator surface above the tenants)
+
+Formalized the two surfaces the product actually has. Until now "Praxis Point management" was
+two orphaned bolt-ons in the client header (the tenant switcher + the user-admin icon); there
+was no vantage point ABOVE the tenants. Phase 1 adds a staff-only **Console** — additive only,
+no schema change, no registry migration.
+
+- **Two surfaces, one app.** `/console` (staff-only) is the operator home; `/` + the existing nav
+  is the tenant WORKSPACE. Routing now enforces the model: staff land on `/console` at login and
+  when they haven't picked a client yet (`/` always means "inside a tenant"); client users skip
+  the Console entirely and land in their one workspace. Drilling into a client card sets the
+  active tenant and drops into the workspace; a `grid_view` header button goes back up.
+- **Portfolio home.** One card per client from `core/portfolio.py` — cheap, CACHED-ONLY reads
+  (no network fan-out): live-cached price/%Δ, next earnings + days-out, curated consensus, 13F
+  holder count + freshness, and amber attention chips (earnings ≤14d, 13F missing/stale, no
+  consensus). It honestly surfaces gaps — e.g. SARO shows "no consensus" because its registry
+  has no `q2_consensus_rev`.
+- **`core/portfolio.py`** is UI-free and client_id-parameterized (summarizes any tenant without
+  switching the session), so it's unit-tested headlessly. Deliberately reads the registry
+  consensus directly rather than `market_data.consensus_rev()` — that resolves the ticker from
+  the active-client ContextVar (not its arg) and its blank path hits the network.
+
+Deferred to Phase 2+: registry → DB + an add-client form (the real "onboard without a deploy"
+threshold), and per-client data-ops refresh controls. No "Add client" placeholder shipped yet,
+by choice.
+
+---
+
 ## 2026-07-18 — Auth + the account-type axis (praxis_staff vs client_user)
 
 The platform gained a real access boundary. Until now it was open on its port with a code-defined
