@@ -243,6 +243,10 @@ CLIENT_REGISTRY = {
         "market_cap_m": 8887,
         "ev_m": 11256,
         "sector": "Aerospace — Engine MRO (aftermarket)",
+        # Value-chain position — drives the tight, model-matched valuation median
+        # (Layer 1). SARO is aftermarket SERVICES, so its relative-value comps are the
+        # other aftermarket-services/MRO names (AAR, TAT), not the parts makers or OEMs.
+        "chain": "aftermarket_services",
         # ── below: not yet provided by the client — blank, fed live, or TBD ──
         "fy_guidance": "",
         "q2_consensus_rev": None,         # fed live from market_data (Yahoo); 14 analysts cover SARO

@@ -404,6 +404,37 @@ def _growth_basis_read(o):
 
 
 
+def _tight_read(tight, n_blended):
+    """Explain why the tight, model-matched median is the real relative-value read and the
+    blended one is a mix artifact."""
+    if not tight:
+        return ("No value-chain position is set for this client, so only the blended peer "
+                "median is available. Tag each peer's chain position to get the tight, "
+                "model-matched median (the review-defensible one).")
+    t = tight
+    ti = t.get("implied") or {}
+    bi = t.get("blended_implied") or {}
+    tkr = CT("ticker")
+    bits = [
+        "TWO MEDIANS, AND ONLY ONE IS A VALUATION. EV/Gross-Profit is comparable ONLY within a "
+        "business model. The blended median of {:.2f}x across {} mixed-model peers implies "
+        "{:+.0f}% — but it spans the whole value chain, and it is dragged up by parts "
+        "MANUFACTURERS earning 40-60% margins on a different model than a {} business.".format(
+            t["blended_ev_gp"], n_blended, bi.get("upside_pct") or 0, t["position_label"].lower())
+    ]
+    bits.append(
+        "Restricting to {}'s OWN value-chain position — {} — the model-matched median is "
+        "{:.2f}x across {} ({} names incl. {}), implying {:+.0f}%. THAT is the relative-value "
+        "read that survives review; the blended figure is a composition artifact, not a finding.".format(
+            tkr, t["position_label"], t["ev_gp"], ", ".join(t["peers"]), t["n"] + 1, tkr,
+            ti.get("upside_pct") or 0))
+    bits.append(
+        "The rest of the chain (OEMs, parts, distribution, leasing) is retained for DEMAND "
+        "context — every layer draws on the same aggregate aftermarket demand — not for the "
+        "multiple. Value against the tight set; explain against the chain.")
+    return " ".join(bits)
+
+
 def build(client_id=None):
     bm = benchmarking_engine.build_benchmark(client_id)
     try:
@@ -431,6 +462,39 @@ def build(client_id=None):
     imp = implied_value(usio, med["ev_gp"])
     sens = sensitivity(usio, primary)
     excl = excluded_impact(usio, primary, client_id)
+
+    # ── Value-chain positioning (Layer 2) + the TIGHT, model-matched median (Layer 1) ──
+    # EV/Gross-Profit is only comparable within a business model. The blended median above
+    # spans the whole chain (OEMs, parts makers, services, leasing); the TIGHT median below
+    # is restricted to peers in the client's OWN value-chain position, which is the only
+    # relative-value read that survives review. Both are returned; the renderer leads with
+    # tight and keeps the chain for demand context. See core/value_chain.py.
+    from core import value_chain as _vc, db as _db
+    _chain_map = {p.get("ticker"): (p.get("chain") or "")
+                  for p in (_db.load_json("peer_universe.csv", default=[], client_id=client_id) or [])}
+    client_chain = CT("chain", "")
+    usio["chain"] = client_chain
+    for r in primary + reference:
+        r["chain"] = _chain_map.get(r["ticker"], "")
+    tight = None
+    if client_chain:
+        tight_peers = [p for p in primary if (p.get("chain") or "") == client_chain]
+        tight_gp = _median([p["ev_gp"] for p in tight_peers])
+        if tight_gp:
+            t_imp = implied_value(usio, tight_gp)
+            tight = {
+                "position": client_chain, "position_label": _vc.label(client_chain),
+                "ev_gp": tight_gp,
+                "peers": [p["ticker"] for p in tight_peers if p["ev_gp"] is not None],
+                "n": len([p for p in tight_peers if p["ev_gp"] is not None]),
+                "implied": t_imp,
+                "blended_ev_gp": med["ev_gp"], "blended_implied": imp,
+            }
+    value_chain_groups = [
+        {"slug": slug, "label": label, "tickers": [p["ticker"] for p in rs],
+         "is_client_position": slug == client_chain}
+        for slug, label, rs in _vc.group_by_chain(primary + reference + [usio])]
+    tight_read = _tight_read(tight, len([p for p in primary if p["ev_gp"] is not None]))
     # The growth gap on the basis the multiple actually pays for. See growth_basis().
     try:
         gbasis = growth_basis(bm, bm["primary"])
@@ -450,6 +514,7 @@ def build(client_id=None):
         "usio": usio, "primary": primary, "reference": reference,
         "ranked": ranked, "median": med, "implied": imp, "sensitivity": sens,
         "excluded_impact": excl,
+        "tight": tight, "value_chain": value_chain_groups, "tight_read": tight_read,
         "transaction_comps": txn,
         "growth_basis": gbasis,
         "n_primary": len([p for p in primary if p["ev_gp"] is not None]),
