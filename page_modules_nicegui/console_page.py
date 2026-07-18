@@ -32,7 +32,8 @@ def _open_add_client_dialog():
         ticker_in = ui.input("Ticker").props("outlined dense").classes("w-full")
         cid_in = ui.input("Client ID", placeholder="lowercase id — blank = derive from ticker") \
             .props("outlined dense").classes("w-full")
-        exch_in = ui.input("Exchange", value="NYSE").props("outlined dense").classes("w-full")
+        exch_in = ui.select(_EXCHANGES, value="NASDAQ", label="Exchange") \
+            .props("outlined dense").classes("w-full")
         domain_in = ui.input("Email domain", placeholder="e.g. standardaero.com") \
             .props("outlined dense").classes("w-full")
         ui.label("Client ID is the permanent tenant key (can't change later). "
@@ -95,7 +96,10 @@ def _open_edit_client_dialog(cid):
             f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
         name_in = ui.input("Company name", value=rec.get("name", "")).props("outlined dense autofocus").classes("w-full")
         ticker_in = ui.input("Ticker", value=rec.get("ticker", "")).props("outlined dense").classes("w-full")
-        exch_in = ui.input("Exchange", value=rec.get("exchange", "")).props("outlined dense").classes("w-full")
+        _cur_exch = rec.get("exchange", "") or "NASDAQ"
+        _exch_opts = _EXCHANGES if _cur_exch in _EXCHANGES else [_cur_exch] + _EXCHANGES
+        exch_in = ui.select(_exch_opts, value=_cur_exch, label="Exchange") \
+            .props("outlined dense").classes("w-full")
         domain_in = ui.input("Email domain", value=rec.get("email_domain", "")) \
             .props("outlined dense").classes("w-full")
         active_sw = ui.switch("Active (unchecking hides the tenant everywhere)", value=True)
@@ -134,6 +138,9 @@ def _open_edit_client_dialog(cid):
     dialog.open()
 
 _UP, _DOWN, _AMBER, _AMBER_BG = "#15803D", "#B91C1C", "#B45309", "#FEF3C7"
+
+# Exchange choices for the add/edit client dialogs (US primary listings we onboard against).
+_EXCHANGES = ["NASDAQ", "NYSE", "NYSE American", "Cboe BZX", "OTC Markets"]
 
 
 def _fmt_date(iso, with_year=False):
