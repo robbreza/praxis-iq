@@ -308,8 +308,11 @@ def key_finding(bm):
             f"{bm['median_gp']:.1f}x — a {abs(bm['discount_gp']):.0f}% "
             f"{'discount' if bm['discount_gp'] > 0 else 'PREMIUM'} and {rank} in the group{vs}. "
             f"EV/Gross Profit is the only multiple this peer set's accounting doesn't distort: "
-            f"{u['ticker']} reports revenue GROSS as a principal, so interchange it never keeps inflates "
-            f"its revenue and deflates its margin. Revenue cancels out of EV/Gross Profit; it does not "
+            + ("USIO reports revenue GROSS as a principal, so interchange it never keeps inflates "
+               "its revenue and deflates its margin. "
+               if u['ticker'] == 'USIO' else
+               "gross-vs-net revenue treatment varies across these companies. ")
+            + f"Revenue cancels out of EV/Gross Profit; it does not "
             f"cancel out of EV/Revenue, which is why {u['ticker']}'s {u['ev_rev']:.1f}x vs the "
             f"{bm['median_ev']:.1f}x median OVERSTATES how cheap it is and is not a usable comparison.")
     if u.get("rev_growth") is not None and bm["median_gr"] is not None:

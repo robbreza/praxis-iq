@@ -60,6 +60,23 @@ def _q_gross_margin(pol, val):
     b, comp = val.get("bridge"), val.get("comp")
     u = (b or {}).get("usio")
     med = (comp or {}).get("median", {}).get("ev_gp")
+    # The interchange / gross-as-principal answer is USIO-specific. For any other client give
+    # the generic version (why gross margin isn't comparable, use EV/Gross Profit instead).
+    if CT("ticker") != "USIO":
+        g = ("Gross margin is not comparable across companies with different revenue-recognition "
+             "treatment (gross vs net as principal/agent) or different business models. The fix is "
+             "to compare gross PROFIT, or EV/Gross Profit — revenue cancels out of that ratio "
+             "entirely (EV/Rev = EV/GP × margin).")
+        if u and u.get("ev_gp") and med:
+            g += (f" On that basis we trade at {u['ev_gp']:.1f}x EV/Gross Profit vs a {med:.1f}x "
+                  f"peer median.")
+        return {
+            "q": "Why is our gross margin what it is, and is it comparable to peers?",
+            "a": g,
+            "flag": "Gross margin isn't comparable across differing revenue-recognition or business "
+                    "models — steer to gross profit / EV/Gross Profit.",
+            "sources": ["core.valuation_comp — live peer EV/Gross Profit"],
+        }
     a = (f"Because WE report revenue gross, as a principal — not because peers inflate theirs. "
          f"Our 10-K ({pol['form']}, filed {pol['filed']}) says it plainly: “{pol['quote']}” "
          f"Interchange and sponsor-bank fees we never keep sit in BOTH our revenue and our cost of "

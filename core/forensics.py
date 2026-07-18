@@ -461,11 +461,17 @@ def _verdict(us, peers_ok):
             f"Peers with a current, filing-sourced gross margin: {bits}. These are NOT like-for-like "
             f"with {tk} — each peer's own gross-vs-net treatment is a per-contract ASC 606 principal/"
             f"agent judgment we have not verified peer-by-peer, so the ratios are not comparable.")
-    lines.append(
-        "USE GROSS PROFIT, NOT GROSS MARGIN. Interchange is a pass-through: it inflates revenue and "
-        "cost of revenue equally, leaving gross profit unchanged and only the ratio distorted. The "
-        "benchmarking table's EV/Gross Profit ranking is the correct basis and is unaffected by any "
-        "of this.")
+    if tk == "USIO":
+        lines.append(
+            "USE GROSS PROFIT, NOT GROSS MARGIN. Interchange is a pass-through: it inflates revenue and "
+            "cost of revenue equally, leaving gross profit unchanged and only the ratio distorted. The "
+            "benchmarking table's EV/Gross Profit ranking is the correct basis and is unaffected by any "
+            "of this.")
+    else:
+        lines.append(
+            "USE GROSS PROFIT, NOT GROSS MARGIN. Where gross-vs-net revenue treatment differs across "
+            "peers, the margin ratio is distorted but gross profit is not; the benchmarking table's "
+            "EV/Gross Profit ranking is the correct, presentation-invariant basis.")
     return " ".join(lines)
 
 

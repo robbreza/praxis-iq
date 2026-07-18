@@ -173,7 +173,11 @@ def _valuation_message(ctx):
       * Whether there IS a discount. Live, and it changes.
     """
     d, ev_gp, med = ctx.get("discount_gp"), ctx.get("ev_gp"), ctx.get("median_gp")
-    base = ("Benchmark us on gross profit, not gross revenue — we report revenue gross of "
+    base = ("Benchmark us on gross profit, not gross revenue — gross-vs-net revenue treatment "
+            "varies across our peer set, so EV/Revenue is not a usable comparison and any "
+            "'revenue discount' quoted off it is a margin difference, not a valuation gap. "
+            if CT("ticker") != "USIO" else
+            "Benchmark us on gross profit, not gross revenue — we report revenue gross of "
             "interchange we never keep, so EV/Revenue is not a usable comparison and any "
             "'revenue discount' quoted off it is a margin difference, not a valuation gap. ")
     if d is None or ev_gp is None:

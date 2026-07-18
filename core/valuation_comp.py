@@ -522,10 +522,13 @@ def build(client_id=None):
         "read": _read(usio, med, imp, sens),
         "caveat": (
             "EV/Gross Profit is the only multiple here that is comparable across this peer set. "
-            "USIO reports revenue GROSS as a principal (10-K filed 2026-03-18) and peers vary — "
-            "several make a per-contract ASC 606 principal/agent judgment — so EV/Revenue and gross "
-            "margin are shown for context only and must not be compared across rows. Revenue cancels "
-            "out of EV/Gross Profit, which is why the ranking and the implied value use it."),
+            + ("USIO reports revenue GROSS as a principal (10-K filed 2026-03-18) and peers vary — "
+               "several make a per-contract ASC 606 principal/agent judgment — "
+               if CT("ticker") == "USIO" else
+               "gross-vs-net revenue treatment varies across these companies — ")
+            + "so EV/Revenue and gross margin are shown for context only and must not be compared "
+            "across rows. Revenue cancels out of EV/Gross Profit, which is why the ranking and the "
+            "implied value use it."),
     }
 
 

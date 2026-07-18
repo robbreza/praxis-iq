@@ -460,13 +460,14 @@ def _valuation_comp_story(story):
     d = valuation_comp.build()
     u, m, imp, sens = d["usio"], d["median"], d["implied"], d.get("sensitivity")
 
-    story.append(Paragraph("Valuation comp — what USIO is worth at its peers' multiple", _S["h2"]))
+    story.append(Paragraph(
+        f"Valuation comp — what {_esc(CT('ticker'))} is worth at its peers' multiple", _S["h2"]))
     if imp:
         lo = hi = imp["upside_pct"]
         if sens and not sens["robust"]:
             lo, hi = sorted([sens["upside_backed"], sens["upside_all"]])
         story.append(_stat_row([
-            (f"{imp['current_multiple']:.1f}x", "USIO EV/Gross Profit",
+            (f"{imp['current_multiple']:.1f}x", f"{_esc(CT('ticker'))} EV/Gross Profit",
              f"rank #{u.get('rank', '—')} of {d['n_primary']+1}", ACCENT),
             (f"{imp['peer_median_multiple']:.1f}x", "Peer median EV/GP",
              f"primary peers only (n={d['n_primary']})", INK),
@@ -540,8 +541,8 @@ def _valuation_comp_story(story):
     story.append(t)
     story.append(Paragraph(
         "* EV/Revenue and gross margin are <b>not comparable across these rows</b> and are shown for "
-        "context only — USIO reports revenue gross as a principal and peers vary. Revenue cancels out "
-        "of EV/Gross Profit, which is why the ranking and the implied value use it and nothing else.",
+        "context only — gross-vs-net revenue treatment varies across these companies. Revenue cancels "
+        "out of EV/Gross Profit, which is why the ranking and the implied value use it and nothing else.",
         _S["small"]))
 
     _segments_story(story)
@@ -633,7 +634,7 @@ def _valuation_comp_story(story):
     if imp:
         story.append(Paragraph("The bridge — how the implied value is built", _S["h2"]))
         bridge = [
-            ("USIO gross profit (EV ÷ current EV/GP)", f"${imp['gross_profit']/1e6:,.1f}M"),
+            (f"{CT('ticker')} gross profit (EV ÷ current EV/GP)", f"${imp['gross_profit']/1e6:,.1f}M"),
             ("× peer median EV/Gross Profit", f"{imp['peer_median_multiple']:.2f}x"),
             ("= implied enterprise value", f"${imp['implied_ev']/1e6:,.1f}M"),
             (("+ net cash" if imp["net_debt"] < 0 else "− net debt"),
@@ -714,8 +715,11 @@ def _forensics_story(story):
 
     story.append(_callout("THE FINDING", _esc(d["verdict"]), ACCENT))
 
+    # The SBC-on-gross-profit narrative is USIO's specific argument (its "% of revenue" is
+    # inflated by interchange it books gross). Gate to USIO; a client without gross-vs-net
+    # distortion doesn't have this thesis.
     sb = d.get("sbc")
-    if sb and sb.get("usio"):
+    if sb and sb.get("usio") and CT("ticker") == "USIO":
         story.append(Paragraph(
             "Stock-based compensation — measured against gross profit, not revenue", _S["h2"]))
         story.append(Paragraph(
@@ -747,11 +751,9 @@ def _forensics_story(story):
         story.append(_callout("THE 'LEAN SBC' STORY DOES NOT SURVIVE THE RIGHT DENOMINATOR",
                               _esc(sb["read"]), colors.HexColor("#B91C1C")))
     story.append(_callout(
-        "SOURCE DISCIPLINE — WHY THIS SECTION IS THINNER THAN THE WORKBOOK",
-        "Every figure here resolves to an SEC filing this report fetched itself. The prior version of "
-        "this analysis was built from USIO_Peer_Benchmarking_Report_v2_2.xlsx, whose verbatim "
-        "&lsquo;10-K p.58 / p.38 / p.94&rsquo; quotes do not appear in the respective 10-Ks. Where a "
-        "figure cannot be sourced from a filing, this section reports that it cannot, rather than "
+        "SOURCE DISCIPLINE",
+        "Every figure here resolves to an SEC filing this report fetched itself. Where a figure "
+        "cannot be sourced from a filing, this section reports that it cannot, rather than "
         "estimating it.", WARN))
 
 
@@ -1313,9 +1315,9 @@ def peer_benchmarking_pdf(client_id=None):
 
     story.append(Paragraph(
         "The gross margins above are <b>as reported</b>, and as reported they are <b>not comparable</b> — "
-        "USIO and several peers book interchange gross, which depresses the ratio for identical "
-        "economics. They cannot be restated onto a common basis from public filings (USIO discloses no "
-        "interchange dollar amount). This is why the ranking above is on <b>EV/Gross Profit</b>, which "
+        "gross-vs-net revenue treatment varies across these rows, which can depress the ratio for "
+        "identical economics and cannot always be restated onto a common basis from public filings. "
+        "This is why the ranking above is on <b>EV/Gross Profit</b>, which "
         "is unaffected by gross-vs-net presentation. The footnote forensics overleaf show exactly what "
         "each peer's filing does and does not support.", _S["small"]))
 
@@ -1533,14 +1535,17 @@ def onboarding_kit_pdf(client_id=None):
             f"Every figure and every answer regenerates from SEC filings and market data at export "
             f"time, and carries the source it can be checked against · generated {d['as_of']:%b %d, %Y}")
 
-    story.append(_callout(
-        f"START HERE — WE REPORT REVENUE {_esc(pol['basis'])}",
-        f"“{_esc(pol['quote'])}” &mdash; {_esc(pol['form'])}, filed {_esc(pol['filed'])}."
-        f"<br/><br/>This one fact explains our reported gross margin and it is the first thing worth "
-        f"knowing about our P&amp;L. Interchange and sponsor-bank fees we never keep sit in BOTH our "
-        f"revenue and our cost of services. A peer reporting net shows 60–75% gross margin on "
-        f"identical economics. <b>Gross margin is therefore not comparable across payment "
-        f"processors — ours or anyone's.</b>", colors.HexColor("#B91C1C")))
+    # This "start here" is USIO's specific gross-as-principal / interchange story. Its data
+    # source hands USIO_POLICY to every tenant, so gate explicitly on the active ticker.
+    if CT("ticker") == "USIO" and pol.get("basis"):
+        story.append(_callout(
+            f"START HERE — WE REPORT REVENUE {_esc(pol['basis'])}",
+            f"“{_esc(pol['quote'])}” &mdash; {_esc(pol['form'])}, filed {_esc(pol['filed'])}."
+            f"<br/><br/>This one fact explains our reported gross margin and it is the first thing worth "
+            f"knowing about our P&amp;L. Interchange and sponsor-bank fees we never keep sit in BOTH our "
+            f"revenue and our cost of services. A peer reporting net shows 60–75% gross margin on "
+            f"identical economics. <b>Gross margin is therefore not comparable across payment "
+            f"processors — ours or anyone's.</b>", colors.HexColor("#B91C1C")))
 
     # ---- the bridge ----
     if bridge and bridge.get("usio"):
@@ -1683,10 +1688,12 @@ def onboarding_checklist_pdf(client_id=None):
         ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
     ]))
     story.append(t)
+    _gdot = ("It is the one that caught GDOT, and it caught it from an 8-K, not a feed."
+             if CT("ticker") == "USIO" else
+             "A merger or acquisition is disclosed in an 8-K well before any data feed reflects it.")
     story.append(Paragraph(
         "Criterion (a) — no pending or approved M&amp;A — cannot be checked from XBRL and needs a "
-        "human eye on each name's filings each quarter. It is the one that caught GDOT, and it "
-        "caught it from an 8-K, not a feed.", _S["small"]))
+        f"human eye on each name's filings each quarter. {_gdot}", _S["small"]))
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return buf.getvalue()
 
