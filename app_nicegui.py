@@ -349,6 +349,163 @@ def change_password_page():
         ui.button("Update password", on_click=do_change).props("color=primary").classes("w-full").style("margin-top:8px;")
 
 
+@ui.page("/admin/users")
+def user_admin_page():
+    """Staff-only user administration: list every login, add a user (seeded with the shared
+    default password + forced first-login rotation), reset a password, or enable/disable a login.
+    Cross-tenant by nature, so it lives OUTSIDE the tenant-scoped main nav and is gated to
+    praxis_staff — a client_user hitting this URL directly is bounced to /."""
+    from core import auth
+    from config.client_config import ROLE_PERMISSIONS
+    apply_theme()
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login"); return
+    if user["must_change_password"]:
+        ui.navigate.to("/change-password"); return
+    if not auth.is_staff(user):
+        ui.navigate.to("/"); return
+
+    role_keys = list(ROLE_PERMISSIONS.keys()) or ["IR"]
+    tenant_opts = {cid: rec.get("name", cid) for cid, rec in CLIENT_REGISTRY.items()}
+    default_pw = auth.default_user_password()
+
+    col = ui.column().classes("w-full items-center")
+    with col:
+        wrap = ui.column().style("width:min(1000px,94vw);margin-top:24px;gap:18px;")
+        with wrap:
+            # header
+            with ui.row().classes("w-full items-center"):
+                ui.label("User Administration").classes("text-2xl font-bold") \
+                    .style(f"color:{COLORS['text_heading']};")
+                ui.space()
+                ui.button("Back to app", icon="arrow_back",
+                          on_click=lambda: ui.navigate.to("/")).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
+
+                def _logout():
+                    app.storage.user.pop("user_id", None)
+                    app.storage.user.pop("active_client_id", None)
+                    ui.navigate.to("/login")
+                ui.button("Sign out", icon="logout", on_click=_logout).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
+
+            ui.label(f"New logins are seeded with the shared default password "
+                     f"(“{default_pw}”) and must change it on first sign-in.") \
+                .style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+
+            # ── add-user card ───────────────────────────────────────────────
+            with ui.card().classes("w-full").style(
+                    f"padding:18px;background:{COLORS['surface_bg']};"
+                    f"border:1px solid {COLORS['border']};border-radius:10px;"):
+                ui.label("Add a user").classes("text-base font-bold") \
+                    .style(f"color:{COLORS['text_heading']};margin-bottom:4px;")
+                with ui.row().classes("w-full items-end").style("gap:12px;flex-wrap:wrap;"):
+                    a_email = ui.input("Email").props("outlined dense").style("min-width:230px;")
+                    a_name = ui.input("Display name").props("outlined dense").style("min-width:180px;")
+                    a_type = ui.select(
+                        {auth.CLIENT: "Client (read-only, 1 tenant)",
+                         auth.STAFF: "Praxis Point staff (all tenants)"},
+                        value=auth.CLIENT, label="Account type").props("outlined dense") \
+                        .style("min-width:230px;")
+                    a_tenant = ui.select(tenant_opts, value=next(iter(tenant_opts)),
+                                         label="Home tenant").props("outlined dense") \
+                        .style("min-width:150px;")
+                    a_role = ui.select(role_keys, value=role_keys[0], label="Role") \
+                        .props("outlined dense").style("min-width:120px;")
+
+                    # tenant + role only apply to a client_user; hide for staff
+                    def _sync_type():
+                        is_client = a_type.value == auth.CLIENT
+                        a_tenant.set_visibility(is_client)
+                        a_role.set_visibility(is_client)
+                    a_type.on_value_change(lambda _: _sync_type())
+
+                    def _add():
+                        email = (a_email.value or "").strip().lower()
+                        if "@" not in email:
+                            ui.notify("Enter a valid email.", type="warning"); return
+                        is_client = a_type.value == auth.CLIENT
+                        home = a_tenant.value if is_client else None
+                        role = a_role.value if is_client else "IR"
+                        if is_client and not home:
+                            ui.notify("Pick a home tenant for a client user.", type="warning"); return
+                        ok = auth.create_user(email, default_pw, a_type.value, home, role,
+                                              display_name=(a_name.value or "").strip() or email,
+                                              must_change=True)
+                        if not ok:
+                            ui.notify(f"{email} already exists.", type="negative"); return
+                        ui.notify(f"Created {email} — default password “{default_pw}” "
+                                  f"(must change on first login).", type="positive", timeout=8000)
+                        a_email.value = ""; a_name.value = ""
+                        _render_users.refresh()
+
+                    ui.button("Add user", icon="person_add", on_click=_add).props("color=primary")
+                _sync_type()
+
+            # ── user list ───────────────────────────────────────────────────
+            @ui.refreshable
+            def _render_users():
+                users = auth.list_users()
+                with ui.card().classes("w-full").style(
+                        f"padding:0;background:{COLORS['surface_bg']};"
+                        f"border:1px solid {COLORS['border']};border-radius:10px;overflow:hidden;"):
+                    # header row
+                    cols = "2.4fr 1.6fr 1fr 1fr .7fr 1.1fr 1.4fr"
+                    with ui.element("div").style(
+                            f"display:grid;grid-template-columns:{cols};gap:8px;padding:10px 14px;"
+                            f"background:{COLORS['canvas_bg']};font-size:11px;font-weight:700;"
+                            f"letter-spacing:.03em;color:{COLORS['text_muted']};"):
+                        for h in ("EMAIL", "NAME", "TYPE", "TENANT", "ROLE", "STATUS", "ACTIONS"):
+                            ui.label(h)
+                    for u in users:
+                        is_self = u["user_id"].lower() == user["user_id"].lower()
+                        staff = u["account_type"] == auth.STAFF
+                        tenant = "— all —" if staff else tenant_opts.get(u["home_client_id"], u["home_client_id"] or "—")
+                        with ui.element("div").style(
+                                f"display:grid;grid-template-columns:{cols};gap:8px;padding:10px 14px;"
+                                f"align-items:center;border-top:1px solid {COLORS['border']};font-size:12.5px;"
+                                f"color:{COLORS['text_body']};"):
+                            ui.label(u["user_id"] + (" (you)" if is_self else "")).style("word-break:break-all;")
+                            ui.label(u["display_name"] or "—")
+                            ui.label("Staff" if staff else "Client") \
+                                .style("color:#1D4ED8;" if staff else "color:#B45309;")
+                            ui.label(tenant)
+                            ui.label("—" if staff else u["role_key"])
+                            # status: active + whether they still owe a password change
+                            with ui.row().style("gap:6px;align-items:center;"):
+                                ui.label("Active" if u["active"] else "Disabled") \
+                                    .style(("color:#15803D;" if u["active"] else "color:#B91C1C;") + "font-weight:600;")
+                                if u["must_change_password"]:
+                                    ui.label("• pw reset") \
+                                        .style("color:#B45309;font-size:10.5px;").tooltip(
+                                        "Must change password on next login")
+                            # actions
+                            with ui.row().style("gap:2px;"):
+                                def _reset(uid=u["user_id"]):
+                                    pw = auth.admin_reset_password(uid)
+                                    ui.notify(f"{uid} reset to “{pw}” (must change next login).",
+                                              type="positive", timeout=8000)
+                                    _render_users.refresh()
+                                ui.button(icon="lock_reset", on_click=_reset) \
+                                    .props("flat dense round").tooltip("Reset password to default")
+
+                                def _toggle(uid=u["user_id"], now_active=u["active"]):
+                                    auth.set_user_active(uid, not now_active)
+                                    ui.notify(f"{uid} {'disabled' if now_active else 'enabled'}.",
+                                              type="info")
+                                    _render_users.refresh()
+                                if is_self:
+                                    ui.button(icon="block").props("flat dense round").props("disable") \
+                                        .tooltip("You can't disable your own account")
+                                else:
+                                    ui.button(icon="toggle_off" if u["active"] else "toggle_on",
+                                              on_click=_toggle).props("flat dense round") \
+                                        .tooltip("Disable login" if u["active"] else "Enable login")
+
+            _render_users()
+
+
 @ui.page("/")
 def main_page():
     apply_theme()
@@ -528,6 +685,13 @@ def main_page():
                 "padding:2px 8px;border-radius:10px;")
         ui.label(user.get("display_name") or user["user_id"]).style(
             f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        # Staff-only: user administration (add/reset/disable logins across tenants).
+        if auth.is_staff(user):
+            ui.button(icon="manage_accounts",
+                      on_click=lambda: ui.navigate.to("/admin/users")) \
+                .props("flat round dense").style(f"color:{COLORS['text_muted']};") \
+                .tooltip("User administration")
 
         def _logout():
             app.storage.user.pop("user_id", None)

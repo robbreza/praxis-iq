@@ -42,6 +42,18 @@ client_user saro→usio, data-layer write refusal, authenticate + forced-change 
 and a clean live boot (`/login`, `/change-password`, `/` all 200). USIO seeds 6 client logins,
 SARO seeds 1 (`praxispointclient@saro`); no staff seeds until the operator sets the env creds.
 
+**Follow-on same day:**
+- **Staff user-admin screen** (`/admin/users`, staff-only, linked from the header via a
+  `manage_accounts` icon): list every login, add a user (seeded with the shared default password
+  + forced first-login rotation), reset a password (re-arms must-change), and enable/disable a
+  login (soft, not delete; you can't disable your own account). Backed by `auth.list_users`,
+  `auth.admin_reset_password`, `auth.set_user_active`. Data-layer functions verified headlessly;
+  live render pending a manual click-through (NiceGUI/Quasar resists browser automation here).
+- **`.env` now loads before `ui.run`.** `IRCONNECT_STORAGE_SECRET` is read eagerly at module load,
+  earlier than the first lazy `load_environment()` — so it was silently falling back to the dev
+  default even when set. Load the env explicitly at the top of the entrypoint. Prod `.env` now
+  carries a real 256-bit secret.
+
 ---
 
 ## 2026-07-18 — Multi-tenancy made real: client #2 (SARO), two-layer valuation, live consensus, full UI sweep

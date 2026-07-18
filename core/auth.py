@@ -133,6 +133,53 @@ def set_password(user_id, new_password):
         conn.close()
 
 
+def list_users():
+    """All users, ordered staff-first then by tenant/email — for the staff admin screen."""
+    conn = db.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT {', '.join(_COLS)} FROM users "
+            f"ORDER BY account_type, COALESCE(home_client_id, ''), user_id")
+        return [_row(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def admin_reset_password(user_id, new_password=None):
+    """Reset a user's password (to new_password, or the shared default) AND re-arm
+    must_change_password so they're forced to rotate on next login. Returns the password
+    that was set, so staff can convey it to the user."""
+    pw = new_password or default_user_password()
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        ph = "%s" if pg else "?"
+        cur.execute(
+            f"UPDATE users SET password_hash = {ph}, must_change_password = {ph} "
+            f"WHERE lower(user_id) = lower({ph})",
+            (hash_password(pw), True, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return pw
+
+
+def set_user_active(user_id, active):
+    """Enable/disable a login without deleting it. authenticate() rejects inactive users."""
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        ph = "%s" if pg else "?"
+        cur.execute(f"UPDATE users SET active = {ph} WHERE lower(user_id) = lower({ph})",
+                    (bool(active), user_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def touch_login(user_id):
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
