@@ -535,20 +535,25 @@ def street_for_quarter(ticker, fy_revenue_actual=None, q_year_ago_actual=None, c
 
 
 def consensus_rev(client_id=None):
-    """Live street revenue consensus ($M) for the quarter about to report — a drop-in for
-    the registry's static CT('q2_consensus_rev').
+    """Street revenue consensus ($M) for the quarter about to report — a drop-in for the
+    registry's static CT('q2_consensus_rev').
 
-    Prefers Yahoo's live estimate (yfinance revenue_estimate '0q', the current reporting
-    quarter) for any client with analyst coverage; falls back to the static registry value
-    when there is no coverage (a micro-cap like WRAP), and to None when neither exists. This
-    is what turns a hand-maintained per-client field into a live per-tenant feed: SARO's 12
-    analysts populate automatically, USIO's 4 do too, and an uncovered name honestly reads as
-    'no consensus' rather than a stale hardcode.
+    PRECEDENCE: an explicitly-set registry value WINS. A curated q2_consensus_rev is a
+    deliberate override — a point-in-time consensus the IR team validated for this quarter's
+    analysis — and must not be silently replaced by a drifting live feed. Only when the field
+    is blank/None does the live Yahoo estimate (yfinance revenue_estimate '0q', the current
+    reporting quarter) fill the gap. When neither exists (an uncovered micro-cap like WRAP),
+    the answer is None and the number honestly reads as 'no consensus' rather than a stale
+    hardcode. So: USIO's curated 25.1 stands; SARO (no registry value) gets its 12 analysts
+    live; WRAP gets nothing. Clear the registry field to hand a covered name over to the feed.
 
-    Returns (value_m, source) where source is 'live' | 'registry' | None so callers can label
+    Returns (value_m, source) where source is 'registry' | 'live' | None so callers can label
     the number; consensus_rev_value() is the bare-value convenience wrapper.
     """
     from config.client_config import CT
+    static = CT("q2_consensus_rev", None)
+    if isinstance(static, (int, float)) and static:
+        return float(static), "registry"
     try:
         est = get_estimates(CT("ticker"), client_id=client_id)
         q = (est or {}).get("revenue", {}).get("0q") or {}
@@ -556,9 +561,6 @@ def consensus_rev(client_id=None):
             return round(q["avg"] / 1e6, 2), "live"
     except Exception as exc:
         print(f"[market_data] live consensus unavailable: {exc}")
-    static = CT("q2_consensus_rev", None)
-    if isinstance(static, (int, float)) and static:
-        return float(static), "registry"
     return None, None
 
 
