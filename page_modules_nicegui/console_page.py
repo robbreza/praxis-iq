@@ -30,10 +30,13 @@ def _open_add_client_dialog():
             f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:6px;")
         name_in = ui.input("Company name").props("outlined dense autofocus").classes("w-full")
         ticker_in = ui.input("Ticker").props("outlined dense").classes("w-full")
+        cid_in = ui.input("Client ID", placeholder="lowercase id — blank = derive from ticker") \
+            .props("outlined dense").classes("w-full")
         exch_in = ui.input("Exchange", value="NYSE").props("outlined dense").classes("w-full")
         domain_in = ui.input("Email domain", placeholder="e.g. standardaero.com") \
             .props("outlined dense").classes("w-full")
-        ui.label("Mail-gateway identity will be irconnect@<domain>.").style(
+        ui.label("Client ID is the permanent tenant key (can't change later). "
+                 "Mail-gateway identity will be irconnect@<domain>.").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
         msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
 
@@ -43,14 +46,15 @@ def _open_add_client_dialog():
             name = (name_in.value or "").strip()
             ticker = (ticker_in.value or "").strip().upper()
             exch = (exch_in.value or "").strip()
-            domain = (domain_in.value or "").strip().lower()
+            domain = (domain_in.value or "").strip().lower().removeprefix("www.")
             if not name or not ticker or not domain:
                 msg.set_text("Name, ticker and email domain are required."); return
             if "@" in domain or "." not in domain or " " in domain:
                 msg.set_text("Enter a bare email domain, e.g. acme.com."); return
-            cid = _slug(ticker)
+            # explicit Client ID if given, else derive from ticker; slugified either way
+            cid = _slug(cid_in.value) or _slug(ticker)
             if not cid:
-                msg.set_text("Ticker must contain letters or numbers."); return
+                msg.set_text("Client ID (or ticker) must contain letters or numbers."); return
             if cid in CLIENT_REGISTRY:
                 msg.set_text(f"A client '{cid}' already exists."); return
             record = {
@@ -73,6 +77,60 @@ def _open_add_client_dialog():
         with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Create", on_click=_create).props("color=primary")
+    dialog.open()
+
+
+def _open_edit_client_dialog(cid):
+    """Edit an existing tenant (writes a partial DB overlay onto its record) or deactivate it.
+    client_id is immutable — it's the permanent tenant key — so only the descriptive fields and
+    the active flag are editable here."""
+    from config.client_config import get_client
+    rec = get_client(cid)
+    with ui.dialog() as dialog, ui.card().style(
+            f"width:430px;padding:22px;background:{COLORS['surface_bg']};"
+            f"border:1px solid {COLORS['border']};border-radius:10px;gap:6px;"):
+        ui.label(f"Edit client — {cid}").classes("text-lg font-bold").style(
+            f"color:{COLORS['text_heading']};")
+        ui.label("Client ID is permanent and can't be changed.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
+        name_in = ui.input("Company name", value=rec.get("name", "")).props("outlined dense autofocus").classes("w-full")
+        ticker_in = ui.input("Ticker", value=rec.get("ticker", "")).props("outlined dense").classes("w-full")
+        exch_in = ui.input("Exchange", value=rec.get("exchange", "")).props("outlined dense").classes("w-full")
+        domain_in = ui.input("Email domain", value=rec.get("email_domain", "")) \
+            .props("outlined dense").classes("w-full")
+        active_sw = ui.switch("Active (unchecking hides the tenant everywhere)", value=True)
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+
+        def _save():
+            from config.client_config import reload_registry, CLIENT_REGISTRY, DEFAULT_CLIENT_ID
+            from core import client_store
+            name = (name_in.value or "").strip()
+            ticker = (ticker_in.value or "").strip().upper()
+            exch = (exch_in.value or "").strip()
+            domain = (domain_in.value or "").strip().lower().removeprefix("www.")
+            active = bool(active_sw.value)
+            if not name or not ticker or not domain:
+                msg.set_text("Name, ticker and email domain are required."); return
+            if "@" in domain or "." not in domain or " " in domain:
+                msg.set_text("Enter a bare email domain, e.g. acme.com."); return
+            if not active and cid == DEFAULT_CLIENT_ID:
+                msg.set_text(f"Can't deactivate the default client ({cid})."); return
+            if not active and len(CLIENT_REGISTRY) <= 1:
+                msg.set_text("Can't deactivate the only active client."); return
+            overlay = {
+                "name": name, "ticker": ticker, "exchange": exch, "email_domain": domain,
+                "ir_contact": {"irconnect": f"irconnect@{domain}"},
+            }
+            client_store.upsert_client(cid, overlay, active=active)
+            reload_registry()
+            dialog.close()
+            ui.notify(f"Updated {name}." + ("" if active else "  Deactivated — now hidden."),
+                      type="positive", timeout=6000)
+            ui.navigate.reload()
+
+        with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=_save).props("color=primary")
     dialog.open()
 
 _UP, _DOWN, _AMBER, _AMBER_BG = "#15803D", "#B91C1C", "#B45309", "#FEF3C7"
@@ -154,8 +212,14 @@ def _client_card(r):
                 ui.label(f"{r['exchange']}: {r['ticker']}" if r["exchange"] else r["ticker"]).style(
                     f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.02em;")
             ui.space()
-            ptxt, pcolor = _price_text(r)
-            ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
+            with ui.column().style("align-items:flex-end;gap:2px;"):
+                ptxt, pcolor = _price_text(r)
+                ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
+                # edit pencil — click.stop so it doesn't also trigger the card's drill-in
+                ui.button(icon="edit").props("flat dense round size=sm") \
+                    .style(f"color:{COLORS['text_muted']};") \
+                    .on("click.stop", lambda _e=None, cid=r["cid"]: _open_edit_client_dialog(cid)) \
+                    .tooltip("Edit client")
         ui.separator().style("margin:6px 0;")
         etxt, ecolor = _earnings_cell(r)
         _metric("Next earnings", etxt, ecolor)

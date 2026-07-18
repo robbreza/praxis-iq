@@ -5,6 +5,20 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Console: editable client_id + in-Console edit/deactivate (Phase 3, start)
+
+- **Add-client form:** `Client ID` is now an explicit editable field (blank still derives from
+  the ticker) — so the permanent tenant key isn't forced to match the ticker.
+- **Edit / deactivate a client** from the Console: an edit pencil on each portfolio card opens a
+  dialog to change name/ticker/exchange/email domain, or uncheck Active to hide the tenant
+  everywhere. Saves as a partial DB overlay (deep-merged onto the seed, so rich config survives —
+  verified: editing USIO's domain keeps Paul Manley's IR contact + guidance_policy). Guards block
+  deactivating the default client or the last active one. client_id stays immutable.
+- **Domain hygiene:** a leading `www.` is now stripped from the email domain in both add and edit
+  (a `www.ceva.com` entry was producing `irconnect@www.ceva.com`).
+
+---
+
 ## 2026-07-18 — Praxis Point Console, Phase 2 (onboard a client without a deploy)
 
 The SaaS threshold: tenant definitions moved from code to DATA, and the Console can now onboard a
