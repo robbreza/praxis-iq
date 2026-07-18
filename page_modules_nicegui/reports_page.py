@@ -381,7 +381,7 @@ def _render_valuation_comp():
         if sens:
             lo, hi = sorted([sens["upside_backed"], sens["upside_all"]])
         with ui.row().classes("w-full gap-3"):
-            _bm_stat("USIO EV/Gross Profit", f"{imp['current_multiple']:.1f}x",
+            _bm_stat(f"{CT('ticker')} EV/Gross Profit", f"{imp['current_multiple']:.1f}x",
                      f"rank #{u.get('rank','—')} of {d['n_primary']+1} · cheapest = best", None)
             _bm_stat("Peer median EV/GP", f"{imp['peer_median_multiple']:.1f}x",
                      f"primary peers only (n={d['n_primary']})", None)
@@ -431,7 +431,7 @@ def _render_valuation_comp():
                  "basis": ""})
     ui.table(columns=cols, rows=rows).classes("w-full dense-table").props("flat dense")
     ui.label("* EV/Revenue and gross margin are NOT comparable across these rows and are shown for "
-             "context only — USIO reports revenue gross as a principal and peers vary. Revenue "
+             "context only — gross-vs-net revenue treatment varies across these companies. Revenue "
              "cancels out of EV/Gross Profit, which is why the ranking and the implied value use it "
              "and nothing else.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
 
@@ -471,7 +471,7 @@ def _render_valuation_comp():
         with ui.expansion("The bridge — how the implied value is built").classes("w-full").style(
                 "margin-top:6px;"):
             for label, val in [
-                ("USIO gross profit (EV ÷ current EV/GP)", f"${imp['gross_profit']/1e6:,.1f}M"),
+                (f"{CT('ticker')} gross profit (EV ÷ current EV/GP)", f"${imp['gross_profit']/1e6:,.1f}M"),
                 ("× peer median EV/Gross Profit", f"{imp['peer_median_multiple']:.2f}x"),
                 ("= implied enterprise value", f"${imp['implied_ev']/1e6:,.1f}M"),
                 (("+ net cash" if imp["net_debt"] < 0 else "− net debt"),
@@ -513,28 +513,34 @@ def _render_forensics():
         ui.label(f"Forensics unavailable: {e}").style("color:#B45309;font-size:12px;")
         return
 
-    pol, us = d["policy"], d["usio"]
+    pol, us = d.get("policy") or {}, d.get("usio") or {}
+    tkr = CT("ticker")
 
-    with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
-            "border-left:3px solid #B91C1C;padding:8px 10px;"):
-        ui.label(f"USIO reports revenue {pol['basis']} — verified from the filing").style(
-            "color:#B91C1C;font-size:12px;font-weight:700;")
-        ui.label(f"“{pol['quote']}”").style(
-            f"color:{COLORS['text_body']};font-size:11px;font-style:italic;")
-        ui.label(f"— {pol['form']} filed {pol['filed']}. {pol['verified']}").style(
-            f"color:{COLORS['text_muted']};font-size:10px;")
-        ui.label("This inverts the premise of the source workbook, which classified USIO as a net "
-                 "reporter and concluded peers' margins fall below USIO's once adjusted. USIO's "
-                 "~23% margin is depressed by its OWN gross presentation, not flattered by peers'.").style(
-            f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
+    # USIO's gross-as-principal / interchange policy card — its policy is empty for other
+    # tenants (which also means pol['basis'] would KeyError), so render only for USIO.
+    if tkr == "USIO" and pol.get("basis"):
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
+                "border-left:3px solid #B91C1C;padding:8px 10px;"):
+            ui.label(f"USIO reports revenue {pol['basis']} — verified from the filing").style(
+                "color:#B91C1C;font-size:12px;font-weight:700;")
+            ui.label(f"“{pol['quote']}”").style(
+                f"color:{COLORS['text_body']};font-size:11px;font-style:italic;")
+            ui.label(f"— {pol['form']} filed {pol['filed']}. {pol['verified']}").style(
+                f"color:{COLORS['text_muted']};font-size:10px;")
+            ui.label("This inverts the premise of the source workbook, which classified USIO as a net "
+                     "reporter and concluded peers' margins fall below USIO's once adjusted. USIO's "
+                     "~23% margin is depressed by its OWN gross presentation, not flattered by peers'.").style(
+                f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
 
     if us.get("gross_margin") is not None:
         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-            _bm_stat("USIO gross margin", f"{us['gross_margin']*100:.1f}%",
+            _bm_stat(f"{tkr} gross margin", f"{us['gross_margin']*100:.1f}%",
                      f"FY{us['period'][:4]} · reported gross basis", None)
-            _bm_stat("Net-basis margin", "cannot compute",
-                     "no interchange $ disclosed in the 10-K", "#B91C1C")
+            # The net-basis / interchange column is USIO-specific.
+            if tkr == "USIO":
+                _bm_stat("Net-basis margin", "cannot compute",
+                         "no interchange $ disclosed in the 10-K", "#B91C1C")
             _bm_stat("Peers comparable", f"{len(d['peers_comparable'])} of {d['n_primary']}",
                      f"{d['pct_comparable']}% of the primary comp set", "#B45309")
 
@@ -563,8 +569,9 @@ def _render_forensics():
         ui.label("The finding").style("color:#1E40AF;font-size:12px;font-weight:700;")
         ui.label(d["verdict"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
 
+    # The SBC-on-gross-profit interchange argument is USIO-specific.
     sb = d.get("sbc")
-    if sb and sb.get("usio"):
+    if sb and sb.get("usio") and tkr == "USIO":
         ui.label("Stock-based compensation — measured against gross profit, not revenue").classes(
             "section-head").style("margin-top:10px;")
         ui.label("The denominator is the whole argument. USIO's revenue is GROSS, so '% of revenue' "
@@ -848,7 +855,7 @@ def _render_benchmark_analysis():
         _mc, _ev = u.get("market_cap"), u.get("enterprise_value")
         if _mc and _ev:
             _exc = ", ".join(e["ticker"] for e in bm.get("excluded", []))
-            ui.label(f"USIO: market cap ${_mc/1e6:.0f}M, enterprise value ${_ev/1e6:.0f}M → {u['ev_rev']:.2f}x "
+            ui.label(f"{CT('ticker')}: market cap ${_mc/1e6:.0f}M, enterprise value ${_ev/1e6:.0f}M → {u['ev_rev']:.2f}x "
                      f"EV/Revenue, {u['ev_gp']:.1f}x EV/Gross Profit (gross margin {u['gross_margin']:.0f}% from "
                      f"the 10-Q). Peer EV/Revenue & gross margins from market data (Yahoo){(' — ' + _exc + ' excluded from EV (bank / net-cash EVs aren’t comparable)') if _exc else ''}.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
@@ -881,9 +888,9 @@ def _render_benchmark_analysis():
                     "Gross margin — each firm's own basis, NOT comparable", median=None)
             missing = [r["ticker"] for r in bm["primary"] if r.get("gross_margin") is None]
             ui.label(
-                "No peer median shown, deliberately: USIO and FOUR report revenue gross of "
-                "interchange, others net or mixed per-contract under ASC 606. A median across "
-                "those bases describes no company — use EV/Gross Profit, where revenue cancels."
+                "No peer median shown, deliberately: gross-vs-net revenue treatment varies across "
+                "these companies (some gross, some net or mixed per-contract under ASC 606). A median "
+                "across those bases describes no company — use EV/Gross Profit, where revenue cancels."
                 + (f" {', '.join(missing)} are absent because they report no gross profit line at all."
                    if missing else "")).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
         with ui.column().classes("flex-1").style("min-width:300px;"):
@@ -891,10 +898,13 @@ def _render_benchmark_analysis():
 
     # Comparison table (ranked by EV/Gross Profit — cheapest first)
     ui.label("Primary valuation peers — ranked by EV/Gross Profit").classes("section-head").style("margin-top:6px;")
-    ui.label("USIO is a hybrid (Merchant Services + Output Solutions), so it's benchmarked against a segmented "
-             "peer set — integrated payments, billing/output, and prepaid — not one generic payments median. "
-             "◆ marks the closest single operating analog.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+    _seg_desc = ("USIO is a hybrid (Merchant Services + Output Solutions), so it's benchmarked against a "
+                 "segmented peer set — integrated payments, billing/output, and prepaid — not one generic "
+                 "payments median. ◆ marks the closest single operating analog."
+                 if CT("ticker") == "USIO" else
+                 "Benchmarked against an independently chosen peer set matched on business model, not a "
+                 "generic sector median. ◆ marks the closest single operating analog.")
+    ui.label(_seg_desc).style(f"color:{COLORS['text_muted']};font-size:11px;")
     cols = [
         {"name": "co", "label": "Company", "field": "co", "align": "left"},
         {"name": "seg", "label": "Comps to", "field": "seg", "align": "left"},
@@ -1178,23 +1188,25 @@ def _render_onboarding_kit():
     except Exception as e:
         ui.label(f"Onboarding kit unavailable: {e}").style("color:#B45309;font-size:12px;")
         return
-    pol = d["policy"]
+    pol = d.get("policy") or {}
     ui.label("Built to be handed to a sell-side analyst. Every answer carries the source it can be "
              "checked against — the reader has the 10-K open.").style(
         f"color:{COLORS['text_muted']};font-size:11.5px;")
 
-    with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
-            "border-left:3px solid #B91C1C;padding:8px 10px;margin-top:4px;"):
-        ui.label(f"Start here — we report revenue {pol['basis']}").style(
-            "color:#B91C1C;font-size:12px;font-weight:700;")
-        ui.label(f"\u201c{pol['quote']}\u201d").style(
-            f"color:{COLORS['text_body']};font-size:11px;font-style:italic;")
-        ui.label(f"— {pol['form']}, filed {pol['filed']}. This one fact explains our gross margin. "
-                 f"Interchange we never keep sits in both revenue and cost of services; a peer "
-                 f"reporting net shows 60–75% on identical economics. Gross margin is not "
-                 f"comparable across payment processors — ours or anyone's.").style(
-            f"color:{COLORS['text_body']};font-size:11px;")
+    # Gross-as-principal / interchange "start here" card is USIO-specific (pol empty otherwise).
+    if CT("ticker") == "USIO" and pol.get("basis"):
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
+                "border-left:3px solid #B91C1C;padding:8px 10px;margin-top:4px;"):
+            ui.label(f"Start here — we report revenue {pol['basis']}").style(
+                "color:#B91C1C;font-size:12px;font-weight:700;")
+            ui.label(f"\u201c{pol['quote']}\u201d").style(
+                f"color:{COLORS['text_body']};font-size:11px;font-style:italic;")
+            ui.label(f"— {pol['form']}, filed {pol['filed']}. This one fact explains our gross margin. "
+                     f"Interchange we never keep sits in both revenue and cost of services; a peer "
+                     f"reporting net shows 60–75% on identical economics. Gross margin is not "
+                     f"comparable across payment processors — ours or anyone's.").style(
+                f"color:{COLORS['text_body']};font-size:11px;")
 
     for i, q in enumerate(d["qa"], 1):
         with ui.expansion(f"Q{i}. {q['q']}", value=(i == 1)).classes("w-full").style("margin-top:4px;"):
