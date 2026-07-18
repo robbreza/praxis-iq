@@ -235,7 +235,7 @@ STANDARD_CLIENT_LOGINS = [
 
 
 def default_user_password():
-    return os.environ.get("DEFAULT_USER_PASSWORD", "IRconnect1")
+    return os.environ.get("DEFAULT_USER_PASSWORD", "IRconnect01")  # >=10 chars: clears the change-pw minimum
 
 
 def seed_admin_from_env():
