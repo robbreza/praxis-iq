@@ -225,27 +225,27 @@ CLIENT_REGISTRY = {
             "note":             "FY2026 mgmt guidance: 10-12% revenue growth, positive adj. EBITDA",
         },
     },
-    # ── Client #2: WRAP (Wrap Technologies) — DEMO tenant, PUBLIC INFO ONLY ──
-    # Onboarded from public sources only (EDGAR + market feed). Every private
-    # field a real engagement would carry — guidance, consensus, IR contacts,
-    # executive detail, analyst coverage, tone/FLS policy — is intentionally left
-    # EMPTY (matching usio's field types), because none of it is public. The
-    # accessors return those blanks rather than fabricating a number or leaking
-    # usio's, so the guidance/script surfaces honestly read as "not disclosed"
-    # for WRAP. What IS populated is the public identity + the independently
-    # chosen peer set (in the peer_universe data layer, keyed client_id="wrap").
-    "wrap": {
-        "ticker": "WRAP",
-        "name": "Wrap Technologies, Inc.",
-        "exchange": "Nasdaq",
-        "last_price": 2.05,               # public market feed, 2026-07-17
+    # ── Client #2: SARO (StandardAero, Inc.) — NYSE aerospace engine MRO ──
+    # Onboarded from public sources (EDGAR + market feed) to start; unlike the
+    # earlier WRAP demo, SARO is a real, well-covered mid-cap (14 analysts, live
+    # sell-side consensus), so the consensus field is fed LIVE from market_data's
+    # Yahoo pull rather than hardcoded here, and the private fields below fill in
+    # as the engagement provides them. Everything still left blank reads honestly
+    # as "not disclosed" via the accessors — no fabrication, no cross-tenant leak.
+    # The independently chosen peer set lives in the peer_universe data layer
+    # (keyed client_id="saro"), built from SARO's own 10-K competition section.
+    "saro": {
+        "ticker": "SARO",
+        "name": "StandardAero, Inc.",
+        "exchange": "NYSE",
+        "last_price": 26.73,              # public market feed, 2026-07-17
         "price_date": "Jul 17, 2026",
-        "market_cap_m": 114,
-        "ev_m": 115,
-        "sector": "Public Safety / Less-Lethal Technology",
-        # ── everything below: not public, left blank (no fabrication, no leak) ──
+        "market_cap_m": 8887,
+        "ev_m": 11256,
+        "sector": "Aerospace — Engine MRO (aftermarket)",
+        # ── below: not yet provided by the client — blank, fed live, or TBD ──
         "fy_guidance": "",
-        "q2_consensus_rev": None,
+        "q2_consensus_rev": None,         # fed live from market_data (Yahoo); 14 analysts cover SARO
         "peer_median_ev_rev": None,
         "guidance_vs_street_note": "",
         "bar_risk_level": "",
@@ -257,7 +257,7 @@ CLIENT_REGISTRY = {
         "fls_items": [],
         "guidance_policy": {},
         "analysts": [],
-        "peers": [],                      # peers live in peer_universe (client_id="wrap")
+        "peers": [],                      # peers live in peer_universe (client_id="saro")
         "earnings": {},
         "financials": {},
         "guidance": {},

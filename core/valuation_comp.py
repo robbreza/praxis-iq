@@ -382,16 +382,25 @@ def _growth_basis_read(o):
         "does not pay for. That is a far better explanation of the {:.0f}% discount than "
         "'mispricing', and any re-rating case has to beat it.".format(
             o["usio_annual_gp_growth"], o.get("usio_gm_delta_pp") or 0, 17))
-    bits.append(
-        "AND THE BET HAS EVIDENCE. Q1 FY{} grew revenue {:+.1f}% and gross profit +7% (10-Q: "
-        "\u201cGross profit increased by 7% to $5.1 million\u201d, margin \u201c20.2% ... down "
-        "versus 21.9%\u201d) against FY{}'s {:+.1f}% / {:+.1f}%. The business is inflecting and "
-        "that is a real fact. But it is ONE quarter against a full year, margin compressed while "
-        "it happened, and the re-rating case now rests on it. Take that thesis to the board on "
-        "its merits \u2014 do not present it as 'the peers say we are worth 20% more'.".format(
-            "26", o["usio_q_rev_growth"], str(o["fy"])[:4],
-            o["usio_annual_rev_growth"], o["usio_annual_gp_growth"]))
-    return " ".join(bits)
+    # USIO-SPECIFIC EVIDENCE BLOCK \u2014 carries USIO's verbatim Q1 FY26 10-Q quote and its
+    # exact $5.1M / 20.2% / 21.9% figures. It is real for USIO and FALSE for any other
+    # tenant, so it renders only for USIO. The proper generalization is a per-client
+    # "inflection evidence" field (or transcript-driven extraction); until that exists,
+    # other tenants simply omit this paragraph rather than inherit USIO's numbers.
+    if CT("ticker") == "USIO":
+        bits.append(
+            "AND THE BET HAS EVIDENCE. Q1 FY{} grew revenue {:+.1f}% and gross profit +7% (10-Q: "
+            "\u201cGross profit increased by 7% to $5.1 million\u201d, margin \u201c20.2% ... down "
+            "versus 21.9%\u201d) against FY{}'s {:+.1f}% / {:+.1f}%. The business is inflecting and "
+            "that is a real fact. But it is ONE quarter against a full year, margin compressed while "
+            "it happened, and the re-rating case now rests on it. Take that thesis to the board on "
+            "its merits \u2014 do not present it as 'the peers say we are worth 20% more'.".format(
+                "26", o["usio_q_rev_growth"], str(o["fy"])[:4],
+                o["usio_annual_rev_growth"], o["usio_annual_gp_growth"]))
+    # Replace the USIO label with the active client's ticker. The narrative variables are
+    # named "usio_*" for legacy reasons but hold the ACTIVE client's data, so for any tenant
+    # the word "USIO" in these strings is a mislabel, not USIO's data leaking.
+    return " ".join(bits).replace("USIO", CT("ticker"))
 
 
 
