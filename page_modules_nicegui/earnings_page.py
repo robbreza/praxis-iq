@@ -960,19 +960,40 @@ def _generate_persona_draft(role, ss, context=""):
         ops_bits.append(f"ACH transactions +{ops['ach_txn_yoy']:.0f}% YoY")
     ops_text = "; ".join(ops_bits) if ops_bits else "no additional operating-metrics detail provided (Stage 1B not yet filled in)"
 
+    # Consensus clause — a client with no sell-side coverage on file (a private-info
+    # gap, common for micro-caps and any newly-onboarded tenant) has q2_consensus_rev
+    # as None, not a number. Formatting None as ${:.1f} crashes, and printing "$0.0M
+    # consensus" would fabricate a false zero. Say plainly there is none instead.
+    # Consensus and the "tone vs Street" framing. A client with no sell-side coverage
+    # on file (q2_consensus_rev is None — common for micro-caps and any newly-onboarded
+    # tenant) breaks this two ways: formatting None as ${:.1f} crashes, and — subtler,
+    # caught by running the WRAP demo — every prompt that carried "Tone read vs Street
+    # consensus: ..." induced the model to FABRICATE a consensus beat out of the revenue
+    # number (e.g. "$1.1M revenue ahead of consensus" when no consensus exists). So when
+    # there is no consensus, drop the framing entirely and hard-forbid the comparison,
+    # for EVERY persona prompt (IR/CFO/CEO all referenced it), not just the CFO's.
+    _cons = CT("q2_consensus_rev", None)
+    if isinstance(_cons, (int, float)) and _cons:
+        cons_clause = f"Street consensus revenue was ${_cons:.1f}M. "
+        tone_line = f"Tone read vs Street consensus: {tone['label']}. {tone_rule} "
+    else:
+        cons_clause = ""
+        tone_line = ("No published sell-side consensus is on file for this name; do NOT state or "
+                     "imply any beat, miss, or comparison versus consensus, and do not invent a "
+                     "consensus figure. ")
+
     prompts = {
         "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
               f"({contacts['CEO']['name']} CEO, {contacts['CFO']['name']} CFO) and the standard "
-              f"forward-looking-statements reminder. Tone read vs Street consensus: {tone['label']}. {tone_rule} "
+              f"forward-looking-statements reminder. {tone_line}"
               f"What should change from last quarter's opening (see Step 1 review): "
               f"{what_new or 'no specific updates provided — keep the tone consistent with last quarter'}. "
               f"Professional, concise, plain text (no markdown).",
         "CFO": f"Write a CFO financial-review paragraph for an earnings call using these Q2 actuals: revenue "
                f"${n.get('rev',0):.1f}M, gross margin {n.get('gm',0):.1f}%, Adjusted EBITDA ${n.get('ebitda',0):.1f}M, "
-               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M. Street "
-               f"consensus revenue was ${CT('q2_consensus_rev',0):.1f}M. Tone read vs Street consensus: "
-               f"{tone['label']}. {tone_rule} What to address proactively this quarter (see Step 1 review — last "
-               f"quarter's interest-income miss was not pre-empted and drew analyst follow-up): "
+               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M. "
+               f"{cons_clause}{tone_line}What to address proactively this quarter (pre-empt any "
+               f"prior-quarter item that previously drew analyst follow-up): "
                f"{what_new or 'no specific updates provided'}. Professional tone, plain text (no markdown), "
                f"4-6 sentences.",
         "CRO": f"Write a business-operations paragraph for an earnings call covering: transaction volume "
@@ -981,7 +1002,7 @@ def _generate_persona_draft(role, ss, context=""):
                f"What's new this quarter: {what_new or 'no specific updates provided'}. Professional tone, plain "
                f"text (no markdown), 3-5 sentences.",
         "CEO": f"Write a CEO narrative paragraph for {ticker}'s earnings call covering strategic highlights, then "
-               f"the guidance stance: {guidance_line}. Tone read vs Street consensus: {tone['label']}. {tone_rule} "
+               f"the guidance stance: {guidance_line}. {tone_line}"
                f"What's new/evolved since last quarter (see Step 1 review): "
                f"{what_new or 'continued execution against the long-term plan'}. Confident but not "
                f"promotional, plain text (no markdown), 4-6 sentences.",
