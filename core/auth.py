@@ -24,7 +24,6 @@ Password hashing is stdlib PBKDF2-HMAC-SHA256 (no new dependency), stored as
 import hashlib
 import hmac
 import os
-import re
 import secrets
 from datetime import datetime
 
@@ -226,13 +225,17 @@ def is_client_user(user):
 
 
 # ── seeding ────────────────────────────────────────────────────────────────
-def _derive_username(name, ticker):
-    slug = re.sub(r"[^a-z0-9]+", ".", (name or "").lower()).strip(".") or "user"
-    return f"{slug}@{(ticker or 'client').lower()}"
+# The two standard client logins every tenant gets, regardless of whether its roster is
+# filled in — a generic IR pair so onboarding always hands the client the same two sign-ins.
+# (handle, display_name); the login id is "<handle>@<ticker>".
+STANDARD_CLIENT_LOGINS = [
+    ("directorofir", "Director of IR"),
+    ("irassistant",  "IRassistant"),
+]
 
 
 def default_user_password():
-    return os.environ.get("DEFAULT_USER_PASSWORD", "PraxisPoint!Change1")
+    return os.environ.get("DEFAULT_USER_PASSWORD", "IRconnect1")
 
 
 def seed_admin_from_env():
@@ -253,36 +256,21 @@ def seed_admin_from_env():
 
 
 def seed_client_users(client_id):
-    """Create client_user logins for a client's ROSTER participants (client-side people —
-    IR contact + executives; external analysts are deliberately EXCLUDED) plus a per-client
-    'praxispointclient' default. All read-only, scoped to the tenant, seeded with the default
-    password and must_change_password. Idempotent. Returns the list of user_ids created."""
+    """Seed the two STANDARD client_user logins (Director of IR, IRassistant) for a tenant —
+    both read-only, tenant-scoped, role IR, seeded with the shared default password and forced
+    to change it on first sign-in. The same pair for every client, independent of its roster, so
+    onboarding is uniform. Idempotent. Returns the list of user_ids created."""
     from config.client_config import get_client, CLIENT_REGISTRY
     if client_id not in CLIENT_REGISTRY:
         return []
     client = get_client(client_id)
-    ticker = (client.get("ticker") or client_id)
+    ticker = (client.get("ticker") or client_id).lower()
     pw = default_user_password()
     created = []
-
-    people = []  # (role_key, name, email)
-    ir = client.get("ir_contact") or {}
-    if ir.get("name"):
-        people.append(("IR", ir["name"], ir.get("email")))
-    for role_key, info in (client.get("executives") or {}).items():
-        if isinstance(info, dict) and info.get("name"):
-            people.append((role_key, info["name"], info.get("email")))
-
-    for role_key, name, email in people:
-        uid = (email or _derive_username(name, ticker)).lower()
-        if create_user(uid, pw, CLIENT, client_id, role_key, display_name=name, must_change=True):
+    for handle, display in STANDARD_CLIENT_LOGINS:
+        uid = f"{handle}@{ticker}"
+        if create_user(uid, pw, CLIENT, client_id, "IR", display_name=display, must_change=True):
             created.append(uid)
-
-    # per-client default login
-    default_uid = f"praxispointclient@{ticker.lower()}"
-    if create_user(default_uid, pw, CLIENT, client_id, "IR",
-                   display_name=f"{ticker} Client", must_change=True):
-        created.append(default_uid)
     return created
 
 

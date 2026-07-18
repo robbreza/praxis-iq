@@ -43,6 +43,12 @@ and a clean live boot (`/login`, `/change-password`, `/` all 200). USIO seeds 6 
 SARO seeds 1 (`praxispointclient@saro`); no staff seeds until the operator sets the env creds.
 
 **Follow-on same day:**
+- **Standardized client logins.** Replaced the roster-derived seeding (per-executive accounts +
+  a `praxispointclient@<ticker>` default — which left roster-less tenants like SARO with no
+  meaningful login) with a uniform pair every tenant gets: **`directorofir@<ticker>`
+  ("Director of IR")** and **`irassistant@<ticker>` ("IRassistant")**, both read-only, role IR,
+  forced to rotate on first sign-in. Default password is now **`IRconnect1`**. The 7 old unused
+  client accounts were dropped and the pair re-seeded for USIO + SARO.
 - **Staff user-admin screen** (`/admin/users`, staff-only, linked from the header via a
   `manage_accounts` icon): list every login, add a user (seeded with the shared default password
   + forced first-login rotation), reset a password (re-arms must-change), and enable/disable a
