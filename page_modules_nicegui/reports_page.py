@@ -780,7 +780,8 @@ def _render_company_financials():
                  f"${inc['adjusted_ebitda']/1e3:.0f}K adjusted ({inc['adj_ebitda_margin']:.0f}% margin). "
                  f"Adjustments are XBRL-tagged add-backs; the company's own non-GAAP Adjusted EBITDA may include "
                  f"further items.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
-    _talking_card(tp["income"])
+    if isinstance(tp, dict):
+        _talking_card(tp.get("income", []))
 
     # ---- Balance sheet ----
     ui.label("Balance sheet").classes("section-head").style("margin-top:8px;")
@@ -804,22 +805,33 @@ def _render_company_financials():
             f"border-left:3px solid #B45309;margin-top:4px;"):
         ui.label("Reading the balance sheet").style(
             "color:#B45309;font-size:11px;font-weight:700;letter-spacing:.03em;")
-        ui.label(f"Gross assets of ${bs['assets']/1e6:.0f}M and liabilities of ${bs['liabilities']/1e6:.0f}M look "
-                 f"large against ${bs['equity']/1e6:.0f}M of equity — but roughly ${bs['cash_and_restricted']/1e6:.0f}M "
-                 f"is customer settlement and prepaid-card float held in custody, offset by matching obligations. "
-                 f"It's pass-through, not corporate leverage. On a corporate basis the business is net cash: "
-                 f"${bs['cash']/1e6:.1f}M cash vs only ${bs['debt']/1e6:.1f}M debt.").style(
-            f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
-    _talking_card(tp["balance"])
+        # The custody/settlement-float reading is USIO's (a payments business). Only for USIO.
+        if CT("ticker") == "USIO" and all(bs.get(k) is not None for k in
+                                          ("assets", "liabilities", "equity", "cash_and_restricted", "cash", "debt")):
+            ui.label(f"Gross assets of ${bs['assets']/1e6:.0f}M and liabilities of ${bs['liabilities']/1e6:.0f}M look "
+                     f"large against ${bs['equity']/1e6:.0f}M of equity — but roughly ${bs['cash_and_restricted']/1e6:.0f}M "
+                     f"is customer settlement and prepaid-card float held in custody, offset by matching obligations. "
+                     f"It's pass-through, not corporate leverage. On a corporate basis the business is net cash: "
+                     f"${bs['cash']/1e6:.1f}M cash vs only ${bs['debt']/1e6:.1f}M debt.").style(
+                f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+        elif bs.get("assets") is not None and bs.get("liabilities") is not None and bs.get("equity") is not None:
+            ui.label(f"Assets of ${bs['assets']/1e6:.0f}M against ${bs['liabilities']/1e6:.0f}M of liabilities and "
+                     f"${bs['equity']/1e6:.0f}M of equity.").style(
+                f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+    if isinstance(tp, dict):
+        _talking_card(tp.get("balance", []))
 
     # ---- Cash flow ----
+    _cf = lambda v: f"${v/1e3:.0f}K" if isinstance(v, (int, float)) else "—"
+    _cp = lambda v: f"{v:.0f}%" if isinstance(v, (int, float)) else "—"
     ui.label("Cash flow").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
-        _bm_stat("Operating cash flow", f"${cf['operating_cf']/1e3:.0f}K", f"{cf['ocf_margin']:.0f}% of revenue")
-        _bm_stat("Free cash flow", f"${cf['fcf']/1e3:.0f}K", f"{cf['fcf_margin']:.0f}% margin",
-                 "#15803D" if (cf['fcf'] or 0) > 0 else "#B45309")
-        _bm_stat("Capex + software", f"${cf['capex']/1e3:.0f}K", "reinvestment")
-    _talking_card(tp["cashflow"])
+        _bm_stat("Operating cash flow", _cf(cf.get('operating_cf')), f"{_cp(cf.get('ocf_margin'))} of revenue")
+        _bm_stat("Free cash flow", _cf(cf.get('fcf')), f"{_cp(cf.get('fcf_margin'))} margin",
+                 "#15803D" if (cf.get('fcf') or 0) > 0 else "#B45309")
+        _bm_stat("Capex + software", _cf(cf.get('capex')), "reinvestment")
+    if isinstance(tp, dict):
+        _talking_card(tp.get("cashflow", []))
 
 
 def _render_benchmark_analysis():
