@@ -82,8 +82,13 @@ had never been swept). Both now generalized or gated to USIO:
 
 ### Also
 - `gitignore vendor/` — the Loughran-McDonald dictionary is commercial-licence-pending; committing
-  it would be redistribution. `core/lexicon.py` degrades gracefully without it. **Launch-blocking:
-  the LM licence gates the hedge/non-answer features.**
+  it would be redistribution. **Correction (verified 2026-07-18): LM is NOT launch-blocking and is
+  not a dependency.** The shipped hedge/non-answer analytics are our own, licence-free
+  (`core/non_answers.py` + `core/hedge_lexicon.py`, built from the client's own outcome-labelled
+  calls — see hedge_lexicon.py's docstring for why that beats LM for the IR question). LM
+  (`core/lexicon.py`) is a dormant optional add-on gated behind an `lm_license` setting; it
+  degrades to None and the app is fully functional without it. Licensing it later is purely
+  additive.
 - Systematic mistrust of favourable-looking numbers throughout: the +86%, the +142% consensus PT
   optics, the demand-beta noise — each surfaced with its caveat rather than presented as a finding.
 
