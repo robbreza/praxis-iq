@@ -31,22 +31,39 @@ from config.client_config import (
 from config.theme_tokens import ACTIVE as COLORS
 
 
-def _bind_active_client():
-    """Assign this render's tenant from persistent per-browser storage.
-
-    app.storage.user is a cookie-backed dict that survives reconnects, so the
-    tenant a user picks sticks across navigations and reloads. We copy it into
-    the client_config ContextVar at the START OF EVERY RENDER because NiceGUI
-    event handlers can run in fresh async contexts — re-asserting per render
-    keeps get_active_client_id() correct for all the synchronous core calls a
-    render makes, while those calls stay ignorant of NiceGUI. Unknown or absent
-    values fall back to DEFAULT_CLIENT_ID rather than raising."""
+def _current_user():
+    """The authenticated user for this session (from the signed session cookie), or None."""
+    from core import auth
     try:
-        cid = app.storage.user.get("active_client_id", DEFAULT_CLIENT_ID)
+        uid = app.storage.user.get("user_id")
     except Exception:
-        cid = DEFAULT_CLIENT_ID
-    if cid not in CLIENT_REGISTRY:
-        cid = DEFAULT_CLIENT_ID
+        return None
+    return auth.get_user(uid) if uid else None
+
+
+def _bind_active_client():
+    """Assign this render's tenant AND enforce the access boundary, per render.
+
+    THE SECURITY-CRITICAL CLAMP. The tenant a session may view is derived from the
+    AUTHENTICATED user (auth.allowed_clients) — never trusted from the cookie. A client_user
+    is pinned to its home tenant; a forged active_client_id pointing at another client is
+    rejected here, server-side. Staff get their remembered choice within the full set.
+
+    Also marks the session read-only in core.db for a client_user, so writes are refused at
+    the DATA layer regardless of UI gating. Re-asserted every render because NiceGUI event
+    handlers can run in fresh async contexts."""
+    from core import auth, db
+    user = _current_user()
+    allowed = auth.allowed_clients(user)
+    db.set_session_readonly(auth.is_client_user(user))
+    try:
+        requested = app.storage.user.get("active_client_id")
+    except Exception:
+        requested = None
+    if allowed:
+        cid = requested if requested in allowed else allowed[0]
+    else:
+        cid = DEFAULT_CLIENT_ID  # unauthenticated; the page guard redirects to /login anyway
     set_active_client_id(cid)
     return cid
 
@@ -257,12 +274,88 @@ def apply_theme():
     """)
 
 
+def _auth_card(title, subtitle):
+    """Shared centered card shell for the login / change-password pages."""
+    col = ui.column().classes("w-full items-center").style("margin-top:8vh;")
+    with col:
+        card = ui.card().style(
+            f"width:360px;padding:24px;background:{COLORS['surface_bg']};"
+            f"border:1px solid {COLORS['border']};border-radius:10px;")
+        with card:
+            ui.label(title).classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
+            ui.label(subtitle).style(f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:8px;")
+    return card
+
+
+@ui.page("/login")
+def login_page():
+    apply_theme()
+    if _current_user():
+        ui.navigate.to("/")
+        return
+    with _auth_card("IRconnect", "Sign in"):
+        email = ui.input("Email").props("outlined dense autofocus").classes("w-full")
+        pw = ui.input("Password", password=True).props("outlined dense").classes("w-full")
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+
+        def do_login():
+            from core import auth
+            u = auth.authenticate((email.value or "").strip(), pw.value or "")
+            if not u:
+                msg.set_text("Invalid email or password.")
+                return
+            app.storage.user["user_id"] = u["user_id"]
+            app.storage.user.pop("active_client_id", None)  # start from the user's default tenant
+            auth.touch_login(u["user_id"])
+            ui.navigate.to("/change-password" if u["must_change_password"] else "/")
+
+        pw.on("keydown.enter", lambda _: do_login())
+        ui.button("Sign in", on_click=do_login).props("color=primary").classes("w-full").style("margin-top:8px;")
+
+
+@ui.page("/change-password")
+def change_password_page():
+    apply_theme()
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login")
+        return
+    with _auth_card("Set a new password", f"{user['user_id']} — first sign-in"):
+        p1 = ui.input("New password", password=True).props("outlined dense autofocus").classes("w-full")
+        p2 = ui.input("Confirm password", password=True).props("outlined dense").classes("w-full")
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+
+        def do_change():
+            from core import auth
+            a, b = (p1.value or ""), (p2.value or "")
+            if len(a) < 10:
+                msg.set_text("Use at least 10 characters.")
+                return
+            if a != b:
+                msg.set_text("Passwords do not match.")
+                return
+            auth.set_password(user["user_id"], a)
+            ui.navigate.to("/")
+
+        p2.on("keydown.enter", lambda _: do_change())
+        ui.button("Update password", on_click=do_change).props("color=primary").classes("w-full").style("margin-top:8px;")
+
+
 @ui.page("/")
 def main_page():
     apply_theme()
+    # AUTH GATE: no valid session -> login; unchanged bootstrap password -> forced change.
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login")
+        return
+    if user["must_change_password"]:
+        ui.navigate.to("/change-password")
+        return
     # Bind the tenant for this session BEFORE the first get_client()/CT() call, so
     # the whole page (header, nav, every data pull) reads the active client, not
-    # the default. Re-asserted in render_page() for later navigations.
+    # the default. Re-asserted in render_page() for later navigations. This also
+    # enforces the tenant clamp + read-only for client users.
     _bind_active_client()
     client = get_client()
     # "role" is the active RBAC role_key for this session (IR/CEO/CFO/CRO/
@@ -396,16 +489,18 @@ def main_page():
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
         ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round")
-        # Tenant identity / switcher. One client -> a static name label (no reason
-        # to show a dropdown of one). Two or more -> a switcher that writes the
-        # choice to persistent per-browser storage and reloads, so the whole app
-        # re-renders for the new tenant from a clean slate.
-        if len(CLIENT_REGISTRY) > 1:
-            _client_opts = {cid: rec.get("name", cid) for cid, rec in CLIENT_REGISTRY.items()}
+        # Tenant identity / switcher. Options are the tenants THIS user may see
+        # (auth.allowed_clients) — so a client_user never gets a switcher (one tenant ->
+        # static label), and staff switch only within their allowed set. The switch handler
+        # re-checks membership as a second gate.
+        from core import auth
+        _allowed = auth.allowed_clients(user)
+        if len(_allowed) > 1:
+            _client_opts = {cid: CLIENT_REGISTRY[cid].get("name", cid) for cid in _allowed}
 
             def _switch_client(e):
                 new_id = getattr(e, "value", None)
-                if new_id in CLIENT_REGISTRY:
+                if new_id in _allowed:
                     app.storage.user["active_client_id"] = new_id
                     ui.navigate.reload()
 
@@ -417,6 +512,22 @@ def main_page():
             ui.label(client.get("name", "")).classes("text-lg font-bold").style(
                 f"color:{COLORS['text_heading']}")
         ui.space()
+
+        # Session identity + read-only badge + logout.
+        if auth.is_client_user(user):
+            ui.label("VIEW-ONLY").style(
+                "background:#B45309;color:white;font-size:9.5px;font-weight:700;letter-spacing:.05em;"
+                "padding:2px 8px;border-radius:10px;")
+        ui.label(user.get("display_name") or user["user_id"]).style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+        def _logout():
+            app.storage.user.pop("user_id", None)
+            app.storage.user.pop("active_client_id", None)
+            ui.navigate.to("/login")
+
+        ui.button(icon="logout", on_click=_logout).props("flat round dense") \
+            .style(f"color:{COLORS['text_muted']};").tooltip("Sign out")
 
         # Global database search — one box, reachable from every page, spanning
         # every database the platform holds: tracked funds + prospects, NOBO and
@@ -677,6 +788,23 @@ async def _kick_off_cache_warm():
     asyncio.create_task(_run())
 
 
+def _seed_auth():
+    """First-boot / every-boot auth seeding. Idempotent: seeds the Praxis Point admin from
+    ADMIN_EMAIL/ADMIN_PASSWORD only if no staff exists yet, then seeds per-tenant client_user
+    logins (roster participants + a praxispointclient default). Runs before any session, so the
+    read-only guard is inactive and the writes go through."""
+    try:
+        from core import auth
+        auth.seed_admin_from_env()
+        made = auth.seed_all_client_users()
+        if made:
+            print(f"[startup] seeded client_user logins: "
+                  + ", ".join(f"{cid}({len(u)})" for cid, u in made.items()))
+    except Exception as e:
+        print(f"[startup] Auth seeding failed (non-fatal): {e}")
+
+
+app.on_startup(_seed_auth)
 app.on_startup(_kick_off_sec_refresh)
 app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)

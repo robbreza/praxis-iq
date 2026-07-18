@@ -48,7 +48,15 @@ def current_page():
 def can_edit():
     """True if the active role has full (read/write) access to the page
     currently being rendered. Gate any control that writes or persists data
-    behind this."""
+    behind this.
+
+    A client_user session is read-only at the TENANT level regardless of role —
+    core.db marks the session read-only and refuses writes at the data layer, so
+    the UI must never offer a mutating control it can't honor. That check wins
+    over the per-role RBAC below."""
+    from core import db
+    if db.session_is_readonly():
+        return False
     return role_can_edit(_ctx["role"], _ctx["page"])
 
 
@@ -66,7 +74,12 @@ def read_only_banner(ui=None):
     if ui is None:
         from nicegui import ui as _ui
         ui = _ui
-    ui.label(f"🔒 View-only — the {_ctx['role']} role can't edit {_ctx['page']}.") \
+    from core import db
+    if db.session_is_readonly():
+        msg = "🔒 View-only — client access is read-only."
+    else:
+        msg = f"🔒 View-only — the {_ctx['role']} role can't edit {_ctx['page']}."
+    ui.label(msg) \
         .style("color:#B45309;background:#FEF3C7;border:1px solid #FCD34D;"
                "border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;"
                "display:inline-block;margin-bottom:8px;")
