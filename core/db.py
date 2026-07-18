@@ -160,6 +160,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at           TEXT NOT NULL,
     last_login           TEXT
 );
+-- clients: tenant definitions, editable from the Praxis Point Console (Phase 2). Like `users`,
+-- NOT scoped by client_id — this IS the client list. `record` is the per-tenant config overlaid
+-- onto config.client_config._CODE_SEED (see reload_registry). Also unscoped so onboarding a new
+-- client is a data write, not a code change + deploy.
+CREATE TABLE IF NOT EXISTS clients (
+    client_id  TEXT PRIMARY KEY,
+    record     TEXT NOT NULL,
+    active     INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 _POSTGRES_SCHEMA = """
@@ -233,6 +244,13 @@ CREATE TABLE IF NOT EXISTS users (
     must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_login           TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS clients (
+    client_id  TEXT PRIMARY KEY,
+    record     JSONB NOT NULL,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 """
 

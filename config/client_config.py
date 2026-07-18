@@ -63,15 +63,17 @@ that uses C()/CI()/etc. updates automatically — no other code changes.
 """
 
 import contextvars
+import copy
 import os
 import pandas as pd
 
 # ─────────────────────────────────────────────────────────────────────────
 # CLIENT_REGISTRY — one record per tenant
 # ─────────────────────────────────────────────────────────────────────────
-CLIENT_REGISTRY = {
+_CODE_SEED = {
     "usio": {
         "ticker": "USIO", "name": "Usio, Inc.", "exchange": "NASDAQ",
+        "email_domain": "usio.com",   # mail-gateway identity: irconnect@<email_domain>
         "last_price": 2.15, "price_date": "Jun 26, 2026",
         "market_cap_m": 61, "ev_m": 72, "sector": "Fintech / Payments",
         "fy_guidance": "10-12% revenue growth",
@@ -238,6 +240,7 @@ CLIENT_REGISTRY = {
         "ticker": "SARO",
         "name": "StandardAero, Inc.",
         "exchange": "NYSE",
+        "email_domain": "standardaero.com",   # mail-gateway identity: irconnect@<email_domain>
         "last_price": 26.73,              # public market feed, 2026-07-17
         "price_date": "Jul 17, 2026",
         "market_cap_m": 8887,
@@ -254,7 +257,7 @@ CLIENT_REGISTRY = {
         "guidance_vs_street_note": "",
         "bar_risk_level": "",
         "bar_risk_note": "",
-        "ir_contact": {},
+        "ir_contact": {"irconnect": "irconnect@standardaero.com"},
         "executives": {},
         "qa_only_participants": "",
         "tone_band_m": None,
@@ -267,6 +270,12 @@ CLIENT_REGISTRY = {
         "guidance": {},
     },
 }
+
+# _CODE_SEED is the in-code baseline. CLIENT_REGISTRY is the LIVE registry the whole app reads
+# (get_client / CT / iteration / membership checks). It starts as a deep copy of the seed — so
+# every import works with zero DB dependency — and reload_registry() later overlays the DB
+# `clients` table onto it (DB wins per field; DB-only clients are added). See reload_registry().
+CLIENT_REGISTRY = copy.deepcopy(_CODE_SEED)
 
 DEFAULT_CLIENT_ID = "usio"
 
@@ -469,6 +478,43 @@ def get_client(client_id=None):
     if cid not in CLIENT_REGISTRY:
         raise ValueError(f"Unknown client_id '{cid}'. Known clients: {list(CLIENT_REGISTRY)}")
     return CLIENT_REGISTRY[cid]
+
+
+def _deep_update(base, overlay):
+    """Recursively merge `overlay` into `base` (in place). Nested dicts merge key-by-key;
+    every other value (including lists) is replaced wholesale. Lets a DB record override just
+    the fields it sets on an existing client without wiping the rest of the code seed."""
+    for k, v in (overlay or {}).items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_update(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def reload_registry():
+    """Rebuild CLIENT_REGISTRY from the code seed overlaid with the DB `clients` table, IN PLACE
+    (clear+update the same dict object) so every module that imported CLIENT_REGISTRY sees the
+    result without re-importing. For an existing client the DB record is a partial overlay onto
+    the seed (DB wins per field); a DB-only client_id is added whole. Called from app startup and
+    after any client is created/edited in the Console. DB errors are swallowed — the app keeps
+    running on the code seed rather than failing to boot."""
+    rebuilt = copy.deepcopy(_CODE_SEED)
+    try:
+        from core import client_store
+        for cid, record, active in client_store.all_clients():
+            if not active:
+                rebuilt.pop(cid, None)          # soft-deactivated -> hidden from the registry
+                continue
+            if cid in rebuilt:
+                _deep_update(rebuilt[cid], record or {})
+            else:
+                rebuilt[cid] = record or {}
+    except Exception as exc:
+        print(f"[client_config] reload_registry: DB overlay skipped ({exc}); using code seed only.")
+    CLIENT_REGISTRY.clear()
+    CLIENT_REGISTRY.update(rebuilt)
+    return CLIENT_REGISTRY
 
 
 # ─────────────────────────────────────────────────────────────────────────

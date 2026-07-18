@@ -993,11 +993,22 @@ async def _kick_off_cache_warm():
     asyncio.create_task(_run())
 
 
+def _reload_registry():
+    """Overlay the DB `clients` table onto the code seed so DB-defined/edited tenants are live.
+    Runs FIRST (before auth seeding, which iterates CLIENT_REGISTRY to seed client_user logins)."""
+    try:
+        from config.client_config import reload_registry, CLIENT_REGISTRY
+        reload_registry()
+        print(f"[startup] client registry loaded: {list(CLIENT_REGISTRY)}")
+    except Exception as e:
+        print(f"[startup] registry reload failed (non-fatal, using code seed): {e}")
+
+
 def _seed_auth():
     """First-boot / every-boot auth seeding. Idempotent: seeds the Praxis Point admin from
     ADMIN_EMAIL/ADMIN_PASSWORD only if no staff exists yet, then seeds per-tenant client_user
-    logins (roster participants + a praxispointclient default). Runs before any session, so the
-    read-only guard is inactive and the writes go through."""
+    logins (the two standard logins). Runs before any session, so the read-only guard is inactive
+    and the writes go through."""
     try:
         from core import auth
         auth.seed_admin_from_env()
@@ -1009,6 +1020,7 @@ def _seed_auth():
         print(f"[startup] Auth seeding failed (non-fatal): {e}")
 
 
+app.on_startup(_reload_registry)
 app.on_startup(_seed_auth)
 app.on_startup(_kick_off_sec_refresh)
 app.on_startup(_kick_off_market_data_refresh)
