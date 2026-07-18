@@ -488,7 +488,8 @@ def seasonal_read(ss):
     ytd_pct_of_mid = (ytd_rev / fy_mid * 100) if fy_mid else 0
     seasonal_h1_pct = (weights.get("Q1", 0) + weights.get("Q2", 0)) * 100
     pace_vs_seasonal = ytd_pct_of_mid - seasonal_h1_pct
-    beat_vs_street = q2_actual - (CT("q2_consensus_rev", 0) or 0)
+    from core import market_data
+    beat_vs_street = q2_actual - (market_data.consensus_rev_value() or 0)
     h2_2025_rev = prior_fy_rev.get("Q3", 0) + prior_fy_rev.get("Q4", 0)
     h2_needed_low = fy_low - ytd_rev
     h2_growth_needed = ((h2_needed_low / h2_2025_rev) - 1) * 100 if h2_2025_rev else 0

@@ -534,6 +534,39 @@ def street_for_quarter(ticker, fy_revenue_actual=None, q_year_ago_actual=None, c
     }
 
 
+def consensus_rev(client_id=None):
+    """Live street revenue consensus ($M) for the quarter about to report — a drop-in for
+    the registry's static CT('q2_consensus_rev').
+
+    Prefers Yahoo's live estimate (yfinance revenue_estimate '0q', the current reporting
+    quarter) for any client with analyst coverage; falls back to the static registry value
+    when there is no coverage (a micro-cap like WRAP), and to None when neither exists. This
+    is what turns a hand-maintained per-client field into a live per-tenant feed: SARO's 12
+    analysts populate automatically, USIO's 4 do too, and an uncovered name honestly reads as
+    'no consensus' rather than a stale hardcode.
+
+    Returns (value_m, source) where source is 'live' | 'registry' | None so callers can label
+    the number; consensus_rev_value() is the bare-value convenience wrapper.
+    """
+    from config.client_config import CT
+    try:
+        est = get_estimates(CT("ticker"), client_id=client_id)
+        q = (est or {}).get("revenue", {}).get("0q") or {}
+        if q.get("avg") and q.get("n"):
+            return round(q["avg"] / 1e6, 2), "live"
+    except Exception as exc:
+        print(f"[market_data] live consensus unavailable: {exc}")
+    static = CT("q2_consensus_rev", None)
+    if isinstance(static, (int, float)) and static:
+        return float(static), "registry"
+    return None, None
+
+
+def consensus_rev_value(client_id=None):
+    """The upcoming-quarter street revenue consensus ($M), live-preferring, or None."""
+    return consensus_rev(client_id)[0]
+
+
 def live_ev(ticker, client_id=None):
     """Market cap and enterprise value rebuilt at the LIVE price.
 

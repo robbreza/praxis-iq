@@ -483,7 +483,7 @@ def _tone_context(ss):
     company 10-100x the size."""
     n = ss.get("q2_numbers", {})
     band = CT("tone_band_m", 0.5) or 0.5
-    delta = (n.get("rev", 0) or 0) - (CT("q2_consensus_rev", 0) or 0)
+    delta = (n.get("rev", 0) or 0) - (market_data.consensus_rev_value() or 0)
     if delta > band:
         return {"bucket": "beat", "label": f"BEAT +${delta:.2f}M vs Street", "delta": delta}
     if delta < -band:
@@ -863,7 +863,7 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
     ops = ops or {}
     gd = gd or {}
     contacts = _contacts()
-    delta = (n.get("rev", 0) or 0) - (CT("q2_consensus_rev", 0) or 0)
+    delta = (n.get("rev", 0) or 0) - (market_data.consensus_rev_value() or 0)
     bucket = "beat" if delta > 0.5 else ("miss" if delta < -0.5 else "inline")
     if role == "IR":
         opener = {"beat": "It was a record quarter",
@@ -876,7 +876,7 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
     if role == "CFO":
         beat = {"beat": "above", "inline": "in line with", "miss": "below"}[bucket]
         return (f"Total revenue for the quarter was ${n.get('rev',0):.1f}M, which came in {beat} Street "
-                f"consensus of ${CT('q2_consensus_rev',0):.1f}M. Gross margin was {n.get('gm',0):.1f}%, and "
+                f"consensus of ${market_data.consensus_rev_value() or 0:.1f}M. Gross margin was {n.get('gm',0):.1f}%, and "
                 f"Adjusted EBITDA was ${n.get('ebitda',0):.1f}M. GAAP EPS was ${n.get('eps',0):.2f}. SG&A "
                 f"totaled ${n.get('sga',0):.1f}M. We ended the quarter with ${n.get('cash',0):.1f}M in cash.")
     if role == "CRO":
@@ -972,7 +972,7 @@ def _generate_persona_draft(role, ss, context=""):
     # number (e.g. "$1.1M revenue ahead of consensus" when no consensus exists). So when
     # there is no consensus, drop the framing entirely and hard-forbid the comparison,
     # for EVERY persona prompt (IR/CFO/CEO all referenced it), not just the CFO's.
-    _cons = CT("q2_consensus_rev", None)
+    _cons = market_data.consensus_rev_value()
     if isinstance(_cons, (int, float)) and _cons:
         cons_clause = f"Street consensus revenue was ${_cons:.1f}M. "
         tone_line = f"Tone read vs Street consensus: {tone['label']}. {tone_rule} "
@@ -2371,7 +2371,7 @@ def _render_stage2(ss):
                   "Generation\" first.").style(f"color:{COLORS['warning']};")
         return
     n = ss["q2_numbers"]
-    beat = n.get("rev", 0) > CT("q2_consensus_rev", 0)
+    beat = n.get("rev", 0) > (market_data.consensus_rev_value() or 0)
     with ui.row().classes("w-full gap-3"):
         _metric("Revenue", f"${n.get('rev',0):.1f}M", "BEAT" if beat else "vs consensus")
         _metric("GAAP EPS", f"${n.get('eps',0):.2f}", "Positive" if n.get("eps", 0) >= 0.01 else "")
