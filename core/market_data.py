@@ -534,39 +534,89 @@ def street_for_quarter(ticker, fy_revenue_actual=None, q_year_ago_actual=None, c
     }
 
 
+_CONSENSUS_MEMO_TTL = timedelta(minutes=30)
+_consensus_memo = {}
+_consensus_memo_lock = threading.Lock()
+
+
+def _verification_actuals(client_id=None):
+    """The filed actuals street_for_quarter reconciles Yahoo's period labels against:
+    (fy_revenue_m, q_year_ago_m). q_year_ago is the SAME quarter a year before the upcoming
+    print (comp_quality's base quarter); fy is the latest full-year revenue. Both from EDGAR."""
+    from config.client_config import CT
+    from core import comp_quality, demand_anchor
+    tkr = CT("ticker")
+    q_ya = fy = None
+    try:
+        cq = comp_quality.base_quality(tkr)
+        if cq.get("status") == "ok" and cq.get("base_revenue"):
+            q_ya = cq["base_revenue"] / 1e6
+    except Exception:
+        pass
+    try:
+        ann = demand_anchor.annual_revenue(tkr)
+        if ann:
+            fy = ann[max(ann)] / 1e6
+    except Exception:
+        pass
+    return fy, q_ya
+
+
 def consensus_rev(client_id=None):
-    """Street revenue consensus ($M) for the quarter about to report — a drop-in for the
-    registry's static CT('q2_consensus_rev').
+    """Street revenue consensus for the quarter about to report — a drop-in for the registry's
+    static CT('q2_consensus_rev'), now PERIOD-VERIFIED.
 
     PRECEDENCE: an explicitly-set registry value WINS. A curated q2_consensus_rev is a
-    deliberate override — a point-in-time consensus the IR team validated for this quarter's
-    analysis — and must not be silently replaced by a drifting live feed. Only when the field
-    is blank/None does the live Yahoo estimate (yfinance revenue_estimate '0q', the current
-    reporting quarter) fill the gap. When neither exists (an uncovered micro-cap like WRAP),
-    the answer is None and the number honestly reads as 'no consensus' rather than a stale
-    hardcode. So: USIO's curated 25.1 stands; SARO (no registry value) gets its 12 analysts
-    live; WRAP gets nothing. Clear the registry field to hand a covered name over to the feed.
+    deliberate override the IR team validated for this quarter, and is not replaced by a
+    drifting feed. Only when the field is blank does the live Yahoo estimate fill the gap.
 
-    Returns (value_m, source) where source is 'registry' | 'live' | None so callers can label
-    the number; consensus_rev_value() is the bare-value convenience wrapper.
+    PERIOD VERIFICATION: Yahoo labels periods relatively ('0q' = its current quarter), and that
+    is only usable if '0q' is actually the quarter about to report. So the live path reconciles
+    Yahoo's year-ago figure for '0q' against the client's OWN filed year-ago quarter revenue
+    (and its FY total) via street_for_quarter. Match within 2% -> verified; otherwise the number
+    could be for the wrong quarter and is returned flagged verified=False. A wrong-quarter
+    'consensus' is worse than none in a beat/miss calc, so consensus_rev_value() drops unverified
+    live estimates to None.
+
+    Returns a dict: {value_m, source ('registry'|'live'|None), verified (bool), n, checks}.
+    Memoised 30 min because the reconciliation pulls the client's actuals from EDGAR.
     """
     from config.client_config import CT
+    tkr = CT("ticker")
     static = CT("q2_consensus_rev", None)
     if isinstance(static, (int, float)) and static:
-        return float(static), "registry"
+        return {"value_m": float(static), "source": "registry", "verified": True, "n": None}
+
+    with _consensus_memo_lock:
+        hit = _consensus_memo.get(tkr)
+        if hit and datetime.now() - hit[0] < _CONSENSUS_MEMO_TTL:
+            return hit[1]
+
+    result = {"value_m": None, "source": None, "verified": False, "n": None}
     try:
-        est = get_estimates(CT("ticker"), client_id=client_id)
-        q = (est or {}).get("revenue", {}).get("0q") or {}
-        if q.get("avg") and q.get("n"):
-            return round(q["avg"] / 1e6, 2), "live"
+        fy_m, q_ya_m = _verification_actuals(client_id)
+        sfq = street_for_quarter(tkr, fy_revenue_actual=fy_m, q_year_ago_actual=q_ya_m,
+                                 client_id=client_id)
+        if sfq and sfq.get("avg_m"):
+            result = {"value_m": round(sfq["avg_m"], 2), "source": "live",
+                      "verified": bool(sfq.get("verified")), "checks": sfq.get("checks", {}),
+                      "n": sfq.get("n")}
     except Exception as exc:
-        print(f"[market_data] live consensus unavailable: {exc}")
-    return None, None
+        print(f"[market_data] verified consensus unavailable: {exc}")
+
+    with _consensus_memo_lock:
+        _consensus_memo[tkr] = (datetime.now(), result)
+    return result
 
 
 def consensus_rev_value(client_id=None):
-    """The upcoming-quarter street revenue consensus ($M), live-preferring, or None."""
-    return consensus_rev(client_id)[0]
+    """Trusted consensus ($M): a curated registry value, or a PERIOD-VERIFIED live estimate.
+    Returns None for an unverified live estimate — an unverified Yahoo period could be the
+    wrong quarter, and a wrong-quarter number is worse than none in a beat/miss calc."""
+    r = consensus_rev(client_id)
+    if r["source"] == "registry" or (r["source"] == "live" and r["verified"]):
+        return r["value_m"]
+    return None
 
 
 def live_ev(ticker, client_id=None):
