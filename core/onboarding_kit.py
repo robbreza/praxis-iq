@@ -158,12 +158,23 @@ def _balance_answer():
     s = edgar_financials.financial_summary(CT("ticker"))
     if not s or s.get("_error"):
         return "Balance-sheet figures could not be sourced from EDGAR right now."
-    bal = s["balance"]
-    return (f"Net cash of ${bal['net_cash']/1e6:.1f}M against ${bal['equity']/1e6:.1f}M of equity "
-            f"— essentially unlevered, and self-funding. The line that confuses people is the "
-            f"${bal['customer_deposits']/1e6:.0f}M of settlement float: that is customer money held "
-            f"in custody between processing and disbursement, offset by a matching liability. It is "
-            f"not corporate leverage and not ours to spend.")
+    bal = s.get("balance") or {}
+    nc, eq, cd = bal.get("net_cash"), bal.get("equity"), bal.get("customer_deposits")
+    if nc is None or eq is None:
+        return "Balance-sheet detail is not fully available from EDGAR for this issuer yet."
+    # net cash vs net debt is client-specific — USIO carries net cash; SARO carries net debt.
+    # Don't assert "unlevered/self-funding" for a levered issuer.
+    positive = nc >= 0
+    ans = (f"{'Net cash' if positive else 'Net debt'} of ${abs(nc)/1e6:.1f}M against "
+           f"${eq/1e6:.1f}M of equity — "
+           f"{'essentially unlevered, and self-funding' if positive else 'a levered balance sheet'}.")
+    # Settlement float is a PAYMENTS-business concept (customer money in custody). Only surface it
+    # when the issuer actually carries it, rather than describing USIO's float on every tenant.
+    if cd and cd / 1e6 >= 1:
+        ans += (f" The line that confuses people is the ${cd/1e6:.0f}M of settlement float: customer "
+                f"money held in custody between processing and disbursement, offset by a matching "
+                f"liability. It is not corporate leverage and not ours to spend.")
+    return ans
 
 
 def cannot_source():

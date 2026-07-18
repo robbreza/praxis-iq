@@ -417,7 +417,7 @@ def build():
     primary, _ = comp_set()
     return {
         "ticker": tk,
-        "policy": USIO_POLICY,
+        "policy": USIO_POLICY if tk == "USIO" else {},
         "rows": rows,
         "usio": us,
         "comparable": ok,
@@ -433,23 +433,33 @@ def build():
 
 def _verdict(us, peers_ok):
     """The finding, stated so it cannot be quoted out of context into a deck."""
+    tk = CT("ticker")
     if not us.get("gross_margin"):
-        return ("USIO's own gross margin could not be sourced from its filings — no comparison "
+        return (f"{tk}'s own gross margin could not be sourced from its filings — no comparison "
                 "can be made.")
-    lines = [
-        f"USIO reports revenue GROSS, as a principal (10-K filed {USIO_POLICY['filed']}). Its "
-        f"{us['gross_margin']*100:.1f}% gross margin (FY{us['period'][:4]}) is therefore depressed by "
-        f"its OWN presentation: interchange and sponsor-bank fees it never keeps sit in both revenue "
-        f"and cost of services.",
-        "USIO discloses no interchange dollar amount, so its net-basis margin CANNOT be computed "
-        "from public filings — by us or by any analyst. That is USIO's own disclosure gap and the "
-        "most consequential one it has.",
-    ]
+    lines = []
+    # The gross-as-principal / interchange narrative is USIO's specific disclosure situation
+    # (verified in its 10-K). Only assert it for USIO; another client's revenue-recognition
+    # treatment is its own and has not been verified here.
+    if tk == "USIO":
+        lines += [
+            f"USIO reports revenue GROSS, as a principal (10-K filed {USIO_POLICY['filed']}). Its "
+            f"{us['gross_margin']*100:.1f}% gross margin (FY{us['period'][:4]}) is therefore depressed by "
+            f"its OWN presentation: interchange and sponsor-bank fees it never keeps sit in both revenue "
+            f"and cost of services.",
+            "USIO discloses no interchange dollar amount, so its net-basis margin CANNOT be computed "
+            "from public filings — by us or by any analyst. That is USIO's own disclosure gap and the "
+            "most consequential one it has.",
+        ]
+    else:
+        lines.append(
+            f"{tk}'s filing-sourced gross margin is {us['gross_margin']*100:.1f}% "
+            f"(FY{us['period'][:4]}).")
     if peers_ok:
         bits = ", ".join(f"{t} {r['gross_margin']*100:.1f}%" for t, r in sorted(peers_ok.items()))
         lines.append(
             f"Peers with a current, filing-sourced gross margin: {bits}. These are NOT like-for-like "
-            f"with USIO — each peer's own gross-vs-net treatment is a per-contract ASC 606 principal/"
+            f"with {tk} — each peer's own gross-vs-net treatment is a per-contract ASC 606 principal/"
             f"agent judgment we have not verified peer-by-peer, so the ratios are not comparable.")
     lines.append(
         "USE GROSS PROFIT, NOT GROSS MARGIN. Interchange is a pass-through: it inflates revenue and "

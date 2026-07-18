@@ -185,8 +185,12 @@ def compose(client_id=None):
     override_words = _words(ss.get("full_script_override"))
 
     # ── Carry-over closure: did this script fix what Q1 flagged? ───────────
+    # _CARRYOVER is USIO's hand-maintained Q1->Q2 topics (interest income, PayFac, etc.).
+    # Render it only for USIO; another tenant would see USIO's carry-over items on its
+    # scorecard. The real fix is transcript-driven (compute_qa_preemption_delta).
+    from config.client_config import CT as _CT
     carry = []
-    for c in _CARRYOVER:
+    for c in (_CARRYOVER if _CT("ticker") == "USIO" else []):
         hit_term = next((t for t in c["terms"] if t.lower() in script.lower()), None)
         carry.append({
             "topic": c["topic"], "priority": c["priority"], "q1": c["q1"], "target": c["target"],

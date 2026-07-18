@@ -128,8 +128,8 @@ def sell_side_and_peers(client_id=None):
         "item": "Peer/comp group", "owner": "IR + sell-side — THEN TESTED (see policy)",
         "status": "ready", "live": f"{len(primary)} primary, {len(peers)-len(primary)} reference",
         "note": "The .docx said 'defined by your team and sell-side coverage, not assigned by us'. "
-                "That is the item that put a bank and an acquired company in USIO's comp set. See "
-                "peer_group_policy()."})
+                "That deference, unchecked, is what lets a bank or an acquired company into a comp "
+                "set. See peer_group_policy()."})
     return items
 
 
@@ -213,11 +213,17 @@ def peer_group_policy():
              "with no cost-of-revenue line has no gross profit, and therefore no comparable margin "
              "or EV/Gross Profit — any vendor figure for it is constructed."),
         ],
-        "evidence": ("Applied to USIO's inherited comp group (GDOT, IMXI, FINW, PAYS): GDOT fails "
-                     "(a) — stockholders approved the CommerceOne merger 2026-06-23. IMXI fails (a) "
-                     "— pending Western Union acquisition. FINW fails (c) — bank. Three of four, "
-                     "and the platform had independently found GDOT's EV was negative and CASS's "
-                     "10-K never uses the phrase 'gross profit' before anyone read this policy."),
+        # Worked example is USIO's inherited comp group; show it only for USIO, generic otherwise.
+        "evidence": (
+            "Applied to USIO's inherited comp group (GDOT, IMXI, FINW, PAYS): GDOT fails "
+            "(a) — stockholders approved the CommerceOne merger 2026-06-23. IMXI fails (a) "
+            "— pending Western Union acquisition. FINW fails (c) — bank. Three of four, "
+            "and the platform had independently found GDOT's EV was negative and CASS's "
+            "10-K never uses the phrase 'gross profit' before anyone read this policy."
+            if CT("ticker") == "USIO" else
+            "Every peer is tested live against criteria (a) recent M&A / merger approval and "
+            "(c) no reported gross-profit line, and any that fail are excluded from the median "
+            "rather than inherited on trust. See check()."),
     }
 
 

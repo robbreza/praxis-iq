@@ -664,23 +664,30 @@ def _forensics_story(story):
     d = forensics.build()
     pol, us = d["policy"], d["usio"]
 
-    story.append(Paragraph("Footnote forensics — is USIO's gross margin comparable at all?", _S["h2"]))
-    story.append(_callout(
-        f"USIO REPORTS REVENUE {_esc(pol['basis'])} — VERIFIED FROM THE FILING",
-        f"“{_esc(pol['quote'])}” &mdash; {_esc(pol['form'])} filed {_esc(pol['filed'])}. "
-        f"USIO's gross margin is therefore depressed by its OWN presentation: interchange and "
-        f"sponsor-bank fees it never keeps sit in both revenue and cost of services. Any analysis "
-        f"claiming USIO is a net reporter whose margin is understated relative to gross-reporting "
-        f"peers has the mechanism backwards.", colors.HexColor("#B91C1C")))
+    tkr = CT("ticker")
+    story.append(Paragraph(
+        f"Footnote forensics — is {_esc(tkr)}'s gross margin comparable at all?", _S["h2"]))
+    # The verified gross-as-principal callout is USIO's specific, filing-verified policy; only
+    # render it when that policy is populated (USIO). Other tenants skip straight to the verdict.
+    if pol.get("basis"):
+        story.append(_callout(
+            f"USIO REPORTS REVENUE {_esc(pol['basis'])} — VERIFIED FROM THE FILING",
+            f"“{_esc(pol['quote'])}” &mdash; {_esc(pol['form'])} filed {_esc(pol['filed'])}. "
+            f"USIO's gross margin is therefore depressed by its OWN presentation: interchange and "
+            f"sponsor-bank fees it never keeps sit in both revenue and cost of services. Any analysis "
+            f"claiming USIO is a net reporter whose margin is understated relative to gross-reporting "
+            f"peers has the mechanism backwards.", colors.HexColor("#B91C1C")))
 
     if us.get("gross_margin") is not None:
-        story.append(_stat_row([
-            (f"{us['gross_margin']*100:.1f}%", "USIO gross margin",
-             f"FY{us['period'][:4]} · gross basis", INK),
-            ("n/a", "Net-basis margin", "no interchange $ disclosed", colors.HexColor("#B91C1C")),
-            (f"{len(d['peers_comparable'])} of {d['n_primary']}", "Peers comparable",
-             f"{d['pct_comparable']}% of primary comp set", WARN),
-        ]))
+        cells = [(f"{us['gross_margin']*100:.1f}%", f"{_esc(tkr)} gross margin",
+                  f"FY{us['period'][:4]} · gross basis", INK)]
+        # The net-basis / interchange column is USIO-specific — only when its policy is set.
+        if pol.get("basis"):
+            cells.append(("n/a", "Net-basis margin", "no interchange $ disclosed",
+                          colors.HexColor("#B91C1C")))
+        cells.append((f"{len(d['peers_comparable'])} of {d['n_primary']}", "Peers comparable",
+                      f"{d['pct_comparable']}% of primary comp set", WARN))
+        story.append(_stat_row(cells))
 
     story.append(Paragraph("What each peer's own filing supports", _S["h2"]))
     LBL = {"ok": "yes", "derived": "yes — derived", "ok_mda": "yes — 10-K MD&A",
@@ -772,7 +779,8 @@ def earnings_prep_pdf(client_id=None):
 
     # ---- Comp quality: is the base clean? ----
     cq = d.get("comp_quality")
-    if cq and cq.get("status") == "ok":
+    if (cq and cq.get("status") == "ok" and cq.get("base_revenue") is not None
+            and cq.get("base_gross_profit") is not None and cq.get("base_margin") is not None):
         story.append(Paragraph(
             f"Comp quality &mdash; the {_esc(str(cq['base_end']))} base this print lands against",
             _S["h2"]))
@@ -805,13 +813,18 @@ def earnings_prep_pdf(client_id=None):
     # enough on the Q1 call to build the whole P&L and nobody built it — the inputs come from an
     # issuer that cut guidance and then missed the cut. So the brief has to hand management the
     # bridge, or it never reaches a model.
-    try:
-        from core import mgmt_model, q2_script
-        mm = mgmt_model.build()
-        qs = q2_script.build()
-    except Exception as exc:
-        print(f"[report_pdf] mgmt model / script unavailable: {exc}")
-        mm = qs = None
+    # mgmt_model and q2_script are USIO-specific artifacts (mgmt_model hardcodes USIO's FY25/Q1
+    # figures; q2_script carries USIO's call quotes). Only render these sections for USIO — for
+    # any other tenant they would print USIO's numbers under that client's name.
+    mm = qs = None
+    if CT("ticker") == "USIO":
+        try:
+            from core import mgmt_model, q2_script
+            mm = mgmt_model.build()
+            qs = q2_script.build()
+        except Exception as exc:
+            print(f"[report_pdf] mgmt model / script unavailable: {exc}")
+            mm = qs = None
 
     if mm:
         story.append(Paragraph(
@@ -1286,11 +1299,11 @@ def peer_benchmarking_pdf(client_id=None):
     no_gp = [r["ticker"] for r in bm["primary"] if r.get("gross_margin") is None]
     if no_gp:
         story.append(Paragraph(
-            f"<b>{_esc(', '.join(no_gp))} show no gross margin because they do not report one.</b> Both "
-            f"are bank holding companies: their filings contain no cost-of-revenue line, and CASS's 10-K "
-            f"never uses the phrase &lsquo;gross profit&rsquo;. A vendor figure exists for them and is "
-            f"constructed, not reported, so it is not shown here and they are excluded from the median. "
-            f"That is a fact about the businesses, not a gap in our data.", _S["small"]))
+            f"<b>{_esc(', '.join(no_gp))} show no gross margin because they do not report one.</b> "
+            f"Their filings contain no cost-of-revenue / gross-profit line (typically bank holding "
+            f"companies or similar). A vendor figure exists for them and is constructed, not reported, "
+            f"so it is not shown here and they are excluded from the median. That is a fact about the "
+            f"businesses, not a gap in our data.", _S["small"]))
     if bm.get("excluded"):
         exc = ", ".join(e["ticker"] for e in bm["excluded"])
         story.append(Paragraph(
@@ -1755,8 +1768,28 @@ def ndr_by_city_pdf(client_id=None):
     return buf.getvalue()
 
 
+def _usio_only_stub(title):
+    """Some reports are USIO-specific artifacts — built around USIO's own quarter, guidance and
+    figures (q2_script, q2_script_miss, q2_decision_tree, and the mgmt_model EPS bridge). They
+    are not yet generalized per-tenant, so for any other client emit a clear stub rather than
+    render USIO's numbers under that client's name."""
+    buf, doc = _doc(title)
+    story = []
+    _header(story, title.upper(), _esc(CT("name")),
+            "USIO-specific artifact — not yet generalized for this client.")
+    story.append(_callout(
+        "NOT YET AVAILABLE FOR THIS CLIENT",
+        _esc(f"This deliverable was built around USIO's specific quarter, guidance and figures. "
+             f"Generating it for {CT('name')} needs the per-tenant build; it is intentionally blank "
+             f"rather than showing another company's numbers."), WARN))
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    return buf.getvalue()
+
+
 def q2_script_pdf(client_id=None):
     """The Q2 call script — ordered by what buys credibility back, not by what flatters."""
+    if CT("ticker") != "USIO":
+        return _usio_only_stub("Q2 Call Script")
     from core import q2_script, comp_quality
     d = q2_script.build()
     cq = comp_quality.build()
@@ -1807,6 +1840,8 @@ def q2_script_pdf(client_id=None):
 
 def q2_script_miss_pdf(client_id=None):
     """The Q2 script for a ~20% gross margin print — the version that must exist BEFORE the number."""
+    if CT("ticker") != "USIO":
+        return _usio_only_stub("Q2 Call Script — Miss Case")
     from core import q2_script_miss
     d = q2_script_miss.build()
     buf, doc = _doc("USIO Q2 FY26 Call Script — 20% margin case")
@@ -1850,6 +1885,8 @@ def q2_decision_tree_pdf(client_id=None, actual_revenue=None, actual_opex=None,
     Pass actual_revenue / actual_opex (full-year, opex = cash SG&A + SBC + D&A) once the release
     lands to reprice the break-even off real figures; actual_gross_margin tags the printed branch.
     """
+    if CT("ticker") != "USIO":
+        return _usio_only_stub("Q2 Script Decision Tree")
     from core import q2_decision_tree
     d = q2_decision_tree.build()
     RED = colors.HexColor("#B91C1C")

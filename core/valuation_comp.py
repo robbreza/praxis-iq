@@ -150,7 +150,7 @@ def sensitivity(usio, primary):
             f"EV/Gross Profit = (EV/Revenue) ÷ gross margin, so each peer's multiple inherits its "
             f"margin's provenance. {' and '.join(p['ticker'] for p in unbacked)} take their gross "
             f"margin from market data, not a filing — and they are the two peers sitting immediately "
-            f"above USIO. Restricting the median to the {len(backed)} filing-backed peers "
+            f"above {CT('ticker')}. Restricting the median to the {len(backed)} filing-backed peers "
             f"({', '.join(p['ticker'] for p in sorted(backed, key=lambda r: r['ev_gp']))}) moves it "
             f"from {m_all:.2f}x to {m_backed:.2f}x and the implied upside from "
             f"{i_all['upside_pct']:+.0f}% to {i_backed['upside_pct']:+.0f}%. The discount is real "
@@ -547,18 +547,19 @@ def _read(usio, med, imp, sens):
              f"its primary peers on the one multiple this peer set's accounting doesn't distort. But "
              f"the SIZE of the discount is not robust: the implied upside is {lo:+.0f}% to {hi:+.0f}% "
              f"depending on whether {' and '.join(u['ticker'] for u in sens['unbacked'])} — whose gross "
-             f"margins come from market data rather than a filing, and which sit immediately above USIO "
-             f"— are allowed to set the median. Re-rating to the {sens['n_backed']} filing-backed peers "
-             f"({sens['median_backed']:.2f}x) implies {sens['upside_backed']:+.0f}%; to all "
-             f"{sens['n_all']} ({sens['median_all']:.2f}x), {sens['upside_all']:+.0f}%. Treat it as a "
-             f"range. The direction is solid; the magnitude is an open question that resolves only by "
-             f"reading CASS's and FOUR's cost of revenue out of their filings.")
+             f"margins come from market data rather than a filing, and which sit immediately above "
+             f"{CT('ticker')} — are allowed to set the median. Re-rating to the {sens['n_backed']} "
+             f"filing-backed peers ({sens['median_backed']:.2f}x) implies {sens['upside_backed']:+.0f}%; "
+             f"to all {sens['n_all']} ({sens['median_all']:.2f}x), {sens['upside_all']:+.0f}%. Treat it "
+             f"as a range. The direction is solid; the magnitude is an open question that resolves only "
+             f"by reading {' and '.join(u['ticker'] for u in sens['unbacked'])}'s cost of revenue out "
+             f"of their filings.")
     if usio["rev_growth"] is not None and med["rev_growth"] is not None:
         if usio["rev_growth"] > med["rev_growth"]:
-            s += (f" USIO grows faster than the group ({usio['rev_growth']:+.0f}% vs "
+            s += (f" {CT('ticker')} grows faster than the group ({usio['rev_growth']:+.0f}% vs "
                   f"{med['rev_growth']:+.0f}% median), so the discount is not a growth discount.")
         else:
-            s += (f" USIO grows slower than the group ({usio['rev_growth']:+.0f}% vs "
+            s += (f" {CT('ticker')} grows slower than the group ({usio['rev_growth']:+.0f}% vs "
                   f"{med['rev_growth']:+.0f}% median), which is part of why it is cheaper — the "
                   f"re-rating case has to argue that gap closes.")
     return s
@@ -616,7 +617,7 @@ def revenue_bridge(client_id=None):
 
 def _bridge_read(u, med, peer_med_ev_rev):
     if not u:
-        return "USIO's EV/Revenue bridge could not be computed."
+        return f"{CT('ticker')}'s EV/Revenue bridge could not be computed."
     s = (f"At the peer median of {med:.2f}x EV/Gross Profit, {CT('ticker')}'s WARRANTED EV/Revenue is "
          f"{med:.2f}x x {u['gross_margin']:.1f}% = {u['ev_rev_warranted']:.2f}x. It actually trades at "
          f"{u['ev_rev_actual']:.2f}x")
