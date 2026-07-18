@@ -233,6 +233,83 @@ def get_transcript(quarter, client_id=None):
         conn.close()
 
 
+_ROLE_KEYS = {
+    "CEO": ("ceo", "chief executive", "chairman", "founder", "president"),
+    "CFO": ("cfo", "chief financial", "finance officer"),
+    "CRO": ("cro", "chief revenue", "chief commercial", "revenue officer"),
+    "IR": ("investor relations", "head of ir", " ir "),
+}
+
+
+def _role_for_speaker(speaker):
+    s = f" {(speaker or '').lower()} "
+    for role, keys in _ROLE_KEYS.items():
+        if any(k in s for k in keys):
+            return role
+    return None
+
+
+def script_inputs(client_id=None):
+    """Transcript-derived inputs for the earnings-script surface — the tenant-generic
+    replacement for the hardcoded USIO constants (_PERSONA_LAST_QUARTER,
+    _GUIDANCE_PRIOR_QUOTES, _CARRYOVER). Reads the client's SUMMARIZED transcripts and
+    returns, in the exact shapes those consumers expect:
+
+      guidance_quotes : [(quarter, paraphrase)]        — recent quarters' guidance_language
+      carryover_topics: [{topic, terms, priority, q1, target}] — latest call's qa_risk_topics
+      persona_refs    : {role: {quote, tags}}          — latest call's key_quotes by role
+
+    Empty structures when no summarized transcript exists — a not-yet-onboarded client shows
+    'nothing on file' rather than another tenant's content. This is what the earlier gates
+    left as a to-do: instead of 'USIO constants or blank', it is now 'USIO constants (curated)
+    for USIO, each other client's OWN transcript, or blank'.
+    """
+    cid = _resolve_client_id(client_id)
+    txns = [t for t in list_transcripts(client_id=cid)
+            if t.get("summarized_at") or t.get("key_quotes") or t.get("guidance_language")]
+    txns.sort(key=lambda t: (t.get("call_date") or "", t.get("quarter") or ""), reverse=True)
+    out = {"guidance_quotes": [], "carryover_topics": [], "persona_refs": {},
+           "source_quarter": None, "n_transcripts": len(txns)}
+    if not txns:
+        return out
+    latest = txns[0]
+    out["source_quarter"] = latest.get("quarter")
+
+    # Prior guidance: one line per recent quarter (its first guidance statement).
+    for t in txns[:4]:
+        gl = [g for g in (t.get("guidance_language") or []) if isinstance(g, str)]
+        if gl:
+            out["guidance_quotes"].append((t.get("quarter"), gl[0]))
+
+    # Carry-over topics from the latest call's Q&A risk topics.
+    _sev2pri = {"HIGH": "CRITICAL", "MEDIUM": "IMPROVE", "LOW": "KEEP"}
+    for topic in (latest.get("qa_risk_topics") or [])[:6]:
+        if not isinstance(topic, dict):
+            continue
+        name = topic.get("topic", "")
+        terms = [w.lower() for w in name.split() if len(w) > 3][:3] or [name.lower()[:12]]
+        out["carryover_topics"].append({
+            "topic": name,
+            "terms": terms,
+            "priority": _sev2pri.get((topic.get("severity") or "").upper(), "IMPROVE"),
+            "q1": topic.get("why", "Raised in last quarter's Q&A"),
+            "target": "",
+        })
+
+    # Persona references: latest call's key_quotes, grouped by the speaker's role.
+    for kq in (latest.get("key_quotes") or []):
+        if not isinstance(kq, dict):
+            continue
+        role = _role_for_speaker(kq.get("speaker"))
+        if role and role not in out["persona_refs"]:
+            out["persona_refs"][role] = {
+                "quote": kq.get("quote", ""),
+                "tags": [f"From {latest.get('quarter','last call')}"
+                         + (f" — {kq['speaker']}" if kq.get("speaker") else "")],
+            }
+    return out
+
+
 def delete_transcript(quarter, client_id=None):
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()

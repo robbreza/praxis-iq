@@ -1088,11 +1088,20 @@ _GUIDANCE_PRIOR_QUOTES = [
 # "nothing on file" state instead. Every consumer reads through these, never the
 # constants directly — the single-read-point pattern used for _fls_items().
 def _persona_last_quarter():
-    return _PERSONA_LAST_QUARTER if get_active_client_id() == "usio" else {}
+    # USIO's curated constants win (hand-tuned tone tags, rows, prior_quotes). Every other
+    # tenant is transcript-driven: persona quotes extracted from its OWN latest summarized
+    # call, or empty if none is on file. See core.transcripts.script_inputs().
+    if get_active_client_id() == "usio":
+        return _PERSONA_LAST_QUARTER
+    from core import transcripts
+    return transcripts.script_inputs().get("persona_refs", {})
 
 
 def _guidance_prior_quotes():
-    return _GUIDANCE_PRIOR_QUOTES if get_active_client_id() == "usio" else []
+    if get_active_client_id() == "usio":
+        return _GUIDANCE_PRIOR_QUOTES
+    from core import transcripts
+    return transcripts.script_inputs().get("guidance_quotes", [])
 
 
 def _guidance_writing_rules():
