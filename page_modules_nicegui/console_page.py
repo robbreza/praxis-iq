@@ -191,6 +191,13 @@ def _f13_cell(r):
     return f"{n} · {fetched}", (_AMBER if stale else COLORS["text_body"])
 
 
+def _nobo_cell(r):
+    n = r.get("nobo_uploads", 0)
+    if not n:
+        return "no Broadridge upload", _AMBER
+    return f"{n} upload{'s' if n != 1 else ''} · {r.get('nobo_latest') or '?'}", COLORS["text_body"]
+
+
 def _metric(label, value, value_color=None):
     with ui.row().classes("w-full items-center").style("gap:8px;"):
         ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
@@ -204,6 +211,28 @@ def _drill_in(cid):
     # Reuses the tenant-switch mechanism: set the session's active client, land in the workspace.
     app.storage.user["active_client_id"] = cid
     ui.navigate.to("/")
+
+
+async def _refresh_13f(cid, ticker, name):
+    """Re-pull this tenant's institutional 13F holders from EDGAR, off the event loop so the UI
+    stays responsive. 13F is the one genuinely on-demand data source (price auto-refreshes;
+    consensus is registry/auto; NOBO is a Broadridge upload)."""
+    import asyncio
+    ui.notify(f"Refreshing 13F for {ticker}…", type="info")
+
+    def _work():
+        from config.client_config import set_active_client_id
+        from core import sec_filings
+        set_active_client_id(cid)   # scope the cache write to this tenant (runs in this thread)
+        return sec_filings.refresh_13f_holders(ticker, name)
+
+    try:
+        res = await asyncio.to_thread(_work)
+        n = len(res.get("holders", []))
+        ui.notify(f"{ticker}: 13F refreshed — {n} holders (reload to update freshness).",
+                  type="positive", timeout=7000)
+    except Exception as e:
+        ui.notify(f"{ticker}: 13F refresh failed — {e}", type="negative", timeout=8000)
 
 
 def _client_card(r):
@@ -222,18 +251,27 @@ def _client_card(r):
             with ui.column().style("align-items:flex-end;gap:2px;"):
                 ptxt, pcolor = _price_text(r)
                 ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
-                # edit pencil — click.stop so it doesn't also trigger the card's drill-in
-                ui.button(icon="edit").props("flat dense round size=sm") \
-                    .style(f"color:{COLORS['text_muted']};") \
-                    .on("click.stop", lambda _e=None, cid=r["cid"]: _open_edit_client_dialog(cid)) \
-                    .tooltip("Edit client")
+                # action icons — click.stop so they don't also trigger the card's drill-in
+                with ui.row().style("gap:0;"):
+                    async def _on_refresh(_e=None, _cid=r["cid"], _tk=r["ticker"], _nm=r["name"]):
+                        await _refresh_13f(_cid, _tk, _nm)
+                    ui.button(icon="refresh").props("flat dense round size=sm") \
+                        .style(f"color:{COLORS['text_muted']};") \
+                        .on("click.stop", _on_refresh).tooltip("Refresh 13F holders")
+                    ui.button(icon="edit").props("flat dense round size=sm") \
+                        .style(f"color:{COLORS['text_muted']};") \
+                        .on("click.stop", lambda _e=None, cid=r["cid"]: _open_edit_client_dialog(cid)) \
+                        .tooltip("Edit client")
         ui.separator().style("margin:6px 0;")
         etxt, ecolor = _earnings_cell(r)
         _metric("Next earnings", etxt, ecolor)
-        _metric("Consensus rev",
-                f"${r['consensus_rev_m']:.1f}M" if r["consensus_rev_m"] is not None else "—")
+        cons_txt = (f"${r['consensus_rev_m']:.1f}M" if r["consensus_rev_m"] is not None
+                    else "— (not set)")
+        _metric("Consensus rev", cons_txt,
+                COLORS["text_body"] if r["consensus_rev_m"] is not None else _AMBER)
         ftxt, fcolor = _f13_cell(r)
         _metric("13F holders", ftxt, fcolor)
+        _metric("NOBO", *_nobo_cell(r))
         if r["attention"]:
             with ui.row().style("gap:6px;flex-wrap:wrap;margin-top:6px;"):
                 for a in r["attention"]:

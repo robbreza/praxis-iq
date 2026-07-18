@@ -33,12 +33,21 @@ def _days_until(date_str):
         return None
 
 
-def _age_days(iso_ts):
+def _parse_ts(iso_ts):
     try:
-        ts = datetime.fromisoformat(str(iso_ts).replace("Z", "").split("+")[0])
-        return (datetime.now() - ts).days
+        return datetime.fromisoformat(str(iso_ts).replace("Z", "").split("+")[0])
     except Exception:
         return None
+
+
+def _age_days(iso_ts):
+    ts = _parse_ts(iso_ts)
+    return (datetime.now() - ts).days if ts else None
+
+
+def _age_minutes(iso_ts):
+    ts = _parse_ts(iso_ts)
+    return int((datetime.now() - ts).total_seconds() // 60) if ts else None
 
 
 def client_status(cid):
@@ -50,10 +59,21 @@ def client_status(cid):
     snap = market_data.get_cached(ticker, client_id=cid) or {}
     last_price = snap.get("last_price")
     pct_change = snap.get("pct_change")
+    px_age_min = _age_minutes(snap.get("fetched_at")) if snap else None
 
     # curated registry consensus only (see module docstring for why not consensus_rev())
     consensus = c.get("q2_consensus_rev")
     consensus = float(consensus) if isinstance(consensus, (int, float)) and consensus else None
+    consensus_source = "registry" if consensus is not None else "none"
+
+    # NOBO: has a real Broadridge pull been uploaded for this tenant? (cheap DB read, no seed)
+    try:
+        from core import nobo_engine
+        _pulls = (nobo_engine.load_pull_store(client_id=cid) or {}).get("pulls") or []
+    except Exception:
+        _pulls = []
+    nobo_uploads = len(_pulls)
+    nobo_latest = _pulls[-1].get("record_date") if _pulls else None
 
     earnings = c.get("earnings") or {}
     edate = earnings.get("earnings_date")
@@ -82,13 +102,17 @@ def client_status(cid):
         "exchange": c.get("exchange") or "",
         "last_price": last_price,
         "pct_change": pct_change,
+        "px_age_min": px_age_min,
         "consensus_rev_m": consensus,
+        "consensus_source": consensus_source,
         "earnings_date": edate,
         "days_to_earnings": days_to_earnings,
         "quarter": earnings.get("current_quarter"),
         "holder_count": holder_count,
         "f13_fetched_at": f13_fetched,
         "f13_age_days": f13_age,
+        "nobo_uploads": nobo_uploads,
+        "nobo_latest": nobo_latest,
         "attention": attention,
     }
 

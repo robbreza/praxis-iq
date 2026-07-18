@@ -5,6 +5,23 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Console data-ops panel (Phase 3)
+
+Each portfolio card now doubles as a per-client data-ops readout, so staff can see freshness and
+re-pull without leaving the Console:
+- **Freshness rows:** next earnings, consensus (amber "— (not set)" when a tenant has no curated
+  `q2_consensus_rev`), 13F holder count + pull date (amber when stale/missing), and NOBO upload
+  state (amber "no Broadridge upload" until a real pull is loaded).
+- **↻ Refresh 13F** button per card (click.stop so it doesn't drill in): re-pulls that tenant's
+  institutional holders from EDGAR off the event loop (`asyncio.to_thread`, active client scoped
+  inside the worker), with a start/finish toast. 13F is the one genuinely on-demand source —
+  price auto-refreshes, consensus is registry/auto, NOBO is an upload.
+- `core/portfolio.client_status` extended with `consensus_source`, `nobo_uploads`/`nobo_latest`,
+  and a `px_age_min` (not surfaced — the market cache's `fetched_at` is stored in a different tz
+  than local `now()`, so sub-day price age is unreliable; 13F day-granularity is fine).
+
+---
+
 ## 2026-07-18 — Console: editable client_id + in-Console edit/deactivate (Phase 3, start)
 
 - **Add-client form:** `Client ID` is now an explicit editable field (blank still derives from
