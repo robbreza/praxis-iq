@@ -5,6 +5,45 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Auth + the account-type axis (praxis_staff vs client_user)
+
+The platform gained a real access boundary. Until now it was open on its port with a code-defined
+tenant switcher — right operator model, but no authentication and no notion of a *client* user.
+Added on branch `auth-account-axis` (off `q2-earnings-script`; not merged, not pushed).
+
+### Two axes, deliberately separate
+- **`account_type` — the tenant boundary.** `praxis_staff` sees every tenant and can switch between
+  them; `client_user` is pinned to ONE home tenant, read-only, switcher hidden. This is what makes
+  the app a real multi-tenant SaaS rather than an internal console.
+- **`role_key` — the persona** (IR/CEO/CFO/CRO/Legal). Pre-existing `ROLE_PERMISSIONS`; unchanged.
+
+### Two security guarantees, enforced server-side
+1. **Tenant isolation.** The tenants a session may touch come from `auth.allowed_clients(user)` —
+   derived from the authenticated user, NEVER trusted from the `active_client_id` cookie.
+   `_bind_active_client()` re-asserts this clamp every render; a client_user forging the cookie to
+   another tenant is clamped back to its home tenant.
+2. **Read-only at the data layer.** A client_user session is marked read-only in `core.db`, and
+   `save_json` raises `PermissionError` regardless of UI gating. `core/ui_context` mirrors it so
+   mutating controls never render for a client_user (belt and suspenders).
+
+### The pieces
+- **`core/auth.py`** — stdlib PBKDF2-HMAC-SHA256 (240k iters; no new dependency), `users` table,
+  `authenticate` (dummy-verify on unknown users, no enumeration side channel), the account-axis
+  helpers, and seeding: `seed_admin_from_env()` (first-boot only) + `seed_client_users()` (roster
+  participants — IR contact + executives, analysts excluded — plus a per-tenant
+  `praxispointclient@<ticker>` default; all forced to change password on first sign-in).
+- **`app_nicegui`** — `/login` + `/change-password` pages, the auth gate on `/`, the tenant clamp,
+  a staff-only header switcher, a VIEW-ONLY badge + identity + logout, and a startup seeding hook.
+- **`.env.example`** — `IRCONNECT_STORAGE_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD` (one-time
+  bootstrap, rotation forced), `DEFAULT_USER_PASSWORD`.
+
+Verified by a 27-check headless security test (tenant isolation, forged-cookie clamp
+client_user saro→usio, data-layer write refusal, authenticate + forced-change flow) — all pass —
+and a clean live boot (`/login`, `/change-password`, `/` all 200). USIO seeds 6 client logins,
+SARO seeds 1 (`praxispointclient@saro`); no staff seeds until the operator sets the env creds.
+
+---
+
 ## 2026-07-18 — Multi-tenancy made real: client #2 (SARO), two-layer valuation, live consensus, full UI sweep
 
 The platform went from "USIO app that says it's multi-tenant" to **genuinely multi-tenant**,
