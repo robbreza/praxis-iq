@@ -785,11 +785,20 @@ def _render_company_financials():
     # ---- Balance sheet ----
     ui.label("Balance sheet").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
-        _bm_stat("Net cash", f"${bs['net_cash']/1e6:.1f}M",
-                 f"${bs['debt']/1e6:.1f}M debt · {bs['debt_to_equity']:.0f}% D/E", "#15803D")
-        _bm_stat("Equity (book value)", f"${bs['equity']/1e6:.1f}M", "shareholders' equity")
-        _bm_stat("Customer funds held", f"${bs['cash_and_restricted']/1e6:.0f}M", "cash + restricted, in custody")
-        _bm_stat("Settlement liabilities", f"${bs['customer_deposits']/1e6:.0f}M", "customer deposits — not debt")
+        _nc = bs.get('net_cash')
+        if _nc is not None:
+            _sub = (f"${bs['debt']/1e6:.1f}M debt · {bs['debt_to_equity']:.0f}% D/E"
+                    if bs.get('debt') is not None and bs.get('debt_to_equity') is not None else "net of debt")
+            _bm_stat("Net cash" if _nc >= 0 else "Net debt", f"${abs(_nc)/1e6:.1f}M", _sub,
+                     "#15803D" if _nc >= 0 else "#B45309")
+        if bs.get('equity') is not None:
+            _bm_stat("Equity (book value)", f"${bs['equity']/1e6:.1f}M", "shareholders' equity")
+        # Custody/settlement float is a payments-business concept — USIO-specific.
+        if CT("ticker") == "USIO":
+            if bs.get('cash_and_restricted') is not None:
+                _bm_stat("Customer funds held", f"${bs['cash_and_restricted']/1e6:.0f}M", "cash + restricted, in custody")
+            if bs.get('customer_deposits') is not None:
+                _bm_stat("Settlement liabilities", f"${bs['customer_deposits']/1e6:.0f}M", "customer deposits — not debt")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:3px solid #B45309;margin-top:4px;"):
@@ -1406,43 +1415,84 @@ def _render_board_ir_report():
         # The old text asserted "cheap on a growing base" on every branch and quoted
         # EV/Revenue as supporting evidence. Both are claims, not facts: the discount can
         # be a premium, and EV/Revenue is not comparable across this peer set at all.
-        _disc = bm["discount_gp"]
-        _val = ("a {:.0f}% discount to the {:.1f}x peer median".format(_disc, bm["median_gp"])
-                if _disc > 0 else
-                "a {:.0f}% PREMIUM to the {:.1f}x peer median".format(abs(_disc), bm["median_gp"]))
-        ui.label(f"Revenue ${inc['revenue']/1e6:.1f}M, up {inc['rev_growth_yoy']:.0f}% year-over-year, with "
-                 f"${inc['gross_profit']/1e6:.1f}M gross profit and ${inc['adjusted_ebitda']/1e3:.0f}K adjusted "
-                 f"EBITDA. Balance sheet is net cash (${bs['net_cash']/1e6:.1f}M) with positive free cash flow — "
-                 f"self-funding. Shares trade at {u['ev_gp']:.1f}x EV/Gross Profit — {_val}. EV/Revenue is NOT a "
-                 f"usable comparison here and is excluded from that read: USIO reports revenue gross of "
-                 f"interchange. The re-rating hinges on operating-margin expansion (currently "
-                 f"{inc['operating_margin']:.1f}%).").style(
+        _disc = bm.get("discount_gp")
+        _med = bm.get("median_gp")
+        if _disc is None or _med is None:
+            _val = "not directly comparable on the current peer set"
+        elif _disc > 0:
+            _val = "a {:.0f}% discount to the {:.1f}x peer median".format(_disc, _med)
+        else:
+            _val = "a {:.0f}% PREMIUM to the {:.1f}x peer median".format(abs(_disc), _med)
+        # Built defensively: a recent IPO / non-payments issuer has None for figures USIO
+        # always has (net cash — SARO carries net DEBT), and the interchange line is USIO's.
+        _nc = bs.get("net_cash")
+        _seg = []
+        if inc.get("revenue") is not None:
+            _seg.append(f"Revenue ${inc['revenue']/1e6:.1f}M"
+                        + (f", up {inc['rev_growth_yoy']:.0f}% year-over-year" if inc.get("rev_growth_yoy") is not None else ""))
+        if inc.get("gross_profit") is not None:
+            _seg.append(f"${inc['gross_profit']/1e6:.1f}M gross profit")
+        if inc.get("adjusted_ebitda") is not None:
+            _seg.append(f"${inc['adjusted_ebitda']/1e3:.0f}K adjusted EBITDA")
+        _txt = ", with ".join(_seg) + "." if _seg else ""
+        if _nc is not None:
+            _txt += (f" Balance sheet is net cash (${_nc/1e6:.1f}M) — self-funding."
+                     if _nc >= 0 else f" Balance sheet carries net debt (${abs(_nc)/1e6:.1f}M).")
+        if u.get("ev_gp") is not None:
+            _txt += f" Shares trade at {u['ev_gp']:.1f}x EV/Gross Profit — {_val}."
+        _txt += (" EV/Revenue is NOT a usable comparison here and is excluded from that read: USIO "
+                 "reports revenue gross of interchange."
+                 if CT("ticker") == "USIO" else
+                 " EV/Revenue is not comparable across this peer set and is excluded from that read.")
+        if inc.get("operating_margin") is not None:
+            _txt += f" The re-rating hinges on operating-margin expansion (currently {inc['operating_margin']:.1f}%)."
+        ui.label(_txt.strip()).style(
             f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
+
+    # None-safe formatters: a recent IPO / non-payments issuer has None for figures USIO
+    # always carries (net cash, settlement float, some margins). Show "—" rather than crash.
+    def _m(v, scale=1e6, dec=1, pre="$", suf="M"):
+        return f"{pre}{v/scale:.{dec}f}{suf}" if isinstance(v, (int, float)) else "—"
+
+    def _pct(v, dec=0):
+        return f"{v:.{dec}f}%" if isinstance(v, (int, float)) else "—"
 
     ui.label("Quarter financials").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
-        _bm_stat("Revenue", f"${inc['revenue']/1e6:.1f}M", f"{inc['rev_growth_yoy']:+.0f}% YoY",
-                 "#15803D" if (inc['rev_growth_yoy'] or 0) >= 10 else None)
-        _bm_stat("Gross profit", f"${inc['gross_profit']/1e6:.1f}M", f"{inc['gross_margin']:.0f}% margin")
-        _bm_stat("Adjusted EBITDA", f"${inc['adjusted_ebitda']/1e3:.0f}K", f"{inc['adj_ebitda_margin']:.0f}% margin")
-        _bm_stat("Net income", f"${inc['net_income']/1e3:.0f}K", f"{inc['net_margin']:.0f}% margin")
+        _bm_stat("Revenue", _m(inc.get('revenue')),
+                 f"{_pct(inc.get('rev_growth_yoy'))} YoY" if inc.get('rev_growth_yoy') is not None else "",
+                 "#15803D" if (inc.get('rev_growth_yoy') or 0) >= 10 else None)
+        _bm_stat("Gross profit", _m(inc.get('gross_profit')), f"{_pct(inc.get('gross_margin'))} margin")
+        _bm_stat("Adjusted EBITDA", _m(inc.get('adjusted_ebitda'), 1e3, 0, '$', 'K'), f"{_pct(inc.get('adj_ebitda_margin'))} margin")
+        _bm_stat("Net income", _m(inc.get('net_income'), 1e3, 0, '$', 'K'), f"{_pct(inc.get('net_margin'))} margin")
 
     ui.label("Balance sheet & cash flow").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
-        _bm_stat("Net cash", f"${bs['net_cash']/1e6:.1f}M", f"${bs['debt']/1e6:.1f}M debt · {bs['debt_to_equity']:.0f}% D/E", "#15803D")
-        _bm_stat("Equity", f"${bs['equity']/1e6:.1f}M", "book value")
-        _bm_stat("Free cash flow", f"${cf['fcf']/1e3:.0f}K", f"{cf['fcf_margin']:.0f}% margin",
-                 "#15803D" if (cf['fcf'] or 0) > 0 else "#B45309")
-        _bm_stat("Settlement float", f"${bs['customer_deposits']/1e6:.0f}M", "customer money — not debt")
+        _nc2 = bs.get('net_cash')
+        _bm_stat("Net cash" if (_nc2 or 0) >= 0 else "Net debt",
+                 _m(abs(_nc2) if _nc2 is not None else None),
+                 f"{_m(bs.get('debt'))} debt · {_pct(bs.get('debt_to_equity'))} D/E",
+                 "#15803D" if (_nc2 or 0) >= 0 else "#B45309")
+        _bm_stat("Equity", _m(bs.get('equity')), "book value")
+        _bm_stat("Free cash flow", _m(cf.get('fcf'), 1e3, 0, '$', 'K'), f"{_pct(cf.get('fcf_margin'))} margin",
+                 "#15803D" if (cf.get('fcf') or 0) > 0 else "#B45309")
+        # Settlement float is a payments concept — USIO only.
+        if CT("ticker") == "USIO" and bs.get('customer_deposits') is not None:
+            _bm_stat("Settlement float", _m(bs.get('customer_deposits'), 1e6, 0, '$', 'M'), "customer money — not debt")
 
     ui.label("Valuation & peer position").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
-        _bm_stat("EV / Gross Profit", f"{u['ev_gp']:.1f}x", f"#{bm['usio_gp_rank']} of {len(bm['gp_ranked'])} · median {bm['median_gp']:.1f}x", COLORS["accent"])
+        _rank_sub = (f"#{bm['usio_gp_rank']} of {len(bm['gp_ranked'])} · median {bm['median_gp']:.1f}x"
+                     if bm.get('usio_gp_rank') is not None and bm.get('median_gp') is not None
+                     and bm.get('gp_ranked') else "peer rank n/a")
+        _bm_stat("EV / Gross Profit", f"{u['ev_gp']:.1f}x" if u.get('ev_gp') is not None else "—",
+                 _rank_sub, COLORS["accent"])
         # NOT green, and no "% below median": EV/Revenue is not comparable across this
         # peer set. Colouring it as a favourable fact is the error that produced the
         # retired deck's $9-12 price target.
-        _bm_stat("EV / Revenue", f"{u['ev_rev']:.2f}x", "context only — NOT comparable", None)
-        _bm_stat("Growth vs peers", f"{u['rev_growth']:.0f}%", f"vs {bm['median_gr']:.0f}% median")
+        _bm_stat("EV / Revenue", f"{u['ev_rev']:.2f}x" if u.get('ev_rev') is not None else "—",
+                 "context only — NOT comparable", None)
+        _bm_stat("Growth vs peers", _pct(u.get('rev_growth')), f"vs {_pct(bm.get('median_gr'))} median")
 
     ui.label("Ownership & the Street").classes("section-head").style("margin-top:8px;")
     with ui.row().classes("w-full gap-3"):
@@ -1457,15 +1507,29 @@ def _render_board_ir_report():
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:4px solid #B45309;margin-top:8px;"):
         ui.label("THE BOARD TAKEAWAY").style("color:#B45309;font-size:10.5px;font-weight:700;letter-spacing:.05em;")
-        ui.label(f"Cheap, clean, and self-funding — but the re-rating case rests on operating-margin expansion "
-                 f"(currently {inc['operating_margin']:.1f}%). Revenue growth is proven; profit conversion is not. "
-                 f"The IR priority is arming the Street with a credible operating-leverage bridge, and reframing "
-                 f"the balance-sheet float (customer money, not leverage) and gross-vs-net revenue so the discount "
-                 f"is understood, not just observed.").style(
-            f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+        _om = inc.get('operating_margin')
+        if CT("ticker") == "USIO":
+            _take = (f"Cheap, clean, and self-funding — but the re-rating case rests on operating-margin "
+                     f"expansion (currently {_om:.1f}%). Revenue growth is proven; profit conversion is not. "
+                     f"The IR priority is arming the Street with a credible operating-leverage bridge, and "
+                     f"reframing the balance-sheet float (customer money, not leverage) and gross-vs-net "
+                     f"revenue so the discount is understood, not just observed."
+                     if _om is not None else
+                     "The re-rating case rests on profit conversion. The IR priority is arming the Street "
+                     "with a credible operating-leverage bridge.")
+        else:
+            _take = ("The re-rating case rests on how the multiple is framed against the right peer set and "
+                     "on the demand backdrop"
+                     + (f", with operating margin currently {_om:.1f}%" if _om is not None else "")
+                     + ". The IR priority is a credible, model-matched valuation bridge and a clear "
+                       "operating-leverage story — not a headline discount taken at face value.")
+        ui.label(_take).style(f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
 
-    tp = edgar_financials.talking_points(s)
-    _talking_card(tp["income"] + tp["balance"] + tp["cashflow"])
+    try:
+        tp = edgar_financials.talking_points(s)
+        _talking_card(tp["income"] + tp["balance"] + tp["cashflow"])
+    except Exception as exc:
+        print(f"[reports_page] talking points unavailable for {CT('ticker')}: {exc}")
 
     # ---- sections merged in from the Quarterly Board Package ----
     try:
