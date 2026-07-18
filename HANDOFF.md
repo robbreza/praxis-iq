@@ -1,5 +1,27 @@
 # Praxis Point IR Platform — Handoff to Claude Code
 
+> **STATUS (updated 2026-07-18) — this doc is now historical.** The
+> modularization it plans below is **done**. The live app is **NiceGUI**
+> (`app_nicegui.py` + `page_modules_nicegui/`), not the original Streamlit
+> `app.py` (which is retained but non-canonical). Config lives in `config/`
+> (`client_config.py`, `theme_tokens.py`), shared logic in `core/` (incl.
+> `guidance_engine`, `narrative_engine`, `nobo_engine`, `sec_filings`), and
+> seed data in `data/seed/`. Multi-tenant client registry, SQLite/Neon-Postgres
+> persistence, RBAC, and real SEC EDGAR ingestion are all in place.
+>
+> **NOW GENUINELY MULTI-TENANT (2026-07-18).** Product name is **IRconnect**
+> (company: Praxis Point). A working NiceGUI tenant switcher is live; **client #2
+> is SARO (StandardAero, NYSE)** onboarded end-to-end alongside USIO. The
+> USIO-specific content that was baked into both the PDF generators
+> (`report_pdf.py`) and the on-screen UI (`reports_page.py`) is now generalized
+> or gated per-tenant. New engines: `peer_discovery` (systematic comp capture),
+> `value_chain` + tight median + `demand_anchor` (two-layer valuation), live
+> period-verified consensus (`market_data.consensus_rev`), and transcript-driven
+> script content (`transcripts.script_inputs`). All on branch
+> **`q2-earnings-script`** (unmerged, unpushed). **See [CHANGELOG.md](CHANGELOG.md)
+> — the 2026-07-18 entry is the current state of record.** The sections
+> below are kept as the original build brief for context.
+
 ## Context
 Parent company: **Praxis Point Advisory** (an IR advisory firm).
 First client: **USIO Inc. (NASDAQ: USIO)**. More clients will be onboarded later —
