@@ -62,11 +62,26 @@ by hand, on a machine that can actually reach Neon (this sandbox can't;
 confirmed no route to *.neon.tech), not silently on every read.
 """
 
+import contextvars
 import json
 import threading as _threading
 import os
 import sqlite3
 from datetime import datetime
+
+# Read-only session guard. A client_user session is marked read-only by the app (from the
+# authenticated account_type); writes then raise, so read-only is guaranteed at the DATA layer
+# regardless of whether a given UI control happened to be gated. Default False (staff/scripts/
+# startup seeding all write normally). Set per render via set_session_readonly().
+_readonly_session = contextvars.ContextVar("db_readonly_session", default=False)
+
+
+def set_session_readonly(value):
+    _readonly_session.set(bool(value))
+
+
+def session_is_readonly():
+    return _readonly_session.get()
 
 DB_PATH = os.path.join("data", "app.db")
 
@@ -130,6 +145,21 @@ CREATE TABLE IF NOT EXISTS documents (
     uploaded_at       TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_documents_client_contact ON documents (client_id, contact, firm);
+-- users: the FIRST table not scoped by client_id, because Praxis Point staff span all
+-- tenants. account_type is the tenant boundary; home_client_id is the tenant a client_user
+-- is pinned to (NULL for staff). See core/auth.py.
+CREATE TABLE IF NOT EXISTS users (
+    user_id              TEXT PRIMARY KEY,
+    display_name         TEXT,
+    password_hash        TEXT NOT NULL,
+    account_type         TEXT NOT NULL,
+    home_client_id       TEXT,
+    role_key             TEXT NOT NULL DEFAULT 'IR',
+    active               INTEGER NOT NULL DEFAULT 1,
+    must_change_password INTEGER NOT NULL DEFAULT 1,
+    created_at           TEXT NOT NULL,
+    last_login           TEXT
+);
 """
 
 _POSTGRES_SCHEMA = """
@@ -192,6 +222,18 @@ CREATE TABLE IF NOT EXISTS documents (
     uploaded_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_documents_client_contact ON documents (client_id, contact, firm);
+CREATE TABLE IF NOT EXISTS users (
+    user_id              TEXT PRIMARY KEY,
+    display_name         TEXT,
+    password_hash        TEXT NOT NULL,
+    account_type         TEXT NOT NULL,
+    home_client_id       TEXT,
+    role_key             TEXT NOT NULL DEFAULT 'IR',
+    active               BOOLEAN NOT NULL DEFAULT TRUE,
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login           TIMESTAMPTZ
+);
 """
 
 
@@ -498,6 +540,9 @@ def save_json(key, data, client_id=None):
     """Write `data` (anything json-serializable) under `key` for the given
     (or active) client. Upserts, so repeated saves to the same key just
     overwrite."""
+    if _readonly_session.get():
+        raise PermissionError(
+            f"read-only session (client_user): write to '{key}' refused")
     cid = _resolve_client_id(client_id)
     conn = get_connection()
     pg = connection_is_postgres(conn)
