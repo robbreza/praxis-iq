@@ -5,12 +5,75 @@ built from cheap cached signals, click a card to drill into that tenant's worksp
 by app_nicegui's @ui.page("/console") AFTER it has confirmed the user is praxis_staff — so this
 module does no auth of its own; it just draws.
 """
+import re
 from datetime import datetime
 
 from nicegui import app, ui
 
 from config.theme_tokens import ACTIVE as COLORS
 from core import portfolio
+
+
+def _slug(s):
+    return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+
+def _open_add_client_dialog():
+    """Onboard a new tenant from the Console: write the client record to the DB, reload the
+    registry, and seed its two standard IR logins — no code change, no deploy."""
+    with ui.dialog() as dialog, ui.card().style(
+            f"width:430px;padding:22px;background:{COLORS['surface_bg']};"
+            f"border:1px solid {COLORS['border']};border-radius:10px;gap:6px;"):
+        ui.label("Add a client").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label("Creates the tenant and its two standard IR logins "
+                 "(directorofir@ / irassistant@).").style(
+            f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:6px;")
+        name_in = ui.input("Company name").props("outlined dense autofocus").classes("w-full")
+        ticker_in = ui.input("Ticker").props("outlined dense").classes("w-full")
+        exch_in = ui.input("Exchange", value="NYSE").props("outlined dense").classes("w-full")
+        domain_in = ui.input("Email domain", placeholder="e.g. standardaero.com") \
+            .props("outlined dense").classes("w-full")
+        ui.label("Mail-gateway identity will be irconnect@<domain>.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+
+        def _create():
+            from config.client_config import CLIENT_REGISTRY, reload_registry
+            from core import client_store, auth
+            name = (name_in.value or "").strip()
+            ticker = (ticker_in.value or "").strip().upper()
+            exch = (exch_in.value or "").strip()
+            domain = (domain_in.value or "").strip().lower()
+            if not name or not ticker or not domain:
+                msg.set_text("Name, ticker and email domain are required."); return
+            if "@" in domain or "." not in domain or " " in domain:
+                msg.set_text("Enter a bare email domain, e.g. acme.com."); return
+            cid = _slug(ticker)
+            if not cid:
+                msg.set_text("Ticker must contain letters or numbers."); return
+            if cid in CLIENT_REGISTRY:
+                msg.set_text(f"A client '{cid}' already exists."); return
+            record = {
+                "ticker": ticker, "name": name, "exchange": exch, "email_domain": domain,
+                "ir_contact": {"irconnect": f"irconnect@{domain}"}, "executives": {},
+                # empty defaults so downstream accessors (CA/CE/CF/CP...) never KeyError
+                "analysts": [], "peers": [], "earnings": {}, "financials": {},
+                "guidance": {}, "guidance_policy": {},
+            }
+            client_store.upsert_client(cid, record, active=True)
+            reload_registry()
+            logins = auth.seed_client_users(cid)
+            dialog.close()
+            ui.notify(
+                f"Added {name} ({ticker}). Logins: {', '.join(logins) or '—'} · "
+                f"password {auth.default_user_password()} (must change on first sign-in).",
+                type="positive", timeout=10000)
+            ui.navigate.reload()
+
+        with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Create", on_click=_create).props("color=primary")
+    dialog.open()
 
 _UP, _DOWN, _AMBER, _AMBER_BG = "#15803D", "#B91C1C", "#B45309", "#FEF3C7"
 
@@ -125,6 +188,8 @@ def render_console_home(user):
                 ui.space()
                 ui.label(user.get("display_name") or user["user_id"]).style(
                     f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ui.button("Add client", icon="add", on_click=_open_add_client_dialog) \
+                    .props("dense").style("margin-left:4px;")
                 ui.button("User Admin", icon="manage_accounts",
                           on_click=lambda: ui.navigate.to("/admin/users")).props("flat dense") \
                     .style(f"color:{COLORS['text_muted']};")

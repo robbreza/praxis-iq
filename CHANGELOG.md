@@ -5,6 +5,31 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Praxis Point Console, Phase 2 (onboard a client without a deploy)
+
+The SaaS threshold: tenant definitions moved from code to DATA, and the Console can now onboard a
+client from a form.
+
+- **DB-backed client store.** New `clients` table (unscoped — it IS the client list, like `users`)
+  holding a JSON `record` per tenant; `core/client_store.py` is the CRUD. The in-code registry
+  literal became `_CODE_SEED`; `CLIENT_REGISTRY` is a live dict that `reload_registry()` rebuilds
+  IN PLACE by deep-merging the DB `clients` rows onto the seed (DB wins per field, DB-only clients
+  added, inactive hidden). Every existing caller (`get_client`/`CT`/iteration/membership) is
+  unchanged — the whole point of the containment. A startup hook overlays the DB before anything
+  reads the registry.
+- **Add-client form** on the Console (staff-only dialog): company name, ticker, exchange, email
+  domain → writes the record, reloads the registry, and seeds the tenant's two standard IR logins
+  — all live, no code change, no redeploy. New tenant appears on the portfolio grid immediately
+  (honest "—"/attention until its data is pulled).
+- **Mail-gateway identity (the "IRconnect@company.com" fix).** `email_domain` is now a
+  first-class client field; the IRconnect address derives as `irconnect@<email_domain>`. Backfilled
+  usio (`usio.com`) and saro (`standardaero.com`, whose `ir_contact` had been empty), and the
+  add-client form captures it for every new tenant.
+
+Deferred to Phase 3: in-Console client EDIT/deactivate, and per-client data-ops refresh controls.
+
+---
+
 ## 2026-07-18 — Praxis Point Console, Phase 1 (the operator surface above the tenants)
 
 Formalized the two surfaces the product actually has. Until now "Praxis Point management" was
