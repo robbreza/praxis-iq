@@ -273,10 +273,27 @@ def filing_margin(ticker):
     rec.update({"gross_margin": gp_val / rev[end][0], "period": end, "revenue": rev[end][0],
                 "gross_profit": gp_val, "tag": tag, "derived": derived})
     if rec["latest_revenue_fy"] and end < rec["latest_revenue_fy"]:
-        rec["status"] = "stale"
-        rec["detail"] = (f"Last tagged a gross profit line for FY{end[:4]}, but has reported revenue "
-                         f"through FY{rec['latest_revenue_fy'][:4]}. The margin is {end[:4]}-vintage "
-                         "and is NOT a current figure.")
+        gap_yrs = int(rec["latest_revenue_fy"][:4]) - int(end[:4])
+        if gap_yrs >= 3:
+            # Not merely stale. A gap this wide means the filer STOPPED reporting a gross
+            # profit line years ago — a structural change to its income statement (VSE Corp,
+            # e.g., now goes revenue -> total costs & operating expenses -> operating income,
+            # with no cost-of-revenue split). There is no current metric to refresh to, and
+            # showing an N-year-old figure from a discontinued structure as if it were a margin
+            # is the error this module exists to prevent. Treat it like a no-gross-profit filer.
+            rec.update({"gross_margin": None, "gross_profit": None, "revenue": None})
+            rec["status"] = "no_gross_profit_line"
+            rec["detail"] = (f"Last tagged a gross profit line for FY{end[:4]} and not since — revenue "
+                             f"is reported through FY{rec['latest_revenue_fy'][:4]}, but the income "
+                             f"statement no longer breaks out cost of revenue (only total costs / "
+                             f"operating income). The FY{end[:4]} figure is from a discontinued "
+                             f"reporting structure, not a current margin, so there is nothing to "
+                             f"refresh to; excluded from the median.")
+        else:
+            rec["status"] = "stale"
+            rec["detail"] = (f"Last tagged a gross profit line for FY{end[:4]}, but has reported revenue "
+                             f"through FY{rec['latest_revenue_fy'][:4]}. The margin is {end[:4]}-vintage "
+                             "and is NOT a current figure.")
     elif derived:
         rec["status"] = "derived"
         ex_da = ctag in _COST_EXCLUDES_DA
