@@ -171,6 +171,30 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+-- contacts: the person-level IDENTITY layer, sourced from EDGAR 13F signature blocks.
+-- NOT scoped by client_id (like `users`/`clients`): a Vanguard VP is the same person whichever
+-- tenant we're targeting for, so enrich once and reuse everywhere. The RELATIONSHIP layer
+-- (holdings, conviction, meetings, notes) stays client-scoped in the JSON stores.
+CREATE TABLE IF NOT EXISTS contacts (
+    contact_id       TEXT PRIMARY KEY,
+    cik              TEXT,
+    firm             TEXT NOT NULL,
+    firm_key         TEXT NOT NULL,
+    name             TEXT NOT NULL,
+    title            TEXT,
+    phone            TEXT,
+    email            TEXT,
+    email_status     TEXT,
+    email_source     TEXT,
+    email_checked_at TEXT,
+    domain           TEXT,
+    source           TEXT NOT NULL,
+    source_ref       TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_firm_key ON contacts (firm_key);
+CREATE INDEX IF NOT EXISTS idx_contacts_cik ON contacts (cik);
 """
 
 _POSTGRES_SCHEMA = """
@@ -252,6 +276,28 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- contacts: person-level IDENTITY layer from EDGAR 13F signature blocks. Unscoped by design —
+-- see the SQLite schema above for the identity-vs-relationship split.
+CREATE TABLE IF NOT EXISTS contacts (
+    contact_id       TEXT PRIMARY KEY,
+    cik              TEXT,
+    firm             TEXT NOT NULL,
+    firm_key         TEXT NOT NULL,
+    name             TEXT NOT NULL,
+    title            TEXT,
+    phone            TEXT,
+    email            TEXT,
+    email_status     TEXT,
+    email_source     TEXT,
+    email_checked_at TIMESTAMPTZ,
+    domain           TEXT,
+    source           TEXT NOT NULL,
+    source_ref       TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_firm_key ON contacts (firm_key);
+CREATE INDEX IF NOT EXISTS idx_contacts_cik ON contacts (cik);
 """
 
 
