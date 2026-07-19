@@ -154,20 +154,29 @@ def rolled_consensus(period, client_id=None, metric="Revenue Est ($M)",
     override = client.get("q2_consensus_rev")
     override = float(override) if isinstance(override, (int, float)) and override else None
 
+    # Fallback consensus (non-model). consensus_rev() already prefers a curated q2_consensus_rev
+    # override over the live feed and labels it source="registry", so relabel by source rather than
+    # calling an override "street". Without a network street (include_street=False) fall back to the
+    # override directly so the cheap path still has a number.
+    fb_val = fb_source = None
+    if street_ok:
+        fb_val = street_val
+        fb_source = "override" if street.get("source") == "registry" else "street"
+    elif override is not None:
+        fb_val, fb_source = override, "override"
+
     authoritative = n_models >= min_models and coverage >= coverage_threshold
     if authoritative:
         headline, source, status = median, "models", "authoritative"
-    elif street_val is not None:
-        headline, source, status = street_val, "street", "provisional"
-    elif override is not None:
-        headline, source, status = override, "override", "provisional"
+    elif fb_val is not None:
+        headline, source, status = fb_val, fb_source, "provisional"
     else:
         headline, source, status = None, "none", "provisional"
 
     reconciliation = None
-    if median is not None and street_val:
-        reconciliation = {"model_median": median, "street": street_val,
-                          "street_vs_model_pct": (street_val - median) / median * 100}
+    if median is not None and fb_val:
+        reconciliation = {"model_median": median, "ref": fb_val, "ref_source": fb_source,
+                          "ref_vs_model_pct": (fb_val - median) / median * 100}
 
     return {
         "period": period, "metric": metric,
@@ -175,9 +184,10 @@ def rolled_consensus(period, client_id=None, metric="Revenue Est ($M)",
         "median": median, "mean": mean, "low": low, "high": high,
         "n_models": n_models, "n_covering": n_covering, "coverage": coverage,
         "per_firm": per_firm, "outliers": outliers,
-        "street": {"value_m": street_val, "n": street_n,
-                   "verified": bool(street and street.get("verified")),
-                   "source": street.get("source") if street else None} if street else None,
+        "fallback": {"value_m": fb_val, "source": fb_source,
+                     "n": street_n if fb_source == "street" else None,
+                     "verified": bool(street and street.get("verified") and fb_source == "street")}
+        if fb_val is not None else None,
         "override": override, "reconciliation": reconciliation,
     }
 

@@ -5,6 +5,23 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Praxis Consensus wired into Earnings → Consensus Tracker
+
+New **"Praxis Consensus"** sub-tab (now the default) on Earnings → Consensus Tracker, the working
+surface for keeping the street in line. Renders `consensus.rolled_consensus()` for the current
+quarter: headline (median) with an AUTHORITATIVE/PROVISIONAL badge and source label (Praxis models
+/ live street / IR override), a median/mean/low/high strip, coverage (N of M models), the
+reconciliation line (our median vs street/override, "X% above/below"), a per-analyst table with
+%-vs-median and OUTLIER chips, and — critically — the **"Awaiting models"** list of active-coverage
+analysts who still owe a model (chase these to reach authoritative). USIO today: $25.1M · PROVISIONAL
+· IR override · 0 of 2 models · awaiting H.C. Wainwright + Ladenburg.
+
+Also refined the engine: the non-model fallback is now labeled by source (live **street** vs curated
+**override**) instead of calling a q2_consensus_rev override "street"; reconciliation reports vs
+whichever fallback applies.
+
+---
+
 ## 2026-07-18 — Praxis Consensus engine (curated model roll-up, street fallback)
 
 The consensus workflow's spine: our OWN consensus, rolled up from the analyst models we collect,

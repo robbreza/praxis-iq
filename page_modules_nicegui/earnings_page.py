@@ -2796,6 +2796,97 @@ def _default_surprises():
              "pre_empt_score": 8, "call_score": 61}]
 
 
+def _render_consensus_rollup():
+    """Praxis Consensus — our vetted revenue consensus rolled up from the analyst models we've
+    collected (median headline, robust to a rough analyst), with the street/override as a labeled
+    provisional fallback, a reconciliation vs that fallback, and the list of analysts still owed a
+    model. This is the working surface for keeping the street in line."""
+    GREEN, RED, AMBER, MUT = "#15803D", "#B91C1C", "#B45309", COLORS["text_muted"]
+    cid = get_active_client_id()
+    cq = (CE().get("current_quarter") or "").strip()
+    period = f"{cq}E" if cq else "Q2 2026E"
+    r = consensus.rolled_consensus(period, client_id=cid, include_street=True)
+
+    def _m(v):
+        return f"${v:,.1f}M" if isinstance(v, (int, float)) else "—"
+
+    src_label = {"models": "Praxis · models", "street": "Live street",
+                 "override": "IR override", "none": "—"}.get(r["source"], r["source"])
+    auth = r["status"] == "authoritative"
+
+    ui.label("Praxis Consensus — revenue model roll-up").classes("text-lg font-bold")
+    ui.label(f"{CT('ticker')} · {period} · our consensus from collected models; the median resists "
+             "a rough analyst, the street/override is the labeled fallback.").style(
+        f"color:{MUT};font-size:12px;")
+
+    # ── headline card ───────────────────────────────────────────────────────
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};margin-top:6px;"):
+        with ui.row().classes("w-full items-center").style("gap:12px;"):
+            ui.label(_m(r["headline"])).classes("text-3xl font-bold").style(
+                f"color:{COLORS['text_heading']};")
+            ui.label("AUTHORITATIVE" if auth else "PROVISIONAL").style(
+                f"background:{'rgba(21,128,61,.12)' if auth else 'rgba(180,83,9,.12)'};"
+                f"color:{GREEN if auth else AMBER};font-size:10px;font-weight:800;"
+                "letter-spacing:.04em;padding:3px 9px;border-radius:10px;")
+            ui.label(src_label).style(f"color:{MUT};font-size:12.5px;")
+            ui.space()
+            ui.label(f"{r['n_models']} of {r['n_covering']} models · {r['coverage']:.0%} coverage").style(
+                f"color:{MUT};font-size:12px;")
+        if r["median"] is not None:
+            with ui.row().classes("w-full").style("gap:26px;margin-top:8px;"):
+                for lbl, val in [("Median", _m(r["median"])), ("Mean", _m(r["mean"])),
+                                 ("Low", _m(r["low"])), ("High", _m(r["high"]))]:
+                    with ui.column().style("gap:0;"):
+                        ui.label(val).style(f"color:{COLORS['text_body']};font-weight:700;font-size:14px;")
+                        ui.label(lbl).style(f"color:{MUT};font-size:10px;letter-spacing:.03em;")
+
+    # ── reconciliation ──────────────────────────────────────────────────────
+    rc = r["reconciliation"]
+    if rc:
+        pct = rc["ref_vs_model_pct"]
+        against = {"street": "the street", "override": "the IR override"}.get(rc["ref_source"], rc["ref_source"])
+        col = AMBER if abs(pct) >= 3 else MUT
+        ui.label(f"Reconciliation — our median {_m(rc['model_median'])} vs {against} {_m(rc['ref'])}: "
+                 f"{against} is {abs(pct):.1f}% {'above' if pct > 0 else 'below'} our models.").style(
+            f"color:{col};font-size:12.5px;font-weight:600;margin-top:8px;")
+    elif r["fallback"]:
+        fb = r["fallback"]
+        extra = (f" · {fb['n']} analysts" if fb.get("n") else "") + (" · period-verified" if fb.get("verified") else "")
+        ui.label(f"No models yet — showing {'live street' if fb['source'] == 'street' else 'IR override'} "
+                 f"{_m(fb['value_m'])}{extra}.").style(f"color:{MUT};font-size:12.5px;margin-top:8px;")
+
+    ui.markdown("---")
+
+    # ── per-analyst models ──────────────────────────────────────────────────
+    ui.label("Analyst models").classes("font-bold")
+    if r["per_firm"]:
+        for f in r["per_firm"]:
+            dv = (f["value"] - r["median"]) / r["median"] * 100 if r["median"] else 0
+            with ui.row().classes("w-full items-center").style("gap:12px;"):
+                ui.label(f["firm"]).style(f"color:{COLORS['text_body']};font-size:12.5px;min-width:210px;")
+                ui.label(_m(f["value"])).style(f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;")
+                ui.label(f"{dv:+.1f}% vs median").style(f"color:{MUT};font-size:11.5px;")
+                if f["is_outlier"]:
+                    ui.label("OUTLIER").style(
+                        f"background:rgba(180,83,9,.12);color:{AMBER};font-size:9.5px;font-weight:700;"
+                        "padding:1px 7px;border-radius:8px;").tooltip(">10% from median — kept in the math, flagged for you")
+    else:
+        ui.label("No models received yet for this period.").style(f"color:{MUT};font-size:12.5px;")
+
+    # ── who still owes a model (active coverage) ────────────────────────────
+    received = {f["firm"] for f in r["per_firm"]}
+    missing = [a for a in (C().get("analysts", []) or [])
+               if a.get("status") == "active" and a.get("firm") and a.get("firm") not in received]
+    if missing:
+        ui.markdown("---")
+        ui.label("Awaiting models (active coverage) — chase these to move toward authoritative:").style(
+            f"color:{MUT};font-size:11.5px;")
+        for a in missing:
+            ui.label(f"· {a.get('firm')}" + (f" — {a.get('name')}" if a.get("name") else "")).style(
+                f"color:{AMBER};font-size:12px;")
+
+
 def _render_surprise_tracker_tab():
     surprises = _load_json("earnings_surprise_log.json", None)
     if surprises is None:
@@ -2806,10 +2897,13 @@ def _render_surprise_tracker_tab():
     ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.tabs().classes("w-full") as es_tabs:
+        e0 = ui.tab("Praxis Consensus")
         e1 = ui.tab("Beat/Miss History")
         e2 = ui.tab("Log Quarter")
         e3 = ui.tab("Pre-Call Assessment")
-    with ui.tab_panels(es_tabs, value=e1).classes("w-full"):
+    with ui.tab_panels(es_tabs, value=e0).classes("w-full"):
+        with ui.tab_panel(e0):
+            _render_consensus_rollup()
         with ui.tab_panel(e1):
             if surprises:
                 df = pd.DataFrame(surprises)
