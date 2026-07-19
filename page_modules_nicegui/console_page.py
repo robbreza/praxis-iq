@@ -247,6 +247,57 @@ async def _refresh_13f(cid, ticker, name):
         ui.notify(f"{ticker}: 13F refresh failed — {e}", type="negative", timeout=8000)
 
 
+async def _refresh_price(cid, ticker):
+    """Force-refresh this tenant's market snapshot (bypasses the freshness check)."""
+    import asyncio
+    ui.notify(f"Refreshing price for {ticker}…", type="info")
+
+    def _work():
+        from core import market_data
+        return market_data.refresh_one(ticker, client_id=cid)
+
+    try:
+        fresh = await asyncio.to_thread(_work)
+        if fresh and fresh.get("last_price") is not None:
+            pct = fresh.get("pct_change")
+            pct_txt = f" ({'+' if (pct or 0) >= 0 else ''}{pct:.1f}%)" if pct is not None else ""
+            ui.notify(f"{ticker}: ${fresh['last_price']:.2f}{pct_txt} (reload to update card).",
+                      type="positive", timeout=6000)
+        else:
+            ui.notify(f"{ticker}: no price data returned.", type="warning", timeout=6000)
+    except Exception as e:
+        ui.notify(f"{ticker}: price refresh failed — {e}", type="negative", timeout=8000)
+
+
+async def _refresh_consensus(cid, ticker):
+    """Recompute this tenant's consensus (registry value wins; else a period-verified live
+    estimate). Reports the result via toast — the card shows the curated registry value, so a
+    live estimate surfaces here rather than mutating the card."""
+    import asyncio
+    ui.notify(f"Refreshing consensus for {ticker}…", type="info")
+
+    def _work():
+        from config.client_config import set_active_client_id
+        from core import market_data
+        set_active_client_id(cid)   # consensus_rev resolves ticker/registry from the active client
+        return market_data.refresh_consensus(client_id=cid)
+
+    try:
+        res = await asyncio.to_thread(_work)
+        val, src, ver = res.get("value_m"), res.get("source"), res.get("verified")
+        if val is not None and (src == "registry" or ver):
+            tag = "registry" if src == "registry" else "live · verified"
+            ui.notify(f"{ticker}: consensus ${val:.1f}M ({tag}).", type="positive", timeout=6000)
+        elif val is not None:
+            ui.notify(f"{ticker}: live estimate ${val:.1f}M but period UNVERIFIED — not used.",
+                      type="warning", timeout=8000)
+        else:
+            ui.notify(f"{ticker}: no consensus (no registry value, no verified live estimate).",
+                      type="warning", timeout=8000)
+    except Exception as e:
+        ui.notify(f"{ticker}: consensus refresh failed — {e}", type="negative", timeout=8000)
+
+
 def _client_card(r):
     card = ui.card().classes("cursor-pointer").style(
         f"padding:16px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
@@ -266,15 +317,26 @@ def _client_card(r):
                 if r.get("px_age_min") is not None:
                     ui.label(f"px {_fmt_age(r['px_age_min'])}").style(
                         f"color:{COLORS['text_muted']};font-size:9.5px;")
-                # action icons — click.stop so they don't also trigger the card's drill-in
+                # action icons — click.stop so they don't also trigger the card's drill-in.
+                # Distinct topic icons (price / holders / consensus) each REFRESH that source.
+                _mut = f"color:{COLORS['text_muted']};"
                 with ui.row().style("gap:0;"):
-                    async def _on_refresh(_e=None, _cid=r["cid"], _tk=r["ticker"], _nm=r["name"]):
+                    async def _rp(_e=None, _cid=r["cid"], _tk=r["ticker"]):
+                        await _refresh_price(_cid, _tk)
+
+                    async def _rf(_e=None, _cid=r["cid"], _tk=r["ticker"], _nm=r["name"]):
                         await _refresh_13f(_cid, _tk, _nm)
-                    ui.button(icon="refresh").props("flat dense round size=sm") \
-                        .style(f"color:{COLORS['text_muted']};") \
-                        .on("click.stop", _on_refresh).tooltip("Refresh 13F holders")
-                    ui.button(icon="edit").props("flat dense round size=sm") \
-                        .style(f"color:{COLORS['text_muted']};") \
+
+                    async def _rc(_e=None, _cid=r["cid"], _tk=r["ticker"]):
+                        await _refresh_consensus(_cid, _tk)
+
+                    ui.button(icon="show_chart").props("flat dense round size=sm").style(_mut) \
+                        .on("click.stop", _rp).tooltip("Refresh price")
+                    ui.button(icon="groups").props("flat dense round size=sm").style(_mut) \
+                        .on("click.stop", _rf).tooltip("Refresh 13F holders")
+                    ui.button(icon="insights").props("flat dense round size=sm").style(_mut) \
+                        .on("click.stop", _rc).tooltip("Refresh consensus")
+                    ui.button(icon="edit").props("flat dense round size=sm").style(_mut) \
                         .on("click.stop", lambda _e=None, cid=r["cid"]: _open_edit_client_dialog(cid)) \
                         .tooltip("Edit client")
         ui.separator().style("margin:6px 0;")

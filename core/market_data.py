@@ -306,6 +306,17 @@ def refresh_all(client_id=None):
     return log
 
 
+def refresh_one(ticker, client_id=None):
+    """Force-fetch and cache ONE ticker's snapshot, bypassing the freshness check. For a manual
+    'refresh price' control on a single client. Also updates the per-process memo so subsequent
+    get_snapshot() reads see the new value. Returns the fresh snapshot dict, or None on failure."""
+    fresh = _fetch_one(ticker)
+    if fresh:
+        _save_snapshot(ticker, fresh, client_id)
+        _snapshot_memo_put((ticker.upper(), client_id), get_cached(ticker, client_id))
+    return fresh
+
+
 def get_last_refresh_log(client_id=None):
     return db.load_json("market_data_refresh_log.json", None, client_id=client_id)
 
@@ -631,6 +642,18 @@ def consensus_rev_value(client_id=None):
     if r["source"] == "registry" or (r["source"] == "live" and r["verified"]):
         return r["value_m"]
     return None
+
+
+def refresh_consensus(client_id=None):
+    """Drop the memoised consensus for the ACTIVE client's ticker and recompute it now — for a
+    manual 'refresh consensus' control. consensus_rev resolves the ticker/registry from the ACTIVE
+    client (ContextVar), so the caller must set the active client before calling this. Returns the
+    same dict as consensus_rev ({value_m, source, verified, ...})."""
+    from config.client_config import CT
+    tkr = CT("ticker")
+    with _consensus_memo_lock:
+        _consensus_memo.pop(tkr, None)
+    return consensus_rev(client_id)
 
 
 def live_ev(ticker, client_id=None):
