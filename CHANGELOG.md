@@ -24,6 +24,19 @@ Verified on a throwaway DB: manual `update_estimate` writes flow straight into `
 
 ---
 
+## 2026-07-18 — Console: billing-notice emails + cross-client calendar
+
+- **Billing notices** in the engagement dialog: a `billing_email` field plus "Email: payment
+  declined" and "Email: renewal reminder" buttons that compose a templated **mailto draft** in the
+  operator's own mail client (the operator reviews and sends — nothing is sent from the app,
+  matching the app's existing mailto pattern).
+- **Cross-client calendar** — new staff-only `/console/calendar` (reached from a Calendar button on
+  the Console): an agenda of upcoming events across every client — earnings dates, engagement
+  renewals, quiet-period starts — sorted, with type badges and days-away. Shows USIO's quiet period
+  (Jul 20) + earnings (Aug 12) today; fills in as more dates/renewals are set.
+
+---
+
 ## 2026-07-18 — Console engagement / billing (terms + portfolio roll-up)
 
 PP-operator engagement data on the Console. Each client record gains an `engagement` block

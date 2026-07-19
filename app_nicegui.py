@@ -529,6 +529,22 @@ def console_page_route():
     console_page.render_console_home(user)
 
 
+@ui.page("/console/calendar")
+def console_calendar_route():
+    """Cross-client operator calendar (staff-only) — the whole book's schedule at a glance."""
+    from core import auth
+    apply_theme()
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login"); return
+    if user["must_change_password"]:
+        ui.navigate.to("/change-password"); return
+    if not auth.is_staff(user):
+        ui.navigate.to("/"); return
+    from page_modules_nicegui import console_page
+    console_page.render_console_calendar(user)
+
+
 @ui.page("/")
 def main_page():
     apply_theme()

@@ -5,8 +5,10 @@ built from cheap cached signals, click a card to drill into that tenant's worksp
 by app_nicegui's @ui.page("/console") AFTER it has confirmed the user is praxis_staff — so this
 module does no auth of its own; it just draws.
 """
+import json
 import re
-from datetime import datetime
+from datetime import date, datetime
+from urllib.parse import quote
 
 from nicegui import app, ui
 
@@ -112,7 +114,35 @@ def _open_engagement_dialog(cid):
         with ui.row().classes("w-full").style("gap:8px;"):
             start_in = ui.input("Start date (YYYY-MM-DD)", value=eng.get("start_date") or "").props("outlined dense").style("flex:1;")
             renewal_in = ui.input("Renewal date (YYYY-MM-DD)", value=eng.get("renewal_date") or "").props("outlined dense").style("flex:1;")
-        contact_in = ui.input("Primary contact", value=eng.get("primary_contact") or "").props("outlined dense").classes("w-full")
+        with ui.row().classes("w-full").style("gap:8px;"):
+            contact_in = ui.input("Primary contact", value=eng.get("primary_contact") or "").props("outlined dense").style("flex:1;")
+            bemail_in = ui.input("Billing email", value=eng.get("billing_email") or "").props("outlined dense").style("flex:1;")
+
+        # Billing notices — compose a draft in the operator's own mail client (mailto); the
+        # operator reviews and sends. Nothing is sent from the app.
+        def _compose(kind):
+            to = (bemail_in.value or "").strip()
+            if not to:
+                ui.notify("Add a billing email first.", type="warning"); return
+            name = (get_client(cid) or {}).get("name", cid)
+            who = (contact_in.value or "").strip() or "there"
+            if kind == "declined":
+                subj = f"Payment issue on your Praxis Point IR account — {name}"
+                body = (f"Hi {who},\n\nWe attempted to process your monthly Praxis Point IR retainer "
+                        "and the card on file was declined. To avoid any interruption to your IR "
+                        "program, please update your payment details at your convenience, or reply "
+                        "here and we'll help.\n\nThank you,\nPraxis Point")
+            else:
+                rd = (renewal_in.value or "").strip()
+                subj = f"Upcoming renewal — {name} Praxis Point IR"
+                body = (f"Hi {who},\n\nYour Praxis Point IR engagement is coming up for renewal"
+                        + (f" on {rd}" if rd else "") + ". We'd be glad to keep supporting your IR "
+                        "program — let us know if you'd like to review terms.\n\nThank you,\nPraxis Point")
+            href = f"mailto:{to}?subject={quote(subj)}&body={quote(body)}"
+            ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+        with ui.row().style("gap:8px;margin-top:2px;"):
+            ui.button("Email: payment declined", icon="mail", on_click=lambda: _compose("declined")).props("flat dense").style(f"color:{COLORS['text_muted']};")
+            ui.button("Email: renewal reminder", icon="event", on_click=lambda: _compose("renewal")).props("flat dense").style(f"color:{COLORS['text_muted']};")
 
         def _save():
             from config.client_config import reload_registry
@@ -124,6 +154,7 @@ def _open_engagement_dialog(cid):
                 "start_date": (start_in.value or "").strip(),
                 "renewal_date": (renewal_in.value or "").strip(),
                 "primary_contact": (contact_in.value or "").strip(),
+                "billing_email": (bemail_in.value or "").strip(),
             }}, active=True)
             reload_registry()
             dialog.close()
@@ -445,6 +476,81 @@ def _client_card(r):
                         "padding:2px 8px;border-radius:10px;")
 
 
+_EVT_STYLE = {
+    "Earnings":     ("#1D4ED8", "rgba(29,78,216,.12)"),
+    "Renewal":      ("#B45309", "rgba(180,83,9,.12)"),
+    "Quiet period": ("#64748B", "rgba(100,116,139,.12)"),
+}
+
+
+def render_console_calendar(user):
+    """Cross-client operator calendar — an agenda of what's coming up at every client (earnings,
+    engagement renewals, quiet-period starts), so PP can see the whole book's schedule at once."""
+    from config.client_config import get_client
+    rows = portfolio.portfolio_overview()
+    raw = []
+    for r in rows:
+        if r.get("earnings_date"):
+            raw.append((r["earnings_date"], "Earnings", f"{r['ticker']} earnings"))
+        if r.get("eng_renewal"):
+            raw.append((r["eng_renewal"], "Renewal", f"{r['name']} engagement renewal"))
+        qs = (get_client(r["cid"]).get("earnings") or {}).get("quiet_start")
+        if qs:
+            raw.append((qs, "Quiet period", f"{r['ticker']} quiet period starts"))
+
+    def _pd(s):
+        try:
+            return date.fromisoformat(str(s)[:10])
+        except Exception:
+            return None
+    today = date.today()
+    events = sorted(((d, t, l) for (s, t, l) in raw if (d := _pd(s)) and d >= today), key=lambda e: e[0])
+
+    def _logout():
+        app.storage.user.pop("user_id", None)
+        app.storage.user.pop("active_client_id", None)
+        ui.navigate.to("/login")
+
+    with ui.column().classes("w-full items-center"):
+        wrap = ui.column().style("width:min(1000px,94vw);margin-top:24px;gap:14px;")
+        with wrap:
+            with ui.row().classes("w-full items-center").style("gap:10px;"):
+                ui.label("Praxis Point").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+                ui.label("CALENDAR").style(
+                    f"background:{COLORS['text_heading']};color:white;font-size:10px;font-weight:800;"
+                    "letter-spacing:.08em;padding:3px 9px;border-radius:6px;")
+                ui.space()
+                ui.button("Back to Console", icon="arrow_back",
+                          on_click=lambda: ui.navigate.to("/console")).props("flat dense").style(f"color:{COLORS['text_muted']};")
+                ui.button("Sign out", icon="logout", on_click=_logout).props("flat dense").style(f"color:{COLORS['text_muted']};")
+
+            ui.label(f"{len(events)} upcoming across {len(rows)} clients").style(
+                f"color:{COLORS['text_muted']};font-size:13px;")
+
+            if not events:
+                ui.label("Nothing scheduled yet. Set earnings dates and engagement renewals to "
+                         "populate this.").style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+                return
+            with ui.card().classes("w-full").style(
+                    f"padding:0;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    "border-radius:10px;overflow:hidden;"):
+                for i, (d, typ, label) in enumerate(events):
+                    color, bg = _EVT_STYLE.get(typ, (COLORS["text_muted"], "rgba(100,116,139,.12)"))
+                    days = (d - today).days
+                    when = "today" if days == 0 else ("tomorrow" if days == 1 else f"in {days}d")
+                    with ui.row().classes("w-full items-center").style(
+                            "gap:12px;padding:11px 16px;"
+                            + (f"border-top:1px solid {COLORS['border']};" if i else "")):
+                        ui.label(d.strftime("%b %d")).style(
+                            f"color:{COLORS['text_heading']};font-weight:700;font-size:12.5px;min-width:60px;")
+                        ui.label(typ).style(
+                            f"background:{bg};color:{color};font-size:9.5px;font-weight:700;"
+                            "padding:2px 8px;border-radius:9px;min-width:86px;text-align:center;")
+                        ui.label(label).style(f"color:{COLORS['text_body']};font-size:12.5px;")
+                        ui.space()
+                        ui.label(when).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+
 def render_console_home(user):
     rows = portfolio.portfolio_overview()
     needs = sum(1 for r in rows if r["attention"])
@@ -462,6 +568,9 @@ def render_console_home(user):
                 ui.space()
                 ui.label(user.get("display_name") or user["user_id"]).style(
                     f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ui.button("Calendar", icon="calendar_month",
+                          on_click=lambda: ui.navigate.to("/console/calendar")).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
                 ui.button("Add client", icon="add", on_click=_open_add_client_dialog) \
                     .props("dense").style("margin-left:4px;")
                 ui.button("User Admin", icon="manage_accounts",
