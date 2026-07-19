@@ -349,21 +349,29 @@ def _drill_in(cid):
 async def _refresh_13f(cid, ticker, name):
     """Re-pull this tenant's institutional 13F holders from EDGAR, off the event loop so the UI
     stays responsive. 13F is the one genuinely on-demand data source (price auto-refreshes;
-    consensus is registry/auto; NOBO is a Broadridge upload)."""
+    consensus is registry/auto; NOBO is a Broadridge upload).
+
+    CHAINED: the full-text search returns presence-only rows (shares=1/value=0), which would
+    silently DOWNGRADE holders that already carry real magnitude. enrich_holder_positions() then
+    reads each filer's own info table for the actual shares/value/book total. That second pass is
+    the slow part (one document per filer), hence the up-front warning."""
     import asyncio
-    ui.notify(f"Refreshing 13F for {ticker}…", type="info")
+    ui.notify(f"Refreshing 13F for {ticker} — the enrichment pass can take a few minutes…",
+              type="info", timeout=8000)
 
     def _work():
         from config.client_config import set_active_client_id
         from core import sec_filings
         set_active_client_id(cid)   # scope the cache write to this tenant (runs in this thread)
-        return sec_filings.refresh_13f_holders(ticker, name)
+        res = sec_filings.refresh_13f_holders(ticker, name)
+        enr = sec_filings.enrich_holder_positions(ticker, client_id=cid)
+        return res, enr
 
     try:
-        res = await asyncio.to_thread(_work)
+        res, enr = await asyncio.to_thread(_work)
         n = len(res.get("holders", []))
-        ui.notify(f"{ticker}: 13F refreshed — {n} holders (reload to update freshness).",
-                  type="positive", timeout=7000)
+        ui.notify(f"{ticker}: 13F refreshed — {n} holders, {enr.get('enriched', 0)} with real "
+                  f"position size (reload to update).", type="positive", timeout=9000)
     except Exception as e:
         ui.notify(f"{ticker}: 13F refresh failed — {e}", type="negative", timeout=8000)
 
