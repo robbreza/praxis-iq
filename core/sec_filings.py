@@ -595,6 +595,113 @@ def _fetch_filer_info_table_xml(cik, accession, filename):
     return resp.content
 
 
+def _infotable_entries(xml_bytes):
+    """Yield {issuer, cusip, value, shares} for every <infoTable> in a filer's 13F information
+    table. Matches by LOCAL tag name so it works whichever namespace the filing agent used."""
+    root = ET.fromstring(xml_bytes)
+    for el in root.iter():
+        if el.tag.split("}")[-1] != "infoTable":
+            continue
+        rec = {}
+        for ch in el.iter():
+            t = ch.tag.split("}")[-1]
+            txt = (ch.text or "").strip()
+            if t == "nameOfIssuer":
+                rec["issuer"] = txt
+            elif t == "cusip":
+                rec["cusip"] = txt
+            elif t == "value":
+                try:
+                    rec["value"] = int(float(txt))
+                except ValueError:
+                    pass
+            elif t == "sshPrnamt":
+                try:
+                    rec["shares"] = int(float(txt))
+                except ValueError:
+                    pass
+        if rec:
+            yield rec
+
+
+def enrich_holder_positions(ticker, client_id=None, limit=None, throttle=0.2, issuer_token=None):
+    """Upgrade presence-only holder rows to REAL magnitude.
+
+    The full-text-search path (refresh_13f_holders) confirms WHO holds but not how much —
+    shares=1/value=0/size_known=False. Each of those rows still carries the filer's accession +
+    info-table filename, so we can fetch that one document and read the actual position (shares,
+    value, cusip) plus the filer's whole-book total — no bulk market-wide download.
+
+    This is the prerequisite for driving the target database off real 13F holders: without it a
+    tenant refreshed via full-text search has no share counts, no AUM proxy and no geography.
+
+    Idempotent: rows already marked size_known are skipped. Returns a summary dict.
+    """
+    import time
+    from config.client_config import get_client, get_active_client_id
+
+    tk = (ticker or "").upper()
+    cid = client_id or get_active_client_id()
+    key = SEC_13F_HOLDERS_KEY_FMT.format(ticker=tk)
+    book = db.load_json(key, default=None, client_id=cid) or {}
+    holders = book.get("holders") or []
+    if not holders:
+        return {"ticker": tk, "holders": 0, "enriched": 0, "reason": "no cached holders"}
+
+    # Prefer CUSIP matching (exact); fall back to an issuer-name token from the client record.
+    cusip = next((h.get("cusip") for h in holders if h.get("cusip")), None)
+    if not issuer_token:
+        nm = (get_client(cid) or {}).get("name") or tk
+        issuer_token = re.sub(r"[^A-Za-z]", "", nm.split(",")[0].split()[0]).upper()
+
+    todo = [h for h in holders if not h.get("size_known")]
+    if limit:
+        todo = todo[:limit]
+
+    enriched, missed, failed = 0, 0, 0
+    for h in todo:
+        if not (h.get("cik") and h.get("accession") and h.get("filename")):
+            failed += 1
+            continue
+        try:
+            xml = _fetch_filer_info_table_xml(h["cik"], h["accession"], h["filename"])
+        except Exception:
+            failed += 1
+            continue
+        try:
+            total, positions, mine = 0, 0, None
+            for rec in _infotable_entries(xml):
+                total += rec.get("value") or 0
+                positions += 1
+                if mine is None:
+                    if cusip and rec.get("cusip") == cusip:
+                        mine = rec
+                    elif not cusip and issuer_token and issuer_token in (rec.get("issuer") or "").upper():
+                        mine = rec
+                        cusip = rec.get("cusip") or cusip   # learn it once, then match exactly
+        except Exception:
+            failed += 1
+            continue
+
+        h["book_total"] = total
+        h["book_positions"] = positions
+        if mine:
+            h["shares"] = mine.get("shares") or 0
+            h["value"] = mine.get("value") or 0
+            h["cusip"] = mine.get("cusip") or h.get("cusip")
+            h["size_known"] = True
+            enriched += 1
+        else:
+            missed += 1        # filer's book fetched, but our issuer wasn't in it
+        if throttle:
+            time.sleep(throttle)
+
+    book["holders"] = holders
+    db.save_json(key, book, client_id=cid)
+    return {"ticker": tk, "holders": len(holders), "attempted": len(todo),
+            "enriched": enriched, "issuer_not_in_book": missed, "failed": failed, "cusip": cusip}
+
+
 def _sum_info_table_value(xml_bytes):
     """Sums every <value> element in a 13F information-table XML — this
     filer's WHOLE quarter-end 13F book (every issuer they hold, not just
