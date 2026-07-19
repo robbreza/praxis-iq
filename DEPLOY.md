@@ -18,6 +18,13 @@ Railway, Fly.io, or a small VPS also work — the steps below map cleanly to any
    - **Build command:** `pip install -r requirements.txt`
    - **Start command:** `python app_nicegui.py`
    - Render injects `$PORT`; the app binds it automatically.
+   - **Python version:** pinned to **3.12** via the committed `.python-version`. The code needs
+     **≥3.11** (`datetime.fromisoformat` must parse space-separated timestamps with a UTC offset —
+     that's the market-cache timezone fix). If Render ignores the file, also set a
+     `PYTHON_VERSION=3.12` environment variable.
+   - *Build weight:* `requirements.txt` still includes **streamlit** (for the legacy `app.py`
+     during the NiceGUI migration). It installs from wheels so it won't fail, just adds build time
+     and image size. Once `app.py` is retired, dropping it slims the deploy.
 4. **Instance:** a single instance (do **not** scale to multiple — the per-process caches assume
    one process; the signed session cookie itself is fine, but keep it to one instance).
 5. **Environment variables** (Settings → Environment):
