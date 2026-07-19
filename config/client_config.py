@@ -472,6 +472,25 @@ def set_active_client_id(client_id):
     return client_id
 
 
+# ── Model-intake access policy (per-client information barrier) ─────────────
+# Who may review/confirm the raw analyst models arriving at a client's IRconnect mailbox BEFORE
+# they enter the consensus roll-up. Configurable PER CLIENT — some want Praxis Point locked out of
+# their raw inbound (they review first), others want PP to operate it on their behalf; NDAs cover
+# both parties. The mailbox and its parse are client-scoped regardless; this governs human access.
+INTAKE_LOCKED_DOWN = "locked_down"   # client users only; PP sees the roll-up, never the raw queue
+INTAKE_PP_OPERATED = "pp_operated"   # PP staff operate intake; client_user stays read-only (default)
+INTAKE_SHARED = "shared"             # client users AND the client's assigned PP staff
+_INTAKE_MODES = (INTAKE_LOCKED_DOWN, INTAKE_PP_OPERATED, INTAKE_SHARED)
+DEFAULT_INTAKE_ACCESS = INTAKE_PP_OPERATED
+
+
+def intake_access(client_id=None):
+    """The client's model-intake access mode (see INTAKE_* constants), defaulting to pp_operated.
+    Governs who may review/confirm raw parsed models from the client-level IRconnect mailbox."""
+    mode = (get_client(client_id) or {}).get("intake_access")
+    return mode if mode in _INTAKE_MODES else DEFAULT_INTAKE_ACCESS
+
+
 def get_client(client_id=None):
     """Full config record for the given client, or the active one."""
     cid = client_id or get_active_client_id()
