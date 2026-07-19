@@ -27,7 +27,7 @@ access — same situation as core/sec_filings.py.
 """
 
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from core import db
 
@@ -237,15 +237,29 @@ def get_cached(ticker, client_id=None):
         conn.close()
 
 
-def _is_stale(fetched_at_str, max_age_minutes=DEFAULT_STALE_MINUTES):
+def _parse_utc(ts_str):
+    """Parse a stored timestamp to an AWARE UTC datetime, whichever backend wrote it.
+
+    fetched_at is written two ways: the Postgres path uses SQL now() (tz-aware UTC), the SQLite
+    path uses local-naive datetime.now().isoformat(). Comparing either against a naive local
+    now() (what this used to do) is wrong by the local UTC offset — on Neon that made every
+    cached snapshot look ~hours in the future, i.e. never stale. Parse to aware UTC instead: a
+    value with an offset is converted to UTC; a naive value is interpreted as local (correct for
+    the SQLite writer) and converted. Returns None if unparseable."""
+    if not ts_str:
+        return None
     try:
-        fetched_at = datetime.fromisoformat(fetched_at_str.replace("Z", "+00:00")) if "T" in fetched_at_str else datetime.fromisoformat(fetched_at_str)
-        # Strip tz-awareness for a simple same-clock comparison — this cache
-        # is only ever read/written by this one app process.
-        fetched_at = fetched_at.replace(tzinfo=None)
-        return (datetime.now() - fetched_at) > timedelta(minutes=max_age_minutes)
+        dt = datetime.fromisoformat(str(ts_str).strip().replace("Z", "+00:00"))
     except Exception:
+        return None
+    return dt.astimezone(timezone.utc)
+
+
+def _is_stale(fetched_at_str, max_age_minutes=DEFAULT_STALE_MINUTES):
+    fetched_at = _parse_utc(fetched_at_str)
+    if fetched_at is None:
         return True
+    return (datetime.now(timezone.utc) - fetched_at) > timedelta(minutes=max_age_minutes)
 
 
 def get_snapshot(ticker, refresh_if_stale=True, max_age_minutes=DEFAULT_STALE_MINUTES, client_id=None):

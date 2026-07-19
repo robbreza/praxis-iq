@@ -13,7 +13,7 @@ from the ACTIVE-client ContextVar (not its client_id arg) and its blank-registry
 network — both wrong for a cross-tenant, cached board. The period-verified live estimate is a
 workspace concern, not a status tile.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from config.client_config import CLIENT_REGISTRY, get_client
 from core import db, market_data
@@ -34,20 +34,27 @@ def _days_until(date_str):
 
 
 def _parse_ts(iso_ts):
+    """Parse to an aware UTC datetime. A value with an offset (e.g. Postgres tz-aware fetched_at)
+    is converted to UTC; a naive value (SQLite local-naive writes, 13F _fetched_at) is treated as
+    local and converted. Comparing the result against datetime.now(timezone.utc) is correct for
+    both — the old strip-the-offset approach read Neon's UTC timestamps hours in the future."""
+    if not iso_ts:
+        return None
     try:
-        return datetime.fromisoformat(str(iso_ts).replace("Z", "").split("+")[0])
+        dt = datetime.fromisoformat(str(iso_ts).strip().replace("Z", "+00:00"))
     except Exception:
         return None
+    return dt.astimezone(timezone.utc)
 
 
 def _age_days(iso_ts):
     ts = _parse_ts(iso_ts)
-    return (datetime.now() - ts).days if ts else None
+    return (datetime.now(timezone.utc) - ts).days if ts else None
 
 
 def _age_minutes(iso_ts):
     ts = _parse_ts(iso_ts)
-    return int((datetime.now() - ts).total_seconds() // 60) if ts else None
+    return int((datetime.now(timezone.utc) - ts).total_seconds() // 60) if ts else None
 
 
 def client_status(cid):

@@ -158,6 +158,18 @@ def _fmt_date(iso, with_year=False):
             return "—"
 
 
+def _fmt_age(minutes):
+    if minutes is None:
+        return ""
+    if minutes < 1:
+        return "just now"
+    if minutes < 60:
+        return f"{minutes}m ago"
+    if minutes < 1440:
+        return f"{minutes // 60}h ago"
+    return f"{minutes // 1440}d ago"
+
+
 def _price_text(r):
     p, pct = r["last_price"], r["pct_change"]
     if p is None:
@@ -251,6 +263,9 @@ def _client_card(r):
             with ui.column().style("align-items:flex-end;gap:2px;"):
                 ptxt, pcolor = _price_text(r)
                 ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
+                if r.get("px_age_min") is not None:
+                    ui.label(f"px {_fmt_age(r['px_age_min'])}").style(
+                        f"color:{COLORS['text_muted']};font-size:9.5px;")
                 # action icons — click.stop so they don't also trigger the card's drill-in
                 with ui.row().style("gap:0;"):
                     async def _on_refresh(_e=None, _cid=r["cid"], _tk=r["ticker"], _nm=r["name"]):
