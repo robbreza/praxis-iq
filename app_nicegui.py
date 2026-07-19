@@ -1048,6 +1048,11 @@ app.on_startup(_kick_off_cache_warm)
 # deployment; the fallback is a dev-only default and is deliberately named so an
 # unset production instance is obvious. Title is the product ("IRconnect"), not a
 # single tenant — this app now serves multiple clients.
-ui.run(title="IRconnect", port=8502, reload=False,
+# PORT: a hosted deploy (Render/Railway/etc.) injects the port to bind via $PORT; locally it
+# defaults to 8502. Host stays 0.0.0.0 so the platform's proxy can reach it.
+ui.run(title="IRconnect",
+       host="0.0.0.0",
+       port=int(os.environ.get("PORT", "8502")),
+       reload=False,
        storage_secret=os.environ.get("IRCONNECT_STORAGE_SECRET",
                                       "irconnect-dev-secret-set-in-env-for-prod"))
