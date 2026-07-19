@@ -2887,6 +2887,134 @@ def _render_consensus_rollup():
                 f"color:{AMBER};font-size:12px;")
 
 
+def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
+    """Log analyst models into the consensus roll-up. Two paths:
+      A) parsed from the IRconnect mailbox (inbox_queue 'model' items) — review the extracted
+         numbers and confirm to integrate; and
+      B) MANUAL entry — to get a client started, and for the common case of a model sent to the
+         wrong person / outside the mailbox. Optional file attach for the record.
+    Both write via core.consensus, so the Praxis Consensus tab reflects them immediately."""
+    MUT = COLORS["text_muted"]
+    ratings = ["Buy", "Hold", "Sell", "Not Rated"]
+    period_keys = list((consensus.get_consensus(cid).get("period_estimates") or {}).keys())
+    cq = (CE().get("current_quarter") or "").strip()
+    if not period_keys:
+        period_keys = [f"{cq}E" if cq else "Q2 2026E"]
+    default_period = f"{cq}E" if cq and f"{cq}E" in period_keys else period_keys[0]
+    firms = [a.get("firm") for a in (C().get("analysts", []) or []) if a.get("firm")]
+    domain = C().get("email_domain") or "your-domain.com"
+
+    def _norm_period(p):
+        p = (p or "").strip()
+        if not p:
+            return default_period
+        p = p if p.endswith("E") else p + "E"
+        return p if p in period_keys else default_period
+
+    ui.label("Model Intake").classes("text-lg font-bold")
+    ui.label(f"Analysts send models to irconnect@{domain}; parsed emails land below for review. "
+             "Use manual entry to get started, or when a model was sent to the wrong person.").style(
+        f"color:{MUT};font-size:12px;")
+
+    # ── A) parsed from the IRconnect mailbox ────────────────────────────────
+    ui.markdown("---")
+    ui.label("From IRconnect email — pending review").classes("font-bold")
+    pending = inbox_queue.list_pending_items(category="model", client_id=cid)
+    if not pending:
+        ui.label("Nothing pending. Parsed models from the IRconnect mailbox appear here once it's "
+                 "connected.").style(f"color:{MUT};font-size:12.5px;")
+    for item in pending:
+        ex = item.get("extracted") or {}
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+            ui.label(f"{item.get('firm') or item.get('contact') or 'Unknown sender'} · "
+                     f"{item.get('subject', '(no subject)')}").classes("font-bold").style(
+                f"color:{COLORS['text_heading']};font-size:13px;")
+            ui.label(f"Received {item.get('received_at', '')}"
+                     + (f" · {item.get('filename')}" if item.get("filename") else "")).style(
+                f"color:{MUT};font-size:11px;")
+            with ui.row().classes("w-full").style("gap:8px;flex-wrap:wrap;margin-top:4px;"):
+                q_firm = ui.input("Firm", value=item.get("firm") or "").props("outlined dense").style("min-width:160px;")
+                q_period = ui.select(period_keys, value=_norm_period(ex.get("period")), label="Period").props("outlined dense").style("min-width:120px;")
+                q_rev = ui.number("Rev ($M)", value=ex.get("revenue_est"), step=0.1).props("outlined dense").style("width:110px;")
+                q_eps = ui.number("EPS ($)", value=ex.get("eps_est"), step=0.01).props("outlined dense").style("width:100px;")
+                q_ebitda = ui.number("EBITDA ($M)", value=ex.get("ebitda_est"), step=0.1).props("outlined dense").style("width:120px;")
+                q_pt = ui.number("PT ($)", value=ex.get("price_target"), step=0.25).props("outlined dense").style("width:95px;")
+                q_rating = ui.select(ratings, value=ex.get("rating") if ex.get("rating") in ratings else "Not Rated", label="Rating").props("outlined dense").style("min-width:110px;")
+            with ui.row().style("gap:8px;"):
+                def _confirm(it=item, qf=q_firm, qp=q_period, qr=q_rev, qe=q_eps, qb=q_ebitda, qt=q_pt, qra=q_rating):
+                    firm = (qf.value or "").strip()
+                    if not firm:
+                        ui.notify("Firm is required to integrate.", type="warning"); return
+                    consensus.confirm_model_review(it["id"], qp.value, firm, rating=qra.value,
+                                                   price_target=qt.value, eps_est=qe.value,
+                                                   revenue_est=qr.value, ebitda_est=qb.value, client_id=cid)
+                    ui.notify(f"Integrated {firm} model for {qp.value}.", type="positive")
+                    if on_saved:
+                        on_saved()
+                    if refresh_self:
+                        refresh_self()
+                ui.button("Confirm & integrate", on_click=_confirm).props("color=primary dense")
+
+                def _dismiss(it=item):
+                    inbox_queue.dismiss_item(it["id"], client_id=cid)
+                    ui.notify("Dismissed.", type="info")
+                    if refresh_self:
+                        refresh_self()
+                ui.button("Dismiss", on_click=_dismiss).props("flat dense")
+
+    # ── B) manual entry ─────────────────────────────────────────────────────
+    ui.markdown("---")
+    ui.label("Manual model entry").classes("font-bold")
+    ui.label("To get started, or for a model that arrived outside the IRconnect mailbox.").style(
+        f"color:{MUT};font-size:11.5px;")
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+        with ui.row().classes("w-full").style("gap:8px;flex-wrap:wrap;"):
+            firm_in = ui.select(firms, label="Analyst / firm", with_input=True,
+                                new_value_mode="add-unique").props("outlined dense").style("min-width:200px;")
+            period_in = ui.select(period_keys, value=default_period, label="Period").props("outlined dense").style("min-width:120px;")
+            rev_in = ui.number("Revenue Est ($M)", value=None, step=0.1).props("outlined dense").style("width:150px;")
+            eps_in = ui.number("EPS Est ($)", value=None, step=0.01).props("outlined dense").style("width:120px;")
+            ebitda_in = ui.number("EBITDA Est ($M)", value=None, step=0.1).props("outlined dense").style("width:150px;")
+            pt_in = ui.number("Price Target ($)", value=None, step=0.25).props("outlined dense").style("width:130px;")
+            rating_in = ui.select(ratings, value="Not Rated", label="Rating").props("outlined dense").style("min-width:120px;")
+
+        def _on_upload(e):
+            from core import documents
+            try:
+                data = e.content.read()
+            except Exception:
+                data = e.content
+            firm = (firm_in.value or "").strip() or "Unknown"
+            documents.save_document(contact=firm, firm=firm, doc_type="model", filename=e.name,
+                                    file_bytes=data, source="manual_intake", client_id=cid)
+            ui.notify(f"Attached {e.name}.", type="positive")
+        ui.upload(on_upload=_on_upload, auto_upload=True).props(
+            "accept='.xlsx,.xls,.xlsm,.csv,.pdf' flat max-files=1").classes("w-full").style("max-width:340px;")
+
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+
+        def _save():
+            firm = (firm_in.value or "").strip()
+            if not firm:
+                msg.set_text("Pick or type the analyst / firm."); return
+            if all(v is None for v in (rev_in.value, eps_in.value, ebitda_in.value, pt_in.value)):
+                msg.set_text("Enter at least one estimate (revenue, EPS, EBITDA, or PT)."); return
+            consensus.update_estimate(period_in.value, firm, rating=rating_in.value,
+                                      price_target=pt_in.value, eps_est=eps_in.value,
+                                      revenue_est=rev_in.value, ebitda_est=ebitda_in.value,
+                                      source="manual_intake", client_id=cid)
+            ui.notify(f"Logged {firm} model for {period_in.value}.", type="positive", timeout=5000)
+            firm_in.value = None
+            for f in (rev_in, eps_in, ebitda_in, pt_in):
+                f.value = None
+            msg.set_text("")
+            if on_saved:
+                on_saved()
+        ui.button("Log model", icon="save", on_click=_save).props("color=primary").style("margin-top:6px;")
+
+
 def _render_surprise_tracker_tab():
     surprises = _load_json("earnings_surprise_log.json", None)
     if surprises is None:
@@ -2896,14 +3024,27 @@ def _render_surprise_tracker_tab():
     ui.label("Consensus Tracker").classes("text-lg font-bold")
     ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
+    _cid = get_active_client_id()
+
+    @ui.refreshable
+    def _praxis_panel():
+        _render_consensus_rollup()
+
+    @ui.refreshable
+    def _intake_panel():
+        _render_model_intake_tab(_cid, on_saved=_praxis_panel.refresh, refresh_self=_intake_panel.refresh)
+
     with ui.tabs().classes("w-full") as es_tabs:
         e0 = ui.tab("Praxis Consensus")
+        eI = ui.tab("Model Intake")
         e1 = ui.tab("Beat/Miss History")
         e2 = ui.tab("Log Quarter")
         e3 = ui.tab("Pre-Call Assessment")
     with ui.tab_panels(es_tabs, value=e0).classes("w-full"):
         with ui.tab_panel(e0):
-            _render_consensus_rollup()
+            _praxis_panel()
+        with ui.tab_panel(eI):
+            _intake_panel()
         with ui.tab_panel(e1):
             if surprises:
                 df = pd.DataFrame(surprises)

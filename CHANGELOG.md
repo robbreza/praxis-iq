@@ -5,6 +5,25 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Model Intake screen (feeds the consensus roll-up)
+
+New **"Model Intake"** sub-tab on Earnings → Consensus Tracker — how analyst models get into the
+roll-up:
+- **A) From IRconnect email:** lists pending `inbox_queue` 'model' items (parsed from
+  irconnect@<domain>), pre-filled with the LLM-extracted rating/PT/EPS/revenue/EBITDA/period; the
+  IR person reviews/corrects and **Confirm & integrate** (`confirm_model_review`) or Dismiss.
+- **B) Manual entry:** firm (covering-analyst dropdown, or type a new one — for the wrong-recipient
+  case), period, revenue/EPS/EBITDA/PT/rating, optional file attach (`documents.save_document`).
+  Writes via `update_estimate`. The must-have for getting a client started and for models that
+  arrive outside the mailbox.
+- Both panels are `@ui.refreshable`; integrating a model refreshes the Praxis Consensus tab in
+  place (no page reload). Parsed period "Q2 2026" is normalized to the roll-up key "Q2 2026E".
+
+Verified on a throwaway DB: manual `update_estimate` writes flow straight into `rolled_consensus`
+(2 models → authoritative median 25.15). Routes 200, clean boot.
+
+---
+
 ## 2026-07-18 — Praxis Consensus wired into Earnings → Consensus Tracker
 
 New **"Praxis Consensus"** sub-tab (now the default) on Earnings → Consensus Tracker, the working
