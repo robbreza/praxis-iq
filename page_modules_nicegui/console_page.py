@@ -81,6 +81,61 @@ def _open_add_client_dialog():
     dialog.open()
 
 
+def _eng_badge(r):
+    """Small clickable engagement chip on a card: status + MRR; opens the engagement dialog."""
+    status = r.get("eng_status")
+    label, color, bg = _ENG_STATUS.get(status, ("Set engagement", COLORS["text_muted"], "rgba(100,116,139,.10)"))
+    mrr = r.get("eng_mrr")
+    txt = label + (f" · ${mrr:,.0f}/mo" if mrr else "")
+    ui.label(txt).style(
+        f"background:{bg};color:{color};font-size:9.5px;font-weight:700;letter-spacing:.02em;"
+        "padding:2px 8px;border-radius:10px;cursor:pointer;width:fit-content;") \
+        .on("click.stop", lambda _e=None, cid=r["cid"]: _open_engagement_dialog(cid)) \
+        .tooltip("Edit engagement / billing")
+
+
+def _open_engagement_dialog(cid):
+    """View/edit a client's engagement + billing terms (stored on the client record under
+    'engagement'). Written as a partial overlay, so it merges with the rest of the record."""
+    from config.client_config import get_client
+    eng = (get_client(cid) or {}).get("engagement") or {}
+    with ui.dialog() as dialog, ui.card().style(
+            f"width:420px;padding:22px;background:{COLORS['surface_bg']};"
+            f"border:1px solid {COLORS['border']};border-radius:10px;gap:6px;"):
+        ui.label(f"Engagement — {cid}").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label("Praxis Point engagement & billing terms for this client.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
+        status_in = ui.select(_ENG_STATUSES, value=eng.get("status") or "active", label="Status") \
+            .props("outlined dense").classes("w-full")
+        plan_in = ui.input("Plan / tier", value=eng.get("plan") or "").props("outlined dense").classes("w-full")
+        mrr_in = ui.number("Monthly retainer ($)", value=eng.get("mrr"), step=100).props("outlined dense").classes("w-full")
+        with ui.row().classes("w-full").style("gap:8px;"):
+            start_in = ui.input("Start date (YYYY-MM-DD)", value=eng.get("start_date") or "").props("outlined dense").style("flex:1;")
+            renewal_in = ui.input("Renewal date (YYYY-MM-DD)", value=eng.get("renewal_date") or "").props("outlined dense").style("flex:1;")
+        contact_in = ui.input("Primary contact", value=eng.get("primary_contact") or "").props("outlined dense").classes("w-full")
+
+        def _save():
+            from config.client_config import reload_registry
+            from core import client_store
+            client_store.upsert_client(cid, {"engagement": {
+                "status": status_in.value,
+                "plan": (plan_in.value or "").strip(),
+                "mrr": mrr_in.value,
+                "start_date": (start_in.value or "").strip(),
+                "renewal_date": (renewal_in.value or "").strip(),
+                "primary_contact": (contact_in.value or "").strip(),
+            }}, active=True)
+            reload_registry()
+            dialog.close()
+            ui.notify(f"Engagement updated for {cid}.", type="positive")
+            ui.navigate.reload()
+
+        with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=_save).props("color=primary")
+    dialog.open()
+
+
 def _open_edit_client_dialog(cid):
     """Edit an existing tenant (writes a partial DB overlay onto its record) or deactivate it.
     client_id is immutable — it's the permanent tenant key — so only the descriptive fields and
@@ -141,6 +196,15 @@ _UP, _DOWN, _AMBER, _AMBER_BG = "#15803D", "#B91C1C", "#B45309", "#FEF3C7"
 
 # Exchange choices for the add/edit client dialogs (US primary listings we onboard against).
 _EXCHANGES = ["NASDAQ", "NYSE", "NYSE American", "Cboe BZX", "OTC Markets"]
+
+# Engagement lifecycle statuses -> (label, text color, chip background).
+_ENG_STATUSES = ["onboarding", "active", "paused", "churned"]
+_ENG_STATUS = {
+    "active":     ("Active",     "#15803D", "rgba(21,128,61,.12)"),
+    "onboarding": ("Onboarding", "#1D4ED8", "rgba(29,78,216,.12)"),
+    "paused":     ("Paused",     "#B45309", "rgba(180,83,9,.12)"),
+    "churned":    ("Churned",    "#B91C1C", "rgba(185,28,28,.12)"),
+}
 
 
 def _fmt_date(iso, with_year=False):
@@ -236,6 +300,15 @@ def _metric(label, value, value_color=None):
             "text-align:right;")
 
 
+def _stat_tile(label, value, amber=False):
+    with ui.card().style(
+            f"padding:10px 16px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;min-width:120px;gap:1px;box-shadow:0 1px 2px rgba(15,23,42,.05);"):
+        ui.label(value).style(
+            f"color:{'#B45309' if amber else COLORS['text_heading']};font-size:18px;font-weight:800;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:10.5px;letter-spacing:.03em;")
+
+
 def _drill_in(cid):
     # Reuses the tenant-switch mechanism: set the session's active client, land in the workspace.
     app.storage.user["active_client_id"] = cid
@@ -322,11 +395,12 @@ def _client_card(r):
     card.on("click", lambda _e=None, cid=r["cid"]: _drill_in(cid))
     with card:
         with ui.row().classes("w-full items-start").style("gap:8px;"):
-            with ui.column().style("gap:1px;"):
+            with ui.column().style("gap:3px;"):
                 ui.label(r["name"]).classes("text-base font-bold").style(
                     f"color:{COLORS['text_heading']};line-height:1.2;")
                 ui.label(f"{r['exchange']}: {r['ticker']}" if r["exchange"] else r["ticker"]).style(
                     f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.02em;")
+                _eng_badge(r)
             ui.space()
             with ui.column().style("align-items:flex-end;gap:2px;"):
                 ptxt, pcolor = _price_text(r)
@@ -406,6 +480,18 @@ def render_console_home(user):
             summary = (f"{n} client{'' if n == 1 else 's'} · "
                        + (f"{needs} need{'s' if needs == 1 else ''} attention" if needs else "all clear"))
             ui.label(summary).style(f"color:{COLORS['text_muted']};font-size:13px;")
+
+            # ── engagement / billing roll-up ────────────────────────────────
+            total_mrr = sum(r.get("eng_mrr") or 0 for r in rows)
+            active = sum(1 for r in rows if r.get("eng_status") == "active")
+            renewals = sum(1 for r in rows
+                           if r.get("eng_renewal_days") is not None and 0 <= r["eng_renewal_days"] <= 60)
+            with ui.row().classes("w-full").style("gap:12px;flex-wrap:wrap;"):
+                _stat_tile("MRR", f"${total_mrr:,.0f}")
+                _stat_tile("ARR", f"${total_mrr * 12:,.0f}")
+                _stat_tile("Active", f"{active}/{n}")
+                _stat_tile("Renewals ≤60d", str(renewals),
+                           amber=renewals > 0)
 
             # ── portfolio grid ──────────────────────────────────────────────
             with ui.element("div").style(

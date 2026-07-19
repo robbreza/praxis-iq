@@ -24,6 +24,20 @@ Verified on a throwaway DB: manual `update_estimate` writes flow straight into `
 
 ---
 
+## 2026-07-18 — Console engagement / billing (terms + portfolio roll-up)
+
+PP-operator engagement data on the Console. Each client record gains an `engagement` block
+(status onboarding/active/paused/churned, plan/tier, monthly retainer/MRR, start + renewal dates,
+primary contact), edited via a dialog opened from a **status badge on each portfolio card**
+(shows e.g. "Active · $15,000/mo"). A **roll-up strip** at the top of the Console tallies total
+**MRR / ARR**, **Active N/total**, and **Renewals ≤60d** (amber when >0). Written as a partial
+overlay via `client_store.upsert_client` (merges, so it never disturbs the rest of the record).
+
+Verified on a throwaway DB: two engagements → MRR $43k / ARR $516k / Active 1/2 / 1 renewal ≤60d;
+merge preserves seed fields. Routes 200, clean boot.
+
+---
+
 ## 2026-07-18 — Praxis Consensus wired into Earnings → Consensus Tracker
 
 New **"Praxis Consensus"** sub-tab (now the default) on Earnings → Consensus Tracker, the working

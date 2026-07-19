@@ -102,6 +102,12 @@ def client_status(cid):
     f13_fetched = book.get("_fetched_at")
     f13_age = _age_days(f13_fetched)
 
+    # engagement / billing (PP-operator data, stored on the client record)
+    eng = c.get("engagement") or {}
+    eng_mrr = eng.get("mrr")
+    eng_mrr = float(eng_mrr) if isinstance(eng_mrr, (int, float)) else None
+    eng_renewal = eng.get("renewal_date")
+
     attention = []
     if days_to_earnings is not None and 0 <= days_to_earnings <= _EARNINGS_SOON_DAYS:
         attention.append("earnings soon")
@@ -133,6 +139,13 @@ def client_status(cid):
         "f13_age_days": f13_age,
         "nobo_uploads": nobo_uploads,
         "nobo_latest": nobo_latest,
+        "eng_status": eng.get("status"),
+        "eng_mrr": eng_mrr,
+        "eng_plan": eng.get("plan"),
+        "eng_start": eng.get("start_date"),
+        "eng_renewal": eng_renewal,
+        "eng_renewal_days": _days_until(eng_renewal),
+        "eng_contact": eng.get("primary_contact"),
         "attention": attention,
     }
 
