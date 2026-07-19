@@ -116,6 +116,28 @@ def upsert_contact(name, firm, cik=None, title=None, phone=None, email=None,
         conn.close()
 
 
+def set_email_result(contact_id, email, status, source="anymailfinder"):
+    """Record an email-finder outcome — including a MISS. Storing not_found/risky (with a
+    checked_at stamp) is what stops us re-querying the same person forever; only `valid` results
+    put an actual address on the record, so outreach can never fire at an unverified one."""
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        ph = "%s" if pg else "?"
+        now = datetime.now()
+        now_v = now if pg else now.isoformat()
+        cur.execute(
+            f"UPDATE contacts SET email = {ph}, email_status = {ph}, email_source = {ph}, "
+            f"email_checked_at = {ph}, updated_at = {ph} WHERE contact_id = {ph}",
+            (email, status, source, now_v, now_v, contact_id))
+        conn.commit()
+        _MAP_MEMO.update({"at": None, "val": None})
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 def list_contacts(firm=None, cik=None, limit=None):
     """Contacts, optionally filtered by firm (normalized match) or CIK."""
     conn = db.get_connection()
