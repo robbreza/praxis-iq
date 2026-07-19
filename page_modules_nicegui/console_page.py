@@ -203,6 +203,23 @@ def _f13_cell(r):
     return f"{n} · {fetched}", (_AMBER if stale else COLORS["text_body"])
 
 
+def _consensus_cell(r):
+    """Praxis Consensus roll-up state for the card: value + source tag, green when authoritative
+    (model roll-up cleared coverage), amber when provisional (street/override/thin models)."""
+    v = r.get("consensus_rev_m")
+    if v is None:
+        return "— (need models)", _AMBER
+    src = r.get("consensus_source")
+    if src == "models":
+        tag = f"Praxis {r.get('consensus_n_models', 0)}/{r.get('consensus_n_covering', 0)}"
+    elif src == "street":
+        tag = "street"
+    else:
+        tag = "override"
+    authoritative = r.get("consensus_status") == "authoritative"
+    return f"${v:,.1f}M · {tag}", (COLORS["text_body"] if authoritative else _AMBER)
+
+
 def _nobo_cell(r):
     n = r.get("nobo_uploads", 0)
     if not n:
@@ -342,10 +359,7 @@ def _client_card(r):
         ui.separator().style("margin:6px 0;")
         etxt, ecolor = _earnings_cell(r)
         _metric("Next earnings", etxt, ecolor)
-        cons_txt = (f"${r['consensus_rev_m']:.1f}M" if r["consensus_rev_m"] is not None
-                    else "— (not set)")
-        _metric("Consensus rev", cons_txt,
-                COLORS["text_body"] if r["consensus_rev_m"] is not None else _AMBER)
+        _metric("Consensus", *_consensus_cell(r))
         ftxt, fcolor = _f13_cell(r)
         _metric("13F holders", ftxt, fcolor)
         _metric("NOBO", *_nobo_cell(r))

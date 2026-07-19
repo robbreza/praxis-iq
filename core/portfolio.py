@@ -68,10 +68,20 @@ def client_status(cid):
     pct_change = snap.get("pct_change")
     px_age_min = _age_minutes(snap.get("fetched_at")) if snap else None
 
-    # curated registry consensus only (see module docstring for why not consensus_rev())
-    consensus = c.get("q2_consensus_rev")
-    consensus = float(consensus) if isinstance(consensus, (int, float)) and consensus else None
-    consensus_source = "registry" if consensus is not None else "none"
+    # Praxis Consensus roll-up — cheap: cached models + override, NO network (include_street=False).
+    earnings0 = c.get("earnings") or {}
+    _cq = (earnings0.get("current_quarter") or "").strip()
+    _period = f"{_cq}E" if _cq else "Q2 2026E"
+    try:
+        from core import consensus as _consensus_mod
+        _rc = _consensus_mod.rolled_consensus(_period, client_id=cid, include_street=False)
+    except Exception:
+        _rc = {}
+    consensus = _rc.get("headline")
+    consensus_source = _rc.get("source") or "none"   # models | street | override | none
+    consensus_status = _rc.get("status")             # authoritative | provisional
+    consensus_n_models = _rc.get("n_models")
+    consensus_n_covering = _rc.get("n_covering")
 
     # NOBO: has a real Broadridge pull been uploaded for this tenant? (cheap DB read, no seed)
     try:
@@ -112,6 +122,9 @@ def client_status(cid):
         "px_age_min": px_age_min,
         "consensus_rev_m": consensus,
         "consensus_source": consensus_source,
+        "consensus_status": consensus_status,
+        "consensus_n_models": consensus_n_models,
+        "consensus_n_covering": consensus_n_covering,
         "earnings_date": edate,
         "days_to_earnings": days_to_earnings,
         "quarter": earnings.get("current_quarter"),

@@ -65,9 +65,28 @@ def client_exists(client_id):
         conn.close()
 
 
-def upsert_client(client_id, record, active=True):
+def _deep_merge(base, overlay):
+    out = dict(base or {})
+    for k, v in (overlay or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def upsert_client(client_id, record, active=True, merge=True):
     """Insert or update a client's record (upsert on client_id). Stamps updated_at; preserves
-    created_at on update."""
+    created_at on update.
+
+    By default MERGES `record` into any existing DB record (deep) rather than replacing it, so a
+    partial overlay (e.g. just intake_access, or the edit dialog's name/ticker) never silently
+    drops other overlay-only fields (e.g. a q2_consensus_rev set earlier). Pass merge=False to
+    replace wholesale."""
+    if merge:
+        existing = get_client_record(client_id)
+        if existing:
+            record = _deep_merge(existing, record)
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
