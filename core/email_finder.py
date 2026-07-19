@@ -34,10 +34,13 @@ API_URL = "https://api.anymailfinder.com/v5.1/find-email/person"
 DEFAULT_TIMEOUT = 180          # the vendor's own recommendation — lookups can be slow
 VALID = "valid"
 
-# Legal-entity suffixes on EDGAR filer names ("CITADEL ADVISORS LLC") hurt company-name matching.
+# Strip only LEGAL ENTITY FORMS from EDGAR filer names. Descriptive words (Capital, Advisors,
+# Management, Group, Holdings, Partners, Trust) are kept deliberately: they identify the firm, and
+# stripping them collapses "Capital Advisors, Ltd. LLC" to the generic "Capital" — which can match
+# a different company entirely and cost a credit to store a WRONG address.
 _SUFFIX_RE = re.compile(
     r"\b(l\.?l\.?c|inc|incorporated|corp|corporation|co|company|l\.?p|l\.?l\.?p|ltd|limited|plc|"
-    r"n\.?a|trust|holdings?|group|partners|management|advisors|advisers)\b\.?", re.I)
+    r"n\.?a|s\.?a|ag|gmbh|b\.?v|n\.?v|pte|pty)\b\.?", re.I)
 
 
 def api_key():
@@ -56,14 +59,24 @@ def api_key_present():
 
 
 def clean_company(name):
-    """EDGAR filer name -> a company name the finder can match ('CITADEL ADVISORS LLC' ->
-    'CITADEL'). Drops parentheticals like 'AMERIPRISE FINANCIAL INC  (AMP)' and entity suffixes.
-    Falls back to the original if stripping leaves nothing."""
-    n = re.sub(r"\(.*?\)", " ", name or "")
-    n = _SUFFIX_RE.sub(" ", n)
-    n = re.sub(r"[^\w& ]+", " ", n)
+    """EDGAR filer name -> a company name the finder can match. Drops parentheticals
+    ('AMERIPRISE FINANCIAL INC  (AMP)') and legal entity forms ('CITADEL ADVISORS LLC' ->
+    'CITADEL ADVISORS'), but keeps the descriptive words that actually identify the firm.
+
+    GUARD: if stripping leaves nothing, or a single short/generic token, fall back to the original
+    name. A too-generic query ('Capital') can match the wrong company — and a wrong `valid` hit
+    both costs a credit and poisons the contact record."""
+    base = re.sub(r"\(.*?\)", " ", name or "")
+    base = re.sub(r"[^\w& ]+", " ", base)
+    base = re.sub(r"\s+", " ", base).strip()
+
+    n = _SUFFIX_RE.sub(" ", base)
     n = re.sub(r"\s+", " ", n).strip()
-    return n or (name or "").strip()
+
+    tokens = n.split()
+    if not tokens or (len(tokens) == 1 and len(tokens[0]) < 4):
+        return base or (name or "").strip()
+    return n
 
 
 def find_person_email(full_name, domain=None, company_name=None, timeout=DEFAULT_TIMEOUT):
