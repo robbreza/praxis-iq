@@ -5,6 +5,32 @@ Dates are absolute. Newest first.
 
 ---
 
+## 2026-07-18 — Praxis Consensus engine (curated model roll-up, street fallback)
+
+The consensus workflow's spine: our OWN consensus, rolled up from the analyst models we collect,
+as the true number — with the street as a labeled fallback. `core/consensus.rolled_consensus()`:
+- **Headline = MEDIAN** of received models (robust to a rough analyst; mean + range shown too —
+  a wide mean-vs-median gap is itself the outlier signal).
+- **Coverage** = models received / active covering analysts. Authoritative when ≥2 models and
+  ≥50% coverage; otherwise provisional. Precedence: model roll-up → period-verified street
+  aggregate (provisional) → manual `q2_consensus_rev` override → none.
+- **Outliers auto-flagged** (any firm >10% off the median) but KEPT in the math — the median
+  already softens them; no manual exclude to maintain.
+- **Reconciliation**: always reports model-median vs street (e.g. "street +3.5% high") so IR can
+  see the street drifting and go manage it.
+- Thresholds (min models, coverage %, outlier %) are parameters, tunable later.
+
+Also fixed a latent bug in `get_consensus`: its `db.load_json` calls didn't pass `client_id`, so
+they read the ACTIVE client's estimates rather than the requested tenant's — wrong-tenant data
+when rolled up for a client that isn't the active one.
+
+Verified: synthetic 3-model set (100/104/140) → headline median 104 (authoritative), mean 114.67
+flagged as outlier-dragged, Gamma-140 auto-flagged. Real data: USIO/SARO both show 0 received
+models (USIO's stored estimates are all null — "0 of 5 received"), so both correctly read
+provisional off the street/override.
+
+---
+
 ## 2026-07-18 — Console data-ops panel (Phase 3)
 
 Each portfolio card now doubles as a per-client data-ops readout, so staff can see freshness and
