@@ -419,6 +419,8 @@ def counts(cid=None):
     return {
         "candidates": len(active),
         "rias": len(build_candidates(cid, limit=None, kind="ria")),
+        "diversified": len(build_candidates(cid, limit=None, kind="diversified")),
+        "market_makers": len(build_candidates(cid, limit=None, kind="market_maker")),
         "promoted": sum(1 for v in decisions.values() if v.get("decision") == "promoted"),
         "dismissed": sum(1 for v in decisions.values() if v.get("decision") == "dismissed"),
     }

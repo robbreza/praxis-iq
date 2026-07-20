@@ -296,17 +296,22 @@ def script_inputs(client_id=None):
             "target": "",
         })
 
-    # Persona references: latest call's key_quotes, grouped by the speaker's role.
-    for kq in (latest.get("key_quotes") or []):
-        if not isinstance(kq, dict):
-            continue
-        role = _role_for_speaker(kq.get("speaker"))
-        if role and role not in out["persona_refs"]:
-            out["persona_refs"][role] = {
-                "quote": kq.get("quote", ""),
-                "tags": [f"From {latest.get('quarter','last call')}"
-                         + (f" — {kq['speaker']}" if kq.get("speaker") else "")],
-            }
+    # Persona references: the MOST RECENT quote per role, searched back across quarters. Reading
+    # only the latest call left non-speaking personas blank — on a typical call the CEO dominates
+    # the prepared remarks, so CFO/CRO/Legal had no quote even when they spoke a quarter or two ago,
+    # and their script canvases rendered empty. Walk newest -> oldest and fill each role once with
+    # its most recent quote; the tag names the quarter, so it's clear when a ref is from a prior call.
+    for t in txns:
+        for kq in (t.get("key_quotes") or []):
+            if not isinstance(kq, dict):
+                continue
+            role = _role_for_speaker(kq.get("speaker"))
+            if role and role not in out["persona_refs"]:
+                out["persona_refs"][role] = {
+                    "quote": kq.get("quote", ""),
+                    "tags": [f"From {t.get('quarter', 'last call')}"
+                             + (f" — {kq['speaker']}" if kq.get("speaker") else "")],
+                }
     return out
 
 

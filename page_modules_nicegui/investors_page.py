@@ -964,6 +964,7 @@ def _render_peer_prospects_tab(client_id):
         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
             for lbl, val, clr in [("To qualify", c["candidates"], COLORS["accent"]),
                                   ("RIA / wealth", c.get("rias", 0), "#B45309"),
+                                  ("Diversified", c.get("diversified", 0), "#6D28D9"),
                                   ("Promoted", c["promoted"], "#15803D"),
                                   ("Dismissed", c["dismissed"], COLORS["text_muted"])]:
                 with ui.card().classes("flex-1").style(
@@ -1107,6 +1108,26 @@ def _render_peer_prospects_tab(client_id):
 
                                 ui.button("Promote", on_click=_promote_div).props("flat dense size=sm color=primary")
                                 ui.button("Dismiss", on_click=_dismiss_div).props("flat dense size=sm")
+
+        # ── Market makers / HFT / ETF mechanics ─────────────────────────────
+        # Genuinely no fundamental PM to meet — they hold the comps as inventory or index
+        # mechanics. Shown for completeness/transparency (so a holder isn't silently missing from
+        # the count), but read-only: there's no promote, because there's nobody to put on an NDR.
+        _mm = peer_prospects.build_candidates(client_id, limit=None, kind="market_maker")
+        if _mm:
+            with ui.expansion(f"Market makers / HFT / ETF mechanics ({len(_mm)}) — no PM to meet",
+                              icon="bolt", value=False).classes("w-full").style(
+                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:12px;"):
+                ui.label("These hold your comps as trading inventory or index mechanics, not a "
+                         "fundamental view — there is no portfolio manager to pitch. Listed for a "
+                         "complete picture of who owns the peer set; not an NDR queue.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                for r in sorted(_mm, key=lambda x: -(x.get("peer_value") or 0)):
+                    loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                    comps = ", ".join(sorted(r["comps"].keys()))
+                    ui.label(f"{r['filer']} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;border-bottom:1px solid {COLORS['border']};"
+                        "padding:4px 0;")
 
     _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
     _list()
