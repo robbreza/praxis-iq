@@ -356,15 +356,22 @@ async def _refresh_13f(cid, ticker, name):
     reads each filer's own info table for the actual shares/value/book total. That second pass is
     the slow part (one document per filer), hence the up-front warning."""
     import asyncio
-    ui.notify(f"Refreshing 13F for {ticker} — the enrichment pass can take a few minutes…",
+    ui.notify(f"Refreshing 13F for {ticker} — bulk SEC pull, takes several minutes…",
               type="info", timeout=8000)
 
     def _work():
-        from config.client_config import set_active_client_id
+        from config.client_config import set_active_client_id, CP
         from core import sec_filings
         set_active_client_id(cid)   # scope the cache write to this tenant (runs in this thread)
-        res = sec_filings.refresh_13f_holders(ticker, name)
-        enr = sec_filings.enrich_holder_positions(ticker, client_id=cid)
+        # BULK dataset, not the full-text search. Full-text only confirms WHO holds, sparsely, for
+        # issuers its index happens to cover — for SARO it returned 324 -> 36 holders (11%) and
+        # missed Carlyle's $2.18B sponsor stake entirely. Refreshing through that path would
+        # silently DESTROY ~90% of a complete holder list. One bulk download is slow but exact, and
+        # it covers the peer set in the same pass (which peer prospecting needs anyway).
+        pairs = [(ticker, name)] + [(p["ticker"], p.get("name") or p["ticker"]) for p in CP()]
+        res_all = sec_filings.refresh_13f_bulk_all(pairs)
+        res = res_all.get(ticker.upper(), {})
+        enr = {"enriched": sum(1 for h in (res.get("holders") or []) if h.get("size_known"))}
         return res, enr
 
     try:
