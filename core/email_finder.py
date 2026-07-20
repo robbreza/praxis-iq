@@ -129,6 +129,67 @@ def find_person_email(full_name, domain=None, company_name=None, timeout=DEFAULT
             "credits": d.get("credits_charged") or 0, "error": None}
 
 
+DM_URL = "https://api.anymailfinder.com/v5.1/find-email/decision-maker"
+# The vendor's allowed categories. NOTE: these are B2B-sales oriented — there is no
+# "portfolio manager" / "research analyst" category, which is the role IR actually wants. `ceo` is
+# the best proxy: at a boutique RIA the principal usually IS the decision-maker; at a large
+# institution it returns a CEO who is not an IR target. Judge results accordingly.
+DM_CATEGORIES = ("ceo", "engineering", "finance", "hr", "it", "logistics", "marketing",
+                 "operations", "buyer", "sales")
+
+
+def find_decision_maker(categories, domain=None, company_name=None, timeout=DEFAULT_TIMEOUT):
+    """Find a firm's decision maker by ROLE (unlike find_person_email, we don't supply a name —
+    the vendor identifies the person and returns their name/title/LinkedIn).
+
+    COSTS 2 CREDITS per valid hit (vs 1 for a person lookup); risky/not_found/blacklisted are free
+    and repeats within 30 days are free. `categories` is a list searched in order of importance."""
+    key = api_key()
+    if not key:
+        return {"ok": False, "email": None, "status": "no_api_key", "credits": 0,
+                "person": None, "title": None, "linkedin": None, "error": "ANYMAILFINDER_API_KEY not set"}
+    cats = [c for c in (categories or []) if c in DM_CATEGORIES]
+    if not cats or not (domain or company_name):
+        return {"ok": False, "email": None, "status": "bad_request", "credits": 0,
+                "person": None, "title": None, "linkedin": None,
+                "error": "need a valid decision_maker_category plus domain or company_name"}
+
+    body = {"decision_maker_category": cats}
+    if domain:
+        body["domain"] = domain
+    else:
+        body["company_name"] = company_name
+
+    try:
+        r = requests.post(DM_URL, json=body, timeout=timeout,
+                          headers={"Authorization": key, "Content-Type": "application/json"})
+    except Exception as e:
+        return {"ok": False, "email": None, "status": "request_failed", "credits": 0,
+                "person": None, "title": None, "linkedin": None, "error": str(e)}
+
+    if r.status_code in (400, 401, 402):
+        slug = {400: "bad_request", 401: "unauthorized", 402: "out_of_credits"}[r.status_code]
+        return {"ok": False, "email": None, "status": slug, "credits": 0,
+                "person": None, "title": None, "linkedin": None, "error": (r.text or "")[:200]}
+    if r.status_code != 200:
+        return {"ok": False, "email": None, "status": f"http_{r.status_code}", "credits": 0,
+                "person": None, "title": None, "linkedin": None, "error": (r.text or "")[:200]}
+
+    try:
+        d = r.json()
+    except Exception:
+        return {"ok": False, "email": None, "status": "bad_response", "credits": 0,
+                "person": None, "title": None, "linkedin": None, "error": (r.text or "")[:200]}
+
+    status = (d.get("email_status") or "unknown").lower()
+    return {"ok": status == VALID,
+            "email": d.get("valid_email") or (d.get("email") if status == VALID else None),
+            "status": status, "credits": d.get("credits_charged") or 0,
+            "person": d.get("person_full_name"), "title": d.get("person_job_title"),
+            "linkedin": d.get("person_linkedin_url"),
+            "category": d.get("decision_maker_category"), "error": None}
+
+
 def enrich_contact(contact, dry_run=False):
     """Resolve one contact's email and persist the outcome (including a miss). `contact` is a row
     from core.contacts.list_contacts()."""
