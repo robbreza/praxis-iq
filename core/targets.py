@@ -129,6 +129,78 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
     return out
 
 
+# Direction -> the IR action it implies. A trimming holder is the most urgent call in the book;
+# a new position is the warmest. Derived from a real filing trail, not asserted.
+_ACTION_BY_DIRECTION = {
+    "new": "New position — engage now",
+    "adding": "Adding — deepen the relationship",
+    "trimming": "Trimming — find out what changed",
+    "exited": "Exited — win-back candidate",
+    "flat": "Flat — maintain coverage",
+}
+# Conviction -> coverage priority (1 = highest). A documented mapping of Book_Pct tiers.
+_PRIORITY_BY_CONVICTION = {"Core": 1, "Meaningful": 2, "Small": 3, "Index-scale": 4}
+
+
+def _fmt_aum(v):
+    if not v:
+        return None
+    if v >= 1e9:
+        return f"${v / 1e9:.1f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.0f}M"
+    return f"${v:,.0f}"
+
+
+def targets_as_institutions(client_id=None, ticker=None):
+    """The real 13F target universe in the record shape the Investor Targeting page expects.
+
+    A compatibility layer, deliberately: investors_page and investor_scoring were written against
+    data/seed/buyside_institutions.py, and rewriting every consumer at once is how you break a
+    client-facing page. This maps real filing data onto those keys and leaves the unmeasurable ones
+    None — Call_Score, Visit_Score, IR_Visits_30d and Call_Listener have no source without website
+    analytics or a call-listener feed, so scoring omits them rather than scoring them zero."""
+    rows = targets_from_13f(client_id=client_id, ticker=ticker)
+    out = []
+    for r in rows:
+        cik = (r.get("cik") or "").lstrip("0")
+        out.append({
+            "Fund": r["Fund"],
+            "cik": r.get("cik"),
+            "Type": None,
+            "AUM": _fmt_aum(r.get("Book_Total")),
+            "Coverage_Priority": _PRIORITY_BY_CONVICTION.get(r.get("Conviction"), 4),
+            # the page's holder flag is named for the original single tenant; it means "holds us"
+            "USIO_Holder": True,
+            "Shares": r.get("Shares"),
+            "QoQ_Change": r.get("QoQ_Change_Shares"),
+            "Position_Value": r.get("Position_Value"),
+            "Book_Pct": r.get("Book_Pct"),
+            "Conviction": r.get("Conviction"),
+            "Direction": r.get("Direction"),
+            "Net_Change_Shares": r.get("Net_Change_Shares"),
+            "Held_Since_At_Least": r.get("Held_Since_At_Least"),
+            "Peer_Holdings": r.get("Peer_Overlap") or [],
+            "Peer_Holdings_Source": "SEC 13F",
+            "Metro": r.get("Metro"),
+            "Action": _ACTION_BY_DIRECTION.get(r.get("Direction"), "No history pulled yet"),
+            # "SEC 13F" matches _sec_universe_records' tag, so _merge_sec_universe recognises these
+            # as already-SEC-sourced instead of relabelling them "Seed + SEC-confirmed".
+            "Source": "SEC 13F",
+            "link": (f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}"
+                     f"&type=13F&dateb=&owner=include&count=40") if cik else None,
+            "Contact_Name": r.get("Contact_Name"),
+            "Contact_Title": r.get("Contact_Title"),
+            "Contact_Email": r.get("Contact_Email"),
+            "Contact_Phone": r.get("Contact_Phone"),
+            # No source — left None so scoring omits them instead of scoring a fabricated zero.
+            "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
+            "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
+            "Turnover_Style": None, "Ownership_Style": None,
+        })
+    return out
+
+
 def coverage(client_id=None, ticker=None):
     """How complete the target universe is — what share of holders carry real magnitude and a
     reachable contact. Use this to decide whether targeting is ready to drive off 13F for a client

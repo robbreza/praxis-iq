@@ -95,49 +95,87 @@ def compute_interaction_score(fund_meetings):
 # without changing the 100-point scale every Tier 1/2/3 cutoff, filter,
 # and export across the app already assumes).
 # ─────────────────────────────────────────────────────────────────────────
+def _pts(raw, out_of, scale):
+    """Scale a component score, or None when the underlying signal doesn't exist.
+
+    Returning None (rather than 0) is deliberate: the platform has no website-analytics or
+    call-listener integration, so IR_Visits_30d / Call_Score / Visit_Score have NO source for a
+    real 13F-derived institution. Coercing that absence to 0 would render as a confident "score 0"
+    — a fabricated number wearing the costume of a measurement. A component with no input is
+    omitted from the total and shown as "no data"."""
+    if raw is None:
+        return None
+    return round(raw * out_of / scale)
+
+
 def score_institutions(institutions, mode, q2_listeners, meeting_log=None):
+    """Score each institution from whatever real signals exist.
+
+    Components with no source contribute nothing and are labelled; an institution with NO scorable
+    component gets Engagement_Score None, not 0, so the UI can say "no data" instead of implying we
+    measured engagement and found none."""
     meeting_log = meeting_log or []
     for inst in institutions:
         interaction_pts = compute_interaction_score(get_fund_meetings(meeting_log, inst["Fund"]))
         if mode == "pre":
-            call_pts = round(inst["Call_Score"] * 30 / 40)
-            peer_pts = round(inst["Peer_Score"] * 25 / 35)
-            visit_pts = round(inst["Visit_Score"] * 20 / 25)
-            inst["Score_Label"] = "Engagement"
-            inst["Score_Breakdown"] = [
-                ("Earnings Call Listener", call_pts, 30),
-                ("Peer Ownership", peer_pts, 25),
-                ("IR Site Visits", visit_pts, 20),
+            breakdown = [
+                ("Earnings Call Listener", _pts(inst.get("Call_Score"), 30, 40), 30),
+                ("Peer Ownership", _pts(inst.get("Peer_Score"), 25, 35), 25),
+                ("IR Site Visits", _pts(inst.get("Visit_Score"), 20, 25), 20),
                 ("Meeting Interactions", interaction_pts, INTERACTION_SCORE_MAX),
             ]
+            inst["Score_Label"] = "Engagement"
         else:
-            q2_listened = inst["Fund"] in q2_listeners if q2_listeners else inst["Call_Listener"]
-            q2_call_pts = round((40 if q2_listened else 0) * 30 / 40)
-            if not inst["USIO_Holder"] and inst["Peer_Holdings"]:
+            listener = inst.get("Call_Listener")
+            if q2_listeners:
+                q2_call_pts = round((40 if inst["Fund"] in q2_listeners else 0) * 30 / 40)
+            else:
+                q2_call_pts = None if listener is None else round((40 if listener else 0) * 30 / 40)
+
+            # Catalyst fit needs to know whether they hold and, if so, the direction of travel.
+            holder, qoq, peers = inst.get("USIO_Holder"), inst.get("QoQ_Change"), inst.get("Peer_Holdings")
+            if holder is None:
+                catalyst_raw = None
+            elif not holder and peers:
                 catalyst_raw = 35
-            elif not inst["USIO_Holder"]:
+            elif not holder:
                 catalyst_raw = 20
-            elif inst["QoQ_Change"] > 0:
+            elif qoq is None:
+                catalyst_raw = None          # holder, but no history pulled yet — don't guess
+            elif qoq > 0:
                 catalyst_raw = 25
             else:
                 catalyst_raw = 10
-            catalyst_pts = round(catalyst_raw * 25 / 35)
-            visit_pts = round(min(25, inst["IR_Visits_30d"] * 8) * 20 / 25)
-            inst["Score_Label"] = "Prospect"
-            inst["Score_Breakdown"] = [
+            breakdown = [
                 ("Q2 Call Listener", q2_call_pts, 30),
-                ("Catalyst Fit", catalyst_pts, 25),
-                ("New IR Activity", visit_pts, 20),
+                ("Catalyst Fit", _pts(catalyst_raw, 25, 35), 25),
+                # original math: round(min(25, visits * 8) * 20 / 25) — cap, THEN scale
+                ("New IR Activity",
+                 None if inst.get("IR_Visits_30d") is None
+                 else _pts(min(25, inst["IR_Visits_30d"] * 8), 20, 25), 20),
                 ("Meeting Interactions", interaction_pts, INTERACTION_SCORE_MAX),
             ]
-        inst["Engagement_Score"] = min(100, sum(pts for _, pts, _ in inst["Score_Breakdown"]))
+            inst["Score_Label"] = "Prospect"
+
+        inst["Score_Breakdown"] = breakdown
+        scored = [p for _, p, _ in breakdown if p is not None]
+        inst["Engagement_Score"] = min(100, sum(scored)) if scored else None
+        inst["Scored_Components"] = f"{len(scored)}/{len(breakdown)}"
         inst["Interaction_Score"] = interaction_pts
-        # Digital_Intent_Score is a separate, unrelated metric (call-listener +
-        # visit signal only) — keeps using the ORIGINAL 40/25 scale it was
-        # always defined against, unaffected by the Engagement_Score rebalance.
-        listener_c, visit_c = inst["Call_Score"], inst["Visit_Score"]
-        inst["Digital_Intent_Score"] = min(100, round((listener_c / 40) * 60 + (visit_c / 25) * 40))
-    institutions.sort(key=lambda x: x["Engagement_Score"], reverse=True)
+
+        # Digital intent is purely call-listener + site-visit signal. With no analytics
+        # integration those are absent for real 13F institutions, so it stays None.
+        listener_c, visit_c = inst.get("Call_Score"), inst.get("Visit_Score")
+        inst["Digital_Intent_Score"] = (
+            None if listener_c is None or visit_c is None
+            else min(100, round((listener_c / 40) * 60 + (visit_c / 25) * 40)))
+
+    # None sorts last — unscored institutions shouldn't outrank measured ones. Position value is
+    # the tie-break: with only 2 of 4 components scorable (no web analytics / call-listener feed),
+    # scores bunch tightly, and without this an index fund that added a few shares outranks a
+    # conviction holder who is actively selling — the single most important call in the book.
+    institutions.sort(key=lambda x: (x["Engagement_Score"] is not None, x["Engagement_Score"] or 0,
+                                     x.get("Position_Value") or 0), reverse=True)
     return institutions
 
 

@@ -717,11 +717,16 @@ def render_investors_page():
 
     q2_listeners = set(mode_state.get("q2_listeners", []))
     meeting_log = _load_meeting_log()
-    raw_institutions = get_seed_buyside_institutions(client_id)
-    # Merge real SEC-sourced names (13F holders, 13D/G filers, peer-overlap
-    # prospects) from cached EDGAR data — each carries its own Source tag, and
-    # this is what the "Refresh from SEC EDGAR" button on the SEC Intelligence
-    # tab grows. Reads cache only here (no live network call at page render).
+    # REAL 13F holders are the target universe (core/targets.py) — position size, % of the
+    # holder's own book, add/trim/new direction, and the contact behind the filing. This replaced
+    # data/seed/buyside_institutions.py, whose 62 records carried fabricated conviction and
+    # engagement scores; showing a client an invented "Conviction: High" next to a real filing is
+    # exactly the credibility risk this platform exists to avoid.
+    from core import targets as targets_mod
+    raw_institutions = targets_mod.targets_as_institutions(client_id=client_id)
+    # Merge real SEC-sourced names (13D/G filers, peer-overlap prospects) from cached EDGAR data —
+    # each carries its own Source tag, and this is what the "Refresh from SEC EDGAR" button on the
+    # SEC Intelligence tab grows. Reads cache only here (no live network call at page render).
     raw_institutions = _merge_sec_universe(raw_institutions, client_id)
     # Upgrades Peer_Holdings from static seed data to real SEC 13F filings
     # wherever a ticker has actually been refreshed (see
