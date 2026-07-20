@@ -723,7 +723,10 @@ def _promoted_prospect_records(client_id):
             "Conviction": None, "Direction": None,
             "Peer_Holdings": peers,
             "Peer_Holdings_Source": "SEC 13F" if peers else None,
-            "Metro": (p.get("metro") or "").replace("—", "").strip() or None,
+            # Must be a STRING, never None: the region filter does sorted({i["Metro"] ...}) and
+            # None vs str raises TypeError, which takes down the whole Investor Targeting page.
+            # prospects.json stores "—" for unknown geography.
+            "Metro": (p.get("metro") or "").replace("—", "").strip() or "Unknown (SEC)",
             "Action": "Prospect — holds peers, not us" if peers else "Prospect — promoted for review",
             "Source": p.get("source") or "Promoted prospect",
             "Notes": p.get("notes"),
@@ -1457,7 +1460,12 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             tier_filter = ui.select({1: "Priority 1", 2: "Priority 2", 3: "Priority 3"}, multiple=True, value=[1, 2, 3]).classes("min-w-[140px]").props("label='Coverage priority'")
             holder_filter = ui.select(["All", "Current holders", "Non-holders only"], value="All").classes("min-w-[160px]").props("label='Holder status'")
             score_filter = ui.number(label="Min score", value=0, min=0, max=100)
-            metro_options = ["All Regions"] + sorted({i["Metro"] for i in institutions})
+            # Coerce to str: a record with Metro=None makes sorted() raise
+            # TypeError('<' not supported between NoneType and str) and takes the whole
+            # page down. Defensive here as well as at the source, because this list is fed
+            # by several record shapes (13F holders, promoted prospects, SEC universe).
+            metro_options = ["All Regions"] + sorted({(i.get("Metro") or "Unknown (SEC)")
+                                                      for i in institutions})
             metro_filter = ui.select(metro_options, value="All Regions").classes("min-w-[160px]").props("label='Metro'")
         turnover_options = ["Low (Long-Term Value)", "Medium (Growth/GARP)", "High (Hedge/Trading)"]
         # Include any other turnover value actually present in the universe
@@ -2062,7 +2070,9 @@ def _ndr_location_options(institutions):
     actually has tracked, matching the same Metro values already used by
     the NDR Requests tab's metro dropdown and the Big Picture panel's
     Metro Priority scoring."""
-    return sorted({i["Metro"] for i in institutions})
+    # Same None-safety as the region filter: one record with Metro=None would raise
+    # TypeError here and break the NDR planner.
+    return sorted({(i.get("Metro") or "Unknown (SEC)") for i in institutions})
 
 
 def _ndr_target_candidates(institutions, location, ndr_type):
