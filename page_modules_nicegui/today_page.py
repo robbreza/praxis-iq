@@ -288,6 +288,8 @@ def render_today_page():
             else:
                 ui.label("No active-analyst price targets on file.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
+    _render_top_story()
+
     # ── Dashboard sections in two height-balanced columns ──
     # Sections are grouped to keep the two columns close in height rather than
     # pairing fixed rows (which left a tall section next to a short one with a
@@ -905,6 +907,39 @@ def _render_analyst_coverage():
     render_list()
 
 
+def _render_top_story():
+    """The single most important headline of the day, raised to the top of Today. The client's OWN
+    news wins when there is any (a microcap often has none); otherwise the freshest peer/competitor
+    item. A pointer scrolls down to the full peer-news feed so that feature isn't lost."""
+    from core import news_feed
+    ticker = CT("ticker")
+    own = news_feed.recent(ticker=ticker, limit=1)
+    peer = [i for i in news_feed.recent(limit=8) if i.get("ticker") != ticker]
+    top = own[0] if own else (peer[0] if peer else None)
+    if not top:
+        return
+    is_own = bool(own)
+    eyebrow = f"Today's top story · {ticker}" if is_own else f"Today's top story · peer ({top.get('ticker','')})"
+    accent = "#15803D" if is_own else COLORS["accent"]
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            f"border-left:4px solid {accent};margin-top:6px;padding:12px 16px;"):
+        ui.label(eyebrow.upper()).style(
+            f"color:{accent};font-size:10px;font-weight:800;letter-spacing:.06em;")
+        with ui.link(target=top["url"], new_tab=True).style("text-decoration:none;"):
+            ui.label(top.get("title", "")).classes("font-bold").style(
+                f"color:{COLORS['text_heading']};font-size:15px;line-height:1.25;")
+        ui.label(f"{top.get('provider', '')} · {(top.get('pub') or '')[:10]}").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        if peer:
+            def _to_peer_news():
+                ui.run_javascript(
+                    "document.getElementById('peer-news-anchor')?."
+                    "scrollIntoView({behavior:'smooth', block:'start'});")
+            ui.button(f"More peer & competitor news ({len(peer)}) ↓", on_click=_to_peer_news) \
+                .props("flat dense no-caps").style(f"color:{accent};font-size:12px;margin-top:2px;")
+
+
 def _render_peer_watch():
     """Daily peer monitor on the front page — notable price moves, recent SEC
     filings, and a rolling 7-day news window across the segmented peer group
@@ -949,12 +984,33 @@ def _render_peer_watch():
                         ui.label(f"{who} · {f['form']}").style(
                             f"color:{COLORS['text_secondary']};font-size:11.5px;")
 
-    news = news_feed.recent(limit=6)
-    if news:
+    # Client's OWN headlines, distinct from peer news. A microcap is often quiet — an empty state
+    # says so (itself IR-relevant) rather than hiding the card.
+    _tk = CT("ticker")
+    own = news_feed.recent(ticker=_tk, limit=6)
+    with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+        ui.label(f"{_tk} headlines · rolling 7 days").classes("font-bold").style(
+            f"color:{COLORS['text_body']};font-size:11.5px;")
+        if own:
+            for n in own:
+                with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
+                    with ui.column().classes("gap-0").style("padding:2px 0;"):
+                        ui.label(f"{n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
+                            f"color:{COLORS['text_muted']};font-size:10px;")
+                        ui.label(n["title"]).style(
+                            f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
+        else:
+            ui.label(f"No {_tk} headlines in the last 7 days — the feed is watching.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+
+    # Anchor for the "More peer news ↓" jump from the top-story card.
+    ui.html('<div id="peer-news-anchor"></div>')
+    peer_news = [i for i in news_feed.recent(limit=12) if i.get("ticker") != _tk][:6]
+    if peer_news:
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-            ui.label("Recent peer news · rolling 7 days").classes("font-bold").style(
+            ui.label("Peer & competitor news · rolling 7 days").classes("font-bold").style(
                 f"color:{COLORS['text_body']};font-size:11.5px;")
-            for n in news:
+            for n in peer_news:
                 with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
                     with ui.column().classes("gap-0").style("padding:2px 0;"):
                         ui.label(f"{n['ticker']} · {n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
