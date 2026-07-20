@@ -69,6 +69,10 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
             if c.get("cik"):
                 by_cik.setdefault(c["cik"], c)
 
+    # persisted position-history verdicts (sec_filings.refresh_holder_histories). Absent until
+    # that pass has been run for this client, in which case the fields stay None — never guessed.
+    hist_by_cik = sec_filings.get_holder_histories(tk, client_id=cid)
+
     out = []
     for h in holders:
         known = bool(h.get("size_known"))
@@ -78,9 +82,14 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
         book_pct = (value / book_total * 100) if (value and book_total) else None
 
         contact = by_cik.get(contacts_mod.norm_cik(h.get("cik"))) if include_contacts else None
+        hist = hist_by_cik.get(contacts_mod.norm_cik(h.get("cik"))) or {}
         out.append({
             "Fund": h.get("filer"),
             "cik": h.get("cik"),
+            # CUSIP is the exact key for looking this position up in ANY filer's info table —
+            # matching on the ticker breaks for issuers whose name doesn't contain it
+            # ("SARO" is nowhere in "STANDARDAERO INC"), and fails silently when it does.
+            "cusip": h.get("cusip"),
             "Holder": True,                     # they filed a 13F showing the position
             "Shares": shares,
             "Position_Value": value,
@@ -96,8 +105,20 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
             "Contact_Email_Status": (contact or {}).get("email_status"),
             "Filed": h.get("file_date"),
             "Source": "EDGAR 13F",
+            # Position history — the add/trim/new/exit read. Present once refresh_holder_histories
+            # has run; None before that. "new" and "exited" matter as much as the net change: a
+            # holder who sat at zero for four quarters and then bought is the strongest IR signal
+            # there is, and reporting that as no-data buries it.
+            "Direction": hist.get("direction"),
+            "Net_Change_Shares": hist.get("net_change_shares"),
+            "QoQ_Change_Shares": hist.get("qoq_change_shares"),
+            "Quarters_Held": hist.get("quarters_held"),
+            "Held_Since_At_Least": hist.get("held_since_at_least"),
+            "Continuous_Holder": hist.get("continuous"),
+            "Peer_Overlap": hist.get("peer_overlap"),
+            "History_As_Of": hist.get("as_of"),
             # No source yet — returned as None so nothing downstream invents a number.
-            "QoQ_Change": None,                 # needs a prior-quarter holder cache
+            "QoQ_Change": None,                 # legacy field; use QoQ_Change_Shares
             "IR_Visits_30d": None,              # web analytics: no source
             "Visit_Score": None,                # ditto
             "Call_Score": None,                 # q2_listeners is a set, not a score

@@ -702,10 +702,15 @@ def enrich_holder_positions(ticker, client_id=None, limit=None, throttle=0.2, is
             "enriched": enriched, "issuer_not_in_book": missed, "failed": failed, "cusip": cusip}
 
 
-def filer_13f_filings(cik, limit=8):
+def filer_13f_filings(cik, limit=8, include_amendments=False):
     """A filer's recent 13F-HR filings, newest first: [{form, date, accession}].
 
-    From EDGAR's submissions API, so it's the filer's own history by CIK — no name matching."""
+    From EDGAR's submissions API, so it's the filer's own history by CIK — no name matching.
+
+    AMENDMENTS ARE EXCLUDED BY DEFAULT, and that matters for position history: a 13F-HR/A restates
+    only a SUBSET of holdings, so a position missing from an amendment means nothing. Ameriprise
+    filed two 13F-HR/A on the same day; reading the wrong one as a full snapshot classified a live
+    $10.7M SARO position as "exited". Absence is only informative in an original 13F-HR."""
     try:
         cik_i = int(str(cik).strip())
     except Exception:
@@ -718,7 +723,11 @@ def filer_13f_filings(cik, limit=8):
     forms = rec.get("form") or []
     out = []
     for i, form in enumerate(forms):
-        if not str(form).startswith("13F-HR"):
+        f = str(form).strip()
+        if include_amendments:
+            if not f.startswith("13F-HR"):
+                continue
+        elif f != "13F-HR":          # excludes 13F-HR/A (partial restatements)
             continue
         out.append({"form": form,
                     "date": (rec.get("filingDate") or [None] * len(forms))[i],
@@ -855,9 +864,19 @@ def holder_history(cik, cusip=None, issuer_token=None, quarters=6, peers=None, t
     net = None
     if first_held and last_held and first_held is not last_held:
         net = (last_held["shares"] or 0) - (first_held["shares"] or 0)
+    # Direction, including the two states a net-change alone can't express. A holder who was flat
+    # at zero for four quarters and then bought is NEW — the single most actionable IR signal there
+    # is — and reporting that as "no data" buries it. Likewise a full exit.
     direction = None
-    if net is not None:
-        direction = "trimming" if net < 0 else ("adding" if net > 0 else "flat")
+    if chrono:
+        latest_held = chrono[-1]["held"]
+        earlier_held = any(h["held"] for h in chrono[:-1])
+        if latest_held and not earlier_held:
+            direction = "new"
+        elif earlier_held and not latest_held:
+            direction = "exited"
+        elif net is not None:
+            direction = "trimming" if net < 0 else ("adding" if net > 0 else "flat")
 
     return {"cik": str(cik), "cusip": learned_cusip, "quarters_examined": len(history),
             "history": history, "chronological": chrono,
@@ -867,6 +886,71 @@ def holder_history(cik, cusip=None, issuer_token=None, quarters=6, peers=None, t
             "held_since_at_least": held[-1]["date"] if held else None,
             "continuous": all(h["held"] for h in history) if history else False,
             "peer_overlap": peer_hits}
+
+
+HOLDER_HISTORY_KEY_FMT = "holder_history_{ticker}.json"
+
+
+def get_holder_histories(ticker, client_id=None):
+    """Persisted position-history verdicts for a client's book: {cik: {...}}.
+
+    Deliberately a SEPARATE store rather than fields on the holder records: refresh_13f_holders()
+    rebuilds `holders` wholesale from the search, so anything written onto those rows is wiped on
+    the next refresh (the same trap that forced enrich_holder_positions to be chained). History is
+    expensive to rebuild — several fetches per holder — so it must survive a refresh."""
+    return db.load_json(HOLDER_HISTORY_KEY_FMT.format(ticker=(ticker or "").upper()),
+                        default={}, client_id=client_id) or {}
+
+
+def save_holder_history(ticker, cik, hist, client_id=None):
+    """Persist one holder's verdict. Stores the SUMMARY (direction/net/qoq/peers), not the raw
+    per-quarter rows — the summary is what the target universe renders, and the filings can always
+    be re-walked for detail."""
+    from core.contacts import norm_cik
+    key = HOLDER_HISTORY_KEY_FMT.format(ticker=(ticker or "").upper())
+    store = db.load_json(key, default={}, client_id=client_id) or {}
+    store[norm_cik(cik)] = {
+        "direction": hist.get("direction"),
+        "net_change_shares": hist.get("net_change_shares"),
+        "qoq_change_shares": hist.get("qoq_change_shares"),
+        "quarters_examined": hist.get("quarters_examined"),
+        "quarters_held": hist.get("quarters_held_in_window"),
+        "held_since_at_least": hist.get("held_since_at_least"),
+        "continuous": hist.get("continuous"),
+        "peer_overlap": sorted((hist.get("peer_overlap") or {}).keys()),
+        "as_of": datetime.now().isoformat(timespec="seconds"),
+    }
+    db.save_json(key, store, client_id=client_id)
+    return store[norm_cik(cik)]
+
+
+def refresh_holder_histories(ticker, client_id=None, quarters=5, big_book_quarters=3,
+                             big_book_positions=2000, limit=None, peers=None, throttle=0.15):
+    """Walk the whole book and persist each holder's position history.
+
+    Depth adapts to book size: a mega-fund's info table is tens of MB per quarter and its
+    index-scale position isn't the IR signal anyway, so it gets fewer quarters than a boutique.
+    Expensive (several document fetches per holder) — run it deliberately, not on a page render."""
+    from config.client_config import CT, get_active_client_id
+    from core import targets as targets_mod
+    cid = client_id or get_active_client_id()
+    tk = (ticker or CT("ticker") or "").upper()
+    rows = targets_mod.targets_from_13f(client_id=cid, ticker=tk, include_contacts=False)
+    if limit:
+        rows = rows[:limit]
+    peers = peers if peers is not None else CT("peers", [])
+
+    done, failed = 0, []
+    for r in rows:
+        try:
+            q = big_book_quarters if (r.get("Book_Positions") or 0) > big_book_positions else quarters
+            hist = holder_history(r["cik"], cusip=r.get("cusip"), quarters=q,
+                                  peers=peers, throttle=throttle)
+            save_holder_history(tk, r["cik"], hist, client_id=cid)
+            done += 1
+        except Exception as e:
+            failed.append(f"{r.get('Fund')}: {type(e).__name__}")
+    return {"ticker": tk, "holders": len(rows), "persisted": done, "failed": failed}
 
 
 def _sum_info_table_value(xml_bytes):
