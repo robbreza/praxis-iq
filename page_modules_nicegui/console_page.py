@@ -36,10 +36,13 @@ def _open_add_client_dialog():
             .props("outlined dense").classes("w-full")
         exch_in = ui.select(_EXCHANGES, value="NASDAQ", label="Exchange") \
             .props("outlined dense").classes("w-full")
+        mcap_in = ui.number("Market cap ($M)", value=None, step=10, min=0) \
+            .props("outlined dense").classes("w-full")
         domain_in = ui.input("Email domain", placeholder="e.g. standardaero.com") \
             .props("outlined dense").classes("w-full")
-        ui.label("Client ID is the permanent tenant key (can't change later). "
-                 "Mail-gateway identity will be irconnect@<domain>.").style(
+        ui.label("Market cap sizes investor-targeting gates (micro <$300M · small <$2B · mid <$10B "
+                 "· large). Left blank ⇒ microcap gates until set. Client ID is the permanent tenant "
+                 "key. Mail-gateway identity will be irconnect@<domain>.").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
         msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
 
@@ -62,6 +65,8 @@ def _open_add_client_dialog():
                 msg.set_text(f"A client '{cid}' already exists."); return
             record = {
                 "ticker": ticker, "name": name, "exchange": exch, "email_domain": domain,
+                # sizes the investor-targeting gates (peer_prospects.size_profile); None ⇒ microcap
+                "market_cap_m": mcap_in.value if mcap_in.value else None,
                 "ir_contact": {"irconnect": f"irconnect@{domain}"}, "executives": {},
                 # empty defaults so downstream accessors (CA/CE/CF/CP...) never KeyError
                 "analysts": [], "peers": [], "earnings": {}, "financials": {},
@@ -186,6 +191,10 @@ def _open_edit_client_dialog(cid):
         _exch_opts = _EXCHANGES if _cur_exch in _EXCHANGES else [_cur_exch] + _EXCHANGES
         exch_in = ui.select(_exch_opts, value=_cur_exch, label="Exchange") \
             .props("outlined dense").classes("w-full")
+        mcap_in = ui.number("Market cap ($M)", value=rec.get("market_cap_m"), step=10, min=0) \
+            .props("outlined dense").classes("w-full")
+        ui.label("Market cap sizes the investor-targeting gates; blank ⇒ microcap gates.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
         domain_in = ui.input("Email domain", value=rec.get("email_domain", "")) \
             .props("outlined dense").classes("w-full")
         active_sw = ui.switch("Active (unchecking hides the tenant everywhere)", value=True)
@@ -209,6 +218,7 @@ def _open_edit_client_dialog(cid):
                 msg.set_text("Can't deactivate the only active client."); return
             overlay = {
                 "name": name, "ticker": ticker, "exchange": exch, "email_domain": domain,
+                "market_cap_m": mcap_in.value if mcap_in.value else None,
                 "ir_contact": {"irconnect": f"irconnect@{domain}"},
             }
             client_store.upsert_client(cid, overlay, active=active)
