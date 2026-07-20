@@ -45,6 +45,14 @@ Railway, Fly.io, or a small VPS also work — the steps below map cleanly to any
 > start); Neon's free tier auto-suspends similarly. Fine for a review; move to a paid tier for a
 > real client-facing instance.
 
+## Pre-deploy gate (run locally, must be green before you push)
+
+- [ ] **`python tests/smoke_render.py`** → `0 render failures · 0 demo leaks`. Renders every page
+      for every tenant into a headless client and fails on any exception OR any fabricated demo
+      string reaching a client surface. An HTTP 200 on `/` does NOT prove a page renders (NiceGUI
+      builds pages on websocket navigation, not the GET), and this is what catches the
+      "server did not load" crashes and demo-data leaks before a client sees them. Runs in ~1 min.
+
 ## Pre-exposure security checklist (before sending Paul the URL)
 
 - [x] **HTTPS only** — Render terminates TLS; only share the `https://` URL.
