@@ -41,20 +41,18 @@ def _result(kind, label, sub, section, tab, prefill=None, score=40):
 
 
 def _fund_results(q, cid):
-    from data.seed.buyside_institutions import get_seed_buyside_institutions
-    from data.seed.institution_contacts import get_institution_contacts
-    contacts = get_institution_contacts()
+    # Real 13F holders + their real contacts, not the fabricated buyside seed — global search is on
+    # every page (a client can use it), so seed names here surfaced demo funds/people to clients.
+    from core import targets
     out = []
-    for i in get_seed_buyside_institutions(cid):
+    for i in targets.targets_as_institutions(client_id=cid):
         fund = i.get("Fund", "")
-        c = contacts.get(fund, {})
-        hay = " ".join([fund, i.get("Metro", ""), i.get("Type", ""), i.get("Ownership_Style", ""),
-                        c.get("name", ""), c.get("email", ""), c.get("title", "")]).lower()
+        hay = " ".join([fund, i.get("Metro") or "", i.get("Contact_Name") or "",
+                        i.get("Contact_Email") or "", i.get("Contact_Title") or ""]).lower()
         if q in hay:
-            holder = i.get("USIO_Holder")
-            sub = f"{i.get('Metro', '')} · {i.get('Type', '')} · {'Holder' if holder else 'Non-holder'}"
-            if c.get("name"):
-                sub += f" · {c['name']}"
+            sub = f"{i.get('Metro', '')} · {'Holder' if i.get('USIO_Holder') else 'Non-holder'}"
+            if i.get("Contact_Name"):
+                sub += f" · {i['Contact_Name']}"
             out.append(_result("Fund", fund, sub, "Investors", "Target Database",
                                prefill=fund, score=_score(q, fund) if q in fund.lower() else 45))
     return out

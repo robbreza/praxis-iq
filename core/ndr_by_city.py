@@ -40,11 +40,14 @@ DAY_CAPACITY = 5
 
 
 def _scored(client_id=None):
+    # Real 13F holders, not the fabricated buyside seed — the NDR-by-city planner feeds a
+    # client-facing PDF (report_pdf.ndr_by_city_pdf), so demo funds here recommended visiting
+    # institutions that don't hold the stock and, in some cases, don't exist.
     from core.investor_scoring import score_institutions
-    from data.seed.buyside_institutions import get_seed_buyside_institutions
-    return score_institutions(
-        get_seed_buyside_institutions(client_id or get_active_client_id()),
-        "pre_earnings", set(), [])
+    from core import targets
+    cid = client_id or get_active_client_id()
+    return score_institutions(targets.targets_as_institutions(client_id=cid),
+                              "pre_earnings", set(), [])
 
 
 def _normalise_city(city, metros):

@@ -182,7 +182,9 @@ def targets_as_institutions(client_id=None, ticker=None):
             "Held_Since_At_Least": r.get("Held_Since_At_Least"),
             "Peer_Holdings": r.get("Peer_Overlap") or [],
             "Peer_Holdings_Source": "SEC 13F",
-            "Metro": r.get("Metro"),
+            # never None — several consumers do sorted({i["Metro"]}) / group by metro, and None
+            # vs str raises. "Unknown (SEC)" is the app's existing placeholder.
+            "Metro": r.get("Metro") or "Unknown (SEC)",
             "Action": _ACTION_BY_DIRECTION.get(r.get("Direction"), "No history pulled yet"),
             # "SEC 13F" matches _sec_universe_records' tag, so _merge_sec_universe recognises these
             # as already-SEC-sourced instead of relabelling them "Seed + SEC-confirmed".
