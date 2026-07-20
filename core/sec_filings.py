@@ -702,6 +702,173 @@ def enrich_holder_positions(ticker, client_id=None, limit=None, throttle=0.2, is
             "enriched": enriched, "issuer_not_in_book": missed, "failed": failed, "cusip": cusip}
 
 
+def filer_13f_filings(cik, limit=8):
+    """A filer's recent 13F-HR filings, newest first: [{form, date, accession}].
+
+    From EDGAR's submissions API, so it's the filer's own history by CIK — no name matching."""
+    try:
+        cik_i = int(str(cik).strip())
+    except Exception:
+        return []
+    try:
+        r = _get(f"https://data.sec.gov/submissions/CIK{cik_i:010d}.json", timeout=20)
+        rec = (r.json() or {}).get("filings", {}).get("recent", {})
+    except Exception:
+        return []
+    forms = rec.get("form") or []
+    out = []
+    for i, form in enumerate(forms):
+        if not str(form).startswith("13F-HR"):
+            continue
+        out.append({"form": form,
+                    "date": (rec.get("filingDate") or [None] * len(forms))[i],
+                    "accession": (rec.get("accessionNumber") or [None] * len(forms))[i]})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _info_table_filename(cik, accession):
+    """The information-table XML inside one accession. The submissions API gives us the primary
+    doc (the cover page), not the holdings table, so read the accession's file index and pick the
+    XML that isn't primary_doc."""
+    try:
+        cik_i = int(str(cik).strip())
+    except Exception:
+        return None
+    acc = str(accession or "").replace("-", "")
+    if not acc:
+        return None
+    try:
+        r = _get(f"https://www.sec.gov/Archives/edgar/data/{cik_i}/{acc}/index.json", timeout=20)
+        items = ((r.json() or {}).get("directory", {}) or {}).get("item", []) or []
+    except Exception:
+        return None
+    xmls = [it.get("name") for it in items
+            if str(it.get("name", "")).lower().endswith(".xml")
+            and "primary_doc" not in str(it.get("name", "")).lower()]
+    if not xmls:
+        return None
+    # prefer an explicitly-named info table when the agent provides one
+    for n in xmls:
+        if any(k in n.lower() for k in ("info", "table", "holding")):
+            return n
+    return xmls[0]
+
+
+def _peer_key(name):
+    """A peer's company name normalized for matching <nameOfIssuer>.
+
+    Uses the first TWO significant tokens joined, not one. Matching on a single token is unsafe:
+    "Global Payments" -> "global" matched "ZETA GLOBAL HOLDINGS CORP", which would have had IR
+    telling a holder they own a peer they don't. "globalpayments" correctly fails that match."""
+    stop = {"the", "inc", "incorporated", "corp", "corporation", "co", "company", "group",
+            "holdings", "holding", "ltd", "limited", "plc", "llc", "lp"}
+    toks = [t for t in re.sub(r"[^a-z0-9 ]", " ", str(name or "").lower()).split()
+            if t not in stop]
+    if not toks:
+        return None
+    return "".join(toks[:2]) if len(toks) >= 2 else toks[0]
+
+
+def _issuer_key(name):
+    """<nameOfIssuer> normalized the same way, for substring comparison against _peer_key."""
+    stop = {"the", "inc", "incorporated", "corp", "corporation", "co", "company", "group",
+            "holdings", "holding", "ltd", "limited", "plc", "llc", "lp"}
+    toks = [t for t in re.sub(r"[^a-z0-9 ]", " ", str(name or "").lower()).split()
+            if t not in stop]
+    return "".join(toks)
+
+
+def holder_history(cik, cusip=None, issuer_token=None, quarters=6, peers=None, throttle=0.2):
+    """Profile ONE holder over time — the intelligence you want before calling them.
+
+    Walks the filer's last `quarters` 13F filings and reads our position out of each, giving:
+      * position history (shares/value per quarter) and the QoQ change
+      * how long they've held (first quarter our issuer appears in the window)
+      * peer overlap — which of the client's peers sit in the SAME book
+    Peer overlap costs nothing extra: it comes out of info tables we're already fetching, which
+    the position-enrichment pass was previously discarding.
+
+    On-demand by design: this is several document fetches per holder, so it's meant to be run for
+    the holder you're about to call, not swept across the book.
+    """
+    import time
+    filings = filer_13f_filings(cik, limit=quarters)
+    peer_keys = {}
+    for p in (peers or []):
+        k = _peer_key(p.get("name") if isinstance(p, dict) else p)
+        if k:
+            peer_keys[k] = (p.get("ticker") if isinstance(p, dict) else p)
+
+    history, peer_hits, learned_cusip = [], {}, cusip
+    for f in filings:
+        name = _info_table_filename(cik, f["accession"])
+        if not name:
+            continue
+        try:
+            xml = _fetch_filer_info_table_xml(cik, f["accession"], name)
+        except Exception:
+            continue
+        mine, total, positions = None, 0, 0
+        for rec in _infotable_entries(xml):
+            total += rec.get("value") or 0
+            positions += 1
+            issuer = (rec.get("issuer") or "").lower()
+            if mine is None:
+                if learned_cusip and rec.get("cusip") == learned_cusip:
+                    mine = rec
+                elif not learned_cusip and issuer_token and issuer_token.lower() in issuer:
+                    mine = rec
+                    learned_cusip = rec.get("cusip") or learned_cusip
+            # peer overlap — only from the most recent filing we process
+            if not history:
+                ikey = _issuer_key(rec.get("issuer"))
+                for k, tkr in peer_keys.items():
+                    if k and ikey and k in ikey:
+                        peer_hits.setdefault(tkr, {"issuer": rec.get("issuer"),
+                                                   "value": rec.get("value"),
+                                                   "shares": rec.get("shares")})
+        history.append({"date": f["date"], "accession": f["accession"],
+                        "shares": (mine or {}).get("shares"), "value": (mine or {}).get("value"),
+                        "held": mine is not None, "book_total": total, "book_positions": positions})
+        if throttle:
+            time.sleep(throttle)
+
+    held = [h for h in history if h["held"]]
+    qoq = None
+    if len(history) >= 2 and history[0]["held"] and history[1]["held"]:
+        qoq = (history[0]["shares"] or 0) - (history[1]["shares"] or 0)
+
+    # CHRONOLOGICAL view (oldest -> newest) with per-quarter deltas. `history` is newest-first
+    # because that's how EDGAR returns it, and reading deltas off it backwards makes selling look
+    # like buying — so state the direction explicitly rather than leaving it to the caller.
+    chrono = list(reversed(history))
+    prev = None
+    for h in chrono:
+        h["change_vs_prior"] = None if (prev is None or not h["held"] or h["shares"] is None) \
+            else h["shares"] - prev
+        if h["shares"] is not None:
+            prev = h["shares"]
+    first_held = next((h for h in chrono if h["held"]), None)
+    last_held = next((h for h in reversed(chrono) if h["held"]), None)
+    net = None
+    if first_held and last_held and first_held is not last_held:
+        net = (last_held["shares"] or 0) - (first_held["shares"] or 0)
+    direction = None
+    if net is not None:
+        direction = "trimming" if net < 0 else ("adding" if net > 0 else "flat")
+
+    return {"cik": str(cik), "cusip": learned_cusip, "quarters_examined": len(history),
+            "history": history, "chronological": chrono,
+            "qoq_change_shares": qoq,
+            "net_change_shares": net, "direction": direction,
+            "quarters_held_in_window": len(held),
+            "held_since_at_least": held[-1]["date"] if held else None,
+            "continuous": all(h["held"] for h in history) if history else False,
+            "peer_overlap": peer_hits}
+
+
 def _sum_info_table_value(xml_bytes):
     """Sums every <value> element in a 13F information-table XML — this
     filer's WHOLE quarter-end 13F book (every issuer they hold, not just
