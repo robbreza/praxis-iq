@@ -306,6 +306,35 @@ def render_today_page():
             _render_activity_responses(state)
 
 
+def _top_ownership_change():
+    """The single most material ownership move in the real 13F book, for the Today signal card.
+    New positions rank first (warmest IR signal), then largest absolute share change. None when no
+    holder history has been pulled — the card is then omitted rather than fabricated."""
+    from core import targets
+    from config.client_config import get_active_client_id
+    try:
+        rows = targets.targets_as_institutions(client_id=get_active_client_id())
+    except Exception:
+        return None
+    cand = [r for r in rows if r.get("Direction") in ("new", "adding", "trimming", "exited")]
+    if not cand:
+        return None
+
+    def rank(r):
+        if r["Direction"] == "new":
+            return (2, r.get("Position_Value") or 0)
+        return (1, abs(r.get("Net_Change_Shares") or 0))
+    r = max(cand, key=rank)
+    net = r.get("Net_Change_Shares")
+    verb = {
+        "new": "initiated a position",
+        "adding": f"added {abs(net):,} shares" if net else "added to their position",
+        "trimming": f"trimmed {abs(net):,} shares" if net else "trimmed their position",
+        "exited": "exited",
+    }[r["Direction"]]
+    return f"{r['Fund']} {verb} — latest 13F"
+
+
 def _signal_card(dot, title, desc):
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
         ui.label(f"{dot} {title}").classes("font-bold").style(f"color:{COLORS['text_body']};font-size:12.5px;")
@@ -397,8 +426,10 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
         _signal_card("", pt_title, pt_desc)
         ui.button("Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense")
 
-        _signal_card("", "1 ownership change", "Perkins Inv. Mgmt added shares — 13F filed Jul 18")
-        ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
+        _chg = _top_ownership_change()
+        if _chg:
+            _signal_card("", "Ownership change", _chg)
+            ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
 
         _signal_card("", "1 conference confirmed", "H.C. Wainwright Sep 8 — Scott Buck attending in person")
         ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
@@ -613,12 +644,6 @@ def _open_target_list_dialog():
     # same static New York-route candidate list app.py hardcoded here too.
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Update Institutional Target List").classes("text-lg font-bold")
-        ui.html(
-            "<div style='background:#E9F6EF;border:1px solid #15803D55;border-radius:6px;padding:8px 12px;"
-            "font-size:12.5px;color:#15803D;'>"
-            "Perkins Inv. Mgmt is already Tier 1 (100/100) in the Investor Pipeline — this 13F add reinforces "
-            "that, no action needed there.</div>"
-        )
         ui.label("No confirmed attendee list exists for the H.C. Wainwright conference — this app doesn't have "
                  "RSVP data. Below is a same-profile candidate list from the Target Database (New York route, "
                  "small-cap value/growth mandate), not a verified roster of who's actually attending.").style(

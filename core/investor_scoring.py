@@ -215,19 +215,26 @@ def get_fresh_scored_institutions(client_id=None):
     any other page (today_page.py) gets the identical numbers instead of
     a second, hand-maintained copy."""
     from config.client_config import CE, get_active_client_id
-    from data.seed.buyside_institutions import get_seed_buyside_institutions
+    from core import targets
 
     cid = client_id or get_active_client_id()
     mode_state = db.load_json("buyside_mode.json", {})
-    earnings_date_str = CE().get("earnings_date", "2026-08-12")
-    earnings_date = datetime.strptime(earnings_date_str, "%Y-%m-%d").date()
-    days_to_earnings = (earnings_date - datetime.now().date()).days
+    earnings_date_str = CE().get("earnings_date") or "2026-08-12"
+    try:
+        earnings_date = datetime.strptime(earnings_date_str, "%Y-%m-%d").date()
+        days_to_earnings = (earnings_date - datetime.now().date()).days
+    except Exception:
+        days_to_earnings = 30
     auto_post = days_to_earnings < 0
     mode = mode_state.get("mode", "post" if auto_post else "pre")
     q2_listeners = set(mode_state.get("q2_listeners", []))
 
     meeting_log = load_meeting_log()
-    institutions = score_institutions(get_seed_buyside_institutions(cid), mode, q2_listeners, meeting_log)
+    # Real 13F holders, not the fabricated buyside seed. This is the shared "every tracked
+    # institution, scored" source (Today's Strongest-Signal widget + anywhere else), so leaving it
+    # on the seed put demo funds on the front page for every tenant.
+    institutions = score_institutions(targets.targets_as_institutions(client_id=cid),
+                                      mode, q2_listeners, meeting_log)
     return institutions, meeting_log
 
 
