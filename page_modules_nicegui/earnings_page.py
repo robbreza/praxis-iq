@@ -2681,6 +2681,116 @@ def _render_tomorrow_setup(ss):
 
 
 def _render_script_workflow_tab():
+    """Speaker-confirmation gate in front of the script workflow. Script generation is BLOCKED
+    until the reporting quarter's speaker lineup is confirmed, so a stale name (e.g. a departed IR
+    head) can never reach a client-facing draft, and a quarter rollover forces a re-confirm."""
+    from core import speakers
+    period = speakers.current_period()
+    st = {"editing": False}
+    box = ui.column().classes("w-full")
+
+    def _paint():
+        box.clear()
+        with box:
+            # No configured reporting period -> nothing to gate on; render the workflow.
+            if period and (not speakers.is_confirmed(period) or st["editing"]):
+                def _done():
+                    st["editing"] = False
+                    _paint()
+                _render_speaker_gate(period, on_done=_done, editing=st["editing"])
+                return
+            if period:
+                def _edit():
+                    st["editing"] = True
+                    _paint()
+                _render_confirmed_speaker_bar(period, on_edit=_edit)
+            _render_workflow_content()
+
+    _paint()
+
+
+def _render_speaker_gate(period, on_done, editing=False):
+    """The blocking confirmation card: confirm who is speaking on `period`'s call before any script
+    is generated. Prefilled from the last confirmed lineup (or the registry roster on first use),
+    fully editable — the mechanism for a departure like an IR head leaving, without touching the
+    base config or a prior quarter's record."""
+    from core import speakers
+    from config.client_config import ROLE_PERMISSIONS
+    role_opts = list(ROLE_PERMISSIONS.keys())
+    rows = speakers.get_confirmed(period)["speakers"] if editing else speakers.default_lineup()
+    rows = [dict(r) for r in rows] or [{"role": role_opts[0], "name": "", "title": "", "speaking": True}]
+
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid #B45309;border-left:4px solid #B45309;"):
+        ui.label(f"Confirm the speaker lineup for {period}").classes("text-lg font-bold").style(
+            f"color:{COLORS['text_heading']};")
+        ui.label("Earnings-call lineups change quarter to quarter — departures, new execs, a guest. "
+                 "Confirm who is speaking before generating this quarter's script. Prepared-remarks "
+                 "speakers drive the persona canvases and the Call Opening; uncheck 'speaking' for "
+                 "someone who's on the call for Q&A only.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:4px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:15px;")
+
+        @ui.refreshable
+        def _rows():
+            for r in rows:
+                with ui.row().classes("w-full items-center").style("gap:8px;"):
+                    ui.select(role_opts, value=r.get("role") if r.get("role") in role_opts else role_opts[0]) \
+                        .props("outlined dense").style("min-width:110px;") \
+                        .bind_value(r, "role")
+                    ui.input("Name", value=r.get("name", "")).props("outlined dense") \
+                        .style("min-width:180px;").bind_value(r, "name")
+                    ui.input("Title", value=r.get("title", "")).props("outlined dense") \
+                        .style("flex:1;min-width:160px;").bind_value(r, "title")
+                    ui.switch("Speaking", value=r.get("speaking", True)).props("dense") \
+                        .bind_value(r, "speaking").tooltip("Delivers prepared remarks (vs Q&A-only)")
+                    ui.button(icon="delete", on_click=lambda r=r: (rows.remove(r), _rows.refresh())) \
+                        .props("flat dense round").style(f"color:{COLORS['text_muted']};")
+        _rows()
+
+        with ui.row().classes("w-full items-center").style("gap:8px;margin-top:6px;"):
+            def _add():
+                rows.append({"role": role_opts[0], "name": "", "title": "", "speaking": True})
+                _rows.refresh()
+            ui.button("Add speaker", icon="person_add", on_click=_add).props("flat dense")
+            ui.space()
+            if editing:
+                ui.button("Cancel", on_click=on_done).props("flat")
+
+            def _confirm():
+                if not any((r.get("name") or "").strip() for r in rows):
+                    msg.set_text("Add at least one speaker."); return
+                if not any(r.get("speaking") and (r.get("name") or "").strip() for r in rows):
+                    msg.set_text("At least one speaker must deliver prepared remarks."); return
+                speakers.confirm(period, rows)
+                ui.notify(f"Speaker lineup confirmed for {period}.", type="positive")
+                on_done()
+            ui.button("Confirm lineup", icon="check", on_click=_confirm).props("color=primary")
+
+
+def _render_confirmed_speaker_bar(period, on_edit):
+    """Compact confirmed-lineup bar shown above the workflow once confirmed, with an Edit that
+    re-opens the gate (e.g. to swap in a new IR head mid-transition)."""
+    from core import speakers
+    rec = speakers.get_confirmed(period) or {}
+    spk = rec.get("speakers", [])
+    talking = [s for s in spk if s.get("speaking")]
+    qa_only = [s for s in spk if not s.get("speaking")]
+    with ui.row().classes("w-full items-center").style(
+            "gap:8px;background:rgba(21,128,61,.08);border:1px solid #15803D40;border-radius:8px;"
+            "padding:6px 12px;margin-bottom:6px;"):
+        ui.label(f"✓ {period} speakers confirmed").style("color:#15803D;font-size:12px;font-weight:700;")
+        names = " · ".join(f"{s['name']} ({s['role']})" for s in talking)
+        ui.label(names).style(f"color:{COLORS['text_body']};font-size:12px;")
+        if qa_only:
+            ui.label("Q&A only: " + ", ".join(s["name"] for s in qa_only)).style(
+                f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.space()
+        ui.button("Edit lineup", icon="edit", on_click=on_edit).props("flat dense").style(
+            f"color:{COLORS['text_muted']};")
+
+
+def _render_workflow_content():
     ss = _load_json("script_workflow_state.json", None)
     if ss is None:
         ss = _blank_script_state()
