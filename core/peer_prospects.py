@@ -206,15 +206,64 @@ def _suppressed(cid):
     return names, ciks
 
 
-def _score(r, size_rank):
-    """0–100 conviction. size_rank in [0,1], 1 = smallest book (best micro-cap fit)."""
+# ─────────────────────────────────────────────────────────────────────────
+# CLIENT-SIZE-AWARE GATES
+#
+# Every threshold here is relative to the CLIENT's market cap, because "too big and diversified to
+# bother meeting us" is meaningless in the abstract. Calibrating once for a $61M micro-cap (USIO)
+# and applying it to an $8.9B issuer (SARO) is what pushed Fidelity and Capital Group into a review
+# bucket for a company they would unambiguously take a meeting with.
+#
+# tier: (max_market_cap_m, breadth_max, diversified_are_targets, breadth_bands, prefer_small_books)
+#   breadth_max            — position count above which a book goes to review (None = no gate)
+#   diversified_are_targets— True: index-family / bank-AM managers are PRIMARY NDR targets, not a
+#                            review bucket. A large issuer is core holding territory for them.
+#   breadth_bands          — (b1,b2,b3) scoring bands; a 400-position book is wide for a micro-cap
+#                            specialist and unremarkable for a large-cap manager.
+#   prefer_small_books     — micro/small caps fit best with small managers (the position can be
+#                            meaningful to them). For mid/large the reverse holds: you want a
+#                            manager big enough to build a real position.
+_SIZE_TIERS = (
+    (300,    "micro", 600,  False, (60, 150, 300),   True),
+    (2000,   "small", 1200, False, (100, 250, 500),  True),
+    (10000,  "mid",   3000, True,  (200, 500, 1000), False),
+    (None,   "large", None, True,  (400, 1000, 2000), False),
+)
+
+
+def size_profile(cid=None):
+    """Gate settings for this client, derived from its market cap. Falls back to the micro-cap
+    profile when no market cap is on record — the conservative choice, since it filters hardest."""
+    try:
+        mcap = float(CT("market_cap_m") or 0)
+    except (TypeError, ValueError):
+        mcap = 0
+    for cap, tier, breadth_max, div_targets, bands, prefer_small in _SIZE_TIERS:
+        if cap is None or mcap < cap:
+            return {"tier": tier, "market_cap_m": mcap, "breadth_max": breadth_max,
+                    "diversified_are_targets": div_targets, "breadth_bands": bands,
+                    "prefer_small_books": prefer_small}
+    return {"tier": "micro", "market_cap_m": mcap, "breadth_max": 600,
+            "diversified_are_targets": False, "breadth_bands": (60, 150, 300),
+            "prefer_small_books": True}
+
+
+def _score(r, size_rank, profile=None):
+    """0–100 conviction. size_rank in [0,1], 1 = smallest book.
+
+    Breadth banding and the size-fit direction both come from the client's size profile: a wide
+    book is a negative for a micro-cap and normal for a large-cap, and "smallest manager wins" is
+    only true when the issuer is small enough for a small manager to move the needle."""
+    profile = profile or size_profile()
+    b1, b2, b3 = profile["breadth_bands"]
     conc = (r["peer_value"] / r["book_total"]) if r.get("book_total") else 0
     s = min(conc * 1200, 45)                                   # conviction (0–45)
     tight = sum(1 for c in r["comps"].values() if c["tight"])
     s += {0: 0, 1: 12, 2: 20}.get(tight, 25)                  # focus on close comps (0–25)
     bp = r.get("book_positions") or 0
-    s += 0 if not bp else (20 if bp < 60 else 14 if bp < 150 else 8 if bp < 300 else 3)  # breadth (0–20)
-    s += size_rank * 10                                        # micro-cap fit (0–10)
+    s += 0 if not bp else (20 if bp < b1 else 14 if bp < b2 else 8 if bp < b3 else 3)  # breadth (0–20)
+    # Size fit (0–10): smallest-is-best for a micro/small cap, largest-is-best above that.
+    s += (size_rank if profile["prefer_small_books"] else (1 - size_rank)) * 10
     return round(min(s, 100), 1)
 
 
@@ -238,6 +287,7 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
     from core import db, sec_filings
     cid = cid or get_active_client_id()
     prospecting = [p for p in CP() if p.get("tier") != "reference"]
+    profile = size_profile(cid)          # gates scale with THIS client's market cap
     sup_names, sup_ciks = _suppressed(cid)
     decisions = db.load_json(_DECISIONS_KEY, {}, client_id=cid) or {}
 
@@ -280,12 +330,18 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
             r["kind"] = "market_maker"
             makers.append(r)
             continue
-        # Large diversified / bank AM arms: they DO have active PMs. Previously dropped on the
-        # assumption they'd never take a micro-cap NDR — wrong as IR practice, so they go to a
-        # review bucket and the IR lead decides.
+        # Large diversified / bank AM arms: they DO have active PMs. Whether they're a primary
+        # target or a review bucket depends on the CLIENT's size — for a mid/large-cap issuer these
+        # are core holding territory and belong in the main NDR list; for a micro-cap they're a
+        # judgement call the IR lead should make.
         if is_diversified(r["filer"]):
-            r["kind"] = "diversified"
-            diversified.append(r)
+            if profile["diversified_are_targets"]:
+                r["kind"] = "institutional"
+                r["diversified_house"] = True
+                kept.append(r)
+            else:
+                r["kind"] = "diversified"
+                diversified.append(r)
             continue
         if is_ria(r["filer"]):
             # RIA/wealth bucket — video-call tier, not an NDR target. NO breadth
@@ -296,7 +352,8 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
                 r["kind"] = "ria"
                 rias.append(r)
             continue
-        if (r.get("book_positions") or 0) > 600:
+        _breadth_max = profile["breadth_max"]
+        if _breadth_max is not None and (r.get("book_positions") or 0) > _breadth_max:
             # Breadth alone is NOT disqualifying. This cliff was dropping the largest peer
             # positions in the universe — Capital World Investors (Capital Group) at $107M runs
             # ~620 positions, Clearbridge $80M at 794, Ensign Peak $136M at 1,708. A wide book is
@@ -345,7 +402,7 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
         r["tight_comps"] = sum(1 for c in r["comps"].values() if c["tight"])
         r["n_comps"] = len(r["comps"])
         r["concentration"] = (r["peer_value"] / r["book_total"]) if r.get("book_total") else None
-        r["conviction"] = _score(r, _size_rank(r.get("book_total")))
+        r["conviction"] = _score(r, _size_rank(r.get("book_total")), profile)
         r["promoted"] = r.get("decision") == "promoted"
 
     _key = _SORTS.get(sort, _SORTS["conviction"])
