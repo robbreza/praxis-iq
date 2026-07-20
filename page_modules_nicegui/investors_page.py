@@ -684,6 +684,59 @@ def _sec_universe_records(client_id):
     return list(recs.values())
 
 
+def _promoted_prospect_records(client_id):
+    """Promoted NON-HOLDERS, as institution records.
+
+    Peer-overlap candidates are deliberately not auto-injected (see _sec_universe_records: dumping
+    every comp's holders in filled the universe with index/passive noise). They go through the Peer
+    Prospects review queue and land in prospects.json when the IR lead promotes one — but nothing
+    ever merged prospects.json back into the target universe, so promoted prospects were invisible
+    here. The fabricated seed used to supply fake non-holders, which hid the gap; with the seed gone
+    the Target Database showed holders only.
+
+    prospects.json uses its own lowercase shape (fund/metro/style/notes/score/source), so this maps
+    it onto the institution keys and marks the record a non-holder."""
+    records = db.load_json("prospects.json", default=[], client_id=client_id) or []
+    # Peer tickers come from the candidate queue by name, not by parsing the free-text notes —
+    # Catalyst Fit scores a non-holder higher when they actually hold comps.
+    comps_by_norm = {}
+    try:
+        from core import peer_prospects
+        for c in peer_prospects.build_candidates():
+            comps_by_norm[_norm_name(c.get("filer", ""))] = sorted((c.get("comps") or {}).keys())
+    except Exception:
+        pass
+
+    out = []
+    for p in records:
+        name = (p.get("fund") or "").strip()
+        if not name:
+            continue
+        peers = comps_by_norm.get(_norm_name(name), [])
+        out.append({
+            "Fund": name,
+            "Type": p.get("style"),
+            "AUM": None,
+            "Coverage_Priority": 2,
+            "USIO_Holder": False,           # the point: a real non-holder
+            "Shares": None, "QoQ_Change": None, "Position_Value": None, "Book_Pct": None,
+            "Conviction": None, "Direction": None,
+            "Peer_Holdings": peers,
+            "Peer_Holdings_Source": "SEC 13F" if peers else None,
+            "Metro": (p.get("metro") or "").replace("—", "").strip() or None,
+            "Action": "Prospect — holds peers, not us" if peers else "Prospect — promoted for review",
+            "Source": p.get("source") or "Promoted prospect",
+            "Notes": p.get("notes"),
+            "Fit_Score": p.get("score"),
+            "link": None,
+            # no source for these — omitted from scoring rather than scored zero
+            "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
+            "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
+            "Turnover_Style": None, "Ownership_Style": None,
+        })
+    return out
+
+
 def _merge_sec_universe(seed_institutions, client_id):
     """Append real SEC-sourced names to the seed universe. A name that already
     matches a seed fund (normalized) doesn't duplicate — the seed record wins
@@ -728,6 +781,11 @@ def render_investors_page():
     # each carries its own Source tag, and this is what the "Refresh from SEC EDGAR" button on the
     # SEC Intelligence tab grows. Reads cache only here (no live network call at page render).
     raw_institutions = _merge_sec_universe(raw_institutions, client_id)
+    # Promoted non-holders from the Peer Prospects queue. Without this the universe is holders-only
+    # — a target database with no targets to win.
+    _existing = {_norm_name(i["Fund"]) for i in raw_institutions}
+    raw_institutions += [p for p in _promoted_prospect_records(client_id)
+                         if _norm_name(p["Fund"]) not in _existing]
     # Upgrades Peer_Holdings from static seed data to real SEC 13F filings
     # wherever a ticker has actually been refreshed (see
     # _enrich_peer_holdings_with_live_13f's docstring) — must run BEFORE

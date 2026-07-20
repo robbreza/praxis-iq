@@ -108,6 +108,40 @@ def _pts(raw, out_of, scale):
     return round(raw * out_of / scale)
 
 
+_MATERIALITY_BY_BOOK_PCT = ((1.0, 20), (0.1, 14), (0.01, 6), (0.0, 1))
+
+
+def _materiality_pts(book_pct):
+    """Score (to 20) how much of the HOLDER'S OWN book this position represents.
+
+    This replaces the "IR Site Visits" / "New IR Activity" pillar for real 13F institutions. That
+    pillar needs website analytics the platform has no integration for, so it scored None for every
+    real holder — 20 dead points out of 100. Book_Pct is measured, and it is the single best proxy
+    for how much a holder actually cares: without it an index fund that added a handful of shares
+    outranks a conviction holder who is actively selling, which is backwards for IR triage.
+
+    None for a non-holder — materiality doesn't apply, so the pillar is omitted rather than zeroed.
+    """
+    if book_pct is None:
+        return None
+    for floor, pts in _MATERIALITY_BY_BOOK_PCT:
+        if book_pct >= floor:
+            return pts
+    return 1
+
+
+def _third_pillar(inst):
+    """(label, points) for the 20-point third pillar: real position materiality when we have it,
+    otherwise the original website-visits math for seed records."""
+    if inst.get("Book_Pct") is not None:
+        return "Position Materiality", _materiality_pts(inst["Book_Pct"])
+    if inst.get("IR_Visits_30d") is not None:
+        return "New IR Activity", _pts(min(25, inst["IR_Visits_30d"] * 8), 20, 25)
+    if inst.get("Visit_Score") is not None:
+        return "IR Site Visits", _pts(inst["Visit_Score"], 20, 25)
+    return "Position Materiality", None
+
+
 def score_institutions(institutions, mode, q2_listeners, meeting_log=None):
     """Score each institution from whatever real signals exist.
 
@@ -121,7 +155,7 @@ def score_institutions(institutions, mode, q2_listeners, meeting_log=None):
             breakdown = [
                 ("Earnings Call Listener", _pts(inst.get("Call_Score"), 30, 40), 30),
                 ("Peer Ownership", _pts(inst.get("Peer_Score"), 25, 35), 25),
-                ("IR Site Visits", _pts(inst.get("Visit_Score"), 20, 25), 20),
+                (_third_pillar(inst)[0], _third_pillar(inst)[1], 20),
                 ("Meeting Interactions", interaction_pts, INTERACTION_SCORE_MAX),
             ]
             inst["Score_Label"] = "Engagement"
@@ -149,10 +183,7 @@ def score_institutions(institutions, mode, q2_listeners, meeting_log=None):
             breakdown = [
                 ("Q2 Call Listener", q2_call_pts, 30),
                 ("Catalyst Fit", _pts(catalyst_raw, 25, 35), 25),
-                # original math: round(min(25, visits * 8) * 20 / 25) — cap, THEN scale
-                ("New IR Activity",
-                 None if inst.get("IR_Visits_30d") is None
-                 else _pts(min(25, inst["IR_Visits_30d"] * 8), 20, 25), 20),
+                (_third_pillar(inst)[0], _third_pillar(inst)[1], 20),
                 ("Meeting Interactions", interaction_pts, INTERACTION_SCORE_MAX),
             ]
             inst["Score_Label"] = "Prospect"
