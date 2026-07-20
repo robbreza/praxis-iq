@@ -137,6 +137,12 @@ def compose_ir_plan(client_id=None):
         from core import nobo_engine
         from config.client_config import get_active_client_id
         pulls = nobo_engine.get_active_pulls(client_id or get_active_client_id())
+        # Only from a REAL uploaded Broadridge pull. get_active_pulls falls back to a demo pull
+        # when nothing is uploaded, and that demo names "Perkins Investment Management added 260,000
+        # shares" — a fabricated ownership action, in a client PDF, that also contradicts the real
+        # 13F (Perkins Capital SOLD ~294k). An empty ownership section is the honest state.
+        if pulls.get("source", "").startswith("demo"):
+            raise RuntimeError("no real NOBO pull — skip fabricated ownership actions")
         so = pulls["shares_outstanding"]
         if pulls.get("prior"):
             fl = nobo_engine.flow(pulls["current"], pulls["prior"])
