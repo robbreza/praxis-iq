@@ -271,6 +271,17 @@ PERSONAS = [
     ("CEO", "ceo_narrative", "CEO Narrative + Guidance"),
 ]
 
+
+def _active_personas():
+    """PERSONAS filtered to the roles actually DELIVERING prepared remarks this quarter, per the
+    confirmed speaker lineup (see core.speakers). Drives auto-drafting, the canvas render, and the
+    assembled full script — so no section is drafted or shown for a role that isn't speaking (e.g.
+    a vacant IR seat mid-transition). Falls back to all four personas when nothing is confirmed
+    (the workflow gate normally prevents that, but callers stay safe)."""
+    contacts = _contacts()
+    return [(role, key, label) for role, key, label in PERSONAS
+            if contacts.get(role, {}).get("speaking") is not False]
+
 # Call Opening — the operator's introduction plus IR's welcome/participant-
 # roster paragraph and the forward-looking-statements/safe-harbor reading
 # (the mechanism by which the call opens with a Reg FD-safe disclosure that
@@ -347,7 +358,7 @@ def _render_call_opening(ss):
     """Locked, read-only Call Opening card — see the module-level comment
     above _CALL_OPENING_FLS_TEXT for why this isn't an editable draft."""
     operator_line, welcome_line, fls_line = _call_opening_text(ss)
-    ir = CI()
+    ir = _contacts().get("IR", CI())   # confirmed IR speaker for this quarter, not the static registry
     with ui.card().classes("w-full").style(
             "background:rgba(248,113,113,.06);border:2px solid #B91C1C;border-radius:8px;"
             "padding:12px 14px;margin-bottom:12px;"):
@@ -512,10 +523,36 @@ def _contacts():
     another tenant's name."""
     ir = CI()
     execs = C().get("executives", {})
-    out = {"IR": {"name": ir.get("name", "IR Contact"), "email": ir.get("email", "")}}
+    out = {"IR": {"name": ir.get("name", "IR Contact"), "email": ir.get("email", ""),
+                  "title": ir.get("title", "")}}
     for role in ("CFO", "CEO", "CRO", "Legal"):
         e = execs.get(role)
-        out[role] = e if e else {"name": f"— {role} not configured —", "email": ""}
+        out[role] = dict(e) if e else {"name": f"— {role} not configured —", "email": ""}
+    # Overlay the CONFIRMED lineup for the current quarter: a confirmed speaker's name/title WINS
+    # (this is how a departure/replacement flows through — e.g. a new IR head), and `speaking`
+    # marks who delivers prepared remarks. Email stays from the registry, since the confirmation
+    # form doesn't capture it and the reviewer-routing still needs it.
+    try:
+        from core import speakers
+        confirmed = speakers.get_confirmed(speakers.current_period()) or {}
+        lineup = confirmed.get("speakers") or []
+        if lineup:
+            confirmed_roles = {s.get("role") for s in lineup}
+            for s in lineup:
+                role = s.get("role")
+                if not role:
+                    continue
+                base = dict(out.get(role, {"email": ""}))
+                base["name"] = s.get("name") or base.get("name")
+                if s.get("title"):
+                    base["title"] = s["title"]
+                base["speaking"] = bool(s.get("speaking", True))
+                out[role] = base
+            # A role absent from the confirmed lineup is NOT speaking this quarter.
+            for role in out:
+                out[role].setdefault("speaking", role in confirmed_roles)
+    except Exception:
+        pass
     return out
 
 
@@ -1985,7 +2022,7 @@ def _ensure_script_drafted(ss):
     if not ss.get("q2_numbers"):
         return  # nothing to draft from yet — Stage 1 hasn't been submitted
     changed = False
-    for role, key, _label in PERSONAS:
+    for role, key, _label in _active_personas():
         if not ss["script_text"].get(key):
             p_notes = ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
             p_context = " | ".join(filter(None, [p_notes.get("whats_new"), p_notes.get("final_notes")]))
@@ -2017,7 +2054,7 @@ def _assembled_script_text(ss):
     any full_script_override."""
     operator_line, welcome_line, fls_line = _call_opening_text(ss)
     full_parts = [operator_line, welcome_line, fls_line]
-    full_parts += [ss["script_text"].get(key, "") for _, key, _ in PERSONAS]
+    full_parts += [ss["script_text"].get(key, "") for _, key, _ in _active_personas()]
     guidance_final_text = ss.get("guidance_decision", {}).get("text", "")
     if guidance_final_text:
         full_parts.append(guidance_final_text)
@@ -2050,7 +2087,7 @@ def _render_script_canvas(ss):
     # section is on the page and reachable by scrolling, matching an actual
     # "IR reviews everything, then hands to CFO, then CEO" reading order.
     contacts = _contacts()
-    for role, key, label in PERSONAS:
+    for role, key, label in _active_personas():
         c = contacts.get(role, {"name": f"— {role} not configured —"})
         with ui.expansion(f"{label} — {c['name']} ({role})", value=True).classes("w-full").style(
                 f"border:1px solid {COLORS['border']};border-radius:8px;margin-bottom:8px;"):
