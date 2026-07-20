@@ -196,7 +196,7 @@ def targets_as_institutions(client_id=None, ticker=None):
             # No source — left None so scoring omits them instead of scoring a fabricated zero.
             "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
             "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
-            "Turnover_Style": None, "Ownership_Style": None,
+            "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
         })
     return out
 

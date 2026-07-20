@@ -578,16 +578,25 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
             con_eps = _safe_avg([v.get("EPS Est") for v in ingested])
             level, label = _risk_level({"Revenue Est ($M)": g["Revenue Est ($M)"], "street_rev": con_rev or 0}, models_in, models_total)
             bc = {"green": "#15803D", "amber": "#B45309", "red": "#B91C1C"}[level]
+            # Guard each VALUE, not a single models_in flag: a firm can be ingested (Rating set)
+            # while its Revenue/EPS estimate is still None — which is exactly USIO's "0 of 5
+            # models received" state. models_in was 5, no_data False, con_rev None, and the
+            # f-string raised TypeError: unsupported format string passed to NoneType.__format__,
+            # taking the Markets page down. Guidance can be None too on a new tenant.
             no_data = models_in == 0
+            _srev = "—" if con_rev is None else f"${con_rev:.1f}M"
+            _seps = "—" if con_eps is None else f"${con_eps:.2f}"
+            _grev = "—" if g.get("Revenue Est ($M)") is None else f"${g['Revenue Est ($M)']:.1f}M"
+            _geps = "—" if g.get("EPS Est") is None else f"${g['EPS Est']:.2f}"
             upside_pct = round((con_pt - last_price) / last_price * 100, 1) if con_pt else None
             with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {bc};"):
                 ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:12px;font-weight:600;")
                 ui.label(label).style(f"color:{bc};font-size:12px;font-weight:700;")
                 ui.label(f"Models: {models_in}/{models_total}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
-                ui.label(f"Street rev: {'—' if no_data else f'${con_rev:.1f}M'}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Guidance rev: ${g['Revenue Est ($M)']:.1f}M").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Street EPS: {'—' if no_data else f'${con_eps:.2f}'}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Guidance EPS: ${g['EPS Est']:.2f}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"Street rev: {_srev}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"Guidance rev: {_grev}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"Street EPS: {_seps}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"Guidance EPS: {_geps}").style(f"color:{COLORS['text_body']};font-size:12px;")
                 if con_pt:
                     ui.label(f"Consensus PT: ${con_pt:.2f} ({upside_pct:+.0f}%)").style("color:#15803D;font-size:12px;font-weight:600;")
 
@@ -626,8 +635,8 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                 _metric("Street Rating", f"{buy_count} Buy" if ingested_ests else "—", f"{len(ingested_ests)} rated")
                 _metric("Consensus PT", f"${con_pt:.2f}" if con_pt else "—",
                         f"{(con_pt-last_price)/last_price*100:+.0f}% upside" if con_pt else "")
-                _metric("Consensus EPS", f"${con_eps:.2f}" if con_eps is not None else "—", f"guidance ${g['EPS Est']:.2f}")
-                _metric("Consensus Rev", f"${con_rev:.1f}M" if con_rev else "—", f"guidance ${g['Revenue Est ($M)']:.1f}M")
+                _metric("Consensus EPS", f"${con_eps:.2f}" if con_eps is not None else "—", f"guidance {'—' if g.get('EPS Est') is None else '$' + format(g['EPS Est'], '.2f')}")
+                _metric("Consensus Rev", f"${con_rev:.1f}M" if con_rev else "—", f"guidance {'—' if g.get('Revenue Est ($M)') is None else '$' + format(g['Revenue Est ($M)'], '.1f') + 'M'}")
 
             rows = []
             analyst_dates = seed.get("analyst_dates", {})

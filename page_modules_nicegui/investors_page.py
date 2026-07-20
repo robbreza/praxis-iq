@@ -735,9 +735,24 @@ def _promoted_prospect_records(client_id):
             # no source for these — omitted from scoring rather than scored zero
             "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
             "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
-            "Turnover_Style": None, "Ownership_Style": None,
+            "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
         })
     return out
+
+
+def _score_val(inst, key="Engagement_Score"):
+    """A score for COMPARISON / sorting only.
+
+    Scores are None when nothing was measurable — there is no website-analytics or call-listener
+    integration, so Digital_Intent_Score is None for every real 13F institution and
+    Engagement_Score is None when no pillar has an input. None can't be compared to an int, and
+    that TypeError takes the entire page down (see tests/smoke_render.py).
+
+    Treated as 0 for filtering/tiering, while the UI still DISPLAYS "—" for None — so an absent
+    measurement is never rendered as a confident zero.
+    """
+    v = inst.get(key)
+    return 0 if v is None else v
 
 
 def _merge_sec_universe(seed_institutions, client_id):
@@ -1280,11 +1295,11 @@ def _render_big_picture(institutions):
         m = i["Metro"]
         d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1})
         d["count"] += 1
-        if i["Engagement_Score"] >= 80 and not i["USIO_Holder"]:
+        if _score_val(i) >= 80 and not i["USIO_Holder"]:
             d["tier1_nonholder"] += 1
         if i["USIO_Holder"]:
             d["holders"] += 1
-        if i["Engagement_Score"] > d["top_score"]:
+        if _score_val(i) > (d["top_score"] or 0):
             d["top_score"], d["top"] = i["Engagement_Score"], i["Fund"]
 
     requests_by_metro = {}
@@ -1305,7 +1320,7 @@ def _render_big_picture(institutions):
     if top_metro_request and wainwright_conf and "Wainwright" in top_metro_request["firm"]:
         top_metro_conf = wainwright_conf
 
-    tier1_preview = [i for i in institutions if i["Engagement_Score"] >= 80]
+    tier1_preview = [i for i in institutions if _score_val(i) >= 80]
     weakest_request = ndr_requests[-1] if ndr_requests else None
     quiet_start = CE().get("quiet_start", "")
     try:
@@ -1422,9 +1437,9 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         ui.label("Buy-Side Intelligence — Post-Earnings Prospecting").classes("text-lg font-bold")
         ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-    tier1 = [i for i in institutions if i["Engagement_Score"] >= 80]
-    tier2 = [i for i in institutions if 40 <= i["Engagement_Score"] < 80]
-    tier3 = [i for i in institutions if i["Engagement_Score"] < 40]
+    tier1 = [i for i in institutions if _score_val(i) >= 80]
+    tier2 = [i for i in institutions if 40 <= _score_val(i) < 80]
+    tier3 = [i for i in institutions if _score_val(i) < 40]
 
     ui.label("Engagement Funnel").classes("font-bold").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3 items-stretch"):
@@ -1503,10 +1518,10 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                     and (holder_filter.value == "All"
                          or (holder_filter.value == "Current holders" and i["USIO_Holder"])
                          or (holder_filter.value == "Non-holders only" and not i["USIO_Holder"]))
-                    and i["Engagement_Score"] >= (score_filter.value or 0)
+                    and _score_val(i) >= (score_filter.value or 0)
                     and (metro_filter.value == "All Regions" or i["Metro"] == metro_filter.value)
                     and i["Turnover_Style"] in sel_turnover
-                    and i["Digital_Intent_Score"] >= (intent_filter.value or 0)
+                    and _score_val(i, "Digital_Intent_Score") >= (intent_filter.value or 0)
                     and (ownership_filter.value == "All"
                          or (ownership_filter.value == "Active only" and i["Ownership_Style"] == "Active")
                          or (ownership_filter.value == "Passive only" and i["Ownership_Style"] == "Passive"))]
@@ -1639,8 +1654,19 @@ def _institution_card(inst, meeting_log, contacts):
         with ui.row().classes("w-full gap-6").style("margin-top:6px;"):
             ui.label(f"Shares: {shares_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
             ui.label(f"QoQ: {qoq_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"Q1 call: {'' + inst['Listen_Duration'] if inst['Call_Listener'] else 'Did not listen'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"IR visits (30d): {inst['IR_Visits_30d']} · {inst['Last_Visit']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            # None means UNKNOWN, not "no". There is no call-listener or website-analytics
+            # integration, so rendering "Did not listen" / "None · None" for a real 13F holder
+            # asserts a negative we never measured. Say we don't know.
+            if inst.get("Call_Listener") is None:
+                _call_str = "no call data"
+            elif inst["Call_Listener"]:
+                _call_str = inst.get("Listen_Duration") or "listened"
+            else:
+                _call_str = "Did not listen"
+            _visits_str = ("no visit data" if inst.get("IR_Visits_30d") is None
+                           else f"{inst['IR_Visits_30d']} · {inst.get('Last_Visit') or '—'}")
+            ui.label(f"Q1 call: {_call_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"IR visits (30d): {_visits_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
         # marks a peer holding confirmed by a real SEC 13F filing (see
         # _enrich_peer_holdings_with_live_13f); an unmarked ticker is still
         # the original hand-typed seed guess — that ticker hasn't been
@@ -2085,7 +2111,7 @@ def _ndr_target_candidates(institutions, location, ndr_type):
     geography-bound. Non-holders are sorted first (conversion is the
     point of an NDR), holders after (relationship maintenance)."""
     if ndr_type == "virtual":
-        candidates = [i for i in institutions if not i["USIO_Holder"] and i["Engagement_Score"] >= 40]
+        candidates = [i for i in institutions if not i["USIO_Holder"] and _score_val(i) >= 40]
     else:
         candidates = [i for i in institutions if i["Metro"] == location]
     non_holders = sorted([i for i in candidates if not i["USIO_Holder"]], key=lambda x: -x["Engagement_Score"])
@@ -2335,7 +2361,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                     for idx, inst in enumerate(candidates):
                         default_check = idx < max_auto and not inst["USIO_Holder"]
                         days_since = _days_since_last_contact(inst["Fund"], meeting_log)
-                        border_clr = "#15803D" if inst["Engagement_Score"] >= 80 else "#B45309" if inst["Engagement_Score"] >= 50 else "#94A3B8"
+                        border_clr = "#15803D" if _score_val(inst) >= 80 else "#B45309" if _score_val(inst) >= 50 else "#94A3B8"
                         with cols[idx % 2]:
                             with ui.row().classes("w-full items-start gap-2").style(
                                     f"background:{COLORS['surface_hover_bg']};border-left:3px solid {border_clr};"

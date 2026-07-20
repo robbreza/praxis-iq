@@ -1651,7 +1651,12 @@ def _render_ir_plan(reviews, review_path):
         if ctx.get("op_margin") is not None:
             _bm_stat("Operating margin", f"{ctx['op_margin']:.1f}%", "the story to change", "#B45309")
         if ctx.get("ev_gp") is not None:
-            _bm_stat("EV / Gross Profit", f"{ctx['ev_gp']:.1f}x", f"{ctx['discount_gp']:.0f}% below median", COLORS["accent"])
+            # The guard covers ev_gp, but the sub-label formats discount_gp — a DIFFERENT field
+            # that is None whenever no peer median is on file (any newly-onboarded tenant). Say so
+            # rather than crashing the Reports page.
+            _gp_sub = (f"{ctx['discount_gp']:.0f}% below median"
+                       if ctx.get("discount_gp") is not None else "no peer median on file")
+            _bm_stat("EV / Gross Profit", f"{ctx['ev_gp']:.1f}x", _gp_sub, COLORS["accent"])
         if ctx.get("consensus_pt") and ctx.get("upside") is not None:
             _bm_stat("Consensus PT", f"${ctx['consensus_pt']:.2f}", f"{ctx['upside']:+.0f}% upside", "#15803D")
 
