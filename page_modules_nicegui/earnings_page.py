@@ -3018,8 +3018,12 @@ def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
 def _render_surprise_tracker_tab():
     surprises = _load_json("earnings_surprise_log.json", None)
     if surprises is None:
-        surprises = _default_surprises()
-        _save_json("earnings_surprise_log.json", surprises)
+        # _default_surprises() is a hardcoded USIO Q1 beat ($25.47 rev, +24.22% AH). Two bugs it
+        # used to cause: (1) it was shown for ANY tenant, so SARO displayed USIO's earnings
+        # history; (2) it was PERSISTED on first view, contaminating the real store with demo data.
+        # Now: only USIO gets the demo, and it is NOT written — an empty history stays empty until a
+        # real quarter is logged via "Log Quarter".
+        surprises = _default_surprises() if get_active_client_id() == "usio" else []
 
     ui.label("Consensus Tracker").classes("text-lg font-bold")
     ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:12px;")
@@ -3125,7 +3129,10 @@ def _render_surprise_tracker_tab():
                 if not s_q.value:
                     ui.notify("Quarter is required.", type="warning")
                     return
-                data = _load_json("earnings_surprise_log.json", _default_surprises())
+                # Start from real history only. Falling back to _default_surprises() here would
+                # prepend USIO's fabricated Q1 beat to a non-USIO client's first real logged
+                # quarter — the same demo-leak, now written permanently.
+                data = _load_json("earnings_surprise_log.json", None) or []
                 data.append({
                     "quarter": s_q.value, "date": s_dt.value, "rev_actual": s_ra.value, "rev_consensus": s_rc.value,
                     "rev_whisper": s_rw.value, "eps_actual": s_ea.value, "eps_consensus": s_ec.value,
