@@ -100,9 +100,13 @@ def compose_ir_plan(client_id=None):
     prospects = []
     try:
         from config.client_config import get_active_client_id
-        from data.seed.buyside_institutions import get_seed_buyside_institutions
+        # REAL universe, not data/seed/buyside_institutions.py. The seed's invented fund names
+        # ("Perkins Investment Management", "Rutabaga Capital") were reaching a client-facing PDF.
+        from core import targets as targets_mod
         from core.investor_scoring import score_institutions
-        scored = score_institutions(get_seed_buyside_institutions(client_id or get_active_client_id()),
+        _cid = client_id or get_active_client_id()
+        scored = score_institutions(targets_mod.targets_as_institutions(client_id=_cid)
+                                    + targets_mod.promoted_prospects(_cid),
                                     "pre_earnings", set(), [])
         nh = sorted([i for i in scored if not i.get("USIO_Holder")],
                     key=lambda i: -(i.get("Engagement_Score") or 0))[:5]

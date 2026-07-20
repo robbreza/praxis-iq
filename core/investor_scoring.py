@@ -38,19 +38,17 @@ from core import db
 # Today's pipeline widget) is one row here, keyed by Fund.
 # ─────────────────────────────────────────────────────────────────────────
 def load_meeting_log():
-    records = db.load_json("meeting_log.csv", default=None)
-    if records is not None:
-        return records
-    return [
-        {"Fund": "Perkins Investment Management", "Date": "2026-06-10", "Type": "1x1 — Investor Conference",
-         "Attendees": "Michael Perkins (PM), USIO CFO",
-         "Notes": "Discussed Q1 beat, PayFac pipeline. Positive tone. PM asked about FY2027 guidance.",
-         "Outcome": "Positive — follow up with Q2 preview deck", "Source": "Manual"},
-        {"Fund": "Ancora Advisors", "Date": "2026-05-28", "Type": "Intro call",
-         "Attendees": "Frederick DiSanto, IR",
-         "Notes": "First contact post-Q1 earnings. Owns GDOT. Interested in ACH growth story.",
-         "Outcome": "Warm — send earnings prep when available", "Source": "Manual"},
-    ]
+    """This client's logged interactions. EMPTY when nothing has been logged.
+
+    There used to be a hardcoded demo fallback here — two invented meetings, including one whose
+    attendees read "Michael Perkins (PM), USIO CFO". Because the fallback fired for ANY tenant with
+    no saved log, StandardAero's and CEVA's meeting logs both showed a meeting with USIO's CFO, and
+    those records flow into the 90-Day IR Plan and the board reports. A fabricated INTERACTION is
+    worse than a fabricated number: it asserts a conversation happened, with named people and
+    specific claims, in a document going to a client who knows it didn't.
+
+    An unworked meeting log is empty. That is the honest state and it renders as "none logged"."""
+    return db.load_json("meeting_log.csv", default=[]) or []
 
 
 def save_meeting_log(records):

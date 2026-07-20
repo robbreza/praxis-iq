@@ -685,59 +685,10 @@ def _sec_universe_records(client_id):
 
 
 def _promoted_prospect_records(client_id):
-    """Promoted NON-HOLDERS, as institution records.
-
-    Peer-overlap candidates are deliberately not auto-injected (see _sec_universe_records: dumping
-    every comp's holders in filled the universe with index/passive noise). They go through the Peer
-    Prospects review queue and land in prospects.json when the IR lead promotes one — but nothing
-    ever merged prospects.json back into the target universe, so promoted prospects were invisible
-    here. The fabricated seed used to supply fake non-holders, which hid the gap; with the seed gone
-    the Target Database showed holders only.
-
-    prospects.json uses its own lowercase shape (fund/metro/style/notes/score/source), so this maps
-    it onto the institution keys and marks the record a non-holder."""
-    records = db.load_json("prospects.json", default=[], client_id=client_id) or []
-    # Peer tickers come from the candidate queue by name, not by parsing the free-text notes —
-    # Catalyst Fit scores a non-holder higher when they actually hold comps.
-    comps_by_norm = {}
-    try:
-        from core import peer_prospects
-        for c in peer_prospects.build_candidates():
-            comps_by_norm[_norm_name(c.get("filer", ""))] = sorted((c.get("comps") or {}).keys())
-    except Exception:
-        pass
-
-    out = []
-    for p in records:
-        name = (p.get("fund") or "").strip()
-        if not name:
-            continue
-        peers = comps_by_norm.get(_norm_name(name), [])
-        out.append({
-            "Fund": name,
-            "Type": p.get("style"),
-            "AUM": None,
-            "Coverage_Priority": 2,
-            "USIO_Holder": False,           # the point: a real non-holder
-            "Shares": None, "QoQ_Change": None, "Position_Value": None, "Book_Pct": None,
-            "Conviction": None, "Direction": None,
-            "Peer_Holdings": peers,
-            "Peer_Holdings_Source": "SEC 13F" if peers else None,
-            # Must be a STRING, never None: the region filter does sorted({i["Metro"] ...}) and
-            # None vs str raises TypeError, which takes down the whole Investor Targeting page.
-            # prospects.json stores "—" for unknown geography.
-            "Metro": (p.get("metro") or "").replace("—", "").strip() or "Unknown (SEC)",
-            "Action": "Prospect — holds peers, not us" if peers else "Prospect — promoted for review",
-            "Source": p.get("source") or "Promoted prospect",
-            "Notes": p.get("notes"),
-            "Fit_Score": p.get("score"),
-            "link": None,
-            # no source for these — omitted from scoring rather than scored zero
-            "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
-            "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
-            "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
-        })
-    return out
+    """Promoted non-holders. Delegates to core.targets.promoted_prospects — the report generators
+    need the same list, and a second copy here would drift."""
+    from core import targets as targets_mod
+    return targets_mod.promoted_prospects(client_id)
 
 
 def _score_val(inst, key="Engagement_Score"):

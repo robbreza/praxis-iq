@@ -201,6 +201,60 @@ def targets_as_institutions(client_id=None, ticker=None):
     return out
 
 
+def promoted_prospects(client_id=None):
+    """Promoted NON-HOLDERS as institution records — the real prospect list.
+
+    Lives in core (not the page module) because BOTH the Investor Targeting page and the report
+    generators need it. core/ir_plan.py used to take its "top 5 prospects" from the fabricated
+    seed, which put invented fund names ("Perkins Investment Management", "Rutabaga Capital") into
+    a PDF meant for a client.
+
+    Peer-overlap candidates are deliberately not auto-injected (that floods the universe with
+    index/passive noise); they enter via the Peer Prospects review queue and land in prospects.json
+    when promoted. prospects.json uses its own lowercase shape, mapped here onto institution keys.
+    """
+    from config.client_config import get_active_client_id
+    from core import db
+    cid = client_id or get_active_client_id()
+    records = db.load_json("prospects.json", default=[], client_id=cid) or []
+
+    # peer tickers from the candidate queue by name — not parsed out of the free-text notes
+    comps_by_norm = {}
+    try:
+        from core import peer_prospects
+        for c in peer_prospects.build_candidates(cid, limit=None):
+            comps_by_norm[peer_prospects._norm(c.get("filer", ""))] = sorted((c.get("comps") or {}).keys())
+    except Exception:
+        pass
+
+    out = []
+    for p in records:
+        name = (p.get("fund") or "").strip()
+        if not name:
+            continue
+        try:
+            from core import peer_prospects as _pp
+            peers = comps_by_norm.get(_pp._norm(name), [])
+        except Exception:
+            peers = []
+        out.append({
+            "Fund": name, "Type": p.get("style"), "AUM": None, "Coverage_Priority": 2,
+            "USIO_Holder": False,
+            "Shares": None, "QoQ_Change": None, "Position_Value": None, "Book_Pct": None,
+            "Conviction": None, "Direction": None,
+            "Peer_Holdings": peers, "Peer_Holdings_Source": "SEC 13F" if peers else None,
+            # Must be a STRING, never None — the region filter sorts these and None vs str raises.
+            "Metro": (p.get("metro") or "").replace("—", "").strip() or "Unknown (SEC)",
+            "Action": "Prospect — holds peers, not us" if peers else "Prospect — promoted for review",
+            "Source": p.get("source") or "Promoted prospect",
+            "Notes": p.get("notes"), "Fit_Score": p.get("score"), "link": None,
+            "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
+            "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
+            "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
+        })
+    return out
+
+
 def coverage(client_id=None, ticker=None):
     """How complete the target universe is — what share of holders carry real magnitude and a
     reachable contact. Use this to decide whether targeting is ready to drive off 13F for a client
