@@ -105,26 +105,15 @@ def _refresh():
 # count (core.activity_log), and the Script Generation tab's current stage.
 # ─────────────────────────────────────────────────────────────────────────
 def _seed_weekly_briefs():
-    return [
-        {"week": "Week of Jun 23, 2026", "status": "Draft ready",
-         "summary": "$2.15 stock price · Ancora intro completed · NDR planning initiated · Script workflow Stage 2",
-         "seeded": True},
-        {"week": "Week of Jun 16, 2026", "status": "Sent",
-         "summary": "$1.98 stock price · Rutabaga 6th site visit logged · Q2 consensus $25.1M · Quiet period 34 days",
-         "seeded": True},
-        {"week": "Week of Jun 9, 2026", "status": "Sent",
-         "summary": "$2.03 stock price · HCW conference registration opened · Perkins position increase noted",
-         "seeded": True},
-    ]
+    # No fabricated example briefs. The originals ("Rutabaga 6th site visit logged", "Ancora intro
+    # completed", "Perkins position increase noted") were demo activity that never happened and
+    # read as real IR history in a client-facing Reports tab. Empty until a real brief is generated.
+    return []
 
 
 def _load_weekly_briefs():
-    briefs = _load_json("weekly_briefs.json", default=None)
-    if briefs is not None:
-        return briefs
-    seeded = _seed_weekly_briefs()
-    _save_json("weekly_briefs.json", seeded)
-    return seeded
+    # Real briefs only; no auto-persisted seed (that's what wrote fabricated history into the store).
+    return _load_json("weekly_briefs.json", default=None) or []
 
 
 def _compose_weekly_brief():
