@@ -1095,6 +1095,50 @@ def _render_peer_prospects_tab(client_id):
                                 ui.button("Promote", on_click=_promote_ria).props("flat dense size=sm color=primary")
                                 ui.button("Dismiss", on_click=_dismiss_ria).props("flat dense size=sm")
 
+        # ── Large diversified / index-family managers ───────────────────────
+        # These were DROPPED outright on the assumption that a big book "never takes a micro-cap
+        # NDR". That's a bad assumption: they may not chase a meeting, but if you're already in
+        # their city and they own you or a comp they'll usually take one — and their analysts often
+        # WANT to meet a competitor they DON'T own, for candid industry colour. So they're a review
+        # bucket now, ranked by how much of the peer set they actually own.
+        _div = peer_prospects.build_candidates(client_id, limit=None, kind="diversified")
+        if _div:
+            with ui.expansion(f"Large diversified & index-family managers ({len(_div)})",
+                              icon="corporate_fare", value=False).classes("w-full").style(
+                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:12px;"):
+                ui.label("Index families, bank asset-management arms, and wide-book active managers "
+                         "(Capital Group, Fidelity, Clearbridge…). They run real fundamental strategies. "
+                         "Worth a meeting when you're already in their city, when they own a comp, or "
+                         "when they want industry colour on a name they don't own. Ranked by peer position.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                for r in _div:
+                    with ui.row().classes("w-full items-center justify-between no-wrap").style(
+                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                        with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                            ui.label(r["filer"]).style(
+                                f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                            loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                            comps = ", ".join(sorted(r["comps"].keys()))
+                            why = "wide book" if r.get("broad_book") else "index / bank AM"
+                            ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps} · {why}").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                        with ui.row().classes("gap-1").style("flex-shrink:0;"):
+                            if r.get("promoted"):
+                                ui.button("Undo", on_click=lambda r=r: (
+                                    peer_prospects.reset(r["key"]), _list.refresh())).props("flat dense size=sm")
+                            else:
+                                def _promote_div(r=r):
+                                    peer_prospects.promote(r)
+                                    ui.notify(f"Promoted {r['filer']} for review.", type="positive")
+                                    _list.refresh()
+
+                                def _dismiss_div(r=r):
+                                    peer_prospects.dismiss(r["key"])
+                                    _list.refresh()
+
+                                ui.button("Promote", on_click=_promote_div).props("flat dense size=sm color=primary")
+                                ui.button("Dismiss", on_click=_dismiss_div).props("flat dense size=sm")
+
     _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
     _list()
 

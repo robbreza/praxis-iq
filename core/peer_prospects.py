@@ -31,24 +31,37 @@ from config.client_config import CP, CT, get_active_client_id
 _TIGHT = {"RPAY", "CASS", "CSGS", "PSFE", "PAY"}
 _DECISIONS_KEY = "peer_prospect_decisions.json"
 
-# Pure passive / index / market-maker / mega-diversified books — they hold
-# ~everything and never take a micro-cap NDR. Substring match on the lowercased
-# filer name; the breadth filter catches the rest generically.
-_PASSIVE = [
+# ─────────────────────────────────────────────────────────────────────────
+# Two DIFFERENT kinds of "big holder", split because they warrant different
+# treatment. The old code lumped them together and DROPPED both on the
+# assumption that they "never take a micro-cap NDR" — which is wrong as IR
+# practice. A large fund may not chase a meeting, but if you're already in
+# their city and they own you or a comp, they'll usually take one; and analysts
+# there often WANT to meet a non-held competitor for candid industry colour.
+# So these are now bucketed for review, not discarded.
+#
+# _MARKET_MAKER is the genuine exception: HFT/prop/ETF-mechanics books hold
+# inventory with no fundamental PM on the other side of the table, so there is
+# nobody to meet. They get their own bucket rather than vanishing silently.
+_MARKET_MAKER = [
+    "susquehanna", "two sigma", "jane street", "millennium", "d e shaw", "de shaw",
+    "optiver", "imc ", "imc b.v.", "flow traders", "virtu", "drw ", "jump trading",
+    "hudson river trading", "tower research", "xtx ", "quantbot", "gamma investing",
+    "squarepoint", "headlands technologies", "citadel", "renaissance tech",
+    # ETF issuers — the holding is index mechanics, not a PM's decision
+    "themes management", "global x", "first trust", "wisdomtree", "vaneck",
+    "direxion", "proshares", "exchange traded concepts",
+]
+
+# _DIVERSIFIED — index families and bank/brokerage asset-management arms. These
+# DO have active fundamental PMs (Fidelity's active funds, Capital Group, GSAM,
+# MSIM, JPMAM, Nuveen, Invesco active). Bucketed for review, never dropped.
+_DIVERSIFIED = [
     # Index / passive / mega-diversified
     "vanguard", "blackrock", "state street", "geode", "northern trust",
     "charles schwab investment", "dimensional fund", "invesco", "nuveen",
     "teachers advisors", "fmr llc", "geode capital", "legal & general",
     "legal and general",
-    # Market makers / HFT / prop — hold everything as inventory, never take an NDR
-    "susquehanna", "citadel", "two sigma", "renaissance tech", "jane street",
-    "millennium", "d e shaw", "de shaw", "optiver", "imc ", "imc b.v.",
-    "flow traders", "virtu", "drw ", "jump trading", "hudson river trading",
-    "tower research", "xtx ", "quantbot", "gamma investing", "squarepoint",
-    "headlands technologies",
-    # ETF issuers — the holding is index mechanics, not a PM's decision
-    "themes management", "global x", "first trust", "wisdomtree", "vaneck",
-    "direxion", "proshares", "exchange traded concepts",
     # Banks / brokerages
     "morgan stanley", "goldman sachs", "jpmorgan", "jp morgan", "bank of america",
     "wells fargo", "royal bank of canada", "bnp paribas", "ubs ", "deutsche bank",
@@ -111,16 +124,31 @@ def _lower(n):
     return " ".join(str(n).lower().split())
 
 
-def is_passive(name):
-    """True if a filer is an index/passive book, market maker, bank, or ETF
-    issuer — it holds the name as inventory or index mechanics, so it's never a
-    target and is dropped outright. Public because core.prospecting's
-    coverage-network pipeline shares this denylist; one list governs both
-    prospect surfaces.
-
-    NOTE: RIAs/wealth managers are NOT here — see is_ria()."""
+def is_market_maker(name):
+    """True for HFT / prop / ETF-mechanics books. These hold the name as inventory with no
+    fundamental PM on the other side, so there is genuinely nobody to meet — the one group where
+    "won't take a meeting" is a fact about the business model, not an assumption about size."""
     lo = _lower(name)
-    return any(p in lo for p in _PASSIVE)
+    return any(p in lo for p in _MARKET_MAKER)
+
+
+def is_diversified(name):
+    """True for index families and bank/brokerage asset-management arms (Fidelity, Capital Group,
+    Invesco, Nuveen, GSAM, MSIM, JPMAM...).
+
+    These are NOT dropped. They run active fundamental strategies with real PMs, and IR practice is
+    that a large holder who won't chase a meeting will usually take one if you're already in their
+    city and they own you or a comp — analysts there often want to meet a non-held competitor for
+    candid industry colour. They go to a review bucket so the IR lead decides, not the filter."""
+    lo = _lower(name)
+    return any(p in lo for p in _DIVERSIFIED)
+
+
+def is_passive(name):
+    """Back-compat: either kind of big book. Retained because core.prospecting's coverage-network
+    pipeline calls it. Prefer is_market_maker() / is_diversified() — they mean different things and
+    warrant different treatment."""
+    return is_market_maker(name) or is_diversified(name)
 
 
 def is_ria(name):
@@ -239,16 +267,26 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
     # Filter: suppress existing holders, drop passive/market-makers outright,
     # route RIAs to their own bucket, drop extreme-breadth quasi-index books and
     # dismissed decisions.
-    kept, rias = [], []
+    kept, rias, diversified, makers = [], [], [], []
     for key, r in cand.items():
         if (r["cik"] and r["cik"] in sup_ciks) or r["norm"] in sup_names:
-            continue
-        if is_passive(r["filer"]):
             continue
         dec = decisions.get(key, {}).get("decision")
         if dec == "dismissed" and not include_dismissed:
             continue
         r["decision"] = dec
+        # Market makers: no fundamental PM to meet. Bucketed, not silently dropped.
+        if is_market_maker(r["filer"]):
+            r["kind"] = "market_maker"
+            makers.append(r)
+            continue
+        # Large diversified / bank AM arms: they DO have active PMs. Previously dropped on the
+        # assumption they'd never take a micro-cap NDR — wrong as IR practice, so they go to a
+        # review bucket and the IR lead decides.
+        if is_diversified(r["filer"]):
+            r["kind"] = "diversified"
+            diversified.append(r)
+            continue
         if is_ria(r["filer"]):
             # RIA/wealth bucket — video-call tier, not an NDR target. NO breadth
             # gate here: an RIA holding thousands of positions is normal (that's
@@ -259,6 +297,13 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
                 rias.append(r)
             continue
         if (r.get("book_positions") or 0) > 600:
+            # Breadth alone is NOT disqualifying. This cliff was dropping the largest peer
+            # positions in the universe — Capital World Investors (Capital Group) at $107M runs
+            # ~620 positions, Clearbridge $80M at 794, Ensign Peak $136M at 1,708. A wide book is
+            # what a large active manager looks like, not evidence they won't meet. Bucket it.
+            r["kind"] = "diversified"
+            r["broad_book"] = True
+            diversified.append(r)
             continue
         r["kind"] = "institutional"
         kept.append(r)
@@ -273,6 +318,20 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
         # Position size is the only thing that makes one of these worth a call.
         rias.sort(key=lambda r: (-int(r["promoted"]), -(r["peer_value"] or 0)))
         return rias[:limit] if limit else rias
+
+    if kind in ("diversified", "market_maker"):
+        # Review buckets. Not conviction-scored — these aren't ranked against the NDR target list;
+        # the IR lead reviews them and promotes anyone worth a meeting. Ranked by how much of the
+        # peer group they actually own, which is what makes one worth the call.
+        bucket = diversified if kind == "diversified" else makers
+        for r in bucket:
+            r["tight_comps"] = sum(1 for c in r["comps"].values() if c["tight"])
+            r["n_comps"] = len(r["comps"])
+            r["concentration"] = (r["peer_value"] / r["book_total"]) if r.get("book_total") else None
+            r["conviction"] = None
+            r["promoted"] = r.get("decision") == "promoted"
+        bucket.sort(key=lambda r: (-int(r["promoted"]), -(r["peer_value"] or 0)))
+        return bucket[:limit] if limit else bucket
 
     # Relative size fit — smallest book ⇒ rank 1.0 (best for a micro-cap).
     books = sorted([r["book_total"] for r in kept if r.get("book_total")])
