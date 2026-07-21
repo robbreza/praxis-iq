@@ -160,10 +160,11 @@ def get_revision_momentum(period="Q2 2026E"):
         elif chg_pct < 0:
             cutting.append((firm, chg_pct))
 
+    n_periods = len(labels)
     moves = raising + cutting
     if not moves:
-        msg = "No net PT revisions over the 8-quarter history — every covering analyst is flat or inactive."
-        return {"status": "YELLOW", "headline": "No net revisions", "detail": "Every analyst flat or inactive.", "full": msg}
+        msg = f"No net PT revisions across {n_periods} logged period{'s' if n_periods != 1 else ''} — every covering analyst is flat."
+        return {"status": "YELLOW", "headline": "No net revisions", "detail": "Every covering analyst flat.", "full": msg}
 
     n = len(moves)
     status = "GREEN" if raising and not cutting else "RED" if cutting and not raising else "YELLOW"
@@ -173,8 +174,8 @@ def get_revision_momentum(period="Q2 2026E"):
     return {
         "status": status,
         "headline": headline,
-        "detail": f"{move_list}, the rest flat or inactive.",
-        "full": f"{headline} over 8 quarters ({move_list}) — the rest flat or inactive.",
+        "detail": f"{move_list}, the rest flat.",
+        "full": f"{headline} over {n_periods} logged period{'s' if n_periods != 1 else ''} ({move_list}) — the rest flat.",
     }
 
 

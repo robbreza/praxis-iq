@@ -99,6 +99,45 @@ def _stat_callout(slide, left, top, width, label, value, sub, value_color):
     ] + ([(sub, 11, False, _MUTED)] if sub else []))
 
 
+def _pt_drift_placeholder_slide(client_name, ticker):
+    """Honest one-slide fallback when there's no real multi-period PT drift yet: shows the current
+    PTs we DO hold (from the registry) and states that the drift history accrues as PTs are logged.
+    Never draws an invented 8-quarter chart."""
+    from config.client_config import analysts_with_pt
+
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = _NAVY
+
+    _textbox(slide, Inches(0.5), Inches(0.35), Inches(12.3), Inches(0.55), [
+        (f"{client_name} ({ticker}) — Price Target Drift Tracker", 26, True, _WHITE),
+    ])
+    _textbox(slide, Inches(0.5), Inches(0.92), Inches(12.3), Inches(0.35), [
+        (f"Generated {datetime.now().strftime('%b %d, %Y')}", 11, False, _MUTED),
+    ])
+
+    lines = [("Current price targets", 16, True, _WHITE)]
+    aps = sorted(analysts_with_pt(), key=lambda a: -(a.get("pt") or 0))
+    if aps:
+        for a in aps:
+            rating = a.get("rating") or "no rating logged"
+            lines.append((f"{a.get('firm')} — {a.get('name')}:   ${a.get('pt'):.2f}   ({rating})", 13, False, _ICE))
+    else:
+        lines.append(("No analyst price targets logged yet.", 13, False, _MUTED))
+    lines.append((" ", 8, False, _MUTED))
+    lines.append(("PT drift history is not yet tracked — it accumulates as each analyst's PT is logged "
+                  "per quarter (Earnings → Model Intake). A multi-quarter drift chart appears here once "
+                  "at least two periods of PTs are on file.", 12, False, _MUTED))
+    _textbox(slide, Inches(0.5), Inches(1.7), Inches(12.3), Inches(5.0), lines)
+
+    buf = BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
+
+
 def generate_pt_drift_slide(client_name, ticker, seed, revision_momentum=None):
     """Returns pptx bytes for a one-slide PT Drift Tracker board slide,
     built from `seed` (data.seed.consensus_estimates's dict — the same one
@@ -110,6 +149,12 @@ def generate_pt_drift_slide(client_name, ticker, seed, revision_momentum=None):
     stock_prices = pt_hist.get("stock_prices", [])
     by_firm = pt_hist.get("by_firm", {})
     last_price = stock_prices[-1] if stock_prices else 0
+
+    # No real multi-period drift on file → render an honest current-PTs slide, never a fabricated
+    # 8-quarter chart. (pt_history is now built from logged PTs by core.consensus; it's empty until
+    # ≥2 periods carry a PT.) This is also why the on-screen export button is gated for now.
+    if not by_firm or len(labels) < 2:
+        return _pt_drift_placeholder_slide(client_name, ticker)
 
     prs = Presentation()
     prs.slide_width = Inches(13.333)

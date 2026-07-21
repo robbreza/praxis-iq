@@ -25,6 +25,24 @@ from datetime import datetime
 from core import activity_log, db
 from data.seed.consensus_estimates import get_seed_consensus
 
+
+def _real_pt_history(seed):
+    """Honest PT-drift series — and right now there genuinely isn't one.
+
+    A real drift chart needs PTs SNAPSHOTTED over calendar time (this firm's PT was $X in Mar,
+    $Y in Jun). The platform doesn't capture that yet:
+      • the registry holds each analyst's CURRENT PT — a single point in time, not a series;
+      • `period_estimates` is keyed by FORWARD estimate period (Q2 2026E = the quarter being
+        estimated FOR), NOT by when a PT was set — and the seed stamps today's PT across every
+        forward period, which would read as a flat multi-quarter "history" that never happened.
+
+    So there is no genuine time series to build. We return empty, and every consumer (Markets PT
+    Drift Tracker, risk_scorecard revision momentum, board_slides export, narrative_engine PT
+    momentum) falls through to its honest "not tracked yet" state instead of showing fabricated or
+    misconstrued drift. The current PTs we DO hold are surfaced directly from the registry on the
+    PT Drift Tracker. A real series turns on when a dedicated PT-snapshot log is added (future)."""
+    return {"labels": [], "by_firm": {}, "colors": {}, "stock_prices": []}
+
 _ESTIMATE_FIELDS = ("Rating", "Price Target", "EPS Est", "Revenue Est ($M)", "EBITDA Est ($M)")
 
 
@@ -45,6 +63,11 @@ def get_consensus(client_id=None):
     seed["period_guidance"] = db.load_json("period_guidance.json", None, client_id=cid) or seed.get("period_guidance", {})
     override_dates = db.load_json("analyst_dates_override.json", {}, client_id=cid) or {}
     seed["analyst_dates"] = {**seed.get("analyst_dates", {}), **override_dates}
+    # Replace the seed's fabricated 8-quarter pt_history with the honest one (currently empty —
+    # the platform has no real PT-snapshot-over-time source; see _real_pt_history). Every
+    # downstream consumer reads pt_history through this function, so this one line makes the whole
+    # app's PT-drift story honest at the source.
+    seed["pt_history"] = _real_pt_history(seed)
     return seed
 
 
