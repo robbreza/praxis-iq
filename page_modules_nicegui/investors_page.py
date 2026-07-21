@@ -2700,7 +2700,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                             inst_in = ui.input("Institution *").classes("flex-1")
                             contact_in = ui.input(
                                 "Who you're meeting (name / title)",
-                                placeholder="e.g. Michael Perkins, PM; Jane Doe, Analyst").classes("flex-1")
+                                placeholder="e.g. Jane Smith, PM; John Doe, Analyst").classes("flex-1")
                         with ui.row().classes("w-full gap-4"):
                             address_in = ui.input(
                                 "Address / location",
