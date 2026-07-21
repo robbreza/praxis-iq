@@ -1080,12 +1080,70 @@ def _render_nobo():
         # ownership base. get_active_pulls falls back to source='demo' until a Broadridge file lands.
         if source == "demo":
             from page_modules_nicegui.signals import waiting_signal
+            from core import targets as targets_mod
             ui.label("NOBO Ownership Analysis").classes("text-lg font-bold")
+
+            # SURFACE-FIRST (2026-07-21): before any Broadridge NOBO file exists, tell the ownership
+            # story we CAN tell from PUBLIC 13F filings — real institutional holders, concentration
+            # and add/trim momentum. The Broadridge upload then ADDS the retail/beneficial layer 13F
+            # can't see. Never the fabricated demo holders. See memory: surface-first-then-refine.
+            def _fmtv(v):
+                if not v:
+                    return "—"
+                if v >= 1e9:
+                    return f"${v / 1e9:.1f}B"
+                if v >= 1e6:
+                    return f"${v / 1e6:.1f}M"
+                return f"${v / 1e3:.0f}K"
+
+            _act = {"new": "New — engage", "adding": "Adding", "trimming": "Trimming — why?",
+                    "exited": "Exited", "flat": "Flat"}
+            holders = targets_mod.targets_from_13f(cid)
+            sized = [h for h in holders if h.get("Position_Value")]
+            if sized:
+                total_val = sum(h["Position_Value"] for h in sized)
+                total_sh = sum(h.get("Shares") or 0 for h in sized)
+                top10 = sorted(sized, key=lambda h: -(h["Position_Value"] or 0))[:10]
+                top10_pct = round(sum(h["Position_Value"] for h in top10) / total_val * 100) if total_val else 0
+                inst_pct = round(total_sh / so * 100, 1) if so else None
+                dirs = [h.get("Direction") for h in holders]
+                n_acc = sum(1 for d in dirs if d in ("new", "adding"))
+                n_dist = sum(1 for d in dirs if d in ("trimming", "exited"))
+
+                ui.label("Institutional ownership — live from public 13F filings").classes("font-bold").style(
+                    "margin-top:6px;")
+                ui.label("Your institutional base out of the box, sourced from EDGAR 13F. NOBO (below) adds the "
+                         "retail & beneficial owners that 13F never captures.").style(
+                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+                with ui.row().classes("w-full gap-3"):
+                    _metric("13F holders", f"{len(sized)}", "institutions on file")
+                    _metric("Institutional $ held", _fmtv(total_val), f"{total_sh:,} shares")
+                    _metric("Held vs shares out", f"≥{inst_pct:.1f}%" if inst_pct is not None else "—",
+                            "of shares outstanding · 13F filers only")
+                    _metric("Top-10 concentration", f"{top10_pct}%", "of 13F-visible value")
+                if n_acc or n_dist:
+                    _tone = "net accumulation" if n_acc > n_dist else "net distribution" if n_dist > n_acc else "mixed"
+                    ui.label(f"Position momentum — {n_acc} accumulating (new / adding) vs {n_dist} trimming / exited: "
+                             f"{_tone}.").style(f"color:{COLORS['text_muted']};font-size:11.5px;margin-top:2px;")
+                _rows = [{
+                    "Holder": (h.get("Fund") or "—").title(),
+                    "Value": _fmtv(h.get("Position_Value")),
+                    "Book %": f"{h['Book_Pct']:.2f}%" if h.get("Book_Pct") is not None else "—",
+                    "Conviction": h.get("Conviction") or "—",
+                    "Action": _act.get(h.get("Direction"), "—"),
+                } for h in top10]
+                ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in _rows[0].keys()],
+                         rows=_rows, row_key="Holder").classes("w-full").props("dense flat")
+                ui.markdown("---")
+
             waiting_signal(
                 "your Broadridge NOBO file",
-                detail="No NOBO pull is loaded yet. Upload a Broadridge NOBO CSV to activate this section.",
-                unlocks="ownership composition & concentration, coverage of shares outstanding, "
-                        "5%+ threshold alerts, and the two-pull flow read (who's accumulating vs trimming).")
+                detail=("Above is your INSTITUTIONAL base from public 13F filings. Upload a Broadridge NOBO CSV to "
+                        "add the retail & beneficial owners 13F can't see — completing the ownership picture."
+                        if sized else
+                        "No NOBO pull is loaded yet. Upload a Broadridge NOBO CSV to activate this section."),
+                unlocks="retail & beneficial composition, coverage of shares outstanding, 5%+ threshold alerts, "
+                        "and the two-pull flow read (who's accumulating vs trimming).")
             with ui.card().classes("w-full").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:8px;margin-top:8px;"):
                 ui.label("Upload a NOBO pull").classes("font-bold").style("font-size:12px;")
