@@ -1030,30 +1030,21 @@ def _render_pt_drift(seed):
 
 
 def _render_rating_actions():
-    """Analyst rating CHANGES from Finnhub (upgrades/downgrades/initiations) — the quant &
-    aggregator moves (Verus, Zacks) our covering desks don't include. Distinct signal, often a
-    good market-timing read. No key -> a connect prompt; nothing fabricated."""
+    """Analyst rating CHANGES from Yahoo (upgrades/downgrades/initiations + PT moves) — the covering
+    desks' actual rating & price-target trail over time. Free, no key. A real market-timing read;
+    nothing fabricated (empty = Yahoo had nothing)."""
     from core import rating_actions
-    from page_modules_nicegui.signals import waiting_signal
 
     ui.markdown("---")
-    ui.label("Analyst rating changes — upgrades & downgrades").classes("font-bold")
-    ui.label("Structured rating moves (Finnhub) from quant & aggregator shops — Verus, Zacks and the like — "
-             "separate from the covering desks above. These can be early market-timing signals.").style(
+    ui.label("Analyst rating changes — upgrades, downgrades & PT moves").classes("font-bold")
+    ui.label("Named sell-side desk actions over time, live from Yahoo (free). Quant/aggregator wire items "
+             "(Verus, Zacks) ride a paid feed and aren't shown here.").style(
         f"color:{COLORS['text_muted']};font-size:11.5px;")
-
-    if not rating_actions.has_key():
-        waiting_signal(
-            "your Finnhub API key",
-            detail="Add a free Finnhub key to .env (FINNHUB_API_KEY=...) to pull the full upgrade/downgrade "
-                   "history for this ticker — including a one-time backfill of past rating changes.",
-            unlocks="a dated feed of every analyst upgrade/downgrade/initiation, on the Today tab and weekly brief.")
-        return
 
     items = rating_actions.recent(limit=8)
     if not items:
-        ui.label("Finnhub key detected, but no rating changes are stored yet — run a refresh to backfill the "
-                 "history (Settings → data refresh, or the Console ↻).").style(
+        ui.label("No rating actions on file yet — a data refresh pulls the full Yahoo history for this "
+                 "ticker (Console ↻, or the startup refresh).").style(
             f"color:{COLORS['text_muted']};font-size:12px;")
         return
 
