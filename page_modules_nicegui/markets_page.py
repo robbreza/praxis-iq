@@ -1021,10 +1021,49 @@ def _render_pt_drift(seed):
                          "them into the range above and the drift history.").style(
                     f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
+    _render_rating_actions()
+
     waiting_signal("logged analyst PTs over time",
                    detail="Each PT is captured as models and analyst notes are logged; a multi-quarter drift chart "
                           "appears once at least two quarters of PTs are on file.",
                    unlocks="the PT drift chart and raising/cutting direction per analyst over time.")
+
+
+def _render_rating_actions():
+    """Analyst rating CHANGES from Finnhub (upgrades/downgrades/initiations) — the quant &
+    aggregator moves (Verus, Zacks) our covering desks don't include. Distinct signal, often a
+    good market-timing read. No key -> a connect prompt; nothing fabricated."""
+    from core import rating_actions
+    from page_modules_nicegui.signals import waiting_signal
+
+    ui.markdown("---")
+    ui.label("Analyst rating changes — upgrades & downgrades").classes("font-bold")
+    ui.label("Structured rating moves (Finnhub) from quant & aggregator shops — Verus, Zacks and the like — "
+             "separate from the covering desks above. These can be early market-timing signals.").style(
+        f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+    if not rating_actions.has_key():
+        waiting_signal(
+            "your Finnhub API key",
+            detail="Add a free Finnhub key to .env (FINNHUB_API_KEY=...) to pull the full upgrade/downgrade "
+                   "history for this ticker — including a one-time backfill of past rating changes.",
+            unlocks="a dated feed of every analyst upgrade/downgrade/initiation, on the Today tab and weekly brief.")
+        return
+
+    items = rating_actions.recent(limit=8)
+    if not items:
+        ui.label("Finnhub key detected, but no rating changes are stored yet — run a refresh to backfill the "
+                 "history (Settings → data refresh, or the Console ↻).").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        return
+
+    _tone = {"up": "#15803D", "down": "#B91C1C", "init": "#1E40AF"}
+    for it in items:
+        col = _tone.get(it.get("action"), COLORS["text_muted"])
+        with ui.row().classes("w-full items-center").style("gap:10px;"):
+            ui.label(rating_actions.glyph(it)).style(f"color:{col};font-weight:800;font-size:13px;")
+            ui.label(it.get("date") or "—").style(f"color:{COLORS['text_muted']};font-size:11.5px;min-width:82px;")
+            ui.label(rating_actions.describe(it)).style(f"color:{COLORS['text_body']};font-size:12.5px;")
 
     ui.markdown("---")
     ui.label("PT Justification & Valuation Methodology").classes("font-bold")

@@ -956,6 +956,20 @@ async def _kick_off_peer_watch():
             print(f"[startup] Peer news: {len(news)} article(s) in the rolling 7-day window.")
         except Exception as e:
             print(f"[startup] Peer news refresh failed (non-fatal): {e}")
+        try:
+            from core import rating_actions
+            from config.client_config import CLIENT_REGISTRY
+            if rating_actions.has_key():
+                total = 0
+                for _cid, _rec in CLIENT_REGISTRY.items():
+                    tk = _rec.get("ticker")
+                    if tk:
+                        total += len(await asyncio.to_thread(rating_actions.refresh, _cid, tk))
+                print(f"[startup] Rating actions (Finnhub): {total} change(s) backfilled across tenants.")
+            else:
+                print("[startup] Rating actions: FINNHUB_API_KEY not set — add it to .env to enable.")
+        except Exception as e:
+            print(f"[startup] Rating actions refresh failed (non-fatal): {e}")
         while True:
             await asyncio.sleep(12 * 3600)
             try:

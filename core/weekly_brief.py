@@ -182,6 +182,14 @@ def _news_section():
     return out
 
 
+def _rating_actions_section(cid):
+    """Analyst rating CHANGES (Finnhub) — upgrades/downgrades/initiations. Surface data that
+    catches quant & aggregator moves (Verus, Zacks) the covering desks don't cover."""
+    from core import rating_actions
+    items = _safe(lambda: rating_actions.recent(cid, limit=4), None) or []
+    return [rating_actions.describe(i) for i in items]
+
+
 def _ownership_section(cid):
     """Ownership read from PUBLIC 13F filings — holder count, institutional coverage of the float,
     add/trim momentum, and the single most-actionable mover. Surface data, no client input needed."""
@@ -228,6 +236,7 @@ def compose(client_id=None):
 
     add("Market", market_lines)
     add("Earnings & script workflow", _earnings_section())
+    add("Analyst rating changes", _rating_actions_section(cid))
     add("Ownership (13F)", _ownership_section(cid))
     add("IR activity this week", _activity_section())
     add("Investor pipeline", _pipeline_section(cid))
