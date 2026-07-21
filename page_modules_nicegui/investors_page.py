@@ -1367,9 +1367,18 @@ def _render_big_picture(institutions):
         m = city_to_metro.get(city, city)
         visits_by_metro[m] = visits_by_metro.get(m, 0) + 1
 
+    # Cluster raw "City, ST" holder metros into the same ~60-mile roadshow metros the unified
+    # prospect view uses (Twin Cities as one stop, not Wayzata/Minneapolis split). Holders don't
+    # carry raw city/state, so parse the "City, ST" label back through _metro_from_city.
+    def _cluster(label):
+        if not label or label in ("Unknown (SEC)", "International") or ", " not in label:
+            return label or "Unknown (SEC)"
+        city, st = label.rsplit(", ", 1)
+        return _metro_from_city(city, st)
+
     metro_summary = {}
     for i in institutions:
-        m = i["Metro"]
+        m = _cluster(i["Metro"])
         d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1, "insts": []})
         d["count"] += 1
         d["insts"].append(i)
@@ -1391,7 +1400,7 @@ def _render_big_picture(institutions):
         _prospects = []
     for c in _prospects:
         city, state = (c.get("city") or "").strip(), (c.get("state") or "").strip()
-        m = (f"{city.title()}, {state}" if city and state else (city.title() or state)) or "Unknown (SEC)"
+        m = _metro_from_city(city, state)     # same ~60-mile roadshow clustering as the holders above
         d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0,
                                          "top": None, "top_score": -1, "insts": []})
         d["count"] += 1
