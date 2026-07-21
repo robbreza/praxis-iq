@@ -1012,54 +1012,24 @@ def _render_pt_drift(seed):
 
     ui.markdown("---")
     ui.label("PT Justification & Valuation Methodology").classes("font-bold")
-    ui.label("Every analyst uses a valuation framework to justify their PT — reverse-engineering the implied "
-             "multiple tells you whether they're applying a premium, discount, or in-line multiple.").style(
+    ui.label("Reverse-engineering each analyst's implied multiple (their PT against our real share "
+             "count and net debt) shows whether they're applying a premium, discount, or in-line "
+             "multiple — and flags a PT that has drifted too far above the tape to stay credible.").style(
         f"color:{COLORS['text_muted']};font-size:11.5px;")
-
-    fin = seed.get("financial_position", {})
-    shares_out = fin.get("shares_out_m", 0)
-    net_debt = fin.get("net_debt_m", 0)
-    current_ev = last_price * shares_out + net_debt
-
-    for firm, j in seed.get("pt_justification", {}).items():
-        implied_ev = j["current_pt"] * shares_out + net_debt
-        implied_multiple = round(implied_ev / j["rev_estimate"], 2) if j.get("rev_estimate") else 0
-        distance_pct = round((j["current_pt"] / last_price - 1) * 100, 1)
-        appreciation = round((last_price / j["stock_at_set"] - 1) * 100, 1) if j.get("stock_at_set") else 0
-        if distance_pct > 150:
-            risk_color, risk_label = "#B91C1C", "PT credibility risk — research director may press for revision"
-        elif distance_pct > 80:
-            risk_color, risk_label = "#A16207", "Watch — elevated upside, monitor for revision"
-        else:
-            risk_color, risk_label = "#15803D", "PT credibility intact"
-        mult_vs_peer = round(implied_multiple - j.get("peer_multiple", 0), 2)
-        mult_label = "premium" if implied_multiple >= j.get("peer_multiple", 0) else "discount"
-
-        with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-            with ui.row().classes("w-full justify-between"):
-                ui.label(f"{firm} — {j['analyst']}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                ui.label(f"${j['current_pt']:.2f}  (set {j['pt_set_date']} at ${j['stock_at_set']:.2f})").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"{risk_label} · {distance_pct:+.0f}% above current price · stock up {appreciation:+.0f}% since PT was set").style(f"color:{risk_color};font-size:12px;font-weight:600;")
-            with ui.row().classes("w-full gap-4"):
-                ui.label(f"Methodology: {j['methodology']}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Implied multiple: {implied_multiple}x {j['basis_year']}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"vs peer median: {mult_vs_peer:+.2f}x {mult_label}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Current EV/Rev: {round(current_ev/j['rev_estimate'],2) if j.get('rev_estimate') else '—'}x").style(f"color:{COLORS['text_body']};font-size:12px;")
-            ui.label(j["justification"]).style(f"color:{COLORS['text_muted']};font-size:11.5px;font-style:italic;")
-
-    ui.markdown("---")
-    ui.label("PT Credibility Watchlist").classes("font-bold")
-    watch_rows = []
-    for firm, j in seed.get("pt_justification", {}).items():
-        dist = round((j["current_pt"] / last_price - 1) * 100, 1)
-        implied_ev = j["current_pt"] * shares_out + net_debt
-        imp_mult = round(implied_ev / j["rev_estimate"], 2) if j.get("rev_estimate") else 0
-        flag = "Credibility risk" if dist > 150 else ("Elevated — watch" if dist > 80 else "OK")
-        watch_rows.append({"Firm": firm, "Analyst": j["analyst"], "PT": f"${j['current_pt']:.2f}",
-                          "Distance": f"{dist:+.0f}%", "Implied multiple": f"{imp_mult}x", "Credibility": flag})
-    if watch_rows:
-        ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in watch_rows[0].keys()],
-                  rows=watch_rows, row_key="Firm").classes("w-full")
+    # GATED (2026-07-21): the per-firm justification cards + PT Credibility Watchlist that used to
+    # render here were built from seed `pt_justification`, whose PT-set dates, stock-at-set prices,
+    # FY-basis revenue estimates and methodology prose were fabricated demo precision — exactly the
+    # detail a covering analyst's own CEO would catch as wrong. There is no real source for it yet:
+    # a genuine implied EV/Revenue multiple needs each analyst's FORWARD revenue basis, which
+    # arrives when their model is logged in Earnings → Model Intake. Until then we surface the
+    # dependency via the Intelligence Signal rather than invented numbers.
+    waiting_signal("logged analyst models (PT basis + forward revenue)",
+                   detail="Log each covering analyst's model in Earnings → Model Intake — PT, rating, and the "
+                          "forward-year revenue their target is built on. This section then computes each "
+                          "implied EV/Revenue multiple from real inputs and flags PTs that have drifted too "
+                          "far above the tape to stay credible.",
+                   unlocks="per-analyst implied multiple vs the peer median (premium/discount) and a PT "
+                           "credibility watchlist.")
 
     ui.markdown("---")
 
@@ -1079,7 +1049,17 @@ def _render_pt_drift(seed):
                                 launched_from="Markets · PT Drift Tracker")
         ui.notify("Board slide downloaded.", type="positive")
 
-    ui.button("Generate PT Drift Board Slide (.pptx)", on_click=_export_board_slide).props("color=primary")
+    # GATED (2026-07-21): generate_pt_drift_slide() renders seed['pt_history'].by_firm — the same
+    # fabricated 8-quarter trajectories we removed from the on-screen tracker. Exporting that as a
+    # board slide would hand the CEO invented drift. Disabled until the drift history is real
+    # (accumulated from logged PTs); re-enable when board_slides reads a real series. _export_board_slide
+    # is kept defined so the wiring is a one-line flip once the data is real.
+    _ = _export_board_slide
+    ui.button("Generate PT Drift Board Slide (.pptx)").props("color=primary").props("disable").tooltip(
+        "Available once PT drift history is real — it accumulates as analyst PTs are logged each quarter. "
+        "The earlier slide drew on fabricated 8-quarter trajectories, so it's gated for now.")
+    ui.label("PT-drift board slide is paused until the drift history is built from logged PTs (no fabricated "
+             "trajectories in a board deck).").style(f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
 
 
 # ─────────────────────────────────────────────────────────────────────────
