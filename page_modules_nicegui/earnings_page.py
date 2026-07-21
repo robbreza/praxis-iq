@@ -916,13 +916,18 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
                  f"consensus of ${market_data.consensus_rev_value() or 0:.1f}M. Gross margin was {n.get('gm',0):.1f}%, and "
                  f"Adjusted EBITDA was ${n.get('ebitda',0):.1f}M. GAAP EPS was ${n.get('eps',0):.2f}. SG&A "
                  f"totaled ${n.get('sga',0):.1f}M. We ended the quarter with ${n.get('cash',0):.1f}M in cash.")
-        # Factual segment mix from the filing's XBRL (core.segments) — frames payments vs print so
-        # analysts value the mix correctly. The valuation argument stays in the prep-brief Q&A.
+        # Factual segment mix + sequential (QoQ) revenue trend, both from the filing's XBRL
+        # (core.segments / core.edgar_financials). The segment mix frames payments vs print; the
+        # sequential read gives the Q3→Q4→Q1 momentum the single-quarter number can't. Valuation
+        # ARGUMENT stays in the prep-brief Q&A, not the spoken script.
         try:
             from core import earnings_prep
             seg = earnings_prep.segment_story()
+            seq = earnings_prep.sequential_read()
         except Exception:
-            seg = None
+            seg = seq = None
+        if seq:
+            draft += " " + seq
         if seg:
             draft += (f" By segment, {seg['payments_label']} — our payments business — represented "
                       f"approximately {seg['payments_gp_share']:.0f}% of gross profit, with "
@@ -1034,7 +1039,7 @@ def _generate_persona_draft(role, ss, context=""):
     # Segment mix — factual, from the filing's XBRL segment data (core.segments). Gives the CFO a
     # line that frames the payments-vs-print mix so analysts value it correctly; the valuation
     # ARGUMENT (blended vs pure-play) stays in the prep brief's Q&A, out of the spoken script.
-    seg_fact = ""
+    seg_fact = seq_fact = ""
     try:
         from core import earnings_prep as _ep
         _seg = _ep.segment_story()
@@ -1042,8 +1047,11 @@ def _generate_persona_draft(role, ss, context=""):
             seg_fact = (f" Segment mix to state factually (do NOT argue the valuation multiple): "
                         f"{_seg['payments_label']} ~{_seg['payments_gp_share']:.0f}% of gross profit — the "
                         f"payments business — with {', '.join(_seg['other_labels'])} (print-and-mail) the balance.")
+        _seq = _ep.sequential_read()
+        if _seq:
+            seq_fact = f" Sequential (QoQ) revenue trend to weave in: {_seq}"
     except Exception:
-        seg_fact = ""
+        seg_fact = seq_fact = ""
 
     prompts = {
         "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
@@ -1054,7 +1062,7 @@ def _generate_persona_draft(role, ss, context=""):
               f"Professional, concise, plain text (no markdown).",
         "CFO": f"Write a CFO financial-review paragraph for an earnings call using these Q2 actuals: revenue "
                f"${n.get('rev',0):.1f}M, gross margin {n.get('gm',0):.1f}%, Adjusted EBITDA ${n.get('ebitda',0):.1f}M, "
-               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M.{seg_fact} "
+               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M.{seq_fact}{seg_fact} "
                f"{cons_clause}{tone_line}What to address proactively this quarter (pre-empt any "
                f"prior-quarter item that previously drew analyst follow-up): "
                f"{what_new or 'no specific updates provided'}. Professional tone, plain text (no markdown), "

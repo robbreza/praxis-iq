@@ -66,10 +66,18 @@ def at_a_glance(client_id=None, period=None):
         return None
     inc = p["summary"]["income"]
     snap = market_data.get_snapshot(CT("ticker")) or {}
+    # Sequential (quarter-over-quarter) revenue read — the Q3→Q4→Q1 momentum the single-quarter
+    # + YoY numbers can't show. From the cached quarterly trend (edgar_financials); None if thin.
+    try:
+        from core import earnings_prep
+        sequential = earnings_prep.sequential_read(client_id)
+    except Exception:
+        sequential = None
     return {
         "period": p["label"], "quarter_end": p["quarter_end"],
         "revenue": inc.get("revenue"), "rev_growth": inc.get("rev_growth_yoy"),
         "gross_profit": inc.get("gross_profit"), "gross_margin": inc.get("gross_margin"),
+        "sequential": sequential,
         "last_price": snap.get("last_price"), "pct_change": snap.get("pct_change"),
         # Deliberately absent rather than invented: the .docx printed "0.14% of float
         # short interest / 0.3 days to cover" and a "+24.2% stock reaction". We have no

@@ -1366,6 +1366,9 @@ def board_package_pdf(client_id=None):
         (f"${inc['adjusted_ebitda']/1e3:.0f}K", "Adj. EBITDA", f"{inc['adj_ebitda_margin']:.0f}% margin", INK),
         (f"${inc['net_income']/1e3:.0f}K", "Net income", f"{inc['net_margin']:.0f}% margin", INK),
     ]))
+    if g and g.get("sequential"):
+        story.append(Paragraph(f"<b>Sequential (QoQ):</b> {_esc(g['sequential'])} "
+                               f"Q4 derived from the 10-K (full year minus 9-month YTD).", _S["small"]))
     story.append(Paragraph("Balance sheet &amp; cash flow", _S["h2"]))
     story.append(_stat_row([
         (f"${_m(bal['net_cash']):.1f}M", "Net cash", f"{bal['debt_to_equity']:.0f}% D/E", GOOD),
