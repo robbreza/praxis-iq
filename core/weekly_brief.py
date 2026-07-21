@@ -182,6 +182,38 @@ def _news_section():
     return out
 
 
+def _ownership_section(cid):
+    """Ownership read from PUBLIC 13F filings — holder count, institutional coverage of the float,
+    add/trim momentum, and the single most-actionable mover. Surface data, no client input needed."""
+    from core import targets
+    holders = _safe(lambda: targets.targets_from_13f(cid), None) or []
+    sized = [h for h in holders if h.get("Position_Value")]
+    if not sized:
+        return []
+    lines = []
+    total_val = sum(h["Position_Value"] for h in sized)
+    total_sh = sum(h.get("Shares") or 0 for h in sized)
+    so = _safe(lambda: __import__("core.nobo_engine", fromlist=["x"]).get_active_pulls(cid).get("shares_outstanding"), None)
+    pct = f" (≥{total_sh / so * 100:.1f}% of shares out)" if so else ""
+    val_txt = f"${total_val / 1e6:.1f}M" if total_val >= 1e6 else f"${total_val / 1e3:.0f}K"
+    lines.append(f"{len(sized)} institutional holder(s) on file via 13F, {val_txt}{pct}.")
+    dirs = [h.get("Direction") for h in holders]
+    n_acc = sum(1 for d in dirs if d in ("new", "adding"))
+    n_dist = sum(1 for d in dirs if d in ("trimming", "exited"))
+    if n_acc or n_dist:
+        tone = "net accumulation" if n_acc > n_dist else "net distribution" if n_dist > n_acc else "mixed"
+        lines.append(f"Position momentum: {n_acc} accumulating vs {n_dist} trimming/exited — {tone}.")
+    trimmers = [h for h in sized if h.get("Direction") == "trimming"]
+    if trimmers:
+        tt = max(trimmers, key=lambda h: h.get("Position_Value") or 0)
+        lines.append(f"Watch: {(tt['Fund'] or '').title()} is trimming (${(tt['Position_Value'] or 0) / 1e6:.1f}M) — find out what changed.")
+    new_pos = [h for h in sized if h.get("Direction") == "new"]
+    if new_pos:
+        tn = max(new_pos, key=lambda h: h.get("Position_Value") or 0)
+        lines.append(f"New believer: {(tn['Fund'] or '').title()} initiated (${(tn['Position_Value'] or 0) / 1e6:.1f}M) — engage now.")
+    return lines
+
+
 def compose(client_id=None):
     cid = client_id or get_active_client_id()
     ticker, name = CT("ticker"), CT("name")
@@ -196,6 +228,7 @@ def compose(client_id=None):
 
     add("Market", market_lines)
     add("Earnings & script workflow", _earnings_section())
+    add("Ownership (13F)", _ownership_section(cid))
     add("IR activity this week", _activity_section())
     add("Investor pipeline", _pipeline_section(cid))
     add("NDR schedule", _ndr_section(cid))

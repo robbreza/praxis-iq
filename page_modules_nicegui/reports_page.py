@@ -267,11 +267,11 @@ def _render_board_reports_tab(reviews, review_path):
 
     ui.markdown("---")
     ui.label("Weekly IR Intelligence Briefs").classes("text-lg font-bold").style("margin-top:12px;")
-    ui.label("The first 3 below are historical examples from before this ran on live data (marked 'example'). "
-             "Generate composes a full brief from what's actually on file today — price & volume, the earnings "
-             "and quiet-period calendar, this week's logged IR activity, the investor pipeline, the NDR "
-             "schedule, and peer moves/filings — readable below and downloadable as a PDF.").style(
-        f"color:{COLORS['text_muted']}")
+    ui.label("This week's brief composes itself the moment you open the page — from what's actually on file "
+             "today: price & volume, the earnings and quiet-period calendar, 13F ownership and its add/trim "
+             "momentum, this week's logged IR activity, the investor pipeline, the NDR schedule, and peer "
+             "moves/filings. Readable below and downloadable as a PDF. Generate saves a dated copy to the "
+             "history beneath it.").style(f"color:{COLORS['text_muted']}")
 
     # The live brief for THIS week, composed fresh on render — the full sectioned
     # document the old one-line card never had, with a PDF for the board packet.
