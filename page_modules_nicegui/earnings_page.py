@@ -2960,11 +2960,32 @@ def _render_consensus_rollup():
     src_label = {"models": "Praxis · models", "street": "Live street",
                  "override": "IR override", "none": "—"}.get(r["source"], r["source"])
     auth = r["status"] == "authoritative"
+    on_street = r["source"] == "street"
+    on_override = r["source"] == "override"
 
-    ui.label("Praxis Consensus — revenue model roll-up").classes("text-lg font-bold")
-    ui.label(f"{CT('ticker')} · {period} · our consensus from collected models; the median resists "
-             "a rough analyst, the street/override is the labeled fallback.").style(
-        f"color:{MUT};font-size:12px;")
+    # SURFACE-FIRST: with no collected models yet, this IS the live public street consensus — a real,
+    # sourced number, not a deficiency. Lead with it confidently and frame model collection as the
+    # UPGRADE to an IR-vetted median (dispersion, outlier flags, drift you can manage), not a missing
+    # prerequisite. See memory: surface-first-then-refine.
+    ui.label("Consensus — street now, your vetted median once models are in").classes("text-lg font-bold")
+    if r["source"] == "models":
+        _sub = "your IR-vetted consensus from collected models; the median resists a rough analyst."
+    elif on_street:
+        _sub = ("live public street consensus, straight from the market feed. Collect your analysts' models to "
+                "upgrade this into your own vetted median — with dispersion, outlier flags, and drift to manage.")
+    else:  # override / none
+        _sub = ("a curated street estimate on file. Collect your analysts' models to upgrade this into your own "
+                "vetted median — with dispersion, outlier flags, and drift to manage.")
+    ui.label(f"{CT('ticker')} · {period} · {_sub}").style(f"color:{MUT};font-size:12px;")
+
+    if auth:
+        badge_txt, badge_col, badge_bg = "AUTHORITATIVE", GREEN, "rgba(21,128,61,.12)"
+    elif on_street:
+        badge_txt, badge_col, badge_bg = "LIVE STREET", "#1E40AF", "rgba(30,64,175,.10)"
+    elif on_override:
+        badge_txt, badge_col, badge_bg = "IR OVERRIDE", AMBER, "rgba(180,83,9,.12)"
+    else:
+        badge_txt, badge_col, badge_bg = "PROVISIONAL", AMBER, "rgba(180,83,9,.12)"
 
     # ── headline card ───────────────────────────────────────────────────────
     with ui.card().classes("w-full").style(
@@ -2972,14 +2993,17 @@ def _render_consensus_rollup():
         with ui.row().classes("w-full items-center").style("gap:12px;"):
             ui.label(_m(r["headline"])).classes("text-3xl font-bold").style(
                 f"color:{COLORS['text_heading']};")
-            ui.label("AUTHORITATIVE" if auth else "PROVISIONAL").style(
-                f"background:{'rgba(21,128,61,.12)' if auth else 'rgba(180,83,9,.12)'};"
-                f"color:{GREEN if auth else AMBER};font-size:10px;font-weight:800;"
+            ui.label(badge_txt).style(
+                f"background:{badge_bg};color:{badge_col};font-size:10px;font-weight:800;"
                 "letter-spacing:.04em;padding:3px 9px;border-radius:10px;")
             ui.label(src_label).style(f"color:{MUT};font-size:12.5px;")
             ui.space()
-            ui.label(f"{r['n_models']} of {r['n_covering']} models · {r['coverage']:.0%} coverage").style(
-                f"color:{MUT};font-size:12px;")
+            if r["n_models"]:
+                ui.label(f"{r['n_models']} of {r['n_covering']} models · {r['coverage']:.0%} coverage").style(
+                    f"color:{MUT};font-size:12px;")
+            else:
+                ui.label(f"upgrade available — collect {r['n_covering']} analyst models").style(
+                    f"color:#1E40AF;font-size:12px;font-weight:600;")
         if r["median"] is not None:
             with ui.row().classes("w-full").style("gap:26px;margin-top:8px;"):
                 for lbl, val in [("Median", _m(r["median"])), ("Mean", _m(r["mean"])),
@@ -3000,8 +3024,9 @@ def _render_consensus_rollup():
     elif r["fallback"]:
         fb = r["fallback"]
         extra = (f" · {fb['n']} analysts" if fb.get("n") else "") + (" · period-verified" if fb.get("verified") else "")
-        ui.label(f"No models yet — showing {'live street' if fb['source'] == 'street' else 'IR override'} "
-                 f"{_m(fb['value_m'])}{extra}.").style(f"color:{MUT};font-size:12.5px;margin-top:8px;")
+        ui.label(f"{'Live street' if fb['source'] == 'street' else 'IR override'} {_m(fb['value_m'])}{extra} — a real "
+                 "public number today; collect your analysts' models to build your own vetted median from it.").style(
+            f"color:{MUT};font-size:12.5px;margin-top:8px;")
 
     ui.markdown("---")
 
@@ -3027,7 +3052,7 @@ def _render_consensus_rollup():
                if a.get("covering", True) and a.get("firm") and a.get("firm") not in received]
     if missing:
         ui.markdown("---")
-        ui.label("Awaiting models (active coverage) — chase these to move toward authoritative:").style(
+        ui.label("Collect these covering analysts' models to upgrade from street to your own vetted consensus:").style(
             f"color:{MUT};font-size:11.5px;")
         for a in missing:
             ui.label(f"· {a.get('firm')}" + (f" — {a.get('name')}" if a.get("name") else "")).style(
