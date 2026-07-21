@@ -1265,8 +1265,9 @@ def _render_big_picture(institutions):
     metro_summary = {}
     for i in institutions:
         m = i["Metro"]
-        d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1})
+        d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1, "insts": []})
         d["count"] += 1
+        d["insts"].append(i)
         if _score_val(i) >= 80 and not i["USIO_Holder"]:
             d["tier1_nonholder"] += 1
         if i["USIO_Holder"]:
@@ -1381,10 +1382,46 @@ def _render_big_picture(institutions):
         {"name": "trips", "label": "NDRs", "field": "trips", "align": "right"},
         {"name": "top", "label": "Top name", "field": "top", "align": "left"},
     ]
-    ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes("w-full").props("dense flat")
+    # Click a metro row to see exactly WHO is there — the counts above always
+    # raised "which 5 institutions?"; this opens the named list on demand
+    # rather than forcing a jump to the filtered Buy-Side list.
+    insts_by_metro = {m: sorted(d.get("insts", []), key=lambda x: -(_score_val(x) or 0))
+                      for m, d in metro_summary.items()}
+    metro_detail_dialog = ui.dialog()
+
+    def _open_metro_detail(metro):
+        rows = insts_by_metro.get(metro, [])
+        metro_detail_dialog.clear()
+        with metro_detail_dialog, ui.card().style("min-width:min(680px,92vw);max-width:92vw;"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(f"{metro} — {len(rows)} tracked institution{'s' if len(rows) != 1 else ''}").classes(
+                    "text-lg font-bold")
+                ui.button(icon="close", on_click=metro_detail_dialog.close).props("flat round dense")
+            if not rows:
+                ui.label("No tracked institutions in this metro.").style(f"color:{COLORS['text_muted']};")
+            else:
+                d_rows = []
+                for i in rows:
+                    sc = _score_val(i)
+                    d_rows.append({
+                        "Fund": i.get("Fund", "—"),
+                        "City": i.get("City") or "—",
+                        "Status": "Holder" if i.get("USIO_Holder") else "Prospect",
+                        "Score": sc if sc else "—",
+                        "AUM": i.get("AUM") or "—",
+                        "Action": i.get("Action") or "—",
+                    })
+                d_cols = [{"name": k, "label": k, "field": k,
+                           "align": "right" if k in ("Score", "AUM") else "left"} for k in d_rows[0].keys()]
+                ui.table(columns=d_cols, rows=d_rows, row_key="Fund").classes("w-full").props("dense flat")
+        metro_detail_dialog.open()
+
+    geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes(
+        "w-full cursor-pointer").props("dense flat")
+    geo_table.on("rowClick", lambda e: _open_metro_detail(e.args[1]["metro"]))
     ui.label(f"{tracked_total} tracked institutions across {len(metro_summary)} metros · {holder_count} current "
-             "holders. Filter the full list to any of these on the Buy-Side Intelligence list below or in Target "
-             "Database → search by metro.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "holders. Click any metro row to see the institutions there, or filter the full list on the "
+             "Buy-Side Intelligence list below.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _bp_metric(label, value, detail_lines):

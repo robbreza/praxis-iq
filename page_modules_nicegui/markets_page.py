@@ -960,18 +960,20 @@ def _render_pt_drift(seed):
     # Real coverage, from the registry. The 8-quarter "drift" chart + direction table that used to
     # sit here were fabricated seed data — invented quarter-by-quarter PT trajectories. The platform
     # doesn't snapshot PTs over time yet, so a historical series can't be real. What IS real, and
-    # what we show instead: who currently covers the name, their standing PT and upside, and who has
-    # let coverage lapse (coverage has genuinely contracted). The drift chart returns via the
-    # Intelligence Signal once ≥2 quarters of PTs are actually on file.
-    analysts = CA() or []
-    active = [a for a in analysts if a.get("status") == "active" and a.get("pt") is not None]
-    lapsed = [a for a in analysts if a.get("status") != "active"]
+    # what we show instead: every covering analyst, their standing PT + upside where we've logged
+    # one, and the covering analysts whose current PT we simply haven't logged yet. We split on
+    # "is a PT on file" — NOT on the registry's status flag, which does NOT mean coverage dropped
+    # (all these firms actively cover the name). The drift chart returns via the Intelligence Signal
+    # once ≥2 quarters of PTs are actually logged.
+    analysts = [a for a in (CA() or []) if a.get("firm")]
+    with_pt = [a for a in analysts if a.get("pt") is not None]
+    without_pt = [a for a in analysts if a.get("pt") is None]
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label("Current price targets").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-        if active:
+        if with_pt:
             rows = []
-            for a in sorted(active, key=lambda x: -(x.get("pt") or 0)):
+            for a in sorted(with_pt, key=lambda x: -(x.get("pt") or 0)):
                 pt = a["pt"]
                 upside = round((pt - last_price) / last_price * 100, 1) if last_price else None
                 rows.append({
@@ -981,20 +983,21 @@ def _render_pt_drift(seed):
                 })
             ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
                      rows=rows, row_key="Firm").classes("w-full")
-            pts = [a["pt"] for a in active]
-            ui.label(f"Street PT range ${min(pts):.2f}–${max(pts):.2f} · {len(active)} active analyst"
-                     f"{'s' if len(active) != 1 else ''} vs ${last_price:.2f} last").style(
+            pts = [a["pt"] for a in with_pt]
+            ui.label(f"PT range ${min(pts):.2f}–${max(pts):.2f} · {len(with_pt)} of {len(analysts)} covering "
+                     f"analysts with a PT logged vs ${last_price:.2f} last").style(
                 f"color:{COLORS['text_muted']};font-size:11.5px;")
         else:
-            ui.label("No active-analyst price targets on file.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No analyst price targets logged yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-    if lapsed:
+    if without_pt:
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-            ui.label("Lapsed coverage").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-            ui.label(", ".join(f"{a.get('firm')} ({a.get('name')})" for a in lapsed if a.get('firm'))).style(
+            ui.label("Also covering — current PT not yet logged").classes("font-bold").style(
+                f"color:{COLORS['text_heading']};")
+            ui.label(", ".join(f"{a.get('firm')} ({a.get('name')})" for a in without_pt if a.get('name'))).style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"Coverage now stands at {len(active)} active, down from "
-                     f"{len(active) + len(lapsed)} firms that have covered the name.").style(
+            ui.label("These analysts cover the name; log their latest PT via Model Intake to bring them into "
+                     "the range above and the drift history.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
     waiting_signal("logged analyst PTs over time",
