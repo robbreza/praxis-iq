@@ -949,59 +949,58 @@ def _render_narrative_momentum(seed, compact=False):
 # PT Drift Tracker
 # ─────────────────────────────────────────────────────────────────────────
 def _render_pt_drift(seed):
-    pt_hist = seed.get("pt_history", {})
-    labels = pt_hist.get("labels", [])
-    stock_prices = pt_hist.get("stock_prices", [])
-    by_firm = pt_hist.get("by_firm", {})
-    colors = pt_hist.get("colors", {})
+    from page_modules_nicegui.signals import waiting_signal
+    from config.client_config import CA
     last_price = _last_price()
 
     ui.label("Price Target Drift Tracker").classes("text-lg font-bold")
-    ui.label("8-quarter sell-side PT history · direction of travel · vs current stock price").style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ui.label("Sell-side coverage · current price targets · drift history accumulates as PTs are logged each quarter").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
 
-    fig = go.Figure()
-    for firm, pts in by_firm.items():
-        xs, ys = [], []
-        for i, p in enumerate(pts):
-            if p is not None and i < len(labels):
-                xs.append(labels[i])
-                ys.append(p)
-        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=firm,
-                                  line=dict(color=colors.get(firm, "#888"), width=2.5), marker=dict(size=7)))
-    if stock_prices:
-        fig.add_trace(go.Scatter(x=labels, y=stock_prices, mode="lines+markers", name=f"{CT('ticker')} Stock Price",
-                                  line=dict(color="#C00000", width=2, dash="dot"), marker=dict(size=5, symbol="diamond")))
-    # Legend anchored at its TOP and pushed well below the "Quarter" axis
-    # title (it used to anchor at the bottom and extend upward, overlapping
-    # the title); the taller bottom margin gives the two-row legend room.
-    fig.update_layout(xaxis_title="Quarter", yaxis_title="Price Target ($)", height=430,
-                       margin=dict(l=50, r=20, t=20, b=140),
-                       legend=dict(orientation="h", yanchor="top", y=-0.30, xanchor="center", x=0.5),
-                       plot_bgcolor="#F8F9FA", paper_bgcolor="white")
-    ui.plotly(fig).classes("w-full")
+    # Real coverage, from the registry. The 8-quarter "drift" chart + direction table that used to
+    # sit here were fabricated seed data — invented quarter-by-quarter PT trajectories. The platform
+    # doesn't snapshot PTs over time yet, so a historical series can't be real. What IS real, and
+    # what we show instead: who currently covers the name, their standing PT and upside, and who has
+    # let coverage lapse (coverage has genuinely contracted). The drift chart returns via the
+    # Intelligence Signal once ≥2 quarters of PTs are actually on file.
+    analysts = CA() or []
+    active = [a for a in analysts if a.get("status") == "active" and a.get("pt") is not None]
+    lapsed = [a for a in analysts if a.get("status") != "active"]
 
-    ui.markdown("---")
-    ui.label("Analyst PT direction — 8-quarter summary").classes("font-bold")
-    drift_rows = []
-    for firm, pts in by_firm.items():
-        valid = [(labels[i], p) for i, p in enumerate(pts) if p is not None and i < len(labels)]
-        if len(valid) >= 2:
-            first_pt, last_pt = valid[0][1], valid[-1][1]
-            chg_pct = round((last_pt - first_pt) / first_pt * 100, 1)
-            direction = "Raising" if chg_pct > 0 else ("Cutting" if chg_pct < 0 else "Flat")
-            status = "Active" if pts[-1] is not None else "Inactive"
+    with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+        ui.label("Current price targets").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+        if active:
+            rows = []
+            for a in sorted(active, key=lambda x: -(x.get("pt") or 0)):
+                pt = a["pt"]
+                upside = round((pt - last_price) / last_price * 100, 1) if last_price else None
+                rows.append({
+                    "Firm": a.get("firm", "—"), "Analyst": a.get("name", "—"),
+                    "PT": f"${pt:.2f}",
+                    "Upside vs last": f"{upside:+.1f}%" if upside is not None else "—",
+                })
+            ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
+                     rows=rows, row_key="Firm").classes("w-full")
+            pts = [a["pt"] for a in active]
+            ui.label(f"Street PT range ${min(pts):.2f}–${max(pts):.2f} · {len(active)} active analyst"
+                     f"{'s' if len(active) != 1 else ''} vs ${last_price:.2f} last").style(
+                f"color:{COLORS['text_muted']};font-size:11.5px;")
         else:
-            first_pt = last_pt = chg_pct = None
-            direction, status = "—", "Inactive"
-        upside = round((last_pt - last_price) / last_price * 100, 1) if last_pt else None
-        drift_rows.append({
-            "Firm": firm, "First PT": f"${first_pt:.2f}" if first_pt else "—",
-            "Current PT": f"${last_pt:.2f}" if last_pt else "—",
-            "8Q Change": f"{chg_pct:+.1f}%" if chg_pct is not None else "—",
-            "Direction": direction, "Upside": f"{upside:+.1f}%" if upside is not None else "—", "Status": status,
-        })
-    ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in drift_rows[0].keys()],
-              rows=drift_rows, row_key="Firm").classes("w-full") if drift_rows else None
+            ui.label("No active-analyst price targets on file.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    if lapsed:
+        with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+            ui.label("Lapsed coverage").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+            ui.label(", ".join(f"{a.get('firm')} ({a.get('name')})" for a in lapsed if a.get('firm'))).style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Coverage now stands at {len(active)} active, down from "
+                     f"{len(active) + len(lapsed)} firms that have covered the name.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+
+    waiting_signal("logged analyst PTs over time",
+                   detail="Each PT is captured as models and analyst notes are logged; a multi-quarter drift chart "
+                          "appears once at least two quarters of PTs are on file.",
+                   unlocks="the PT drift chart and raising/cutting direction per analyst over time.")
 
     ui.markdown("---")
     ui.label("PT Justification & Valuation Methodology").classes("font-bold")
@@ -1087,6 +1086,44 @@ def _render_nobo():
         pulls = nobo_engine.get_active_pulls(cid)
         so = pulls["shares_outstanding"]
         current, prior, source = pulls["current"], pulls["prior"], pulls["source"]
+
+        # No real NOBO uploaded yet -> Intelligence Signal + upload, NOT the fabricated demo pull.
+        # A client (esp. a NOBO-focused CEO) must never see 372 invented holders presented as an
+        # ownership base. get_active_pulls falls back to source='demo' until a Broadridge file lands.
+        if source == "demo":
+            from page_modules_nicegui.signals import waiting_signal
+            ui.label("NOBO Ownership Analysis").classes("text-lg font-bold")
+            waiting_signal(
+                "your Broadridge NOBO file",
+                detail="No NOBO pull is loaded yet. Upload a Broadridge NOBO CSV to activate this section.",
+                unlocks="ownership composition & concentration, coverage of shares outstanding, "
+                        "5%+ threshold alerts, and the two-pull flow read (who's accumulating vs trimming).")
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_hover_bg']};border-radius:8px;margin-top:8px;"):
+                ui.label("Upload a NOBO pull").classes("font-bold").style("font-size:12px;")
+                ui.label("Columns detected flexibly: holder name, shares/position, optionally city/state/type. "
+                         "Upload two dated pulls to unlock the flow read.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                with ui.row().classes("w-full gap-4 items-end"):
+                    _rd = ui.input("Record date (YYYY-MM-DD)").props("dense outlined").classes("w-48")
+                    _so = ui.number("Shares outstanding", value=so).props("dense outlined").classes("w-48")
+
+                def _up(e, rd=_rd, so_in=_so):
+                    try:
+                        raw = e.content.read()
+                        text = raw.decode("utf-8-sig", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw)
+                    except Exception as exc:
+                        ui.notify(f"Could not read file: {exc}", type="negative"); return
+                    pull = nobo_engine.parse_nobo_csv(text, rd.value or e.name)
+                    if not pull["holders"]:
+                        ui.notify("No holders parsed — the CSV needs at least name and shares columns.", type="warning"); return
+                    n = nobo_engine.save_uploaded_pull(pull, int(so_in.value) if so_in.value else None, cid)
+                    ui.notify(f"Loaded {len(pull['holders']):,} holders as pull '{pull['record_date']}'. "
+                              f"{n} pull(s) stored.", type="positive")
+                    _panel.refresh()
+                ui.upload(on_upload=_up, auto_upload=True).props("accept=.csv flat").classes("max-w-full")
+            return
+
         cur = nobo_engine.analyze_pull(current, so)
         pre = nobo_engine.analyze_pull(prior, so) if prior else None
         fl = nobo_engine.flow(current, prior) if prior else None

@@ -278,6 +278,11 @@ def _render_board_reports_tab(reviews, review_path):
     _render_live_weekly_brief()
 
     briefs = _load_weekly_briefs()
+    if not briefs:
+        from page_modules_nicegui.signals import waiting_signal
+        waiting_signal("your first generated brief",
+                       detail="No weekly brief on file yet. Click Generate above to compose one from live data.",
+                       unlocks="a dated history of weekly IR briefs (price, activity, script stage, consensus).")
     for b in briefs:
         status_color = "#C55A11" if b["status"] == "Draft ready" else "#375623"
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
