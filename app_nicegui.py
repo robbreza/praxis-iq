@@ -967,6 +967,17 @@ async def _kick_off_peer_watch():
             print(f"[startup] Rating actions (Yahoo): {total} named change(s) backfilled across tenants.")
         except Exception as e:
             print(f"[startup] Rating actions refresh failed (non-fatal): {e}")
+        try:
+            from core import insider_feed
+            from config.client_config import CLIENT_REGISTRY
+            itot = 0
+            for _cid, _rec in CLIENT_REGISTRY.items():
+                tk = _rec.get("ticker")
+                if tk:
+                    itot += len(await asyncio.to_thread(insider_feed.refresh, _cid, tk))
+            print(f"[startup] Insider Form 4 (EDGAR): {itot} transaction(s) across tenants.")
+        except Exception as e:
+            print(f"[startup] Insider Form 4 refresh failed (non-fatal): {e}")
         while True:
             await asyncio.sleep(12 * 3600)
             try:

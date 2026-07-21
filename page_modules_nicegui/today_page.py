@@ -304,6 +304,7 @@ def render_today_page():
         with ui.column().classes("flex-1 gap-4"):
             _render_investor_pipeline()
             _render_analyst_coverage()
+            _render_insider_activity()
             _render_peer_watch()
             _render_activity_responses(state)
 
@@ -940,6 +941,36 @@ def _render_top_story():
                     "scrollIntoView({behavior:'smooth', block:'start'});")
             ui.button(f"More peer & competitor news ({len(peer)}) ↓", on_click=_to_peer_news) \
                 .props("flat dense no-caps").style(f"color:{accent};font-size:12px;margin-top:2px;")
+
+
+def _render_insider_activity():
+    """Insider transactions (SEC Form 4) — the company's own directors/officers buying or selling.
+    Free, authoritative (EDGAR). Open-market buys/sells are the signal; grants/exercises are routine
+    comp, shown but flagged. Cache-only read; nothing fabricated."""
+    from core import insider_feed
+    ui.label("Insider activity — Form 4").classes("section-head")
+    txns = insider_feed.recent(limit=30)
+    if not txns:
+        ui.label("No Form 4 filings on file yet — a data refresh pulls insider transactions from EDGAR.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        return
+
+    n = insider_feed.net_open_market()
+    if n["buy_shares"] or n["sell_shares"]:
+        tone_clr = COLORS["success"] if n["net_shares"] > 0 else COLORS["danger"] if n["net_shares"] < 0 else COLORS["text_muted"]
+        tone = "net buying" if n["net_shares"] > 0 else "net selling" if n["net_shares"] < 0 else "flat"
+        ui.label(f"Open-market: {n['buy_shares']:,.0f} bought vs {n['sell_shares']:,.0f} sold — {tone}").style(
+            f"color:{tone_clr};font-size:12px;font-weight:600;")
+    else:
+        ui.label("No open-market buys/sells on file — recent Form 4s are routine grants/exercises.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+    _tone = {"P": COLORS["success"], "S": COLORS["danger"]}
+    for t in txns[:6]:
+        col = _tone.get(t.get("code"), COLORS["text_muted"])
+        with ui.row().classes("w-full items-center").style("gap:8px;"):
+            ui.label(insider_feed.glyph(t)).style(f"color:{col};font-weight:800;font-size:12px;")
+            ui.label(insider_feed.describe(t)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
 
 
 def _render_peer_watch():

@@ -182,6 +182,26 @@ def _news_section():
     return out
 
 
+def _insider_section(cid):
+    """Insider transactions (SEC Form 4) — open-market buys/sells are the signal; routine
+    grants/exercises are flagged. Free, authoritative EDGAR data."""
+    from core import insider_feed
+    txns = _safe(lambda: insider_feed.recent(cid, limit=40), None) or []
+    if not txns:
+        return []
+    lines = []
+    n = insider_feed.net_open_market(cid)
+    if n["buy_shares"] or n["sell_shares"]:
+        tone = "net buying" if n["net_shares"] > 0 else "net selling" if n["net_shares"] < 0 else "flat"
+        lines.append(f"Open-market insider activity: {n['buy_shares']:,.0f} bought vs {n['sell_shares']:,.0f} sold — {tone}.")
+    om = [t for t in txns if t.get("open_market")]
+    for t in om[:2]:
+        lines.append(insider_feed.describe(t))
+    if not om:
+        lines.append(f"Latest Form 4: {insider_feed.describe(txns[0])} — routine (grant/exercise), no open-market trade.")
+    return lines
+
+
 def _rating_actions_section(cid):
     """Analyst rating CHANGES (Finnhub) — upgrades/downgrades/initiations. Surface data that
     catches quant & aggregator moves (Verus, Zacks) the covering desks don't cover."""
@@ -238,6 +258,7 @@ def compose(client_id=None):
     add("Earnings & script workflow", _earnings_section())
     add("Analyst rating changes", _rating_actions_section(cid))
     add("Ownership (13F)", _ownership_section(cid))
+    add("Insider activity (Form 4)", _insider_section(cid))
     add("IR activity this week", _activity_section())
     add("Investor pipeline", _pipeline_section(cid))
     add("NDR schedule", _ndr_section(cid))
