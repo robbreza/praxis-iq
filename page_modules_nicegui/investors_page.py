@@ -602,8 +602,8 @@ _SEC_CITY_METRO = {
     "EVANSTON": "Chicago, IL", "NORTHBROOK": "Chicago, IL", "LAKE FOREST": "Chicago, IL",
     "ROSEMONT": "Chicago, IL", "LISLE": "Chicago, IL",
     # Minneapolis–St. Paul (Twin Cities) — its own stop, ~60mi radius
-    "MINNEAPOLIS": "Minneapolis-St. Paul, MN", "ST PAUL": "Minneapolis-St. Paul, MN",
-    "SAINT PAUL": "Minneapolis-St. Paul, MN", "WAYZATA": "Minneapolis-St. Paul, MN",
+    "MINNEAPOLIS": "Minneapolis-St. Paul, MN", "ST. PAUL": "Minneapolis-St. Paul, MN",
+    "WAYZATA": "Minneapolis-St. Paul, MN", "ROSEMOUNT": "Minneapolis-St. Paul, MN",
     "MINNETONKA": "Minneapolis-St. Paul, MN", "PLYMOUTH": "Minneapolis-St. Paul, MN",
     "EDEN PRAIRIE": "Minneapolis-St. Paul, MN", "EDINA": "Minneapolis-St. Paul, MN",
     "BLOOMINGTON": "Minneapolis-St. Paul, MN", "MENDOTA HEIGHTS": "Minneapolis-St. Paul, MN",
@@ -632,7 +632,7 @@ _SEC_CITY_METRO = {
     # Florida — Miami/South-FL vs Tampa are ~280mi apart, separate
     "MIAMI": "Miami / South FL", "PALM BEACH": "Miami / South FL", "BOCA RATON": "Miami / South FL",
     "NAPLES": "Miami / South FL", "FORT LAUDERDALE": "Miami / South FL", "AVENTURA": "Miami / South FL",
-    "TAMPA": "Tampa, FL", "ST PETERSBURG": "Tampa, FL",
+    "TAMPA": "Tampa, FL", "ST. PETERSBURG": "Tampa, FL",
     "ATLANTA": "Atlanta, GA", "SEATTLE": "Seattle, WA", "BELLEVUE": "Seattle, WA",
     # St. Louis — all spelling variants normalise to "ST. LOUIS" (see _norm_city) — + inner-ring suburbs
     "ST. LOUIS": "St. Louis, MO", "CLAYTON": "St. Louis, MO", "CHESTERFIELD": "St. Louis, MO",
@@ -666,6 +666,53 @@ _SEC_CITY_METRO = {
     "BERWYN|PA": "Philadelphia, PA", "NEWTOWN SQUARE|PA": "Philadelphia, PA", "OAKS|PA": "Philadelphia, PA",
     "DEVON|PA": "Philadelphia, PA", "PAOLI|PA": "Philadelphia, PA", "VILLANOVA|PA": "Philadelphia, PA",
     "WEST CHESTER|PA": "Philadelphia, PA", "KING OF PRUSSIA|PA": "Philadelphia, PA",
+    # ── Sweep (2026-07-21): fold remaining suburbs into their true ~60-mile metro, state-qualified. ──
+    # Detroit / Grand Rapids (MI)
+    "HUNTINGTON WOODS|MI": "Detroit, MI", "BINGHAM FARMS|MI": "Detroit, MI", "BLOOMFIELD HILLS|MI": "Detroit, MI",
+    "NOVI|MI": "Detroit, MI", "SOUTHFIELD|MI": "Detroit, MI", "BIRMINGHAM|MI": "Detroit, MI",
+    "TROY|MI": "Detroit, MI", "FARMINGTON HILLS|MI": "Detroit, MI", "ANN ARBOR|MI": "Detroit, MI",
+    "HOLLAND|MI": "Grand Rapids, MI", "ADA|MI": "Grand Rapids, MI", "GRAND RAPIDS|MI": "Grand Rapids, MI",
+    # Richmond (VA) + NoVa / Baltimore into the Baltimore/DC cluster
+    "RICHMOND|VA": "Richmond, VA", "GLEN ALLEN|VA": "Richmond, VA",
+    "HERNDON|VA": "Baltimore / DC", "MCLEAN|VA": "Baltimore / DC", "RESTON|VA": "Baltimore / DC",
+    "ALEXANDRIA|VA": "Baltimore / DC", "ROCKVILLE|MD": "Baltimore / DC", "HUNT VALLEY|MD": "Baltimore / DC",
+    "TOWSON|MD": "Baltimore / DC", "COLUMBIA|MD": "Baltimore / DC",
+    # Upstate NY + Long Island / CT gold-coast into New York
+    "ALBANY|NY": "Albany, NY", "GLENMONT|NY": "Albany, NY",
+    "BUFFALO|NY": "Buffalo, NY", "ORCHARD PARK|NY": "Buffalo, NY",
+    "ROCHESTER|NY": "Rochester, NY", "FAIRPORT|NY": "Rochester, NY", "PITTSFORD|NY": "Rochester, NY",
+    "HAUPPAUGE|NY": "New York, NY", "ROWAYTON|CT": "New York, NY",
+    # Salt Lake City
+    "SALT LAKE CITY|UT": "Salt Lake City, UT", "PARK CITY|UT": "Salt Lake City, UT", "MIDVALE|UT": "Salt Lake City, UT",
+    "MURRAY|UT": "Salt Lake City, UT", "SANDY|UT": "Salt Lake City, UT", "DRAPER|UT": "Salt Lake City, UT",
+    "COTTONWOOD HEIGHTS|UT": "Salt Lake City, UT",
+    # Denver suburbs
+    "ENGLEWOOD|CO": "Denver, CO", "LONE TREE|CO": "Denver, CO", "GOLDEN|CO": "Denver, CO",
+    "LITTLETON|CO": "Denver, CO", "CENTENNIAL|CO": "Denver, CO", "AURORA|CO": "Denver, CO",
+    # Hartford
+    "HARTFORD|CT": "Hartford, CT", "FARMINGTON|CT": "Hartford, CT", "WINDSOR|CT": "Hartford, CT",
+    "MERIDEN|CT": "Hartford, CT", "WATERBURY|CT": "Hartford, CT", "WEST HARTFORD|CT": "Hartford, CT",
+    # Phoenix
+    "PHOENIX|AZ": "Phoenix, AZ", "PEORIA|AZ": "Phoenix, AZ", "SCOTTSDALE|AZ": "Phoenix, AZ",
+    "MESA|AZ": "Phoenix, AZ", "TEMPE|AZ": "Phoenix, AZ", "CHANDLER|AZ": "Phoenix, AZ", "GILBERT|AZ": "Phoenix, AZ",
+    # Chicago suburbs
+    "OAKBROOK TERRACE|IL": "Chicago, IL", "SCHAUMBURG|IL": "Chicago, IL", "WHEATON|IL": "Chicago, IL",
+    "HINSDALE|IL": "Chicago, IL", "ITASCA|IL": "Chicago, IL", "DEERFIELD|IL": "Chicago, IL",
+    # Nashville / Indianapolis
+    "NASHVILLE|TN": "Nashville, TN", "BRENTWOOD|TN": "Nashville, TN", "FRANKLIN|TN": "Nashville, TN",
+    "CARMEL|IN": "Indianapolis, IN", "INDIANAPOLIS|IN": "Indianapolis, IN", "FISHERS|IN": "Indianapolis, IN",
+    "ZIONSVILLE|IN": "Indianapolis, IN",
+    # Atlanta suburbs
+    "ALPHARETTA|GA": "Atlanta, GA", "SUWANEE|GA": "Atlanta, GA", "ROSWELL|GA": "Atlanta, GA",
+    "MARIETTA|GA": "Atlanta, GA", "SANDY SPRINGS|GA": "Atlanta, GA",
+    # Charlotte (+ SC border suburbs)
+    "CHARLOTTE|NC": "Charlotte, NC", "ROCK HILL|SC": "Charlotte, NC", "FORT MILL|SC": "Charlotte, NC",
+    # Portland OR (state-qualified vs Portland ME) + Seattle
+    "PORTLAND|OR": "Portland, OR", "LAKE OSWEGO|OR": "Portland, OR", "TIGARD|OR": "Portland, OR",
+    "BEAVERTON|OR": "Portland, OR", "CAMAS|WA": "Portland, OR",
+    "PUYALLUP|WA": "Seattle, WA", "TACOMA|WA": "Seattle, WA", "REDMOND|WA": "Seattle, WA", "KIRKLAND|WA": "Seattle, WA",
+    # Kansas City (KS side)
+    "SHAWNEE MISSION|KS": "Kansas City, MO", "LENEXA|KS": "Kansas City, MO",
 }
 
 
