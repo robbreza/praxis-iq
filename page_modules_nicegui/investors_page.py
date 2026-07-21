@@ -640,6 +640,32 @@ _SEC_CITY_METRO = {
     "BALLWIN": "St. Louis, MO", "KIRKWOOD": "St. Louis, MO", "MARYLAND HEIGHTS": "St. Louis, MO",
     # Kansas City metro (spans MO/KS)
     "KANSAS CITY": "Kansas City, MO", "OVERLAND PARK": "Kansas City, MO", "LEAWOOD": "Kansas City, MO",
+    # ── Fuller CA coverage — state-qualified. Bay Area (Marin/East Bay/Peninsula), LA, San Diego,
+    #    Sacramento — NOT all lumped into LA; each city to its true ~60-mile metro. ──
+    "MILL VALLEY|CA": "San Francisco / Bay Area", "ORINDA|CA": "San Francisco / Bay Area",
+    "WALNUT CREEK|CA": "San Francisco / Bay Area", "GREENBRAE|CA": "San Francisco / Bay Area",
+    "NOVATO|CA": "San Francisco / Bay Area", "BURLINGAME|CA": "San Francisco / Bay Area",
+    "FOSTER CITY|CA": "San Francisco / Bay Area", "LAFAYETTE|CA": "San Francisco / Bay Area",
+    "CONCORD|CA": "San Francisco / Bay Area", "LARKSPUR|CA": "San Francisco / Bay Area",
+    "SAN RAFAEL|CA": "San Francisco / Bay Area", "TIBURON|CA": "San Francisco / Bay Area",
+    "SAUSALITO|CA": "San Francisco / Bay Area", "EMERYVILLE|CA": "San Francisco / Bay Area",
+    "REDWOOD CITY|CA": "San Francisco / Bay Area", "SAN CARLOS|CA": "San Francisco / Bay Area",
+    "MOUNTAIN VIEW|CA": "San Francisco / Bay Area",
+    "LAGUNA BEACH|CA": "Los Angeles, CA", "VALENCIA|CA": "Los Angeles, CA", "CALABASAS|CA": "Los Angeles, CA",
+    "TORRANCE|CA": "Los Angeles, CA", "MANHATTAN BEACH|CA": "Los Angeles, CA", "BEVERLY HILLS|CA": "Los Angeles, CA",
+    "WESTLAKE VILLAGE|CA": "Los Angeles, CA", "LONG BEACH|CA": "Los Angeles, CA", "MARINA DEL REY|CA": "Los Angeles, CA",
+    "CULVER CITY|CA": "Los Angeles, CA", "GLENDALE|CA": "Los Angeles, CA", "SHERMAN OAKS|CA": "Los Angeles, CA",
+    "SAN DIEGO|CA": "San Diego, CA", "CORONADO|CA": "San Diego, CA", "RANCHO SANTA FE|CA": "San Diego, CA",
+    "ENCINITAS|CA": "San Diego, CA", "LA JOLLA|CA": "San Diego, CA", "DEL MAR|CA": "San Diego, CA",
+    "CARLSBAD|CA": "San Diego, CA", "SOLANA BEACH|CA": "San Diego, CA",
+    "SACRAMENTO|CA": "Sacramento, CA", "WEST SACRAMENTO|CA": "Sacramento, CA", "FOLSOM|CA": "Sacramento, CA",
+    "ROSEVILLE|CA": "Sacramento, CA", "EL DORADO HILLS|CA": "Sacramento, CA",
+    # ── Fuller PA coverage — Philadelphia (Main Line) vs Pittsburgh (both real in the book) ──
+    "PITTSBURGH|PA": "Pittsburgh, PA", "WARRENDALE|PA": "Pittsburgh, PA", "SEWICKLEY|PA": "Pittsburgh, PA",
+    "CRANBERRY TOWNSHIP|PA": "Pittsburgh, PA", "WEXFORD|PA": "Pittsburgh, PA",
+    "BERWYN|PA": "Philadelphia, PA", "NEWTOWN SQUARE|PA": "Philadelphia, PA", "OAKS|PA": "Philadelphia, PA",
+    "DEVON|PA": "Philadelphia, PA", "PAOLI|PA": "Philadelphia, PA", "VILLANOVA|PA": "Philadelphia, PA",
+    "WEST CHESTER|PA": "Philadelphia, PA", "KING OF PRUSSIA|PA": "Philadelphia, PA",
 }
 
 
@@ -661,6 +687,10 @@ def _metro_from_city(city, state):
     for non-US filers (SEC uses non-US state codes like X0/V8/M0/K3)."""
     c = _norm_city(city)
     st = (state or "").strip().upper()
+    # State-qualified key first ("CONCORD|CA" ≠ Concord MA; "LONG BEACH|CA" ≠ Long Beach NY),
+    # then the plain city key for unambiguous majors.
+    if f"{c}|{st}" in _SEC_CITY_METRO:
+        return _SEC_CITY_METRO[f"{c}|{st}"]
     if c in _SEC_CITY_METRO:
         return _SEC_CITY_METRO[c]
     if st and st not in _US_STATES:
