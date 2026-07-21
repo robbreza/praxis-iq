@@ -590,27 +590,27 @@ _SEC_CITY_METRO = {
     # New York metro — incl. lower-CT (Gold Coast) + near-NJ + Westchester, all inside 60mi
     "NEW YORK": "New York, NY", "BROOKLYN": "New York, NY", "NEW YORK CITY": "New York, NY",
     "GREENWICH": "New York, NY", "STAMFORD": "New York, NY", "DARIEN": "New York, NY",
-    "WESTPORT": "New York, NY", "NORWALK": "New York, NY", "NEW CANAAN": "New York, NY",
-    "RYE": "New York, NY", "WHITE PLAINS": "New York, NY", "PURCHASE": "New York, NY",
-    "JERSEY CITY": "New York, NY", "SHORT HILLS": "New York, NY", "SUMMIT": "New York, NY",
-    "GARDEN CITY": "New York, NY", "MELVILLE": "New York, NY",
+    "WESTPORT|CT": "New York, NY", "NORWALK|CT": "New York, NY", "NEW CANAAN": "New York, NY",
+    "RYE|NY": "New York, NY", "WHITE PLAINS": "New York, NY", "PURCHASE": "New York, NY",
+    "JERSEY CITY": "New York, NY", "SHORT HILLS": "New York, NY", "SUMMIT|NJ": "New York, NY",
+    "GARDEN CITY|NY": "New York, NY", "MELVILLE": "New York, NY",
     # Boston
-    "BOSTON": "Boston, MA", "CAMBRIDGE": "Boston, MA", "WELLESLEY": "Boston, MA",
-    "WALTHAM": "Boston, MA", "NEWTON": "Boston, MA", "NEEDHAM": "Boston, MA",
+    "BOSTON": "Boston, MA", "CAMBRIDGE|MA": "Boston, MA", "WELLESLEY": "Boston, MA",
+    "WALTHAM": "Boston, MA", "NEWTON|MA": "Boston, MA", "NEEDHAM": "Boston, MA", "PLYMOUTH|MA": "Boston, MA",
     # Chicago (NOT Minneapolis/Milwaukee)
     "CHICAGO": "Chicago, IL", "OAK BROOK": "Chicago, IL", "NAPERVILLE": "Chicago, IL",
-    "EVANSTON": "Chicago, IL", "NORTHBROOK": "Chicago, IL", "LAKE FOREST": "Chicago, IL",
+    "EVANSTON|IL": "Chicago, IL", "NORTHBROOK": "Chicago, IL", "LAKE FOREST|IL": "Chicago, IL",
     "ROSEMONT": "Chicago, IL", "LISLE": "Chicago, IL",
     # Minneapolis–St. Paul (Twin Cities) — its own stop, ~60mi radius
     "MINNEAPOLIS": "Minneapolis-St. Paul, MN", "ST. PAUL": "Minneapolis-St. Paul, MN",
     "WAYZATA": "Minneapolis-St. Paul, MN", "ROSEMOUNT": "Minneapolis-St. Paul, MN",
-    "MINNETONKA": "Minneapolis-St. Paul, MN", "PLYMOUTH": "Minneapolis-St. Paul, MN",
+    "MINNETONKA": "Minneapolis-St. Paul, MN", "PLYMOUTH|MN": "Minneapolis-St. Paul, MN",
     "EDEN PRAIRIE": "Minneapolis-St. Paul, MN", "EDINA": "Minneapolis-St. Paul, MN",
-    "BLOOMINGTON": "Minneapolis-St. Paul, MN", "MENDOTA HEIGHTS": "Minneapolis-St. Paul, MN",
+    "BLOOMINGTON|MN": "Minneapolis-St. Paul, MN", "MENDOTA HEIGHTS": "Minneapolis-St. Paul, MN",
     # Wisconsin — the toughest book: Milwaukee is ~90mi from Chicago (a flight/long haul), Madison
     # further, and funds scatter across the state with no dense hub.
     "MILWAUKEE": "Milwaukee / Wisconsin", "BROOKFIELD": "Milwaukee / Wisconsin",
-    "MADISON": "Milwaukee / Wisconsin", "MEQUON": "Milwaukee / Wisconsin",
+    "MADISON|WI": "Milwaukee / Wisconsin", "MEQUON": "Milwaukee / Wisconsin",
     # SoCal / Bay / Philly
     "SOUTH PASADENA": "Los Angeles, CA", "PASADENA": "Los Angeles, CA",
     "LOS ANGELES": "Los Angeles, CA", "IRVINE": "Los Angeles, CA", "NEWPORT BEACH": "Los Angeles, CA",
@@ -621,7 +621,7 @@ _SEC_CITY_METRO = {
     "OAKLAND": "San Francisco / Bay Area", "BERKELEY": "San Francisco / Bay Area",
     "MALVERN": "Philadelphia, PA", "BALA CYNWYD": "Philadelphia, PA",
     "PHILADELPHIA": "Philadelphia, PA", "RADNOR": "Philadelphia, PA", "CONSHOHOCKEN": "Philadelphia, PA",
-    "WAYNE": "Philadelphia, PA", "WEST CONSHOHOCKEN": "Philadelphia, PA",
+    "WAYNE|PA": "Philadelphia, PA", "WEST CONSHOHOCKEN": "Philadelphia, PA",
     "BALTIMORE": "Baltimore / DC", "WASHINGTON": "Baltimore / DC", "BETHESDA": "Baltimore / DC",
     "MCLEAN": "Baltimore / DC", "ARLINGTON": "Baltimore / DC",
     # Texas — three separate stops (Dallas–Austin–Houston are 200+ mi apart)
@@ -635,7 +635,7 @@ _SEC_CITY_METRO = {
     "TAMPA": "Tampa, FL", "ST. PETERSBURG": "Tampa, FL",
     "ATLANTA": "Atlanta, GA", "SEATTLE": "Seattle, WA", "BELLEVUE": "Seattle, WA",
     # St. Louis — all spelling variants normalise to "ST. LOUIS" (see _norm_city) — + inner-ring suburbs
-    "ST. LOUIS": "St. Louis, MO", "CLAYTON": "St. Louis, MO", "CHESTERFIELD": "St. Louis, MO",
+    "ST. LOUIS": "St. Louis, MO", "CLAYTON|MO": "St. Louis, MO", "CHESTERFIELD": "St. Louis, MO",
     "DES PERES": "St. Louis, MO", "CREVE COEUR": "St. Louis, MO", "TOWN AND COUNTRY": "St. Louis, MO",
     "BALLWIN": "St. Louis, MO", "KIRKWOOD": "St. Louis, MO", "MARYLAND HEIGHTS": "St. Louis, MO",
     # Kansas City metro (spans MO/KS)
@@ -669,7 +669,7 @@ _SEC_CITY_METRO = {
     # ── Sweep (2026-07-21): fold remaining suburbs into their true ~60-mile metro, state-qualified. ──
     # Detroit / Grand Rapids (MI)
     "HUNTINGTON WOODS|MI": "Detroit, MI", "BINGHAM FARMS|MI": "Detroit, MI", "BLOOMFIELD HILLS|MI": "Detroit, MI",
-    "NOVI|MI": "Detroit, MI", "SOUTHFIELD|MI": "Detroit, MI", "BIRMINGHAM|MI": "Detroit, MI",
+    "NOVI|MI": "Detroit, MI", "SOUTHFIELD|MI": "Detroit, MI", "BIRMINGHAM|MI": "Detroit, MI", "PLYMOUTH|MI": "Detroit, MI",
     "TROY|MI": "Detroit, MI", "FARMINGTON HILLS|MI": "Detroit, MI", "ANN ARBOR|MI": "Detroit, MI",
     "HOLLAND|MI": "Grand Rapids, MI", "ADA|MI": "Grand Rapids, MI", "GRAND RAPIDS|MI": "Grand Rapids, MI",
     # Richmond (VA) + NoVa / Baltimore into the Baltimore/DC cluster
