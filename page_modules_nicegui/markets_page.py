@@ -416,7 +416,24 @@ def _safe_avg(vals):
 # source of truth shared with the Earnings Decision Engine). The primitives
 # below are aliases so this file's render code and the engine can never drift.
 # ─────────────────────────────────────────────────────────────────────────
-_street_period_avg = guidance_engine.street_avg
+def _street_period_avg(period_estimates, period, field):
+    """Street consensus for a period/field — the mean of RECEIVED analyst models, falling back to
+    the curated consensus for the CURRENT quarter's REVENUE when no models are on file. Without the
+    fallback, a client with 0 received models (USIO's real state) showed "St —" and the whole
+    guide-vs-Street comparison collapsed, even though a curated q2_consensus_rev ($25.1M) exists and
+    IS the Street number the guide should be measured against."""
+    v = guidance_engine.street_avg(period_estimates, period, field)
+    if v is not None:
+        return v
+    if field == "Revenue Est ($M)":
+        from config.client_config import CE
+        cq = (CE().get("current_quarter") or "").strip()
+        if cq and period == f"{cq}E":
+            from core import market_data
+            return market_data.consensus_rev_value()
+    return None
+
+
 _period_year = guidance_engine.period_year
 _next_year_suffix = guidance_engine.next_year_suffix
 _fy_from_quarters = guidance_engine.fy_from_quarters
