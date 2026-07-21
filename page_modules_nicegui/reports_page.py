@@ -1261,6 +1261,21 @@ def _render_earnings_prep():
         ui.label(earnings_prep.headline(d)).style(
             f"color:{COLORS['text_body']};font-size:11.5px;font-weight:600;")
 
+    seg = d.get("segment_story")
+    if seg:
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                "border-left:3px solid #1E40AF;padding:8px 10px;margin-top:4px;"):
+            ui.label("Segment story — own it in the script").style(
+                "color:#1E3A8A;font-size:12px;font-weight:700;")
+            ui.label(seg["talking_point"]).style(f"color:{COLORS['text_body']};font-size:12px;line-height:1.6;")
+            ui.label(f"Expect: “{seg['qa']['question']}”").style(
+                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:4px;")
+            ui.label(f"Answer: {seg['qa']['answer']}").style(f"color:{COLORS['text_body']};font-size:11.5px;")
+            ui.label("Sourced from the filing's XBRL segment data (Merchant Services vs Output Solutions) and "
+                     "the live peer-median valuation — not a static line.").style(
+                f"color:{COLORS['text_muted']};font-size:10px;")
+
     if b and not b.get("unavailable"):
         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
             _bm_stat("Our guidance", f"${b['guidance']:.1f}M", "what we promised", None)

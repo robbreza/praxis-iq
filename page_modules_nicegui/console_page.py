@@ -382,13 +382,21 @@ async def _refresh_13f(cid, ticker, name):
         res_all = sec_filings.refresh_13f_bulk_all(pairs)
         res = res_all.get(ticker.upper(), {})
         enr = {"enriched": sum(1 for h in (res.get("holders") or []) if h.get("size_known"))}
-        return res, enr
+        # CHAINED: re-pull signatory contacts from the refreshed holder set — new holders bring new
+        # 13F signatories, so the contact identity layer must move with ownership. Free EDGAR call.
+        try:
+            from core import contacts
+            n_contacts = len(contacts.refresh_from_13f(client_id=cid, ticker=ticker))
+        except Exception:
+            n_contacts = None
+        return res, enr, n_contacts
 
     try:
-        res, enr = await asyncio.to_thread(_work)
+        res, enr, n_contacts = await asyncio.to_thread(_work)
         n = len(res.get("holders", []))
+        _ctc = f" · {n_contacts} contacts re-pulled" if n_contacts is not None else ""
         ui.notify(f"{ticker}: 13F refreshed — {n} holders, {enr.get('enriched', 0)} with real "
-                  f"position size (reload to update).", type="positive", timeout=9000)
+                  f"position size{_ctc} (reload to update).", type="positive", timeout=9000)
     except Exception as e:
         ui.notify(f"{ticker}: 13F refresh failed — {e}", type="negative", timeout=8000)
 

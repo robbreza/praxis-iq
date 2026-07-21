@@ -336,6 +336,52 @@ def readiness(client_id=None):
     return out
 
 
+def segment_story(client_id=None):
+    """The segment narrative for the script — sourced from the filing's XBRL segment data
+    (core.segments, the same instance-document parse behind the valuation SOTP). USIO reports two
+    reportable segments: Merchant Services (payments) and Output Solutions (print-and-mail, ~85%
+    postage pass-through). The script should OWN this — the blended EV/gross-profit multiple
+    understates the payments business. Returns a management talking point + the anticipated analyst
+    Q&A, or None when a clean two-segment split can't be sourced (e.g. SARO)."""
+    try:
+        from core import segments
+        b = segments.sotp_breakeven()
+    except Exception:
+        return None
+    if not b:
+        return None
+    pay, oth = b["payments_label"], ", ".join(b["other_labels"])
+    if b["residual_negative"]:
+        close_tp = (f"The market is already paying less for ALL of {CT('ticker')} than the peer median says "
+                    f"{pay} alone is worth — the discount lives in the print optics, not the payments business.")
+        close_qa = ("even holding it at the peer median, the value left for the rest is already negative — the "
+                    "blended discount is an artifact of mixing a payments business with a pass-through.")
+    else:
+        close_tp = (f"Hold {pay} at the {b['peer_median']:.2f}x peer median and {oth} only has to clear "
+                    f"{b['breakeven_other_ev_gp']:.2f}x its own gross profit for us to be fairly valued today.")
+        close_qa = (f"{oth} only needs {b['breakeven_other_ev_gp']:.2f}x gross profit to justify today's price — "
+                    f"a low bar for a stable, cash-generative print business.")
+    return {
+        "talking_point": (
+            f"Own the segment mix. {pay} — the payments engine — is {b['payments_gp_share']:.0f}% of gross "
+            f"profit; {oth} is print-and-mail, largely a postage pass-through. Our blended "
+            f"{b['blended_multiple']:.2f}x EV/gross-profit sits against a {b['peer_median']:.2f}x pure-play "
+            f"payments median, so applying that multiple to the whole company values the print business like "
+            f"payments. " + close_tp),
+        "qa": {
+            "question": (f"Your multiple looks cheap versus payments peers — but you're not a pure-play. How "
+                         f"should we think about {oth} in the valuation?"),
+            "answer": (f"Fair — and it's the point. {pay} is {b['payments_gp_share']:.0f}% of gross profit and "
+                       f"should be valued like payments; {oth} is a lower-multiple pass-through. "
+                       f"{close_qa[0].upper() + close_qa[1:]}"),
+        },
+        "payments_label": pay, "other_labels": b["other_labels"],
+        "payments_gp_share": b["payments_gp_share"], "blended_multiple": b["blended_multiple"],
+        "peer_median": b["peer_median"], "breakeven": b["breakeven_other_ev_gp"],
+        "residual_negative": b["residual_negative"],
+    }
+
+
 def compose(client_id=None):
     """The whole brief."""
     ce = CE()
@@ -349,6 +395,7 @@ def compose(client_id=None):
         "reconciliation": guidance_reconciliation(client_id),
         "scenarios": scenarios(bar),
         "qa": qa_prep(client_id),
+        "segment_story": segment_story(client_id),
         "risks": risk_flags(client_id),
         "readiness": readiness(client_id),
         # Is the year-ago base this script will be measured against a clean one? For
