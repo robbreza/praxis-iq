@@ -111,7 +111,7 @@ def render_markets_page():
     # Deep-link from Today's Analyst Coverage ("→" jump next to an analyst):
     # consume the highlight once per page visit — mirrors app.py's
     # st.session_state["highlight_analyst"] pattern (set, shown once, cleared).
-    highlighted_analyst = nav.highlights.pop("highlight_analyst", None)
+    highlighted_analyst = nav.pop_highlight("highlight_analyst", None)
 
     with ui.tabs().classes("w-full") as tabs:
         t1 = ui.tab("IR Risk Dashboard")

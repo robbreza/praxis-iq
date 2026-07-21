@@ -3942,7 +3942,7 @@ def _render_target_db_tab(institutions, client_id):
     # A global-search result for a fund lands here pre-searched (nav.go_to passes
     # the fund name as search_prefill), so the user sees exactly the record they
     # clicked instead of the full list.
-    _prefill = nav.highlights.pop("search_prefill", None)
+    _prefill = nav.pop_highlight("search_prefill", None)
     if _prefill:
         search_in.value = _prefill
         _search_exp.set_value(True)  # arrived from global search — show the hit

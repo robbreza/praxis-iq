@@ -605,7 +605,7 @@ def render_earnings_page():
     # "Open Script Generation" button (added after that button was found
     # to silently land on the default Prior Qtr Review tab instead of
     # actually opening Script Generation — see chat from Jul 10, 2026).
-    _earnings_tab_target = nav.highlights.pop("earnings_tab", None)
+    _earnings_tab_target = nav.pop_highlight("earnings_tab", None)
     jump_to_transcripts = _earnings_tab_target == "transcripts"
     # "guidance" (Markets "Open the Guidance Decision Engine" buttons) lands on
     # the Script Generation tab AND scrolls to the Decision Engine, so the
