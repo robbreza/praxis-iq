@@ -151,8 +151,10 @@ def get_revision_momentum(period="Q2 2026E"):
 
     raising, cutting = [], []
     for firm, pts in by_firm.items():
+        # firm series are aligned to a shared date axis, so a firm's last slot is None unless it
+        # revised on the very last date — use the firm's own valid points, not pts[-1].
         valid = [(labels[i], p) for i, p in enumerate(pts) if p is not None and i < len(labels)]
-        if len(valid) < 2 or pts[-1] is None:
+        if len(valid) < 2:
             continue
         chg_pct = round((valid[-1][1] - valid[0][1]) / valid[0][1] * 100, 1) if valid[0][1] else 0
         if chg_pct > 0:
@@ -160,11 +162,11 @@ def get_revision_momentum(period="Q2 2026E"):
         elif chg_pct < 0:
             cutting.append((firm, chg_pct))
 
-    n_periods = len(labels)
+    span = f"{labels[0]}–{labels[-1]}" if labels else ""
     moves = raising + cutting
     if not moves:
-        msg = f"No net PT revisions across {n_periods} logged period{'s' if n_periods != 1 else ''} — every covering analyst is flat."
-        return {"status": "YELLOW", "headline": "No net revisions", "detail": "Every covering analyst flat.", "full": msg}
+        msg = "No net PT revisions across the tracked history — every covering desk is flat."
+        return {"status": "YELLOW", "headline": "No net revisions", "detail": "Every covering desk flat.", "full": msg}
 
     n = len(moves)
     status = "GREEN" if raising and not cutting else "RED" if cutting and not raising else "YELLOW"
@@ -175,7 +177,7 @@ def get_revision_momentum(period="Q2 2026E"):
         "status": status,
         "headline": headline,
         "detail": f"{move_list}, the rest flat.",
-        "full": f"{headline} over {n_periods} logged period{'s' if n_periods != 1 else ''} ({move_list}) — the rest flat.",
+        "full": f"{headline} across the tracked PT history{f' ({span})' if span else ''} ({move_list}) — the rest flat.",
     }
 
 

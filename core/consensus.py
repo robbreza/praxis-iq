@@ -26,22 +26,34 @@ from core import activity_log, db
 from data.seed.consensus_estimates import get_seed_consensus
 
 
-def _real_pt_history(seed):
-    """Honest PT-drift series — and right now there genuinely isn't one.
+def _real_pt_history(seed, cid=None):
+    """Real PT-drift series, built from the analyst rating-action feed (core.rating_actions —
+    sourced from Yahoo, free, no key): each dated price target a covering desk has PUBLISHED, per
+    firm, over calendar time. THIS is the genuine PT-snapshot-over-time source — the registry holds
+    only each desk's CURRENT PT, while this feed carries the whole trail (HCW $3.50→$4.00, Ladenburg
+    $4.50→$5.75→$6.25, ...).
 
-    A real drift chart needs PTs SNAPSHOTTED over calendar time (this firm's PT was $X in Mar,
-    $Y in Jun). The platform doesn't capture that yet:
-      • the registry holds each analyst's CURRENT PT — a single point in time, not a series;
-      • `period_estimates` is keyed by FORWARD estimate period (Q2 2026E = the quarter being
-        estimated FOR), NOT by when a PT was set — and the seed stamps today's PT across every
-        forward period, which would read as a flat multi-quarter "history" that never happened.
-
-    So there is no genuine time series to build. We return empty, and every consumer (Markets PT
-    Drift Tracker, risk_scorecard revision momentum, board_slides export, narrative_engine PT
-    momentum) falls through to its honest "not tracked yet" state instead of showing fabricated or
-    misconstrued drift. The current PTs we DO hold are surfaced directly from the registry on the
-    PT Drift Tracker. A real series turns on when a dedicated PT-snapshot log is added (future)."""
-    return {"labels": [], "by_firm": {}, "colors": {}, "stock_prices": []}
+    Returns the same shape the consumers expect: firm series aligned to a shared, chronological date
+    axis (None where a firm had no revision on that date), so the first-vs-last drift math in
+    risk_scorecard / board_slides / narrative_engine stays correct. Empty (and every consumer falls
+    through to its honest "not tracked yet" state) until the feed is backfilled or fewer than two
+    distinct revision dates exist."""
+    from core import rating_actions
+    events = rating_actions.recent(cid) or []
+    pts = [(e["firm"], e["date"], e["pt_current"]) for e in events
+           if e.get("firm") and e.get("date") and e.get("pt_current")]
+    dates = sorted({d for _, d, _ in pts})
+    if len(dates) < 2:
+        return {"labels": [], "by_firm": {}, "colors": {}, "stock_prices": []}
+    firms = []
+    for f, _, _ in pts:
+        if f not in firms:
+            firms.append(f)
+    pt_map = {}
+    for f, d, p in pts:
+        pt_map[(f, d)] = p   # last write wins for the same firm+date
+    by_firm = {f: [pt_map.get((f, d)) for d in dates] for f in firms}
+    return {"labels": dates, "by_firm": by_firm, "colors": {}, "stock_prices": []}
 
 _ESTIMATE_FIELDS = ("Rating", "Price Target", "EPS Est", "Revenue Est ($M)", "EBITDA Est ($M)")
 
@@ -63,11 +75,10 @@ def get_consensus(client_id=None):
     seed["period_guidance"] = db.load_json("period_guidance.json", None, client_id=cid) or seed.get("period_guidance", {})
     override_dates = db.load_json("analyst_dates_override.json", {}, client_id=cid) or {}
     seed["analyst_dates"] = {**seed.get("analyst_dates", {}), **override_dates}
-    # Replace the seed's fabricated 8-quarter pt_history with the honest one (currently empty —
-    # the platform has no real PT-snapshot-over-time source; see _real_pt_history). Every
-    # downstream consumer reads pt_history through this function, so this one line makes the whole
-    # app's PT-drift story honest at the source.
-    seed["pt_history"] = _real_pt_history(seed)
+    # Replace the seed's fabricated 8-quarter pt_history with the REAL one, built from the analyst
+    # rating-action feed (Yahoo). Every downstream consumer reads pt_history through this function,
+    # so this one line makes the whole app's PT-drift story real at the source.
+    seed["pt_history"] = _real_pt_history(seed, cid)
     return seed
 
 

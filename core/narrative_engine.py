@@ -37,15 +37,12 @@ def narrative_read(seed):
     dict the page modules render (signal/color/thesis + the supporting
     metrics), never partially-built UI."""
     # Analyst PT direction — first vs latest PT, ACTIVE covering firms only.
-    # PT momentum is only meaningful for analysts whose current target we actually track
-    # (`pt` on file). The others cover the name too, but we haven't logged their target, so
-    # they carry no real trajectory here — including them would count fabricated/absent drift.
+    # pt_history is now the REAL rating-action feed (every covering desk's dated PT trail), so we
+    # count every firm's trajectory — no registry-name filter (the feed uses Yahoo's firm names,
+    # and every series in it is real data, not fabricated drift).
     by_firm = seed.get("pt_history", {}).get("by_firm", {})
-    pt_firms = {a["firm"] for a in CA() if a.get("pt") is not None}
     raising = flat = cutting = 0
     for firm, pts in by_firm.items():
-        if pt_firms and firm not in pt_firms:
-            continue
         vals = [p for p in pts if p is not None]
         if len(vals) >= 2:
             chg = vals[-1] - vals[0]

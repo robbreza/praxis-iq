@@ -60,13 +60,15 @@ def _drift_rows(pt_hist, last_price):
     by_firm = pt_hist.get("by_firm", {})
     rows = []
     for firm, pts in by_firm.items():
+        # aligned to a shared date axis: use the firm's own valid points, not pts[-1] (which is None
+        # unless the firm revised on the very last date in the series).
         valid = [(labels[i], p) for i, p in enumerate(pts) if p is not None and i < len(labels)]
-        active = bool(pts) and pts[-1] is not None
+        active = len(valid) >= 1
         if len(valid) >= 2 and valid[0][1]:
             last_pt = valid[-1][1]
             chg_pct = round((last_pt - valid[0][1]) / valid[0][1] * 100, 1)
         else:
-            last_pt, chg_pct = (pts[-1] if pts else None), None
+            last_pt, chg_pct = (valid[-1][1] if valid else None), None
         upside = round((last_pt - last_price) / last_price * 100, 1) if last_pt and last_price else None
         rows.append({"firm": firm, "pt": last_pt, "chg_pct": chg_pct, "upside": upside, "active": active})
     return rows
@@ -149,10 +151,19 @@ def generate_pt_drift_slide(client_name, ticker, seed, revision_momentum=None):
     stock_prices = pt_hist.get("stock_prices", [])
     by_firm = pt_hist.get("by_firm", {})
     last_price = stock_prices[-1] if stock_prices else 0
+    if not last_price:
+        # pt_history (rating-action feed) carries no price series, so pull the current price for the
+        # LAST PRICE callout + upside math rather than showing $0.00.
+        try:
+            from core import market_data
+            snap = market_data.get_snapshot(ticker)
+            last_price = (snap or {}).get("last_price") or 0
+        except Exception:
+            last_price = 0
 
-    # No real multi-period drift on file → render an honest current-PTs slide, never a fabricated
-    # 8-quarter chart. (pt_history is now built from logged PTs by core.consensus; it's empty until
-    # ≥2 periods carry a PT.) This is also why the on-screen export button is gated for now.
+    # No real multi-date drift on file → render an honest current-PTs slide, never a fabricated
+    # chart. (pt_history is built from the analyst rating-action feed by core.consensus; it's empty
+    # until ≥2 revision dates exist.)
     if not by_firm or len(labels) < 2:
         return _pt_drift_placeholder_slide(client_name, ticker)
 
@@ -168,7 +179,7 @@ def generate_pt_drift_slide(client_name, ticker, seed, revision_momentum=None):
         (f"{client_name} ({ticker}) — Price Target Drift Tracker", 26, True, _WHITE),
     ])
     _textbox(slide, Inches(0.5), Inches(0.92), Inches(8.0), Inches(0.35), [
-        (f"8-quarter sell-side PT history vs. current stock price · generated {datetime.now().strftime('%b %d, %Y')}", 11, False, _MUTED),
+        (f"Sell-side PT history (analyst rating-action feed) · generated {datetime.now().strftime('%b %d, %Y')}", 11, False, _MUTED),
     ])
 
     # Native, editable line chart — left ~62% of the slide.

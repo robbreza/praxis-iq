@@ -1021,12 +1021,63 @@ def _render_pt_drift(seed):
                          "them into the range above and the drift history.").style(
                     f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
+    _render_pt_drift_chart(seed)
+
     _render_rating_actions()
 
-    waiting_signal("logged analyst PTs over time",
-                   detail="Each PT is captured as models and analyst notes are logged; a multi-quarter drift chart "
-                          "appears once at least two quarters of PTs are on file.",
-                   unlocks="the PT drift chart and raising/cutting direction per analyst over time.")
+
+def _render_pt_drift_chart(seed):
+    """The REAL PT drift chart — each covering desk's published PT over its revision dates, from the
+    analyst rating-action feed (Yahoo). Replaces the fabricated 8-quarter seed trajectories. Sparse
+    is honest: a firm with one logged PT shows one point; the trend line needs two."""
+    from page_modules_nicegui.signals import waiting_signal
+    pth = seed.get("pt_history", {}) or {}
+    labels = pth.get("labels", []) or []
+    by_firm = pth.get("by_firm", {}) or {}
+
+    ui.markdown("---")
+    ui.label("Price target drift — sell-side PTs over time").classes("font-bold")
+    if len(labels) < 2 or not by_firm:
+        waiting_signal(
+            "logged PT revisions over time",
+            detail="The drift chart builds from the analyst rating-action feed (below). Refresh it "
+                   "(Console ↻) to pull each desk's PT history; it needs at least two revision dates.",
+            unlocks="the multi-point PT drift chart and raising/cutting direction per desk.")
+        return
+
+    ui.label("Live from the analyst rating-action feed (Yahoo) — each desk's published PT on its actual "
+             "revision dates. Sell-side only; quant/aggregator PTs aren't included.").style(
+        f"color:{COLORS['text_muted']};font-size:11.5px;")
+
+    _palette = ["#1E40AF", "#15803D", "#B45309", "#7C3AED", "#B91C1C", "#0E7490", "#9333EA"]
+    fig = go.Figure()
+    drift_rows = []
+    for i, (firm, series) in enumerate(by_firm.items()):
+        xs = [labels[j] for j, p in enumerate(series) if p is not None]
+        ys = [p for p in series if p is not None]
+        if not ys:
+            continue
+        col = _palette[i % len(_palette)]
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines+markers", name=firm,
+                                  line=dict(color=col, width=2.5), marker=dict(size=8)))
+        if len(ys) >= 2:
+            chg = ys[-1] - ys[0]
+            direction = "Raising" if chg > 0 else "Cutting" if chg < 0 else "Flat"
+            drift_rows.append({"Firm": firm, "First PT": f"${ys[0]:.2f}", "Latest PT": f"${ys[-1]:.2f}",
+                               "Change": f"{(chg / ys[0] * 100):+.1f}%" if ys[0] else "—", "Direction": direction})
+        else:
+            drift_rows.append({"Firm": firm, "First PT": "—", "Latest PT": f"${ys[-1]:.2f}",
+                               "Change": "—", "Direction": "Single point on file"})
+    fig.update_layout(height=380, margin=dict(l=48, r=16, t=16, b=90),
+                      xaxis_title="Revision date", yaxis_title="Price target ($)",
+                      legend=dict(orientation="h", yanchor="top", y=-0.25, xanchor="center", x=0.5),
+                      plot_bgcolor="#F8F9FA", paper_bgcolor="white")
+    ui.plotly(fig).classes("w-full")
+
+    if drift_rows:
+        ui.label("Direction of travel per desk").classes("font-bold").style("margin-top:8px;font-size:13px;")
+        ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in drift_rows[0].keys()],
+                 rows=drift_rows, row_key="Firm").classes("w-full").props("dense flat")
 
 
 def _render_rating_actions():
@@ -1034,6 +1085,7 @@ def _render_rating_actions():
     desks' actual rating & price-target trail over time. Free, no key. A real market-timing read;
     nothing fabricated (empty = Yahoo had nothing)."""
     from core import rating_actions
+    from page_modules_nicegui.signals import waiting_signal  # used by the PT-justification gate below
 
     ui.markdown("---")
     ui.label("Analyst rating changes — upgrades, downgrades & PT moves").classes("font-bold")
