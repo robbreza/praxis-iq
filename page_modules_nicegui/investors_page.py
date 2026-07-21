@@ -987,17 +987,18 @@ def _render_prospects_by_metro(client_id):
     def _tc(funds, tier):
         return sum(1 for f in funds if f.get("tier") == tier)
 
-    rows = []
+    rows, full = [], 0
     for metro, funds in sorted(groups.items(), key=lambda kv: -len(kv[1])):
         n = len(funds)
+        if n < 2:                              # scattered single-stops → summarised below, listed in the buckets
+            continue
         if metro == "International":
             read = "International — virtual / opportunistic"
         elif n >= 4:
             read = "Full-day NDR stop"
-        elif n >= 2:
-            read = "Half-day — pair with holders"
+            full += 1
         else:
-            read = "Single fund — virtual / opportunistic"
+            read = "Half-day — pair with holders"
         rows.append({
             "Metro": metro, "Funds": n,
             "Inst": _tc(funds, "Institutional"), "RIA": _tc(funds, "RIA / wealth"),
@@ -1007,10 +1008,10 @@ def _render_prospects_by_metro(client_id):
     ui.table(columns=[{"name": k, "label": k, "field": k,
                        "align": "left" if k in ("Metro", "Roadshow read") else "right"} for k in rows[0].keys()],
              rows=rows, row_key="Metro").classes("w-full").props("dense flat")
-    full = sum(1 for r in rows if r["Funds"] >= 4 and r["Metro"] != "International")
-    singles = sum(1 for m, f in groups.items() if len(f) == 1 and m != "International")
-    ui.label(f"{full} metro(s) are full-day-viable; {singles} fund(s) sit alone in scattered single-stops "
-             "(virtual / opportunistic — the toughest to cover).").style(
+    singles = [(m, f[0]) for m, f in groups.items() if len(f) == 1 and m != "International"]
+    ui.label(f"{full} metro(s) are full-day-viable ({len(rows)} shown, ≥2 funds). Plus {len(singles)} fund(s) alone in "
+             "scattered single-city stops (virtual / opportunistic — the hard-to-cover tail, e.g. much of Wisconsin) — "
+             "all listed by name in the buckets below.").style(
         f"color:{COLORS['text_muted']};font-size:10.5px;")
 
 
