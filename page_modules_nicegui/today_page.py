@@ -835,8 +835,17 @@ def _render_investor_pipeline():
     # not the default Buy-Side tab — matches "open the database" and keeps the
     # sidebar highlight in sync. Pure navigation: it reads cached data only and
     # never triggers a SEC/market pull (those live on their own explicit buttons).
-    ui.button("Open Full Investor Pipeline →",
-              on_click=lambda: nav.go_to("Investors", "Target Database")).props("color=primary")
+    # Role-gated: a role with no access to Investors (e.g. CEO / Legal) would have
+    # this button hit the RBAC guard and silently do nothing but flash a toast —
+    # so don't offer a dead-end button; explain instead.
+    from core import ui_context
+    from config.client_config import role_can_view
+    if role_can_view(ui_context.current_role(), "Investors"):
+        ui.button("Open Full Investor Pipeline →",
+                  on_click=lambda: nav.go_to("Investors", "Target Database")).props("color=primary")
+    else:
+        ui.label("The full pipeline lives in Investor Targeting — your current role doesn't have access to "
+                 "that page.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
 
 
 def _render_earnings_readiness(days):
