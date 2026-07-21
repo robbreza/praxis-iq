@@ -711,6 +711,9 @@ _SEC_CITY_METRO = {
     "PORTLAND|OR": "Portland, OR", "LAKE OSWEGO|OR": "Portland, OR", "TIGARD|OR": "Portland, OR",
     "BEAVERTON|OR": "Portland, OR", "CAMAS|WA": "Portland, OR",
     "PUYALLUP|WA": "Seattle, WA", "TACOMA|WA": "Seattle, WA", "REDMOND|WA": "Seattle, WA", "KIRKLAND|WA": "Seattle, WA",
+    "BOTHELL|WA": "Seattle, WA", "ISSAQUAH|WA": "Seattle, WA", "SAMMAMISH|WA": "Seattle, WA",
+    "MERCER ISLAND|WA": "Seattle, WA", "RENTON|WA": "Seattle, WA", "EVERETT|WA": "Seattle, WA",
+    "WOODINVILLE|WA": "Seattle, WA", "BAINBRIDGE ISLAND|WA": "Seattle, WA", "EDMONDS|WA": "Seattle, WA",
     # Kansas City (KS side)
     "SHAWNEE MISSION|KS": "Kansas City, MO", "LENEXA|KS": "Kansas City, MO",
 }
