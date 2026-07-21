@@ -1001,7 +1001,7 @@ def _render_pt_drift(seed):
             ui.label("Also covering — current PT not yet logged").classes("font-bold").style(
                 f"color:{COLORS['text_heading']};")
             ui.label(", ".join(
-                f"{a.get('firm')} ({a.get('name')}" + (f", {a.get('rating')}" if a.get('rating') else "") + ")"
+                f"{a.get('firm')} ({a.get('name')} — {a.get('rating') or 'no rating logged'})"
                 for a in without_pt if a.get('name'))).style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
             ui.label("These analysts cover the name; log their latest PT (and rating) via Model Intake to bring "
