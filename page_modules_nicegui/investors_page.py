@@ -1275,6 +1275,31 @@ def _render_big_picture(institutions):
         if _score_val(i) > (d["top_score"] or 0):
             d["top_score"], d["top"] = i["Engagement_Score"], i["Fund"]
 
+    # Fold the qualified peer-prospect universe into the metro rollup as NON-HOLDERS — the funds
+    # that own a peer/comp but not us, i.e. the actual NDR conversion targets. Without this the table
+    # counts only current holders, so a prospect-rich metro (New York = 30 real prospects) reads
+    # "0 non-holders" — the biggest roadshow opportunity, invisible. See peer_prospects.build_candidates.
+    try:
+        from core import peer_prospects
+        _prospects = peer_prospects.build_candidates(get_active_client_id(), limit=None) or []
+    except Exception:
+        _prospects = []
+    for c in _prospects:
+        city, state = (c.get("city") or "").strip(), (c.get("state") or "").strip()
+        m = (f"{city.title()}, {state}" if city and state else (city.title() or state)) or "Unknown (SEC)"
+        d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0,
+                                         "top": None, "top_score": -1, "insts": []})
+        d["count"] += 1
+        if (c.get("conviction") or 0) >= 70:        # strong, meeting-worthy prospect (Tier-1 proxy)
+            d["tier1_nonholder"] += 1
+        if d["top"] is None:                        # prospect-only metro: name its top prospect
+            d["top"] = c.get("filer")
+        d["insts"].append({"Fund": c.get("filer"), "Metro": m, "USIO_Holder": False,
+                           "City": city.title(), "Position_Value": c.get("peer_value"),
+                           "Conviction": None, "Engagement_Score": c.get("conviction"), "AUM": None,
+                           "Action": "Prospect — owns a peer/comp, not you"})
+    tracked_total = len(institutions) + len(_prospects)
+
     requests_by_metro = {}
     for req in ndr_requests:
         requests_by_metro[req["metro"]] = requests_by_metro.get(req["metro"], 0) + 1
