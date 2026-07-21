@@ -245,6 +245,75 @@ def render_reports_page():
             _render_automation_tracker_tab()
 
 
+def _render_quarterly_trend():
+    """Sequential quarter-over-quarter financial trend for the client + peers, from XBRL (Q4 derived
+    from the 10-K: FY minus 9-month YTD). Cached by edgar_financials.refresh_trends — reads the store."""
+    from core import edgar_financials as EF
+    from config.client_config import CT, CP
+    trends = EF.get_trends()
+    ct = (CT("ticker") or "").upper()
+    client = trends.get(ct)
+    if not client or not client.get("quarters"):
+        ui.label("Quarterly trend not cached yet — a data refresh builds it from the XBRL facts "
+                 "(startup, or the Console refresh).").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        return
+
+    ui.label(f"{ct} — last {len(client['quarters'])} quarters, sequential (quarter-over-quarter). Q4 is derived "
+             "from the 10-K (full year minus 9-month YTD). Live from XBRL companyfacts.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+
+    def _m(v):
+        return f"${v / 1e6:.1f}M" if isinstance(v, (int, float)) else "—"
+
+    rows = []
+    for q in client["quarters"]:
+        rows.append({
+            "Qtr": q["label"], "Revenue": _m(q["revenue"]),
+            "Rev QoQ": f"{q['rev_qoq_pct']:+.1f}%" if q.get("rev_qoq_pct") is not None else "—",
+            "Gross profit": _m(q["gross_profit"]),
+            "Margin": f"{q['gross_margin']:.1f}%" if q.get("gross_margin") is not None else "—",
+            "EPS": f"${q['eps']:.2f}" if q.get("eps") is not None else "—",
+        })
+    ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left" if k == "Qtr" else "right"}
+                      for k in rows[0].keys()], rows=rows, row_key="Qtr").classes("w-full").props("dense flat")
+
+    peers = [p.get("ticker") for p in (CP() or []) if p.get("ticker")]
+
+    def _qoq(v):
+        # Flag implausibly large swings — usually a cross-company XBRL tagging artifact (a big filer's
+        # revenue picked from a sub-component tag, or a mis-derived Q4), not a real move. Honest > tidy.
+        if v is None:
+            return "—"
+        return f"{v:+.1f}%" + (" ⚠" if abs(v) > 40 else "")
+
+    prows, flagged = [], False
+    for tk in [CT("ticker")] + peers:
+        t = trends.get((tk or "").upper())
+        if not t or not t.get("quarters"):
+            continue
+        qs = t["quarters"]
+        last, prior = qs[-1], (qs[-2] if len(qs) >= 2 else {})
+        if last.get("rev_qoq_pct") is not None and abs(last["rev_qoq_pct"]) > 40:
+            flagged = True
+        prows.append({
+            "Ticker": (tk or "").upper() + (" (you)" if (tk or "").upper() == ct else ""),
+            "Latest": last.get("label", "—"),
+            "Revenue": _m(last.get("revenue")),
+            "Rev QoQ": _qoq(last.get("rev_qoq_pct")),
+            "Prior QoQ": _qoq(prior.get("rev_qoq_pct")),
+        })
+    if len(prows) > 1:
+        ui.label("Peers — latest quarter-over-quarter revenue").classes("font-bold").style("margin-top:10px;")
+        ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left" if k == "Ticker" else "right"}
+                          for k in prows[0].keys()], rows=prows, row_key="Ticker").classes(
+            "w-full").props("dense flat")
+        note = ("QoQ is sequential (this quarter vs last), from each company's own XBRL filings — the "
+                "like-for-like read 13F-style snapshots can't give.")
+        if flagged:
+            note += " ⚠ = an implausibly large swing, likely a big filer's XBRL tagging quirk, not a real move — treat as low-confidence."
+        ui.label(note).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+
 def _render_board_reports_tab(reviews, review_path):
     ui.label("Board IR Reports").classes("text-lg font-bold")
     ui.label("Composed live from the latest SEC filing, valuation, and ownership data — not a static image, and "
@@ -257,6 +326,9 @@ def _render_board_reports_tab(reviews, review_path):
     with ui.expansion("Earnings Prep Brief — what management needs in the room · Live",
                       value=True).classes("w-full"):
         _render_earnings_prep()
+
+    with ui.expansion("Quarterly financial trend (QoQ) — client & peers · Live").classes("w-full"):
+        _render_quarterly_trend()
 
     with ui.expansion("New Analyst Onboarding Kit — what we hand a new analyst · Live").classes(
             "w-full"):
@@ -1260,6 +1332,8 @@ def _render_earnings_prep():
         ui.label("Read this first").style("color:#B91C1C;font-size:12px;font-weight:700;")
         ui.label(earnings_prep.headline(d)).style(
             f"color:{COLORS['text_body']};font-size:11.5px;font-weight:600;")
+        if d.get("sequential"):
+            ui.label(d["sequential"]).style(f"color:{COLORS['text_body']};font-size:11.5px;margin-top:2px;")
 
     seg = d.get("segment_story")
     if seg:

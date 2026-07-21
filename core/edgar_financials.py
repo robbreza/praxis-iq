@@ -132,6 +132,123 @@ def _prior_year_q(gaap, tags, end):
     return best[1] if best else None
 
 
+def _duration_facts(gaap, tags, lo, hi):
+    """{(start,end): val} for duration facts whose length is lo..hi days (deduped, later filing wins)."""
+    entries, _ = _usd_entries(gaap, tags)
+    out = {}
+    for e in entries:
+        d = _days(e)
+        if d is not None and lo <= d <= hi and e.get("val") is not None:
+            out[(e.get("start"), e["end"])] = e["val"]
+    return out
+
+
+def _quarterly_full(gaap, tags):
+    """Quarterly series INCLUDING Q4. 10-Qs report Q1/Q2/Q3 as 3-month facts, but the 10-K reports
+    the full YEAR, not Q4 — so Q4 is derived as FY_annual − 9-month-YTD (same fiscal-year start).
+    Returns sorted [(end, val)]. A derived Q4 only appears when both the annual and the 9-month YTD
+    are on file; otherwise that quarter is simply absent (never guessed)."""
+    q = {end: v for (_s, end), v in _duration_facts(gaap, tags, 80, 100).items()}
+    annual = _duration_facts(gaap, tags, 350, 380)          # (start,end) -> FY value
+    ytd9 = {}
+    for (s, e), v in _duration_facts(gaap, tags, 260, 285).items():   # 9-month YTD (ends at Q3)
+        ytd9[s] = (e, v)
+    for (s, e_fy), v_fy in annual.items():
+        if s in ytd9 and e_fy not in q:                     # don't overwrite a directly-reported Q4
+            q[e_fy] = v_fy - ytd9[s][1]
+    return sorted(q.items())
+
+
+def _q_label(end):
+    """'2025-03-31' -> \"Q1'25\" (calendar-quarter mapping; fiscal ≈ calendar for these issuers)."""
+    try:
+        d = datetime.strptime(end, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return end
+    return f"Q{(d.month - 1) // 3 + 1}'{d.strftime('%y')}"
+
+
+def quarterly_trend(ticker, n=8):
+    """Last `n` quarters of revenue / gross profit / margin / EPS / net income / EBITDA, with Q4
+    derived (FY − 9-month YTD), plus quarter-over-quarter % change on revenue and gross profit.
+    Everything comes from the companyfacts we already fetch — this just surfaces the series the
+    single-quarter summary doesn't. Returns {ticker, quarters:[...chronological...]} or None."""
+    try:
+        raw, _cik = _fetch_companyfacts(ticker)
+    except Exception:
+        return None
+    gaap = raw.get("facts", {}).get("us-gaap", {})
+
+    rev = dict(_quarterly_full(gaap, _C["revenue"]))
+    gp = dict(_quarterly_full(gaap, _C["gross_profit"]))
+    cogs = dict(_quarterly_full(gaap, _C["cogs"]))
+    ni = dict(_quarterly_full(gaap, _C["net_income"]))
+    oi = dict(_quarterly_full(gaap, _C["operating_income"]))
+    dna = dict(_quarterly_full(gaap, _C["dna"]))
+    # EPS is per-share (USD/shares); same 3-month + Q4-derivation logic
+    eps = dict(_quarterly_full(gaap, _C["eps"]))
+
+    ends = sorted(rev.keys())[-n:]
+    if len(ends) < 2:
+        return None
+    out = []
+    prev_rev = prev_gp = None
+    for end in ends:
+        r = rev.get(end)
+        g = gp.get(end)
+        if g is None and r is not None and cogs.get(end) is not None:
+            g = r - cogs[end]
+        o = oi.get(end)
+        eb = (o + dna[end]) if (o is not None and dna.get(end) is not None) else None
+        row = {
+            "period": end, "label": _q_label(end),
+            "revenue": r, "gross_profit": g,
+            "gross_margin": (g / r * 100) if (g is not None and r) else None,
+            "eps": eps.get(end), "net_income": ni.get(end), "ebitda": eb,
+            "rev_qoq_pct": ((r / prev_rev - 1) * 100) if (r and prev_rev) else None,
+            "gp_qoq_pct": ((g / prev_gp - 1) * 100) if (g and prev_gp) else None,
+        }
+        out.append(row)
+        prev_rev, prev_gp = r or prev_rev, g or prev_gp
+    return {"ticker": ticker.upper(), "quarters": out}
+
+
+_TREND_KEY = "quarterly_trends.json"
+
+
+def refresh_trends(client_id=None, n=8, include_peers=True):
+    """Compute the quarterly trend for the client (and its peers) and cache it per-tenant, so the
+    render path reads a store instead of firing a companyfacts fetch per peer. Returns the store."""
+    from config.client_config import CT, CP, get_active_client_id
+    from core import db
+    cid = client_id or get_active_client_id()
+    tickers = [CT("ticker")] + ([p.get("ticker") for p in (CP() or [])] if include_peers else [])
+    store = {}
+    for tk in tickers:
+        if not tk:
+            continue
+        t = quarterly_trend(tk, n=n)
+        if t:
+            store[tk.upper()] = t
+    db.save_json(_TREND_KEY, store, client_id=cid)
+    return store
+
+
+def get_trend(ticker, client_id=None):
+    """Cached quarterly trend for one ticker (never fetches — safe on render)."""
+    from config.client_config import get_active_client_id
+    from core import db
+    cid = client_id or get_active_client_id()
+    return (db.load_json(_TREND_KEY, {}, client_id=cid) or {}).get((ticker or "").upper())
+
+
+def get_trends(client_id=None):
+    from config.client_config import get_active_client_id
+    from core import db
+    cid = client_id or get_active_client_id()
+    return db.load_json(_TREND_KEY, {}, client_id=cid) or {}
+
+
 def _extract(raw):
     gaap = raw.get("facts", {}).get("us-gaap", {})
     dei = raw.get("facts", {}).get("dei", {})

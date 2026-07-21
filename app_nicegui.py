@@ -989,6 +989,16 @@ async def _kick_off_peer_watch():
             print(f"[startup] N-PORT fund holders (EDGAR): {ntot} fund(s) across tenants.")
         except Exception as e:
             print(f"[startup] N-PORT refresh failed (non-fatal): {e}")
+        try:
+            from core import edgar_financials
+            from config.client_config import CLIENT_REGISTRY, set_active_client_id
+            qtot = 0
+            for _cid in list(CLIENT_REGISTRY.keys()):
+                set_active_client_id(_cid)
+                qtot += len(await asyncio.to_thread(edgar_financials.refresh_trends, _cid))
+            print(f"[startup] Quarterly trends (XBRL): cached for {qtot} ticker(s) across tenants.")
+        except Exception as e:
+            print(f"[startup] Quarterly trends refresh failed (non-fatal): {e}")
         while True:
             await asyncio.sleep(12 * 3600)
             try:

@@ -382,6 +382,27 @@ def segment_story(client_id=None):
     }
 
 
+def sequential_read(client_id=None):
+    """A one-line sequential (quarter-over-quarter) revenue read for the script — the last three
+    quarters incl. the derived Q4 — from the cached quarterly trend. None if history is too thin."""
+    try:
+        from core import edgar_financials
+        t = edgar_financials.get_trend(CT("ticker"))
+    except Exception:
+        return None
+    qs = (t or {}).get("quarters") or []
+    if len(qs) < 3:
+        return None
+    q = qs[-3:]
+
+    def _m(v):
+        return f"${v / 1e6:.1f}M" if v else "—"
+
+    seq = " to ".join(f"{_m(x['revenue'])} in {x['label']}" for x in q)
+    tail = f" — {q[-1]['rev_qoq_pct']:+.1f}% sequentially" if q[-1].get("rev_qoq_pct") is not None else ""
+    return f"Sequentially, revenue moved {seq}{tail}."
+
+
 def compose(client_id=None):
     """The whole brief."""
     ce = CE()
@@ -396,6 +417,7 @@ def compose(client_id=None):
         "scenarios": scenarios(bar),
         "qa": qa_prep(client_id),
         "segment_story": segment_story(client_id),
+        "sequential": sequential_read(client_id),
         "risks": risk_flags(client_id),
         "readiness": readiness(client_id),
         # Is the year-ago base this script will be measured against a clean one? For
