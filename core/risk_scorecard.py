@@ -48,8 +48,8 @@ def _consensus_pt_avg(period="Q2 2026E"):
     from core.consensus import get_consensus
     seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
-    active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
-    pts = [ests[f]["Price Target"] for f in ests if f in active_firms and ests.get(f, {}).get("Price Target") is not None]
+    covering_firms = {a["firm"] for a in CA() if a.get("covering", True)}
+    pts = [ests[f]["Price Target"] for f in ests if f in covering_firms and ests.get(f, {}).get("Price Target") is not None]
     return sum(pts) / len(pts) if pts else None
 
 
@@ -201,7 +201,7 @@ def _estimate_guidance_risk(period="Q2 2026E"):
     # 2026-07-16: 2 analysts are active and we have 0 of their models, so the old
     # logic reported "2 of 5 models" while the true figure was zero.
     total = len(CA())
-    active = sum(1 for a in CA() if a.get("status") == "active")
+    covering = sum(1 for a in CA() if a.get("covering", True))
     with_model = sum(1 for v in ests.values() if v.get("Revenue Est ($M)") is not None)
     cov = with_model / total if total else 0
     status = "GREEN" if cov >= 0.8 else "YELLOW" if cov >= 0.5 else "ORANGE" if cov > 0 else "RED"
@@ -211,7 +211,7 @@ def _estimate_guidance_risk(period="Q2 2026E"):
                       f"({'broad' if cov >= 0.8 else 'thin'} coverage)."))
     else:
         items.append(("EBITDA / EPS Risk", "RED",
-                      f"NO analyst models on file — {active} of {total} analysts actively cover "
+                      f"NO analyst models on file — {covering} of {total} analysts actively cover "
                       f"{CT('ticker')}, but not one of their models has been ingested. Any 'consensus' "
                       f"computed here would be from the market feed's aggregate, not from models we hold."))
 
@@ -283,20 +283,22 @@ def _investor_narrative_risk(period="Q2 2026E"):
         items.append(("KPI Understanding", "GRAY", "Not tracked — no logged investor objections on file yet."))
         items.append(("Investor Objection Trend", "GRAY", "Not tracked — same reason; populates once NDR debriefs start logging real objections."))
 
-    active = [a for a in CA() if a.get("status") == "active"]
+    # Alignment is only computable for analysts whose published PT we hold (pt on file);
+    # the rest cover the name but we have no target to check Buy-rating/above-price against.
+    with_pt = [a for a in CA() if a.get("pt") is not None]
     snap = market_data.get_snapshot(CT("ticker"))
     from core.consensus import get_consensus
     seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
-    if active and snap and snap.get("last_price"):
-        buy_count = sum(1 for a in active if ests.get(a["firm"], {}).get("Rating") == "Buy")
-        above_count = sum(1 for a in active if a.get("pt") and a["pt"] > snap["last_price"])
+    if with_pt and snap and snap.get("last_price"):
+        buy_count = sum(1 for a in with_pt if ests.get(a["firm"], {}).get("Rating") == "Buy")
+        above_count = sum(1 for a in with_pt if a.get("pt") and a["pt"] > snap["last_price"])
         aligned = min(buy_count, above_count)
-        status = "GREEN" if aligned == len(active) else "YELLOW" if aligned > 0 else "ORANGE"
+        status = "GREEN" if aligned == len(with_pt) else "YELLOW" if aligned > 0 else "ORANGE"
         items.append(("Analyst Message Alignment", status,
-                       f"{buy_count}/{len(active)} active analyst(s) Buy-rated, {above_count}/{len(active)} with PT above last trade (${snap['last_price']:.2f})."))
+                       f"{buy_count}/{len(with_pt)} analyst(s) with a logged PT are Buy-rated, {above_count}/{len(with_pt)} with PT above last trade (${snap['last_price']:.2f})."))
     else:
-        items.append(("Analyst Message Alignment", "GRAY", "Needs active analyst ratings/PTs and a market snapshot."))
+        items.append(("Analyst Message Alignment", "GRAY", "Needs analyst ratings/PTs on file and a market snapshot."))
     return items
 
 
@@ -476,7 +478,6 @@ def compute_actionable_signals(period="Q2 2026E"):
     # gap — they publish, we just haven't collected it.
     ests_now = (get_consensus(get_active_client_id()).get("period_estimates", {}) or {}).get(period, {})
     no_model = [a for a in CA() if ests_now.get(a["firm"], {}).get("Revenue Est ($M)") is None]
-    inactive = [a for a in CA() if a.get("status") != "active"]
     if no_model:
         names = ", ".join(a["name"].split()[-1] for a in no_model)
         _to = [a["email"] for a in no_model if a.get("email")]
@@ -486,9 +487,9 @@ def compute_actionable_signals(period="Q2 2026E"):
             "desc": f"{names} have no model on file — {len(no_model)} of {total}. No revenue or EPS "
                     f"consensus can be computed from models we hold, so any street figure shown in this "
                     f"platform comes from the market feed's aggregate, not from us. "
-                    + (f"{len([a for a in no_model if a.get('status') == 'active'])} of them actively "
+                    + (f"{len([a for a in no_model if a.get('covering', True)])} of them actively "
                        f"cover the stock and publish — those models are collectable today."
-                       if any(a.get("status") == "active" for a in no_model) else ""),
+                       if any(a.get("covering", True) for a in no_model) else ""),
             "action": "Send model request emails to the analysts with no model on file",
             "email": _model_request_email(no_model, _to) if _to else None,
         })

@@ -112,8 +112,8 @@ def _analyst_results(q):
     for a in CA():
         hay = " ".join([a.get("name", ""), a.get("firm", ""), a.get("email", "")]).lower()
         if q in hay:
-            status = "active" if a.get("status") == "active" else "inactive"
-            pt = f"${a['pt']:.2f} PT" if a.get("pt") else "no PT"
+            status = "covering" if a.get("covering", True) else "lapsed coverage"
+            pt = f"${a['pt']:.2f} PT" if a.get("pt") else "no PT logged"
             out.append(_result("Analyst", a.get("name", ""), f"{a.get('firm', '')} · {pt} · {status}",
                                "Markets", "Consensus / Guidance", score=_score(q, a.get("name", ""))))
     return out

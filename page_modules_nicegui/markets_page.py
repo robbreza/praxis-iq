@@ -137,7 +137,12 @@ def render_markets_page():
 # IR Risk Dashboard
 # ─────────────────────────────────────────────────────────────────────────
 def _render_risk_dashboard(seed, days_to_earn, state):
-    ingested = sum(1 for a in CA() if a.get("status") == "active")
+    # "Models ingested" must count models we actually HOLD (period_estimates), not the
+    # covering-analyst count. The old `status == "active"` proxy reported 2/5 ingested when
+    # zero models are on file — the same bug core/risk_scorecard.py already fixed for its tile.
+    _period = (CE().get("current_quarter") or "") + "E"
+    _ests = (seed.get("period_estimates", {}) or {}).get(_period, {}) or {}
+    ingested = sum(1 for v in _ests.values() if v.get("Revenue Est ($M)") is not None)
     total_analysts = len(CA())
     snap = market_data.get_snapshot(CT("ticker"))
     last_price = snap["last_price"] if snap and snap.get("last_price") is not None else CT("last_price", 0)

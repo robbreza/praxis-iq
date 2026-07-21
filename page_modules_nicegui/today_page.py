@@ -109,8 +109,8 @@ def _consensus_pt_avg(period="Q2 2026E"):
     from core.consensus import get_consensus
     seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
-    active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
-    pts = [ests[f]["Price Target"] for f in ests if f in active_firms and ests.get(f, {}).get("Price Target") is not None]
+    covering_firms = {a["firm"] for a in CA() if a.get("covering", True)}
+    pts = [ests[f]["Price Target"] for f in ests if f in covering_firms and ests.get(f, {}).get("Price Target") is not None]
     return sum(pts) / len(pts) if pts else None
 
 
@@ -346,7 +346,9 @@ def _signal_card(dot, title, desc):
 def _render_risk_signals(state, days, snap=None, pt_avg=None):
     ui.label("Risk signals").classes("section-head")
 
-    missing_model_analysts = [a for a in CA() if a.get("status") != "active"]
+    # Covering analysts whose current PT we haven't logged — the concrete chase list
+    # (Maxim, Litchfield, Barrington). "No PT on file" ≠ "dropped coverage": all five cover.
+    missing_model_analysts = [a for a in CA() if a.get("pt") is None]
 
     # 1. Missing models — 4-state: default / sent / noted / muted
     if signals.is_muted(state, "models_request"):
@@ -607,7 +609,7 @@ def _open_checkin_dialog(state, missing_model_analysts, checkin_days):
 
 
 def _open_disconnect_dialog(snap=None, pt_avg=None):
-    active_n = sum(1 for a in CA() if a.get("status") == "active")
+    active_n = sum(1 for a in CA() if a.get("pt") is not None)
     total_n = len(CA())
     pt_line = (f"${pt_avg:.2f} consensus built on {active_n} input(s) is fragile"
                if pt_avg is not None else "consensus PT not yet available")
@@ -623,7 +625,7 @@ def _open_disconnect_dialog(snap=None, pt_avg=None):
         ui.html(
             "<div style='background:#EEF2F7;border-radius:6px;padding:10px 14px;font-size:13px;color:#1E293B;line-height:1.6;'>"
             "<b>Likely contributors, from data on file:</b><br>"
-            f"• <b>Thin coverage</b> — only {active_n} of {total_n} analysts have an active model; {pt_line}<br>"
+            f"• <b>Thin coverage</b> — only {active_n} of {total_n} covering analysts have a current PT on file; {pt_line}<br>"
             f"• <b>Volume signal</b> — {vol_line}<br>"
             "• <b>Stale PT risk</b> — check each analyst's last revision date on the Analyst Coverage card below "
             "before treating consensus as current."
@@ -674,7 +676,7 @@ def _render_activity_responses(state):
              "here is auto-detected.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     sent_names = state.get("models_sent_names", [])
-    tracked_analysts = [a for a in CA() if a["name"] in sent_names] or [a for a in CA() if a.get("status") != "active"]
+    tracked_analysts = [a for a in CA() if a["name"] in sent_names] or [a for a in CA() if a.get("pt") is None]
     for a in tracked_analysts:
         _render_activity_row(state, a)
 

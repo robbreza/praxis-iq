@@ -171,12 +171,19 @@ _CODE_SEED = {
             "closing_line": "We remain committed to building a stronger, more innovative, and more valuable Usio.",
             "operator_handoff": "Operator, you can now open the call to questions.",
         },
+        # `covering` = does this analyst CURRENTLY cover the stock. All five cover USIO
+        # (verified 2026-07-21: 4 Buy / 1 Sell aggregate, median PT $6.00; Barry Sine is
+        # actively building a model). The OLD field was `status: active/inactive`, where
+        # "inactive" was read as "dropped coverage" — it wasn't; it only meant "no current
+        # PT logged." That conflation produced false "coverage contracted" / "2 of 5 cover"
+        # reads across the app. Whether we have their published target is `pt` (None = not
+        # logged), a SEPARATE fact from coverage. A genuine lapse gets `covering: False`.
         "analysts": [
-            {"name": "Scott Buck", "firm": "H.C. Wainwright", "pt": 4.00, "status": "active", "email": "sbuck@hcwco.com"},
-            {"name": "Jon Hickman", "firm": "Ladenburg Thalmann", "pt": 6.25, "status": "active", "email": "jhickman@ladenburg.com"},
-            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "status": "inactive", "email": "mdiana@maxim.com"},
-            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "status": "inactive", "email": "bsine@litchfieldhills.com"},
-            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "status": "inactive", "email": "gprestopino@barrington.com"},
+            {"name": "Scott Buck", "firm": "H.C. Wainwright", "pt": 4.00, "covering": True, "email": "sbuck@hcwco.com"},
+            {"name": "Jon Hickman", "firm": "Ladenburg Thalmann", "pt": 6.25, "covering": True, "email": "jhickman@ladenburg.com"},
+            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "covering": True, "email": "mdiana@maxim.com"},
+            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "covering": True, "email": "bsine@litchfieldhills.com"},
+            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "covering": True, "email": "gprestopino@barrington.com"},
         ],
         # Tiered peer architecture (2026-07): USIO is a hybrid — Merchant
         # Services (PayFac / card / ACH / prepaid) + Output Solutions (billing /
@@ -554,6 +561,21 @@ def CI():
 
 def CA():
     return get_client().get("analysts", [])
+
+
+def covering_analysts():
+    """Analysts who CURRENTLY cover the stock. `covering` defaults True — being on the
+    roster IS coverage; only an explicit `covering: False` (a genuine lapse) drops one.
+    NEVER infer coverage from `pt` or the retired `status` field: `pt is None` means
+    "no current PT logged," NOT "dropped coverage" (that conflation caused a wrong read,
+    2026-07-21). Use this for the covering universe / coverage counts."""
+    return [a for a in CA() if a.get("covering", True)]
+
+
+def analysts_with_pt():
+    """Covering analysts whose current published price target we have on file
+    (`pt is not None`) — a SEPARATE fact from whether they cover."""
+    return [a for a in covering_analysts() if a.get("pt") is not None]
 
 
 def CE():

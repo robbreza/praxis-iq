@@ -105,15 +105,16 @@ def rolled_consensus(period, client_id=None, metric="Revenue Est ($M)",
     estimates = (get_consensus(cid).get("period_estimates", {}) or {}).get(period, {}) or {}
 
     analysts = client.get("analysts", []) or []
-    active_firms = {a.get("firm") for a in analysts if a.get("status") == "active" and a.get("firm")}
+    covering_firms = {a.get("firm") for a in analysts if a.get("covering", True) and a.get("firm")}
 
-    # received models = firms with a numeric value for this metric; restricted to the active
-    # covering set when we know it (a dropped analyst's stale model shouldn't count).
+    # received models = firms with a numeric value for this metric; restricted to the CURRENTLY
+    # COVERING set when we know it (a genuinely lapsed analyst's stale model shouldn't count —
+    # but "no PT logged" is NOT a lapse, so all five USIO firms count here).
     received = {}
     for firm, est in estimates.items():
         v = est.get(metric)
         if isinstance(v, (int, float)):
-            if not active_firms or firm in active_firms:
+            if not covering_firms or firm in covering_firms:
                 received[firm] = float(v)
 
     values = list(received.values())
@@ -140,7 +141,7 @@ def rolled_consensus(period, client_id=None, metric="Revenue Est ($M)",
     street_val = street.get("value_m") if street_ok else None
     street_n = street.get("n") if street else None
 
-    n_covering = len(active_firms) if active_firms else (street_n or n_models)
+    n_covering = len(covering_firms) if covering_firms else (street_n or n_models)
     coverage = (n_models / n_covering) if n_covering else 0.0
 
     # outliers: flag-only (kept in the math)

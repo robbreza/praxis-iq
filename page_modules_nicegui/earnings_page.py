@@ -3024,7 +3024,7 @@ def _render_consensus_rollup():
     # ── who still owes a model (active coverage) ────────────────────────────
     received = {f["firm"] for f in r["per_firm"]}
     missing = [a for a in (C().get("analysts", []) or [])
-               if a.get("status") == "active" and a.get("firm") and a.get("firm") not in received]
+               if a.get("covering", True) and a.get("firm") and a.get("firm") not in received]
     if missing:
         ui.markdown("---")
         ui.label("Awaiting models (active coverage) — chase these to move toward authoritative:").style(

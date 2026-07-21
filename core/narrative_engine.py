@@ -37,14 +37,14 @@ def narrative_read(seed):
     dict the page modules render (signal/color/thesis + the supporting
     metrics), never partially-built UI."""
     # Analyst PT direction — first vs latest PT, ACTIVE covering firms only.
-    # A firm that lapsed coverage shows a trailing "cut" that isn't forward
-    # conviction, so it would wrongly drag the read down; the signal is about
-    # who's still covering the name and where their target is heading.
+    # PT momentum is only meaningful for analysts whose current target we actually track
+    # (`pt` on file). The others cover the name too, but we haven't logged their target, so
+    # they carry no real trajectory here — including them would count fabricated/absent drift.
     by_firm = seed.get("pt_history", {}).get("by_firm", {})
-    active_firms = {a["firm"] for a in CA() if a.get("status") == "active"}
+    pt_firms = {a["firm"] for a in CA() if a.get("pt") is not None}
     raising = flat = cutting = 0
     for firm, pts in by_firm.items():
-        if active_firms and firm not in active_firms:
+        if pt_firms and firm not in pt_firms:
             continue
         vals = [p for p in pts if p is not None]
         if len(vals) >= 2:

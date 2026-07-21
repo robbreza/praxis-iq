@@ -92,7 +92,7 @@ def sell_side_and_peers(client_id=None):
     items = []
 
     roster = CA() or []
-    active = [a for a in roster if a.get("status") == "active"]
+    covering = [a for a in roster if a.get("covering", True)]
     live_cov = []
     try:
         est = market_data.get_estimates(CT("ticker")) or {}
@@ -101,7 +101,7 @@ def sell_side_and_peers(client_id=None):
         pass
     items.append({
         "item": "Current analyst roster (name, firm, email, coverage status)", "owner": "IR",
-        "status": "ready", "live": f"{len(roster)} firms, {len(active)} active",
+        "status": "ready", "live": f"{len(roster)} covering firms",
         "note": (f"Cross-checked against the market feed: all {len(live_cov)} covering firms match "
                  f"the roster exactly. The roster was never the problem." if live_cov else None)})
 
