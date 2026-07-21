@@ -950,7 +950,7 @@ def _render_peer_prospects_tab(client_id):
     # Sort toggle — conviction (the smart default) vs raw 13F position size (what
     # a plain 13F screen shows) vs concentration. Lives outside the refreshable so
     # flipping it just re-ranks the list.
-    _state = {"sort": "conviction"}
+    _state = {"sort": "conviction", "show_all": False}
     with ui.row().classes("items-center gap-2").style("margin-top:6px;"):
         ui.label("Rank by").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
         _sort_toggle = ui.toggle(
@@ -959,7 +959,11 @@ def _render_peer_prospects_tab(client_id):
 
     @ui.refreshable
     def _list():
-        cands = peer_prospects.build_candidates(client_id, limit=40, sort=_state["sort"])
+        # Show ALL qualified peer-owners by default is heavy (222 cards), so start at 40 with a
+        # one-click "show all" — but never a silent cap: the count card says how many exist and the
+        # control lists every one (same principle as the RIA/diversified buckets below).
+        _lim = None if _state.get("show_all") else 40
+        cands = peer_prospects.build_candidates(client_id, limit=_lim, sort=_state["sort"])
         c = peer_prospects.counts(client_id)
         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
             for lbl, val, clr in [("To qualify", c["candidates"], COLORS["accent"]),
@@ -1022,6 +1026,23 @@ def _render_peer_prospects_tab(client_id):
 
                                 ui.button("Promote", on_click=_promote).props("dense size=sm color=primary")
                                 ui.button("Dismiss", on_click=_dismiss).props("flat dense size=sm")
+
+        # Show-all control — every qualified peer-owner is listable, not just the top 40.
+        _total = c["candidates"]
+        if _total > len(cands) and not _state.get("show_all"):
+            def _showall():
+                _state["show_all"] = True
+                _list.refresh()
+            ui.button(f"Show all {_total} funds that own a peer but not USIO",
+                      icon="expand_more", on_click=_showall).props("flat dense").style("margin-top:8px;")
+        elif _state.get("show_all"):
+            ui.label(f"Showing all {len(cands)} qualified peer-owners (funds holding a comp, not USIO).").style(
+                f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
+
+            def _showtop():
+                _state["show_all"] = False
+                _list.refresh()
+            ui.button("Show top 40 only", icon="expand_less", on_click=_showtop).props("flat dense")
 
         # ── RIA / wealth bucket ─────────────────────────────────────────────
         # These genuinely own the comps but have no PM to pitch, so they're a
