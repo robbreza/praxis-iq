@@ -1052,17 +1052,14 @@ def _render_pt_drift(seed):
                                 launched_from="Markets · PT Drift Tracker")
         ui.notify("Board slide downloaded.", type="positive")
 
-    # GATED (2026-07-21): generate_pt_drift_slide() renders seed['pt_history'].by_firm — the same
-    # fabricated 8-quarter trajectories we removed from the on-screen tracker. Exporting that as a
-    # board slide would hand the CEO invented drift. Disabled until the drift history is real
-    # (accumulated from logged PTs); re-enable when board_slides reads a real series. _export_board_slide
-    # is kept defined so the wiring is a one-line flip once the data is real.
-    _ = _export_board_slide
-    ui.button("Generate PT Drift Board Slide (.pptx)").props("color=primary").props("disable").tooltip(
-        "Available once PT drift history is real — it accumulates as analyst PTs are logged each quarter. "
-        "The earlier slide drew on fabricated 8-quarter trajectories, so it's gated for now.")
-    ui.label("PT-drift board slide is paused until the drift history is built from logged PTs (no fabricated "
-             "trajectories in a board deck).").style(f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+    # Re-enabled (2026-07-21): generate_pt_drift_slide() now reads the HONEST pt_history served by
+    # core.consensus (empty until a real PT-snapshot series exists), so with no real drift it exports
+    # a clean current-PTs slide via _pt_drift_placeholder_slide — no fabricated trajectories. Once a
+    # real multi-period series accrues, the same function draws the drift chart automatically.
+    ui.button("Generate PT Drift Board Slide (.pptx)", on_click=_export_board_slide).props("color=primary")
+    ui.label("Exports the current price targets on file; the multi-quarter drift chart is added once PT "
+             "history accrues (no fabricated trajectories).").style(
+        f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
 
 
 # ─────────────────────────────────────────────────────────────────────────
