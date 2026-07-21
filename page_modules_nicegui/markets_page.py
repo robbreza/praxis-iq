@@ -1229,6 +1229,13 @@ def _render_nobo():
                 } for h in top10]
                 ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in _rows[0].keys()],
                          rows=_rows, row_key="Holder").classes("w-full").props("dense flat")
+                from core import nport_feed
+                _funds = nport_feed.recent(limit=50)
+                if _funds:
+                    _top = ", ".join(f["fund"].title() for f in _funds[:4])
+                    ui.label(f"Plus {len(_funds)} mutual fund / ETF holder(s) via N-PORT — {_top}… — the "
+                             "'40-Act fund lens 13F doesn't surface.").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
                 ui.markdown("---")
 
             waiting_signal(

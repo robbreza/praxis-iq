@@ -978,6 +978,17 @@ async def _kick_off_peer_watch():
             print(f"[startup] Insider Form 4 (EDGAR): {itot} transaction(s) across tenants.")
         except Exception as e:
             print(f"[startup] Insider Form 4 refresh failed (non-fatal): {e}")
+        try:
+            from core import nport_feed
+            from config.client_config import CLIENT_REGISTRY
+            ntot = 0
+            for _cid, _rec in CLIENT_REGISTRY.items():
+                tk = _rec.get("ticker")
+                if tk:
+                    ntot += len(await asyncio.to_thread(nport_feed.refresh, _cid, tk))
+            print(f"[startup] N-PORT fund holders (EDGAR): {ntot} fund(s) across tenants.")
+        except Exception as e:
+            print(f"[startup] N-PORT refresh failed (non-fatal): {e}")
         while True:
             await asyncio.sleep(12 * 3600)
             try:

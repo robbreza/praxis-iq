@@ -239,6 +239,11 @@ def _ownership_section(cid):
     if new_pos:
         tn = max(new_pos, key=lambda h: h.get("Position_Value") or 0)
         lines.append(f"New believer: {(tn['Fund'] or '').title()} initiated (${(tn['Position_Value'] or 0) / 1e6:.1f}M) — engage now.")
+    from core import nport_feed
+    funds = _safe(lambda: nport_feed.recent(cid, limit=50), None) or []
+    if funds:
+        top = ", ".join(f["fund"].title() for f in funds[:3])
+        lines.append(f"{len(funds)} mutual fund/ETF holder(s) on file via N-PORT (e.g. {top}) — the '40-Act lens 13F doesn't surface.")
     return lines
 
 
