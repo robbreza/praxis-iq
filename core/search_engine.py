@@ -113,9 +113,11 @@ def _analyst_results(q):
         hay = " ".join([a.get("name", ""), a.get("firm", ""), a.get("email", "")]).lower()
         if q in hay:
             status = "covering" if a.get("covering", True) else "lapsed coverage"
-            pt = f"${a['pt']:.2f} PT" if a.get("pt") else "no PT logged"
+            ptv = a.get("pt") or a.get("pt_provisional")
+            pt = f"${ptv:.2f} PT" if ptv else "no PT logged"
             rating = a.get("rating") or "no rating logged"
-            out.append(_result("Analyst", a.get("name", ""), f"{a.get('firm', '')} · {pt} · {rating} · {status}",
+            prov = " · provisional" if a.get("provisional") else ""
+            out.append(_result("Analyst", a.get("name", ""), f"{a.get('firm', '')} · {pt} · {rating}{prov} · {status}",
                                "Markets", "Consensus / Guidance", score=_score(q, a.get("name", ""))))
     return out
 

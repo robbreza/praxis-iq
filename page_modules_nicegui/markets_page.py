@@ -998,15 +998,28 @@ def _render_pt_drift(seed):
 
     if without_pt:
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-            ui.label("Also covering — current PT not yet logged").classes("font-bold").style(
+            ui.label("Also covering — no desk-confirmed PT on file").classes("font-bold").style(
                 f"color:{COLORS['text_heading']};")
-            ui.label(", ".join(
-                f"{a.get('firm')} ({a.get('name')} — {a.get('rating') or 'no rating logged'})"
-                for a in without_pt if a.get('name'))).style(
+
+            def _cov_line(a):
+                bits = [a.get("rating") or "no rating logged"]
+                if a.get("pt_provisional"):
+                    bits.append(f"${a['pt_provisional']:.2f} PT")
+                tail = " · provisional" if a.get("provisional") else ""
+                return f"{a.get('firm')} ({a.get('name')} — {', '.join(bits)}{tail})"
+
+            ui.label(", ".join(_cov_line(a) for a in without_pt if a.get('name'))).style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label("These analysts cover the name; log their latest PT (and rating) via Model Intake to bring "
-                     "them into the range above and the drift history.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+            if any(a.get("provisional") for a in without_pt):
+                _srcs = "; ".join(f"{a.get('firm')}: {a['rating_source']}"
+                                  for a in without_pt if a.get("provisional") and a.get("rating_source"))
+                ui.label(f"Provisional = from public aggregators, not folded into the range/median above — confirm "
+                         f"with each desk, then log via Model Intake. Sources — {_srcs}.").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+            else:
+                ui.label("These analysts cover the name; log their latest PT (and rating) via Model Intake to bring "
+                         "them into the range above and the drift history.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
     waiting_signal("logged analyst PTs over time",
                    detail="Each PT is captured as models and analyst notes are logged; a multi-quarter drift chart "

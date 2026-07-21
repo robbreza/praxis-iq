@@ -180,19 +180,23 @@ _CODE_SEED = {
         # logged), a SEPARATE fact from coverage. A genuine lapse gets `covering: False`.
         #
         # `rating` = the analyst's current published stance (Buy / Hold / Sell / Market Perform /
-        # Underperform, verbatim from the desk). None = NOT yet confirmed — the app shows "no
-        # rating logged" rather than guessing. Only fields we can stand behind are filled:
-        #   • HCW (Buck) Buy $4.00 and Ladenburg (Hickman) $6.25 are web-verified bullish stances.
-        #   • Maxim / Litchfield / Barrington are None pending confirmation with each desk.
-        #     Public aggregators hint Barrington (Prestopino) is at Market Perform / a post-Q1-miss
-        #     Underperform with no PT — plausibly the "1 Sell" in the aggregate — but it's stale and
-        #     unverified, so we do NOT hardcode it. Confirm, then set it here.
+        # Underperform, verbatim). `pt` = a PT we stand behind (drives all computed numbers — range,
+        # median, alignment). Aggregator-sourced figures we haven't desk-confirmed go in
+        # `pt_provisional` + `provisional: True` + `rating_source`: DISPLAYED (clearly marked) but
+        # NEVER folded into a computed number — same rigor rule as the LM lexicon.
+        #   • HCW (Buck) Buy $4.00 and Ladenburg (Hickman) $6.25 — recent, specific, web-verified.
+        #   • Maxim / Litchfield / Barrington — filled from public aggregators, flagged provisional
+        #     until each desk confirms. This reconciles the public 4-Buy / 1-Sell, median-$6.00
+        #     aggregate: HCW/Ladenburg/Maxim/Litchfield Buy, Barrington the Sell.
         "analysts": [
             {"name": "Scott Buck", "firm": "H.C. Wainwright", "pt": 4.00, "rating": "Buy", "covering": True, "email": "sbuck@hcwco.com"},
             {"name": "Jon Hickman", "firm": "Ladenburg Thalmann", "pt": 6.25, "rating": "Buy", "covering": True, "email": "jhickman@ladenburg.com"},
-            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "rating": None, "covering": True, "email": "mdiana@maxim.com"},
-            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "rating": None, "covering": True, "email": "bsine@litchfieldhills.com"},
-            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "rating": None, "covering": True, "email": "gprestopino@barrington.com"},
+            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "pt_provisional": 5.00, "rating": "Buy",
+             "provisional": True, "rating_source": "Maxim Group research universe, 2026-02-13", "covering": True, "email": "mdiana@maxim.com"},
+            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "pt_provisional": 6.00, "rating": "Buy",
+             "provisional": True, "rating_source": "Litchfield Hills initiation (Buy, $6.00)", "covering": True, "email": "bsine@litchfieldhills.com"},
+            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "pt_provisional": None, "rating": "Underperform",
+             "provisional": True, "rating_source": "Downgrade to Underperform after Q1 miss (public aggregators)", "covering": True, "email": "gprestopino@barrington.com"},
         ],
         # Tiered peer architecture (2026-07): USIO is a hybrid — Merchant
         # Services (PayFac / card / ACH / prepaid) + Output Solutions (billing /
