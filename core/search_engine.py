@@ -114,8 +114,8 @@ def _analyst_results(q):
         if q in hay:
             status = "covering" if a.get("covering", True) else "lapsed coverage"
             pt = f"${a['pt']:.2f} PT" if a.get("pt") else "no PT logged"
-            rating = f" · {a['rating']}" if a.get("rating") else ""
-            out.append(_result("Analyst", a.get("name", ""), f"{a.get('firm', '')} · {pt}{rating} · {status}",
+            rating = a.get("rating") or "no rating logged"
+            out.append(_result("Analyst", a.get("name", ""), f"{a.get('firm', '')} · {pt} · {rating} · {status}",
                                "Markets", "Consensus / Guidance", score=_score(q, a.get("name", ""))))
     return out
 
