@@ -291,7 +291,8 @@ def _investor_narrative_risk(period="Q2 2026E"):
     seed = get_consensus(get_active_client_id())
     ests = seed.get("period_estimates", {}).get(period, {})
     if with_pt and snap and snap.get("last_price"):
-        buy_count = sum(1 for a in with_pt if ests.get(a["firm"], {}).get("Rating") == "Buy")
+        # Prefer a logged model's Rating; fall back to the analyst's published rating on the registry.
+        buy_count = sum(1 for a in with_pt if (ests.get(a["firm"], {}).get("Rating") or a.get("rating")) == "Buy")
         above_count = sum(1 for a in with_pt if a.get("pt") and a["pt"] > snap["last_price"])
         aligned = min(buy_count, above_count)
         status = "GREEN" if aligned == len(with_pt) else "YELLOW" if aligned > 0 else "ORANGE"

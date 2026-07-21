@@ -983,6 +983,7 @@ def _render_pt_drift(seed):
                 upside = round((pt - last_price) / last_price * 100, 1) if last_price else None
                 rows.append({
                     "Firm": a.get("firm", "—"), "Analyst": a.get("name", "—"),
+                    "Rating": a.get("rating") or "—",
                     "PT": f"${pt:.2f}",
                     "Upside vs last": f"{upside:+.1f}%" if upside is not None else "—",
                 })
@@ -999,10 +1000,12 @@ def _render_pt_drift(seed):
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
             ui.label("Also covering — current PT not yet logged").classes("font-bold").style(
                 f"color:{COLORS['text_heading']};")
-            ui.label(", ".join(f"{a.get('firm')} ({a.get('name')})" for a in without_pt if a.get('name'))).style(
+            ui.label(", ".join(
+                f"{a.get('firm')} ({a.get('name')}" + (f", {a.get('rating')}" if a.get('rating') else "") + ")"
+                for a in without_pt if a.get('name'))).style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label("These analysts cover the name; log their latest PT via Model Intake to bring them into "
-                     "the range above and the drift history.").style(
+            ui.label("These analysts cover the name; log their latest PT (and rating) via Model Intake to bring "
+                     "them into the range above and the drift history.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
     waiting_signal("logged analyst PTs over time",

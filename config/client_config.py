@@ -178,12 +178,21 @@ _CODE_SEED = {
         # PT logged." That conflation produced false "coverage contracted" / "2 of 5 cover"
         # reads across the app. Whether we have their published target is `pt` (None = not
         # logged), a SEPARATE fact from coverage. A genuine lapse gets `covering: False`.
+        #
+        # `rating` = the analyst's current published stance (Buy / Hold / Sell / Market Perform /
+        # Underperform, verbatim from the desk). None = NOT yet confirmed — the app shows "no
+        # rating logged" rather than guessing. Only fields we can stand behind are filled:
+        #   • HCW (Buck) Buy $4.00 and Ladenburg (Hickman) $6.25 are web-verified bullish stances.
+        #   • Maxim / Litchfield / Barrington are None pending confirmation with each desk.
+        #     Public aggregators hint Barrington (Prestopino) is at Market Perform / a post-Q1-miss
+        #     Underperform with no PT — plausibly the "1 Sell" in the aggregate — but it's stale and
+        #     unverified, so we do NOT hardcode it. Confirm, then set it here.
         "analysts": [
-            {"name": "Scott Buck", "firm": "H.C. Wainwright", "pt": 4.00, "covering": True, "email": "sbuck@hcwco.com"},
-            {"name": "Jon Hickman", "firm": "Ladenburg Thalmann", "pt": 6.25, "covering": True, "email": "jhickman@ladenburg.com"},
-            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "covering": True, "email": "mdiana@maxim.com"},
-            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "covering": True, "email": "bsine@litchfieldhills.com"},
-            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "covering": True, "email": "gprestopino@barrington.com"},
+            {"name": "Scott Buck", "firm": "H.C. Wainwright", "pt": 4.00, "rating": "Buy", "covering": True, "email": "sbuck@hcwco.com"},
+            {"name": "Jon Hickman", "firm": "Ladenburg Thalmann", "pt": 6.25, "rating": "Buy", "covering": True, "email": "jhickman@ladenburg.com"},
+            {"name": "Michael Diana", "firm": "Maxim Group", "pt": None, "rating": None, "covering": True, "email": "mdiana@maxim.com"},
+            {"name": "Barry Sine", "firm": "Litchfield Hills Research", "pt": None, "rating": None, "covering": True, "email": "bsine@litchfieldhills.com"},
+            {"name": "Gary Prestopino", "firm": "Barrington Research", "pt": None, "rating": None, "covering": True, "email": "gprestopino@barrington.com"},
         ],
         # Tiered peer architecture (2026-07): USIO is a hybrid — Merchant
         # Services (PayFac / card / ACH / prepaid) + Output Solutions (billing /
