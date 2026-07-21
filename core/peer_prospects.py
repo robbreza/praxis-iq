@@ -410,6 +410,25 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
     return kept[:limit] if limit else kept
 
 
+def all_candidates(cid=None):
+    """Every qualified peer-owner across ALL buckets — institutional, RIA/wealth, diversified, and
+    market-maker — each tagged with its `tier`. The complete "who owns the peer set but not us"
+    universe, for a unified view. Deduped by key (a fund lands in one bucket, but guard anyway)."""
+    cid = cid or get_active_client_id()
+    out, seen = [], set()
+    for kind, tier in [("institutional", "Institutional"), ("ria", "RIA / wealth"),
+                       ("diversified", "Diversified"), ("market_maker", "Market maker")]:
+        for c in build_candidates(cid, limit=None, kind=kind):
+            k = c.get("key")
+            if k in seen:
+                continue
+            seen.add(k)
+            c = dict(c)
+            c["tier"] = tier
+            out.append(c)
+    return out
+
+
 def counts(cid=None):
     """Headline counts for the review surface."""
     cid = cid or get_active_client_id()

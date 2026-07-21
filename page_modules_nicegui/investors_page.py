@@ -581,28 +581,59 @@ _US_STATES = {"AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
               "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC",
               "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT",
               "VT", "VA", "WA", "WV", "WI", "WY", "DC"}
+# Roadshow metros — a ~60-mile radius (a day's drive), the way an IR team actually plans an NDR,
+# NOT a broad Census region. Cities beyond 60mi of a hub are their OWN stop; a state full of those
+# (Wisconsin: Milwaukee ~90mi from Chicago, Madison further) is a scattered, hard-to-cover book.
+# The old map lumped Wayzata + Minneapolis + Milwaukee into "Chicago / Midwest" — 350+ miles you
+# can't roadshow in one trip — and did the same to Texas (Dallas/Austin/Houston) and Florida.
 _SEC_CITY_METRO = {
-    "NEW YORK": "New York Metro", "BROOKLYN": "New York Metro",
-    "GREENWICH": "New York Metro", "STAMFORD": "New York Metro",
-    "JERSEY CITY": "New York Metro", "SHORT HILLS": "New York Metro",
-    "BOSTON": "Boston / New England", "CAMBRIDGE": "Boston / New England",
-    "WELLESLEY": "Boston / New England",
-    "CHICAGO": "Chicago / Midwest", "OAK BROOK": "Chicago / Midwest",
-    "WAYZATA": "Chicago / Midwest", "MINNEAPOLIS": "Chicago / Midwest",
-    "MILWAUKEE": "Chicago / Midwest",
-    "SOUTH PASADENA": "Los Angeles / SoCal", "PASADENA": "Los Angeles / SoCal",
-    "LOS ANGELES": "Los Angeles / SoCal", "IRVINE": "Los Angeles / SoCal",
-    "NEWPORT BEACH": "Los Angeles / SoCal",
+    # New York metro — incl. lower-CT (Gold Coast) + near-NJ + Westchester, all inside 60mi
+    "NEW YORK": "New York, NY", "BROOKLYN": "New York, NY", "NEW YORK CITY": "New York, NY",
+    "GREENWICH": "New York, NY", "STAMFORD": "New York, NY", "DARIEN": "New York, NY",
+    "WESTPORT": "New York, NY", "NORWALK": "New York, NY", "NEW CANAAN": "New York, NY",
+    "RYE": "New York, NY", "WHITE PLAINS": "New York, NY", "PURCHASE": "New York, NY",
+    "JERSEY CITY": "New York, NY", "SHORT HILLS": "New York, NY", "SUMMIT": "New York, NY",
+    "GARDEN CITY": "New York, NY", "MELVILLE": "New York, NY",
+    # Boston
+    "BOSTON": "Boston, MA", "CAMBRIDGE": "Boston, MA", "WELLESLEY": "Boston, MA",
+    "WALTHAM": "Boston, MA", "NEWTON": "Boston, MA", "NEEDHAM": "Boston, MA",
+    # Chicago (NOT Minneapolis/Milwaukee)
+    "CHICAGO": "Chicago, IL", "OAK BROOK": "Chicago, IL", "NAPERVILLE": "Chicago, IL",
+    "EVANSTON": "Chicago, IL", "NORTHBROOK": "Chicago, IL", "LAKE FOREST": "Chicago, IL",
+    "ROSEMONT": "Chicago, IL", "LISLE": "Chicago, IL",
+    # Minneapolis–St. Paul (Twin Cities) — its own stop, ~60mi radius
+    "MINNEAPOLIS": "Minneapolis-St. Paul, MN", "ST PAUL": "Minneapolis-St. Paul, MN",
+    "SAINT PAUL": "Minneapolis-St. Paul, MN", "WAYZATA": "Minneapolis-St. Paul, MN",
+    "MINNETONKA": "Minneapolis-St. Paul, MN", "PLYMOUTH": "Minneapolis-St. Paul, MN",
+    "EDEN PRAIRIE": "Minneapolis-St. Paul, MN", "EDINA": "Minneapolis-St. Paul, MN",
+    "BLOOMINGTON": "Minneapolis-St. Paul, MN", "MENDOTA HEIGHTS": "Minneapolis-St. Paul, MN",
+    # Wisconsin — the toughest book: Milwaukee is ~90mi from Chicago (a flight/long haul), Madison
+    # further, and funds scatter across the state with no dense hub.
+    "MILWAUKEE": "Milwaukee / Wisconsin", "BROOKFIELD": "Milwaukee / Wisconsin",
+    "MADISON": "Milwaukee / Wisconsin", "MEQUON": "Milwaukee / Wisconsin",
+    # SoCal / Bay / Philly
+    "SOUTH PASADENA": "Los Angeles, CA", "PASADENA": "Los Angeles, CA",
+    "LOS ANGELES": "Los Angeles, CA", "IRVINE": "Los Angeles, CA", "NEWPORT BEACH": "Los Angeles, CA",
+    "SANTA MONICA": "Los Angeles, CA", "EL SEGUNDO": "Los Angeles, CA",
     "SAN FRANCISCO": "San Francisco / Bay Area", "FOLSOM": "San Francisco / Bay Area",
     "SAN MATEO": "San Francisco / Bay Area", "PALO ALTO": "San Francisco / Bay Area",
-    "MALVERN": "Philadelphia / Baltimore", "BALA CYNWYD": "Philadelphia / Baltimore",
-    "PHILADELPHIA": "Philadelphia / Baltimore", "RADNOR": "Philadelphia / Baltimore",
-    "BALTIMORE": "Philadelphia / Baltimore",
-    "HOUSTON": "Texas (Dallas / Austin)", "AUSTIN": "Texas (Dallas / Austin)",
-    "DALLAS": "Texas (Dallas / Austin)", "FORT WORTH": "Texas (Dallas / Austin)",
-    "DENVER": "Denver / Mountain West", "BOULDER": "Denver / Mountain West",
-    "MIAMI": "Florida (Miami / Tampa)", "TAMPA": "Florida (Miami / Tampa)",
-    "PALM BEACH": "Florida (Miami / Tampa)", "NAPLES": "Florida (Miami / Tampa)",
+    "MENLO PARK": "San Francisco / Bay Area", "SAN JOSE": "San Francisco / Bay Area",
+    "OAKLAND": "San Francisco / Bay Area", "BERKELEY": "San Francisco / Bay Area",
+    "MALVERN": "Philadelphia, PA", "BALA CYNWYD": "Philadelphia, PA",
+    "PHILADELPHIA": "Philadelphia, PA", "RADNOR": "Philadelphia, PA", "CONSHOHOCKEN": "Philadelphia, PA",
+    "WAYNE": "Philadelphia, PA", "WEST CONSHOHOCKEN": "Philadelphia, PA",
+    "BALTIMORE": "Baltimore / DC", "WASHINGTON": "Baltimore / DC", "BETHESDA": "Baltimore / DC",
+    "MCLEAN": "Baltimore / DC", "ARLINGTON": "Baltimore / DC",
+    # Texas — three separate stops (Dallas–Austin–Houston are 200+ mi apart)
+    "DALLAS": "Dallas, TX", "FORT WORTH": "Dallas, TX", "PLANO": "Dallas, TX", "IRVING": "Dallas, TX",
+    "AUSTIN": "Austin, TX",
+    "HOUSTON": "Houston, TX",
+    "DENVER": "Denver, CO", "BOULDER": "Denver, CO", "GREENWOOD VILLAGE": "Denver, CO",
+    # Florida — Miami/South-FL vs Tampa are ~280mi apart, separate
+    "MIAMI": "Miami / South FL", "PALM BEACH": "Miami / South FL", "BOCA RATON": "Miami / South FL",
+    "NAPLES": "Miami / South FL", "FORT LAUDERDALE": "Miami / South FL", "AVENTURA": "Miami / South FL",
+    "TAMPA": "Tampa, FL", "ST PETERSBURG": "Tampa, FL",
+    "ATLANTA": "Atlanta, GA", "SEATTLE": "Seattle, WA", "BELLEVUE": "Seattle, WA",
 }
 
 
@@ -933,6 +964,56 @@ def _render_nobo_tab():
     _render_nobo()
 
 
+def _render_prospects_by_metro(client_id):
+    """Unified all-buckets view — every fund that owns a USIO comp but not USIO, grouped into
+    ~60-mile roadshow metros so an NDR stop = the funds you could actually see in one trip. Reads
+    the roadshow-viability of each metro (a day is 4-6 meetings) and surfaces the scattered book."""
+    from collections import defaultdict
+    from core import peer_prospects
+    cands = peer_prospects.all_candidates(client_id)
+    if not cands:
+        return
+    groups = defaultdict(list)
+    for c in cands:
+        groups[_metro_from_city(c.get("city"), c.get("state"))].append(c)
+
+    ui.label("All peer-owners by roadshow metro — the complete non-holder universe").classes(
+        "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
+    ui.label(f"{len(cands)} funds across every bucket (institutional, RIA/wealth, diversified, market-maker) that "
+             "hold a USIO comp but not USIO, clustered into ~60-mile metros — a day's drive, the way an NDR is "
+             "actually planned. Twin Cities is its own stop, not lumped with Chicago; a state that scatters "
+             "(Wisconsin) is the hardest to cover.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    def _tc(funds, tier):
+        return sum(1 for f in funds if f.get("tier") == tier)
+
+    rows = []
+    for metro, funds in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        n = len(funds)
+        if metro == "International":
+            read = "International — virtual / opportunistic"
+        elif n >= 4:
+            read = "Full-day NDR stop"
+        elif n >= 2:
+            read = "Half-day — pair with holders"
+        else:
+            read = "Single fund — virtual / opportunistic"
+        rows.append({
+            "Metro": metro, "Funds": n,
+            "Inst": _tc(funds, "Institutional"), "RIA": _tc(funds, "RIA / wealth"),
+            "Diversified": _tc(funds, "Diversified"), "MM": _tc(funds, "Market maker"),
+            "Roadshow read": read,
+        })
+    ui.table(columns=[{"name": k, "label": k, "field": k,
+                       "align": "left" if k in ("Metro", "Roadshow read") else "right"} for k in rows[0].keys()],
+             rows=rows, row_key="Metro").classes("w-full").props("dense flat")
+    full = sum(1 for r in rows if r["Funds"] >= 4 and r["Metro"] != "International")
+    singles = sum(1 for m, f in groups.items() if len(f) == 1 and m != "International")
+    ui.label(f"{full} metro(s) are full-day-viable; {singles} fund(s) sit alone in scattered single-stops "
+             "(virtual / opportunistic — the toughest to cover).").style(
+        f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+
 def _render_peer_prospects_tab(client_id):
     """Reviewed, conviction-ranked peer-overlap candidates (core.peer_prospects).
     Funds that hold a close comp but not USIO, filtered for noise and false
@@ -946,6 +1027,9 @@ def _render_peer_prospects_tab(client_id):
              "vs. index breadth, and micro-cap fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
              "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
+
+    _render_prospects_by_metro(client_id)
+    ui.markdown("---")
 
     # Sort toggle — conviction (the smart default) vs raw 13F position size (what
     # a plain 13F screen shows) vs concentration. Lives outside the refreshable so
