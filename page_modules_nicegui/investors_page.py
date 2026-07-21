@@ -634,24 +634,41 @@ _SEC_CITY_METRO = {
     "NAPLES": "Miami / South FL", "FORT LAUDERDALE": "Miami / South FL", "AVENTURA": "Miami / South FL",
     "TAMPA": "Tampa, FL", "ST PETERSBURG": "Tampa, FL",
     "ATLANTA": "Atlanta, GA", "SEATTLE": "Seattle, WA", "BELLEVUE": "Seattle, WA",
+    # St. Louis — all spelling variants normalise to "ST. LOUIS" (see _norm_city) — + inner-ring suburbs
+    "ST. LOUIS": "St. Louis, MO", "CLAYTON": "St. Louis, MO", "CHESTERFIELD": "St. Louis, MO",
+    "DES PERES": "St. Louis, MO", "CREVE COEUR": "St. Louis, MO", "TOWN AND COUNTRY": "St. Louis, MO",
+    "BALLWIN": "St. Louis, MO", "KIRKWOOD": "St. Louis, MO", "MARYLAND HEIGHTS": "St. Louis, MO",
+    # Kansas City metro (spans MO/KS)
+    "KANSAS CITY": "Kansas City, MO", "OVERLAND PARK": "Kansas City, MO", "LEAWOOD": "Kansas City, MO",
 }
 
 
-def _metro_from_city(city, state):
-    """Map a 13F filer's HQ city/state to a metro-region label matching the seed
-    universe's Metro values, so SEC-sourced holders land in the same geographic
-    buckets. Falls back to 'City, ST' for unmapped US cities and 'International'
-    for non-US filers (SEC uses non-US state codes like X0/V8/M0/K3)."""
+def _norm_city(city):
+    """Collapse the St. / Saint / St spelling variants that otherwise fragment a metro into
+    separate rows (the data carries 'ST LOUIS', 'ST. LOUIS' and 'SAINT LOUIS' for the same city)."""
     c = (city or "").strip().upper()
+    if c.startswith("SAINT "):
+        return "ST. " + c[6:]
+    if c.startswith("ST ") and not c.startswith("ST. "):
+        return "ST. " + c[3:]
+    return c
+
+
+def _metro_from_city(city, state):
+    """Map a 13F filer's HQ city/state to a ~60-mile roadshow metro label, so SEC-sourced holders
+    and prospects land in the same geographic buckets. Spelling variants are normalised first (see
+    _norm_city). Falls back to the normalised 'City, ST' for unmapped US cities and 'International'
+    for non-US filers (SEC uses non-US state codes like X0/V8/M0/K3)."""
+    c = _norm_city(city)
     st = (state or "").strip().upper()
     if c in _SEC_CITY_METRO:
         return _SEC_CITY_METRO[c]
     if st and st not in _US_STATES:
         return "International"
-    if city and st:
-        return f"{str(city).title()}, {st}"
-    if city:
-        return str(city).title()
+    if c and st:
+        return f"{c.title()}, {st}"      # normalised so St / St. / Saint variants don't split
+    if c:
+        return c.title()
     return "Unknown (SEC)"
 
 
