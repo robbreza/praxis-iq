@@ -912,10 +912,22 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
                 f"subject to risks and uncertainties described in our SEC filings.")
     if role == "CFO":
         beat = {"beat": "above", "inline": "in line with", "miss": "below"}[bucket]
-        return (f"Total revenue for the quarter was ${n.get('rev',0):.1f}M, which came in {beat} Street "
-                f"consensus of ${market_data.consensus_rev_value() or 0:.1f}M. Gross margin was {n.get('gm',0):.1f}%, and "
-                f"Adjusted EBITDA was ${n.get('ebitda',0):.1f}M. GAAP EPS was ${n.get('eps',0):.2f}. SG&A "
-                f"totaled ${n.get('sga',0):.1f}M. We ended the quarter with ${n.get('cash',0):.1f}M in cash.")
+        draft = (f"Total revenue for the quarter was ${n.get('rev',0):.1f}M, which came in {beat} Street "
+                 f"consensus of ${market_data.consensus_rev_value() or 0:.1f}M. Gross margin was {n.get('gm',0):.1f}%, and "
+                 f"Adjusted EBITDA was ${n.get('ebitda',0):.1f}M. GAAP EPS was ${n.get('eps',0):.2f}. SG&A "
+                 f"totaled ${n.get('sga',0):.1f}M. We ended the quarter with ${n.get('cash',0):.1f}M in cash.")
+        # Factual segment mix from the filing's XBRL (core.segments) — frames payments vs print so
+        # analysts value the mix correctly. The valuation argument stays in the prep-brief Q&A.
+        try:
+            from core import earnings_prep
+            seg = earnings_prep.segment_story()
+        except Exception:
+            seg = None
+        if seg:
+            draft += (f" By segment, {seg['payments_label']} — our payments business — represented "
+                      f"approximately {seg['payments_gp_share']:.0f}% of gross profit, with "
+                      f"{', '.join(seg['other_labels'])}, our print-and-mail operations, making up the balance.")
+        return draft
     if role == "CRO":
         sentences = [f"Transaction volume processed grew {n.get('vol_yoy',0):.0f}% year-over-year to "
                      f"${n.get('vol',0):.1f}B, on {n.get('txn',0):.1f}M transactions."]
@@ -1019,6 +1031,20 @@ def _generate_persona_draft(role, ss, context=""):
                      "imply any beat, miss, or comparison versus consensus, and do not invent a "
                      "consensus figure. ")
 
+    # Segment mix — factual, from the filing's XBRL segment data (core.segments). Gives the CFO a
+    # line that frames the payments-vs-print mix so analysts value it correctly; the valuation
+    # ARGUMENT (blended vs pure-play) stays in the prep brief's Q&A, out of the spoken script.
+    seg_fact = ""
+    try:
+        from core import earnings_prep as _ep
+        _seg = _ep.segment_story()
+        if _seg:
+            seg_fact = (f" Segment mix to state factually (do NOT argue the valuation multiple): "
+                        f"{_seg['payments_label']} ~{_seg['payments_gp_share']:.0f}% of gross profit — the "
+                        f"payments business — with {', '.join(_seg['other_labels'])} (print-and-mail) the balance.")
+    except Exception:
+        seg_fact = ""
+
     prompts = {
         "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
               f"({contacts['CEO']['name']} CEO, {contacts['CFO']['name']} CFO) and the standard "
@@ -1028,7 +1054,7 @@ def _generate_persona_draft(role, ss, context=""):
               f"Professional, concise, plain text (no markdown).",
         "CFO": f"Write a CFO financial-review paragraph for an earnings call using these Q2 actuals: revenue "
                f"${n.get('rev',0):.1f}M, gross margin {n.get('gm',0):.1f}%, Adjusted EBITDA ${n.get('ebitda',0):.1f}M, "
-               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M. "
+               f"GAAP EPS ${n.get('eps',0):.2f}, SG&A ${n.get('sga',0):.1f}M, cash ${n.get('cash',0):.1f}M.{seg_fact} "
                f"{cons_clause}{tone_line}What to address proactively this quarter (pre-empt any "
                f"prior-quarter item that previously drew analyst follow-up): "
                f"{what_new or 'no specific updates provided'}. Professional tone, plain text (no markdown), "
