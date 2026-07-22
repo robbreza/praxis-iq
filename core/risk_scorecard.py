@@ -21,11 +21,12 @@ Topics below once a transcript has been ingested and summarized, and (as of
 fed by page_modules_nicegui/investors_page.py's Post-NDR Debrief form —
 backs KPI Understanding / Investor Objection Trend below once at least one
 debrief has logged a real objection. Every indicator below that can be
-grounded in one of those now is; the rest — short interest, insider Form 4
-filings, ESG/governance monitoring, activist screening, float/ADV, a full
-cap table — still have no real source anywhere in this app, so they stay
-GRAY. That's a deliberate "we don't have this," not a placeholder waiting
-for a guess.
+grounded in one of those now is; the rest — short interest, ESG/governance
+monitoring, activist screening, float/ADV, a full cap table — still have no
+real source anywhere in this app, so they stay GRAY. That's a deliberate "we
+don't have this," not a placeholder waiting for a guess. (Insider Form 4 filings
+USED to be on that GRAY list; they're now real via core.insider_feed / SEC
+EDGAR, so Insider Selling Optics and the actionable insider card are computed.)
 
 The static, purely-informational items in data/seed/consensus_estimates.py's
 risk_signals list (the two "blind spot" gray cards and the NY Metro NDR
@@ -375,9 +376,34 @@ def _qa_risk_topics_item():
         return ("Q&A Risk Topics", "GRAY", f"Transcript data unavailable ({e}).")
 
 
+def _insider_selling_item():
+    """Insider Selling Optics — now REAL, from core.insider_feed (SEC EDGAR Form
+    4). GRAY only if no filings have been pulled for this client yet, not because
+    the capability is missing."""
+    try:
+        from core import insider_feed
+        itx = insider_feed.recent(limit=60)
+        if not itx:
+            return ("Insider Selling Optics", "GRAY",
+                    "Form 4 monitoring is wired in (SEC EDGAR) — no filings pulled for this client yet; run a refresh.")
+        nm = insider_feed.net_open_market()
+        b, s = nm.get("buy_shares") or 0, nm.get("sell_shares") or 0
+        if not (b or s):
+            return ("Insider Selling Optics", "GREEN",
+                    f"{len(itx)} recent Form 4(s) tracked — all routine grants/exercises, no open-market selling.")
+        if (nm.get("net_shares") or 0) >= 0:
+            return ("Insider Selling Optics", "GREEN",
+                    f"Net open-market buying ({b:,.0f} bought vs {s:,.0f} sold) — a positive optic.")
+        return ("Insider Selling Optics", "YELLOW",
+                f"Net open-market selling ({s:,.0f} sold vs {b:,.0f} bought) — anticipate questions; "
+                f"confirm any planned/10b5-1 sales.")
+    except Exception as e:
+        return ("Insider Selling Optics", "GRAY", f"Insider (Form 4) data unavailable ({e}).")
+
+
 def _governance_reputation_risk():
     return [
-        ("Insider Selling Optics", "GRAY", "Not tracked — no Form 4 / insider transaction data source in this app."),
+        _insider_selling_item(),
         ("Activism Vulnerability", "GRAY", "Not tracked — no activist-screening data source in this app."),
         ("Management Credibility", "GRAY", "Not tracked — no quantified source for this in this app."),
         ("ESG / Governance Noise", "GRAY", "Not tracked — no ESG/governance monitoring in this app."),
@@ -534,12 +560,61 @@ def compute_actionable_signals(period="Q2 2026E"):
             "email": _outreach_upside_email(pt_avg, snap["last_price"], upside_pct) if upside_pct > 50 else None,
         })
 
-    # Static, documented gaps — no real data source exists in this app for
-    # any of these; NDR-trip readiness isn't wired into this computation
-    # yet either. Pulled from seed rather than invented, same honesty
-    # policy as the GRAY items in the 24-indicator grid above.
+    # Insider activity (Form 4) — REAL now, from core.insider_feed (SEC EDGAR).
+    # This is what retires the old "no insider-trading monitoring — blind spot"
+    # seed card: we built the feed (it also backs the Today page's Insider
+    # Activity section and the Investors insider feed), so the dashboard reports
+    # the actual open-market buy/sell balance instead of claiming a blind spot.
+    _ins = _insider_signal()
+    if _ins:
+        signals.append(_ins)
+
+    # Static, documented gaps — no real data source exists in this app for the
+    # REMAINING ones (short interest, activism screening); NDR-trip readiness
+    # isn't wired into this computation yet either. Pulled from seed rather than
+    # invented, same honesty policy as the GRAY items in the grid above. The
+    # insider card is now dropped here (superseded by _insider_signal above).
     for s in seed.get("risk_signals", []):
+        if "insider" in s.get("title", "").lower():
+            continue
         if s.get("level") == "gray" or "NDR" in s.get("title", ""):
             signals.append(s)
 
     return signals
+
+
+def _insider_signal():
+    """A real actionable signal from the Form 4 feed (core.insider_feed), or None
+    if the feed has no filings on file for this client yet (in which case we say
+    nothing rather than claim a blind spot — the capability exists regardless)."""
+    try:
+        from core import insider_feed
+        itx = insider_feed.recent(limit=60)
+        if not itx:
+            return None
+        nm = insider_feed.net_open_market()
+        b, s = nm.get("buy_shares") or 0, nm.get("sell_shares") or 0
+        if not (b or s):
+            return {
+                "level": "green", "icon": "✅",
+                "title": "Insider activity monitored — no open-market buys/sells to flag",
+                "desc": f"{len(itx)} recent Form 4 filing(s) tracked from SEC EDGAR; all routine "
+                        f"grants/exercises, no open-market trades.",
+                "action": "No action — monitored on Today and the Investors insider feed.",
+            }
+        buying = (nm.get("net_shares") or 0) >= 0
+        return {
+            "level": "green" if buying else "amber",
+            "icon": "✅" if buying else "⚠️",
+            "title": f"Insider open-market activity — net {'buying' if buying else 'selling'} "
+                     f"({b:,.0f} bought vs {s:,.0f} sold)",
+            "desc": "Form 4 filings are monitored from SEC EDGAR. " + (
+                "Net open-market buying is a positive signal to have ready for investor questions."
+                if buying else
+                "Net open-market selling — anticipate it and be ready to explain; unplanned selling "
+                "can be misread by the market if it isn't framed."),
+            "action": "Lead with insider buying in outreach" if buying
+                      else "Confirm any planned/10b5-1 sales with CFO/GC and prepare an explanation",
+        }
+    except Exception:
+        return None
