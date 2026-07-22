@@ -581,7 +581,7 @@ _US_STATES = {"AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
               "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC",
               "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT",
               "VT", "VA", "WA", "WV", "WI", "WY", "DC"}
-# Roadshow metros — a ~60-mile radius (a day's drive), the way an IR team actually plans an NDR,
+# Roadshow metros — a ~120-mile radius (a day's drive), the way an IR team actually plans an NDR,
 # NOT a broad Census region. Cities beyond 60mi of a hub are their OWN stop; a state full of those
 # (Wisconsin: Milwaukee ~90mi from Chicago, Madison further) is a scattered, hard-to-cover book.
 # The old map lumped Wayzata + Minneapolis + Milwaukee into "Chicago / Midwest" — 350+ miles you
@@ -601,7 +601,7 @@ _SEC_CITY_METRO = {
     "CHICAGO": "Chicago, IL", "OAK BROOK": "Chicago, IL", "NAPERVILLE": "Chicago, IL",
     "EVANSTON|IL": "Chicago, IL", "NORTHBROOK": "Chicago, IL", "LAKE FOREST|IL": "Chicago, IL",
     "ROSEMONT": "Chicago, IL", "LISLE": "Chicago, IL",
-    # Minneapolis–St. Paul (Twin Cities) — its own stop, ~60mi radius
+    # Minneapolis–St. Paul (Twin Cities) — its own stop, ~120mi radius
     "MINNEAPOLIS": "Minneapolis-St. Paul, MN", "ST. PAUL": "Minneapolis-St. Paul, MN",
     "WAYZATA": "Minneapolis-St. Paul, MN", "ROSEMOUNT": "Minneapolis-St. Paul, MN",
     "MINNETONKA": "Minneapolis-St. Paul, MN", "PLYMOUTH|MN": "Minneapolis-St. Paul, MN",
@@ -641,7 +641,7 @@ _SEC_CITY_METRO = {
     # Kansas City metro (spans MO/KS)
     "KANSAS CITY": "Kansas City, MO", "OVERLAND PARK": "Kansas City, MO", "LEAWOOD": "Kansas City, MO",
     # ── Fuller CA coverage — state-qualified. Bay Area (Marin/East Bay/Peninsula), LA, San Diego,
-    #    Sacramento — NOT all lumped into LA; each city to its true ~60-mile metro. ──
+    #    Sacramento — NOT all lumped into LA; each city to its true ~120-mile metro. ──
     "MILL VALLEY|CA": "San Francisco / Bay Area", "ORINDA|CA": "San Francisco / Bay Area",
     "WALNUT CREEK|CA": "San Francisco / Bay Area", "GREENBRAE|CA": "San Francisco / Bay Area",
     "NOVATO|CA": "San Francisco / Bay Area", "BURLINGAME|CA": "San Francisco / Bay Area",
@@ -666,7 +666,7 @@ _SEC_CITY_METRO = {
     "BERWYN|PA": "Philadelphia, PA", "NEWTOWN SQUARE|PA": "Philadelphia, PA", "OAKS|PA": "Philadelphia, PA",
     "DEVON|PA": "Philadelphia, PA", "PAOLI|PA": "Philadelphia, PA", "VILLANOVA|PA": "Philadelphia, PA",
     "WEST CHESTER|PA": "Philadelphia, PA", "KING OF PRUSSIA|PA": "Philadelphia, PA",
-    # ── Sweep (2026-07-21): fold remaining suburbs into their true ~60-mile metro, state-qualified. ──
+    # ── Sweep (2026-07-21): fold remaining suburbs into their true ~120-mile metro, state-qualified. ──
     # Detroit / Grand Rapids (MI)
     "HUNTINGTON WOODS|MI": "Detroit, MI", "BINGHAM FARMS|MI": "Detroit, MI", "BLOOMFIELD HILLS|MI": "Detroit, MI",
     "NOVI|MI": "Detroit, MI", "SOUTHFIELD|MI": "Detroit, MI", "BIRMINGHAM|MI": "Detroit, MI", "PLYMOUTH|MI": "Detroit, MI",
@@ -730,8 +730,17 @@ _INTL_CITY_METRO = {
     "MONTREAL": "Montreal, QC", "VANCOUVER": "Vancouver, BC", "CALGARY": "Calgary, AB",
     "LONDON": "London, UK", "EDINBURGH": "Edinburgh, UK",
     "PARIS": "Paris, FR", "FRANKFURT": "Frankfurt, DE", "FRANKFURT AM MAIN": "Frankfurt, DE",
-    "MUNICH": "Munich, DE", "BERLIN": "Berlin, DE", "ZURICH": "Zurich, CH", "GENEVA": "Geneva, CH",
-    "TOKYO": "Tokyo, JP", "HONG KONG": "Hong Kong", "SINGAPORE": "Singapore",
+    "MUNICH": "Munich, DE", "BERLIN": "Berlin, DE",
+    # Switzerland — German-Swiss hub (Zurich, incl. the Zug/Pfäffikon hedge-fund belt) vs French-
+    # Swiss (Geneva). Zurich↔Geneva is ~175mi, so two stops even at a 120-mile radius.
+    "ZURICH": "Zurich, CH", "ZUG": "Zurich, CH", "BASEL": "Zurich, CH", "BERN": "Zurich, CH",
+    "PFAFFIKON": "Zurich, CH", "LUCERNE": "Zurich, CH", "WINTERTHUR": "Zurich, CH",
+    "SCHINDELLEGI": "Zurich, CH", "BAAR": "Zurich, CH", "WOLLERAU": "Zurich, CH", "FREIENBACH": "Zurich, CH",
+    "GENEVA": "Geneva, CH", "GENEVE": "Geneva, CH", "CAROUGE": "Geneva, CH", "LAUSANNE": "Geneva, CH",
+    "NYON": "Geneva, CH", "COLOGNY": "Geneva, CH", "VEVEY": "Geneva, CH",
+    "TOKYO": "Tokyo, JP", "HONG KONG": "Hong Kong", "CAUSEWAY BAY": "Hong Kong", "CENTRAL": "Hong Kong",
+    "SINGAPORE": "Singapore", "SEOUL": "Seoul, KR", "DUBAI": "Dubai, AE", "MILAN": "Milan, IT",
+    "BRUSSELS": "Brussels, BE", "LUXEMBOURG": "Luxembourg", "SENNINGERBERG": "Luxembourg",
     "STOCKHOLM": "Stockholm, SE", "AMSTERDAM": "Amsterdam, NL", "OSLO": "Oslo, NO",
     "COPENHAGEN": "Copenhagen, DK", "COPENHAGEN V": "Copenhagen, DK", "HELSINKI": "Helsinki, FI",
     "SYDNEY": "Sydney, AU", "MELBOURNE": "Melbourne, AU", "SAO PAULO": "Sao Paulo, BR",
@@ -751,7 +760,7 @@ def _norm_city(city):
 
 
 def _metro_from_city(city, state):
-    """Map a 13F filer's HQ city/state to a ~60-mile roadshow metro label, so SEC-sourced holders
+    """Map a 13F filer's HQ city/state to a ~120-mile roadshow metro label, so SEC-sourced holders
     and prospects land in the same geographic buckets. Spelling variants are normalised first (see
     _norm_city). Falls back to the normalised 'City, ST' for unmapped US cities and 'International'
     for non-US filers (SEC uses non-US state codes like X0/V8/M0/K3)."""
@@ -764,15 +773,20 @@ def _metro_from_city(city, state):
     if c in _SEC_CITY_METRO:
         return _SEC_CITY_METRO[c]
     if st and st not in _US_STATES:
-        # Cluster the major international hubs (Toronto, London, Paris...) — a real roadshow stop —
-        # rather than one undifferentiated "International" bucket. Strip province/country suffixes
-        # ("TORONTO ONTARIO", "PARIS FRANCE") so the variants collapse.
-        fc = c
-        for _suf in (" ONTARIO", " QUEBEC", " FRANCE", " GERMANY", " ENGLAND", " JAPAN", " CANADA"):
-            if fc.endswith(_suf):
-                fc = fc[: -len(_suf)].strip()
-                break
-        return _INTL_CITY_METRO.get(fc, "International")
+        # Cluster the major international hubs (Toronto, London, Zurich...) — real roadshow stops —
+        # rather than one undifferentiated "International" bucket. Foreign city strings vary wildly:
+        # "TORONTO ONTARIO" / "TORONTO, ONTARIO" (city+province), "LONDON, EC4N 8AF" (city+postcode),
+        # "CHIYODA-KU, TOKYO" (ward+city). Try the whole string and each comma-separated token, with
+        # province/country suffixes stripped, and take the first that matches a known hub.
+        parts = [c] + [p.strip() for p in c.split(",")]
+        for cand in parts:
+            for _suf in (" ONTARIO", " QUEBEC", " FRANCE", " GERMANY", " ENGLAND", " JAPAN", " CANADA",
+                         " SWITZERLAND", " UK"):
+                if cand.endswith(_suf):
+                    cand = cand[: -len(_suf)].strip()
+            if cand in _INTL_CITY_METRO:
+                return _INTL_CITY_METRO[cand]
+        return "International"
     if c and st:
         return f"{c.title()}, {st}"      # normalised so St / St. / Saint variants don't split
     if c:
@@ -1091,7 +1105,7 @@ def _render_nobo_tab():
 
 def _render_prospects_by_metro(client_id):
     """Unified all-buckets view — every fund that owns a USIO comp but not USIO, grouped into
-    ~60-mile roadshow metros so an NDR stop = the funds you could actually see in one trip. Reads
+    ~120-mile roadshow metros so an NDR stop = the funds you could actually see in one trip. Reads
     the roadshow-viability of each metro (a day is 4-6 meetings) and surfaces the scattered book."""
     from collections import defaultdict
     from core import peer_prospects
@@ -1105,7 +1119,7 @@ def _render_prospects_by_metro(client_id):
     ui.label("All peer-owners by roadshow metro — the complete non-holder universe").classes(
         "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
     ui.label(f"{len(cands)} funds across every bucket (institutional, RIA/wealth, diversified, market-maker) that "
-             "hold a USIO comp but not USIO, clustered into ~60-mile metros — a day's drive, the way an NDR is "
+             "hold a USIO comp but not USIO, clustered into ~120-mile metros — a day's drive, the way an NDR is "
              "actually planned. Twin Cities is its own stop, not lumped with Chicago; a state that scatters "
              "(Wisconsin) is the hardest to cover.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -1493,7 +1507,7 @@ def _render_big_picture(institutions):
         m = city_to_metro.get(city, city)
         visits_by_metro[m] = visits_by_metro.get(m, 0) + 1
 
-    # Cluster raw "City, ST" holder metros into the same ~60-mile roadshow metros the unified
+    # Cluster raw "City, ST" holder metros into the same ~120-mile roadshow metros the unified
     # prospect view uses (Twin Cities as one stop, not Wayzata/Minneapolis split). Holders don't
     # carry raw city/state, so parse the "City, ST" label back through _metro_from_city.
     def _cluster(label):
@@ -1526,7 +1540,7 @@ def _render_big_picture(institutions):
         _prospects = []
     for c in _prospects:
         city, state = (c.get("city") or "").strip(), (c.get("state") or "").strip()
-        m = _metro_from_city(city, state)     # same ~60-mile roadshow clustering as the holders above
+        m = _metro_from_city(city, state)     # same ~120-mile roadshow clustering as the holders above
         d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0,
                                          "top": None, "top_score": -1, "insts": []})
         d["count"] += 1
