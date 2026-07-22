@@ -22,3 +22,11 @@ vendor/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Runtime cache & local server logs (not source)
+.nicegui/
+server_restart.log
+server_restart.log.err
+
+# Generated document exports (produced on demand)
+outputs/
