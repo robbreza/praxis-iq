@@ -413,9 +413,13 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
 def all_candidates(cid=None):
     """Every qualified peer-owner across ALL buckets — institutional, RIA/wealth, diversified, and
     market-maker — each tagged with its `tier`. The complete "who owns the peer set but not us"
-    universe, for a unified view. Deduped by key (a fund lands in one bucket, but guard anyway)."""
+    universe, for a unified view. Deduped by key (a fund lands in one bucket, but guard anyway).
+
+    Hand-curated targets (core.curated_targets — accounts you know are a fit but that don't hold a
+    peer today, e.g. a Geneva/Lugano private bank) are folded in last, tagged tier='Curated', but
+    ONLY if the name isn't already a real holder or a derived prospect, so nothing double-lists."""
     cid = cid or get_active_client_id()
-    out, seen = [], set()
+    out, seen, seen_norms = [], set(), set()
     for kind, tier in [("institutional", "Institutional"), ("ria", "RIA / wealth"),
                        ("diversified", "Diversified"), ("market_maker", "Market maker")]:
         for c in build_candidates(cid, limit=None, kind=kind):
@@ -423,9 +427,25 @@ def all_candidates(cid=None):
             if k in seen:
                 continue
             seen.add(k)
+            seen_norms.add(c.get("norm"))
             c = dict(c)
             c["tier"] = tier
             out.append(c)
+
+    # Curated overlay — suppress any that already appear as a real holder (13F/NOBO/tracked/13D-G)
+    # or as a derived prospect above, so a curated name that later starts holding a comp collapses
+    # into its evidence-backed row rather than showing twice.
+    try:
+        from core import curated_targets
+        sup_names, _ = _suppressed(cid)
+        for c in curated_targets.merged(cid):
+            nk = c.get("norm") or _norm(c.get("filer", ""))
+            if not nk or nk in seen_norms or nk in sup_names:
+                continue
+            seen_norms.add(nk)
+            out.append(c)
+    except Exception:
+        pass
     return out
 
 
@@ -464,18 +484,26 @@ def promote(candidate, cid=None):
     cid = cid or get_active_client_id()
     _set_decision(candidate["key"], "promoted", cid)
     plist = db.load_json("prospects.json", [], client_id=cid) or []
-    if not any(_norm(p.get("fund", "")) == candidate["norm"] for p in plist):
+    _norm_name = candidate.get("norm") or _norm(candidate.get("filer", ""))
+    if not any(_norm(p.get("fund", "")) == _norm_name for p in plist):
         metro = ", ".join(x for x in [candidate.get("city"), candidate.get("state")] if x) or "Unknown (SEC)"
         comps = ", ".join(sorted(candidate["comps"].keys()))
         ria = candidate.get("kind") == "ria"
+        curated = candidate.get("kind") == "curated"
+        if curated:
+            style = "Curated target — " + (candidate.get("rationale") or "known account, relationship-sourced")
+            source = "Curated" + (f" ({candidate.get('scope')})" if candidate.get("scope") else "")
+        else:
+            style = ("RIA / wealth manager — holds " if ria else "Holds ") + comps
+            source = "Peer overlap (13F)" + (" — RIA" if ria else "")
         rec = {
             "fund": candidate["filer"], "metro": metro,
-            "style": ("RIA / wealth manager — holds " if ria else "Holds ") + comps,
-            # RIAs aren't conviction-scored, so fall back to 0 rather than
-            # int(None) — they're ranked by position size, not score.
+            "style": style,
+            # RIAs and curated targets aren't conviction-scored, so fall back to 0
+            # rather than int(None) — they're ranked by position size / by hand.
             "score": int(candidate["conviction"]) if candidate.get("conviction") is not None else 0,
             "outcome": None,
-            "source": "Peer overlap (13F)" + (" — RIA" if ria else ""),
+            "source": source,
         }
         if ria:
             rec["touch"] = "video-call"

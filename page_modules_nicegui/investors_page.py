@@ -1123,7 +1123,8 @@ def _render_prospects_by_metro(client_id):
     ui.label("All peer-owners by roadshow metro — the complete non-holder universe").classes(
         "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
     ui.label(f"{len(cands)} funds across every bucket (institutional, RIA/wealth, diversified, market-maker) that "
-             "hold a USIO comp but not USIO, clustered into ~60-mile metros — a day's drive, the way an NDR is "
+             "hold a USIO comp but not USIO — plus hand-curated targets that don't hold a peer today (a Geneva/Lugano "
+             "private bank, a carried relationship) — clustered into ~60-mile metros, a day's drive, the way an NDR is "
              "actually planned. Twin Cities is its own stop, not lumped with Chicago; a state that scatters "
              "(Wisconsin) is the hardest to cover.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -1146,6 +1147,7 @@ def _render_prospects_by_metro(client_id):
             "Metro": metro, "Funds": n,
             "Inst": _tc(funds, "Institutional"), "RIA": _tc(funds, "RIA / wealth"),
             "Diversified": _tc(funds, "Diversified"), "MM": _tc(funds, "Market maker"),
+            "Curated": _tc(funds, "Curated"),
             "Roadshow read": read,
         })
     ui.table(columns=[{"name": k, "label": k, "field": k,
@@ -1156,6 +1158,111 @@ def _render_prospects_by_metro(client_id):
              "scattered single-city stops (virtual / opportunistic — the hard-to-cover tail, e.g. much of Wisconsin) — "
              "all listed by name in the buckets below.").style(
         f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+
+def _render_curated_targets(client_id):
+    """Hand-curated NDR targets — accounts you KNOW are a fit but that the 13F
+    peer-holder crawl can't surface because they don't hold a comp today (a
+    Geneva/Lugano private bank, a relationship carried from a prior seat). Two
+    scopes: this client's own book, and a shared global book that accretes as we
+    onboard more issuers. Shown in the metro view above tagged 'Curated'."""
+    from core import curated_targets, peer_prospects
+
+    ui.label("Curated targets — known accounts the crawl can't find").classes(
+        "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
+    ui.label("A peer-holder crawl only finds funds that already own a comp. Accounts you know are a fit but "
+             "that don't hold a peer today — a Geneva/Lugano private bank, a relationship from a prior seat — "
+             "go here by hand and appear in the metro view above, tagged 'Curated' (never 'holds a comp'). "
+             "Client scope is this issuer's own book; Global is the house book, shared across every client and "
+             "growing as we scale.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    @ui.refreshable
+    def _panel():
+        cc = curated_targets.counts(client_id)
+        with ui.row().classes("gap-3").style("margin-top:6px;"):
+            for lbl, val, clr in [("This client", cc["client"], COLORS["accent"]),
+                                  ("Global (house book)", cc["global"], "#6D28D9"),
+                                  ("Total in view", cc["total"], COLORS["text_secondary"])]:
+                with ui.card().classes("flex-1").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:110px;"):
+                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:20px;")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+        # ── Add form ──────────────────────────────────────────────────────────
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};margin-top:6px;"):
+            ui.label("Add a curated target").classes("font-bold").style(
+                f"color:{COLORS['text_heading']};font-size:12.5px;")
+            with ui.row().classes("w-full gap-2 items-end no-wrap").style("flex-wrap:wrap;"):
+                f_name = ui.input("Firm name").props("dense outlined").style("min-width:220px;flex:2;")
+                f_city = ui.input("City").props("dense outlined").style("min-width:120px;flex:1;")
+                f_state = ui.input("State / country", placeholder="NY · Switzerland").props(
+                    "dense outlined").style("min-width:130px;flex:1;")
+            f_why = ui.input("Why (rationale)").props("dense outlined").classes("w-full").style("margin-top:4px;")
+            with ui.row().classes("items-center gap-3").style("margin-top:4px;"):
+                f_scope = ui.toggle({"client": "This client", "global": "Global (house book)"},
+                                    value="client").props("dense no-caps")
+                # Live metro preview, so you see where it will cluster before saving.
+                _preview = ui.label("").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+                def _refresh_preview():
+                    c, s = (f_city.value or "").strip(), (f_state.value or "").strip()
+                    _preview.set_text(f"→ clusters into: {_metro_from_city(c, s)}" if c else "")
+                f_city.on("blur", lambda *_: _refresh_preview())
+                f_state.on("blur", lambda *_: _refresh_preview())
+
+                def _add():
+                    if not (f_name.value or "").strip():
+                        ui.notify("Firm name is required.", type="warning")
+                        return
+                    curated_targets.add(f_name.value, f_city.value, f_state.value,
+                                        f_why.value, scope=f_scope.value, cid=client_id)
+                    ui.notify(f"Added {f_name.value.strip()} to the "
+                              f"{'global house book' if f_scope.value == 'global' else 'client'} list.",
+                              type="positive")
+                    _panel.refresh()
+                ui.button("Add target", icon="add", on_click=_add).props("dense color=primary")
+
+        # ── Current list ──────────────────────────────────────────────────────
+        entries = curated_targets.merged(client_id)
+        if not entries:
+            return
+        for r in sorted(entries, key=lambda x: (x.get("scope") != "client", x.get("filer", "").lower())):
+            is_client = r.get("scope") == "client"
+            badge_clr = COLORS["accent"] if is_client else "#6D28D9"
+            metro = _metro_from_city(r.get("city"), r.get("state"))
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    f"border-left:4px solid {badge_clr};margin-top:4px;"):
+                with ui.row().classes("w-full items-start justify-between no-wrap"):
+                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                        with ui.row().classes("items-center gap-2"):
+                            ui.label(r.get("filer")).classes("font-bold").style(
+                                f"color:{COLORS['text_heading']};font-size:13px;")
+                            ui.label("This client" if is_client else "Global").style(
+                                f"background:{'rgba(30,64,175,.10)' if is_client else 'rgba(109,40,217,.10)'};"
+                                f"color:{badge_clr};border-radius:6px;padding:1px 7px;font-size:9.5px;font-weight:700;")
+                            if r.get("seed"):
+                                ui.label("default").style(
+                                    f"color:{COLORS['text_muted']};font-size:9.5px;border:1px solid {COLORS['border']};"
+                                    "border-radius:6px;padding:0 6px;")
+                        loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                        ui.label(f"{loc}  ·  metro: {metro}").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
+                        if r.get("rationale"):
+                            ui.label(r["rationale"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
+                    with ui.row().classes("gap-1 items-center").style("flex-shrink:0;"):
+                        ui.button("Add to pipeline", on_click=lambda r=r: (
+                            peer_prospects.promote(r, cid=client_id),
+                            ui.notify(f"Added {r['filer']} to the pipeline (Target Database).", type="positive"),
+                        )).props("dense size=sm color=primary")
+                        if not r.get("seed"):
+                            ui.button(icon="delete", on_click=lambda r=r: (
+                                curated_targets.remove(r["key"], scope=r.get("scope", "client"), cid=client_id),
+                                _panel.refresh(),
+                            )).props("flat dense size=sm color=negative")
+
+    _panel()
 
 
 def _render_peer_prospects_tab(client_id):
@@ -1173,6 +1280,8 @@ def _render_peer_prospects_tab(client_id):
         f"color:{COLORS['text_muted']};font-size:12px;")
 
     _render_prospects_by_metro(client_id)
+    ui.markdown("---")
+    _render_curated_targets(client_id)
     ui.markdown("---")
 
     # Sort toggle — conviction (the smart default) vs raw 13F position size (what
