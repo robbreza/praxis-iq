@@ -30,3 +30,7 @@ server_restart.log.err
 
 # Generated document exports (produced on demand)
 outputs/
+
+# Marketing site now lives in its own repo: github.com/robbreza/irconnect-site
+irconnect_live/
+webheadshot.png
