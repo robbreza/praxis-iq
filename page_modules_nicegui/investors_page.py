@@ -130,6 +130,7 @@ from core.investor_scoring import (
     score_institutions as _score_institutions,
 )
 from core.security import get_anthropic_api_key
+from core.textfmt import pretty_name
 from data.seed.buyside_institutions import get_seed_buyside_institutions
 from data.seed.conferences import get_seed_conferences
 from data.seed.consensus_estimates import ALL_PERIODS
@@ -1329,7 +1330,7 @@ def _render_peer_prospects_tab(client_id):
                     f"border-left:4px solid {'#15803D' if promoted else COLORS['accent']};margin-top:4px;"):
                 with ui.row().classes("w-full items-start justify-between no-wrap"):
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        _nm = r["filer"] + ("  ✓ promoted" if promoted else "")
+                        _nm = pretty_name(r["filer"]) + ("  ✓ promoted" if promoted else "")
                         ui.label(_nm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
                         loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
                         conc = f"{r['concentration']*100:.1f}% of book" if r.get("concentration") is not None else "book n/a"
@@ -1405,7 +1406,7 @@ def _render_peer_prospects_tab(client_id):
                     with ui.row().classes("w-full items-center justify-between no-wrap").style(
                             f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                            ui.label(r["filer"]).style(
+                            ui.label(pretty_name(r["filer"])).style(
                                 f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
                             loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
                             comps = ", ".join(sorted(r["comps"].keys()))
@@ -1448,7 +1449,7 @@ def _render_peer_prospects_tab(client_id):
                     with ui.row().classes("w-full items-center justify-between no-wrap").style(
                             f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                            ui.label(r["filer"]).style(
+                            ui.label(pretty_name(r["filer"])).style(
                                 f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
                             loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
                             comps = ", ".join(sorted(r["comps"].keys()))
@@ -2017,7 +2018,7 @@ def _tier_card(institutions, label, action, accent_color):
         with ui.expansion(f"Show {len(institutions)} institution(s)").classes("w-full"):
             if institutions:
                 for inst in institutions:
-                    ui.label(f"{inst['Fund']} — {inst['Engagement_Score']}/100").style(f"color:{COLORS['text_body']};font-size:12px;")
+                    ui.label(f"{pretty_name(inst['Fund'])} — {inst['Engagement_Score']}/100").style(f"color:{COLORS['text_body']};font-size:12px;")
             else:
                 ui.label("No institutions currently in this tier.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
@@ -2042,7 +2043,7 @@ def _institution_card(inst, meeting_log, contacts):
             with ui.column().classes("gap-0"):
                 ownership_badge = "Passive" if inst.get("Ownership_Style") == "Passive" else "Active"
                 with ui.row().classes("items-center gap-2"):
-                    ui.label(f"{inst['Fund']}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+                    ui.label(f"{pretty_name(inst['Fund'])}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
                     _src = inst.get("Source", "Seed (demo)")
                     ui.label(_src).style(
                         f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:1px 6px;"
@@ -2778,7 +2779,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                                 cb = ui.checkbox(value=default_check)
                                 with ui.column().classes("gap-0"):
                                     with ui.row().classes("items-center gap-2"):
-                                        ui.label(inst["Fund"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                                        ui.label(pretty_name(inst["Fund"])).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
                                         ui.label(str(inst["Engagement_Score"])).style(
                                             f"background:{border_clr}22;color:{border_clr};font-size:11px;font-weight:700;"
                                             f"padding:1px 6px;border-radius:6px;")
@@ -2885,7 +2886,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                         with ui.row().classes("w-full items-center gap-2").style(
                                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                             ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;width:110px;")
-                            ui.label(f"{nh_badge} {m.get('institution','')}").classes("flex-1").style(f"color:{COLORS['text_body']};font-size:13px;")
+                            ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").classes("flex-1").style(f"color:{COLORS['text_body']};font-size:13px;")
                             if m.get("score") is not None:
                                 ui.label(f"{m['score']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -4403,7 +4404,7 @@ def _render_target_db_tab(institutions, client_id):
                         with ui.row().classes("w-full items-start justify-between").style(
                                 f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
                             with ui.column().classes("flex-1"):
-                                ui.label(f"{p['fund']} — via {p['source_ticker']} ({p['source_name']})").classes("font-bold").style(
+                                ui.label(f"{pretty_name(p['fund'])} — via {p['source_ticker']} ({p['source_name']})").classes("font-bold").style(
                                     f"color:{COLORS['text_heading']};font-size:13px;")
                                 ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
                                 # size_known=False means this holder came from the EDGAR full-text-search

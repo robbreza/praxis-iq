@@ -263,32 +263,44 @@ def render_today_page():
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label("Key market metrics").classes("section-head")
                 ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm")
+            # One metric pattern, repeated: eyebrow label · 18px value · semantic-
+            # coloured delta. Consistent sizing is what makes it read as a designed
+            # data panel rather than three differently-styled lines.
+            def _kpi_label(text, top=True):
+                ui.label(text).classes("t-eyebrow").style("margin-top:10px;" if top else "")
+
+            def _kpi_value(text, color=None):
+                ui.label(text).classes("font-bold").style(
+                    f"color:{color or COLORS['text_heading']};font-size:18px;line-height:1.15;")
+
             if snap and snap.get("last_price") is not None:
                 chg = snap.get("pct_change") or 0
                 chg_clr = COLORS["success"] if chg >= 0 else COLORS["danger"]
-                ui.label("LAST PRICE").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                ui.label(f"${snap['last_price']:.2f}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:18px;display:inline;")
-                ui.label(f" {chg:+.1f}%").style(f"color:{chg_clr};font-size:12px;display:inline;")
-                ui.label("VOLUME VS 10-DAY AVG").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
-                if snap.get("volume") and snap.get("avg_volume_10d"):
-                    ui.label(f"{snap['volume']/snap['avg_volume_10d']:.1f}x").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                else:
-                    ui.label("—").style(f"color:{COLORS['text_muted']};")
+                _kpi_label("Last price", top=False)
+                with ui.row().classes("items-baseline gap-2"):
+                    _kpi_value(f"${snap['last_price']:.2f}")
+                    ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{chg_clr};font-size:12px;")
+                _kpi_label("Volume vs 10-day avg")
+                vol = (f"{snap['volume']/snap['avg_volume_10d']:.1f}x"
+                       if (snap.get("volume") and snap.get("avg_volume_10d")) else "—")
+                _kpi_value(vol)
                 as_of = (snap.get("as_of") or "")[:16].replace("T", " ")
-                ui.label(f"as of {as_of} · up to 60-min delay").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+                ui.label(f"as of {as_of} · up to 60-min delay").classes("t-fine").style("margin-top:2px;")
             else:
-                ui.label("Not yet fetched — refreshes automatically shortly after startup.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label("Not yet fetched — refreshes automatically shortly after startup.").classes("t-meta")
 
             pt_avg = _consensus_pt_avg()
-            ui.label("CONSENSUS PT").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
+            _kpi_label("Consensus PT")
             if pt_avg is not None:
-                upside_txt = ""
-                if snap and snap.get("last_price"):
-                    upside = (pt_avg / snap["last_price"] - 1) * 100
-                    upside_txt = f"  · {upside:+.0f}% {'upside' if upside >= 0 else 'downside'}"
-                ui.label(f"${pt_avg:.2f}{upside_txt}").classes("font-bold").style(f"color:{COLORS['success']};")
+                with ui.row().classes("items-baseline gap-2"):
+                    _kpi_value(f"${pt_avg:.2f}")
+                    if snap and snap.get("last_price"):
+                        upside = (pt_avg / snap["last_price"] - 1) * 100
+                        up_clr = COLORS["success"] if upside >= 0 else COLORS["danger"]
+                        ui.label(f"{upside:+.0f}% {'upside' if upside >= 0 else 'downside'}").classes(
+                            "font-bold").style(f"color:{up_clr};font-size:12px;")
             else:
-                ui.label("No active-analyst price targets on file.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label("No active-analyst price targets on file.").classes("t-meta")
 
     _render_top_story()
 
@@ -337,7 +349,7 @@ def _top_ownership_change():
         "trimming": f"trimmed {abs(net):,} shares" if net else "trimmed their position",
         "exited": "exited",
     }[r["Direction"]]
-    return f"{r['Fund']} {verb} — latest 13F"
+    return f"{pretty_name(r['Fund'])} {verb} — latest 13F"
 
 
 @contextmanager
@@ -968,8 +980,9 @@ def _render_top_story():
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:4px solid {accent};margin-top:6px;padding:12px 16px;"):
-        ui.label(eyebrow.upper()).style(
-            f"color:{accent};font-size:10px;font-weight:800;letter-spacing:.06em;")
+        # Same eyebrow treatment as the metric labels (one system); colour carries
+        # the only distinction — green for our own news, accent-blue for a peer.
+        ui.label(eyebrow).classes("t-eyebrow").style(f"color:{accent};")
         with ui.link(target=top["url"], new_tab=True).style("text-decoration:none;"):
             ui.label(top.get("title", "")).classes("font-bold").style(
                 f"color:{COLORS['text_heading']};font-size:15px;line-height:1.25;")

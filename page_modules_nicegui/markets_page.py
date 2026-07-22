@@ -65,6 +65,7 @@ from config.client_config import CA, CE, CF, CGP, CT, get_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
 from core import activity_log, board_slides, consensus as consensus_store
 from core import db, guidance_engine, market_data, narrative_engine, nobo_engine, risk_scorecard, signals, ui_context
+from core.textfmt import pretty_name
 from data.seed.buyside_institutions import get_seed_buyside_institutions
 from data.seed.institution_contacts import get_institution_contacts
 from data.seed.consensus_estimates import ALL_PERIODS, DERIVED_PERIODS
@@ -1380,7 +1381,7 @@ def _render_nobo():
             with ui.row().classes("w-full items-center gap-2").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                 with ui.column().classes("gap-0 flex-1"):
-                    ui.label(h["name"]).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                    ui.label(pretty_name(h["name"])).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
                     _sub = f"{h['shares']:,} sh · {pct:.2f}% of S/O"
                     if cc.get("name"):
                         _sub += f" · {cc['name']} ({cc.get('title','')})"
