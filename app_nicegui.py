@@ -155,6 +155,17 @@ def apply_theme():
             color: {COLORS["text_body"]};
             font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
         }}
+        /* Tighter cards (2026-07-21). The IR dashboards are detail-dense; with the
+           normalised (smaller) type, NiceGUI's default 1rem card padding + 1rem
+           internal gap left the text swimming in whitespace and read as "off" —
+           and in this business a buried detail is a missed detail. Reclaim it by
+           dialing the two card variables down globally. Cards with EXPLICIT padding
+           (.ir-card at 20/24) keep it; only the default gap tightens there. Section
+           rhythm is unaffected (that comes from .section-head margins). */
+        :root {{
+            --nicegui-default-padding: 0.75rem;   /* 16px -> 12px */
+            --nicegui-default-gap: 0.375rem;      /* 16px ->  6px */
+        }}
         .ir-card {{
             background: {COLORS["surface_bg"]};
             border: 1px solid {COLORS["border"]};
