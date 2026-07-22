@@ -952,34 +952,54 @@ def _render_top_story():
                 .props("flat dense no-caps").style(f"color:{accent};font-size:12px;margin-top:2px;")
 
 
+def _collapsible_head(title, start_open=True):
+    """A section-head with an expand/collapse chevron. Returns the body column to fill; its
+    visibility toggles client-side (no re-fetch), so long front-page sections can be folded away."""
+    with ui.row().classes("w-full items-center no-wrap").style("gap:6px;justify-content:space-between;"):
+        ui.label(title).classes("section-head")
+        btn = ui.button(icon="expand_less" if start_open else "expand_more").props(
+            "flat dense round size=sm").style(f"color:{COLORS['text_muted']};")
+    body = ui.column().classes("w-full").style("gap:4px;")
+    body.set_visibility(start_open)
+    state = {"open": start_open}
+
+    def _toggle():
+        state["open"] = not state["open"]
+        body.set_visibility(state["open"])
+        btn.props(f"icon={'expand_less' if state['open'] else 'expand_more'}")
+    btn.on("click", _toggle)
+    return body
+
+
 def _render_insider_activity():
     """Insider transactions (SEC Form 4) — the company's own directors/officers buying or selling.
     Free, authoritative (EDGAR). Open-market buys/sells are the signal; grants/exercises are routine
     comp, shown but flagged. Cache-only read; nothing fabricated."""
     from core import insider_feed
-    ui.label("Insider activity — Form 4").classes("section-head")
     txns = insider_feed.recent(limit=30)
-    if not txns:
-        ui.label("No Form 4 filings on file yet — a data refresh pulls insider transactions from EDGAR.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
-        return
+    body = _collapsible_head("Insider activity — Form 4")
+    with body:
+        if not txns:
+            ui.label("No Form 4 filings on file yet — a data refresh pulls insider transactions from EDGAR.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+            return
 
-    n = insider_feed.net_open_market()
-    if n["buy_shares"] or n["sell_shares"]:
-        tone_clr = COLORS["success"] if n["net_shares"] > 0 else COLORS["danger"] if n["net_shares"] < 0 else COLORS["text_muted"]
-        tone = "net buying" if n["net_shares"] > 0 else "net selling" if n["net_shares"] < 0 else "flat"
-        ui.label(f"Open-market: {n['buy_shares']:,.0f} bought vs {n['sell_shares']:,.0f} sold — {tone}").style(
-            f"color:{tone_clr};font-size:12px;font-weight:600;")
-    else:
-        ui.label("No open-market buys/sells on file — recent Form 4s are routine grants/exercises.").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
+        n = insider_feed.net_open_market()
+        if n["buy_shares"] or n["sell_shares"]:
+            tone_clr = COLORS["success"] if n["net_shares"] > 0 else COLORS["danger"] if n["net_shares"] < 0 else COLORS["text_muted"]
+            tone = "net buying" if n["net_shares"] > 0 else "net selling" if n["net_shares"] < 0 else "flat"
+            ui.label(f"Open-market: {n['buy_shares']:,.0f} bought vs {n['sell_shares']:,.0f} sold — {tone}").style(
+                f"color:{tone_clr};font-size:12px;font-weight:600;")
+        else:
+            ui.label("No open-market buys/sells on file — recent Form 4s are routine grants/exercises.").style(
+                f"color:{COLORS['text_muted']};font-size:11.5px;")
 
-    _tone = {"P": COLORS["success"], "S": COLORS["danger"]}
-    for t in txns[:6]:
-        col = _tone.get(t.get("code"), COLORS["text_muted"])
-        with ui.row().classes("w-full items-center").style("gap:8px;"):
-            ui.label(insider_feed.glyph(t)).style(f"color:{col};font-weight:800;font-size:12px;")
-            ui.label(insider_feed.describe(t)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
+        _tone = {"P": COLORS["success"], "S": COLORS["danger"]}
+        for t in txns[:6]:
+            col = _tone.get(t.get("code"), COLORS["text_muted"])
+            with ui.row().classes("w-full items-center").style("gap:8px;"):
+                ui.label(insider_feed.glyph(t)).style(f"color:{col};font-weight:800;font-size:12px;")
+                ui.label(insider_feed.describe(t)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
 
 
 def _render_peer_watch():
@@ -989,77 +1009,78 @@ def _render_peer_watch():
     from core import news_feed, peer_watch
     s = peer_watch.summary()
 
-    ui.label("Peer watch").classes("section-head")
-    ui.label("Daily monitor of the segmented peer group — price moves and SEC filings.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+    body = _collapsible_head("Peer watch")
+    with body:
+        ui.label("Daily monitor of the segmented peer group — price moves and SEC filings.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
 
-    movers = s["movers"] or s["all_movers"][:4]
-    with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-        if not movers:
-            ui.label("Peer market data refreshing — check back shortly.").style(
-                f"color:{COLORS['text_muted']};font-size:11.5px;")
-        else:
-            ui.label("Today's moves").classes("font-bold").style(
-                f"color:{COLORS['text_body']};font-size:11.5px;")
-            for m in movers[:5]:
-                clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
-                tag = ("  ◆ closest analog" if m.get("closest_analog")
-                       else ("  · reference" if m.get("tier") == "reference"
-                             else ("  · USIO" if m.get("is_client") else "")))
-                with ui.row().classes("w-full items-center justify-between").style("padding:1px 0;"):
-                    with ui.row().classes("items-baseline gap-1").style("min-width:0;"):
-                        ui.label(m["ticker"]).classes("font-bold").style(
-                            f"color:{COLORS['text_body']};font-size:12.5px;")
-                        ui.label(f"{m.get('segment', '') or ''}{tag}").style(
-                            f"color:{COLORS['text_muted']};font-size:10px;")
-                    ui.label(f"{m['pct']:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:12.5px;")
-
-    if s["filings"]:
+        movers = s["movers"] or s["all_movers"][:4]
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-            ui.label("Recent peer SEC filings").classes("font-bold").style(
-                f"color:{COLORS['text_body']};font-size:11.5px;")
-            for f in s["filings"][:5]:
-                who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
-                with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
-                    with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
-                        ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:10.5px;width:42px;")
-                        ui.label(f"{who} · {f['form']}").style(
-                            f"color:{COLORS['text_secondary']};font-size:11.5px;")
+            if not movers:
+                ui.label("Peer market data refreshing — check back shortly.").style(
+                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+            else:
+                ui.label("Today's moves").classes("font-bold").style(
+                    f"color:{COLORS['text_body']};font-size:11.5px;")
+                for m in movers[:5]:
+                    clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
+                    tag = ("  ◆ closest analog" if m.get("closest_analog")
+                           else ("  · reference" if m.get("tier") == "reference"
+                                 else ("  · USIO" if m.get("is_client") else "")))
+                    with ui.row().classes("w-full items-center justify-between").style("padding:1px 0;"):
+                        with ui.row().classes("items-baseline gap-1").style("min-width:0;"):
+                            ui.label(m["ticker"]).classes("font-bold").style(
+                                f"color:{COLORS['text_body']};font-size:12.5px;")
+                            ui.label(f"{m.get('segment', '') or ''}{tag}").style(
+                                f"color:{COLORS['text_muted']};font-size:10px;")
+                        ui.label(f"{m['pct']:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:12.5px;")
 
-    # Client's OWN headlines, distinct from peer news. A microcap is often quiet — an empty state
-    # says so (itself IR-relevant) rather than hiding the card.
-    _tk = CT("ticker")
-    own = news_feed.recent(ticker=_tk, limit=6)
-    with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-        ui.label(f"{_tk} headlines · rolling 7 days").classes("font-bold").style(
-            f"color:{COLORS['text_body']};font-size:11.5px;")
-        if own:
-            for n in own:
-                with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
-                    with ui.column().classes("gap-0").style("padding:2px 0;"):
-                        ui.label(f"{n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
-                            f"color:{COLORS['text_muted']};font-size:10px;")
-                        ui.label(n["title"]).style(
-                            f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
-        else:
-            ui.label(f"No {_tk} headlines in the last 7 days — the feed is watching.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+        if s["filings"]:
+            with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+                ui.label("Recent peer SEC filings").classes("font-bold").style(
+                    f"color:{COLORS['text_body']};font-size:11.5px;")
+                for f in s["filings"][:5]:
+                    who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
+                    with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
+                        with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
+                            ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:10.5px;width:42px;")
+                            ui.label(f"{who} · {f['form']}").style(
+                                f"color:{COLORS['text_secondary']};font-size:11.5px;")
 
-    # Anchor for the "More peer news ↓" jump from the top-story card.
-    ui.html('<div id="peer-news-anchor"></div>')
-    peer_news = [i for i in news_feed.recent(limit=12) if i.get("ticker") != _tk][:6]
-    if peer_news:
+        # Client's OWN headlines, distinct from peer news. A microcap is often quiet — an empty state
+        # says so (itself IR-relevant) rather than hiding the card.
+        _tk = CT("ticker")
+        own = news_feed.recent(ticker=_tk, limit=6)
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-            ui.label("Peer & competitor news · rolling 7 days").classes("font-bold").style(
+            ui.label(f"{_tk} headlines · rolling 7 days").classes("font-bold").style(
                 f"color:{COLORS['text_body']};font-size:11.5px;")
-            for n in peer_news:
-                with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
-                    with ui.column().classes("gap-0").style("padding:2px 0;"):
-                        ui.label(f"{n['ticker']} · {n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
-                            f"color:{COLORS['text_muted']};font-size:10px;")
-                        ui.label(n["title"]).style(
-                            f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
+            if own:
+                for n in own:
+                    with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
+                        with ui.column().classes("gap-0").style("padding:2px 0;"):
+                            ui.label(f"{n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
+                                f"color:{COLORS['text_muted']};font-size:10px;")
+                            ui.label(n["title"]).style(
+                                f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
+            else:
+                ui.label(f"No {_tk} headlines in the last 7 days — the feed is watching.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
 
-    ui.label("Prices & news via Yahoo (≤60-min delay); filings via SEC EDGAR. A licensed feed would add breaking "
-             "speed and deeper M&A/press-wire coverage.").style(
-        f"color:{COLORS['text_muted']};font-size:9.5px;margin-top:2px;")
+        # Anchor for the "More peer news ↓" jump from the top-story card.
+        ui.html('<div id="peer-news-anchor"></div>')
+        peer_news = [i for i in news_feed.recent(limit=12) if i.get("ticker") != _tk][:6]
+        if peer_news:
+            with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+                ui.label("Peer & competitor news · rolling 7 days").classes("font-bold").style(
+                    f"color:{COLORS['text_body']};font-size:11.5px;")
+                for n in peer_news:
+                    with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
+                        with ui.column().classes("gap-0").style("padding:2px 0;"):
+                            ui.label(f"{n['ticker']} · {n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
+                                f"color:{COLORS['text_muted']};font-size:10px;")
+                            ui.label(n["title"]).style(
+                                f"color:{COLORS['text_secondary']};font-size:11.5px;line-height:1.35;")
+
+        ui.label("Prices & news via Yahoo (≤60-min delay); filings via SEC EDGAR. A licensed feed would add breaking "
+                 "speed and deeper M&A/press-wire coverage.").style(
+            f"color:{COLORS['text_muted']};font-size:9.5px;margin-top:2px;")
