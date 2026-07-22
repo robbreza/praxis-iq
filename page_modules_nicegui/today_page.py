@@ -447,8 +447,15 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
     # "No PT on file" ≠ "dropped coverage": they cover, we just haven't collected it.
     missing_model_analysts = [a for a in CA() if a.get("pt") is None]
 
-    # 1. Missing models — 4-state: default / sent / noted / muted
-    if signals.is_muted(state, "models_request"):
+    # 1. Missing models — 5-state: complete / default / sent / noted / muted.
+    # When every covering analyst's model is on file there is nothing to chase, so
+    # this renders as a cleared signal rather than "0 of 5 analyst models missing —
+    # — have no model on file", which is what the dynamic text produced at zero.
+    if not missing_model_analysts:
+        with _signal_card("", f"All {len(CA())} analyst models on file",
+                          "Consensus is built from every covering analyst — no collection gap."):
+            pass
+    elif signals.is_muted(state, "models_request"):
         with _signal_card("", "Missing models — muted",
                           f"Snoozed until {signals.muted_until_label(state, 'models_request')} — still unresolved, just hidden till then."):
             with _signal_actions():
