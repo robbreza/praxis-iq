@@ -1234,33 +1234,35 @@ def _render_curated_targets(client_id):
             with ui.card().classes("w-full").style(
                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                     f"border-left:4px solid {badge_clr};margin-top:4px;"):
-                with ui.row().classes("w-full items-start justify-between no-wrap"):
-                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        with ui.row().classes("items-center gap-2"):
-                            ui.label(r.get("filer")).classes("font-bold").style(
-                                f"color:{COLORS['text_heading']};font-size:13px;")
-                            ui.label("This client" if is_client else "Global").style(
-                                f"background:{'rgba(30,64,175,.10)' if is_client else 'rgba(109,40,217,.10)'};"
-                                f"color:{badge_clr};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;")
-                            if r.get("seed"):
-                                ui.label("default").style(
-                                    f"color:{COLORS['text_muted']};font-size:10px;border:1px solid {COLORS['border']};"
-                                    "border-radius:6px;padding:0 6px;")
-                        loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
-                        ui.label(f"{loc}  ·  metro: {metro}").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
-                        if r.get("rationale"):
-                            ui.label(r["rationale"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
-                    with ui.row().classes("gap-1 items-center").style("flex-shrink:0;"):
-                        ui.button("Add to pipeline", on_click=lambda r=r: (
-                            peer_prospects.promote(r, cid=client_id),
-                            ui.notify(f"Added {r['filer']} to the pipeline (Target Database).", type="positive"),
-                        )).props("dense size=sm color=primary")
-                        if not r.get("seed"):
-                            ui.button(icon="delete", on_click=lambda r=r: (
-                                curated_targets.remove(r["key"], scope=r.get("scope", "client"), cid=client_id),
-                                _panel.refresh(),
-                            )).props("flat dense size=sm color=negative")
+                with ui.column().classes("gap-0").style("min-width:0;"):
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label(r.get("filer")).classes("font-bold").style(
+                            f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label("This client" if is_client else "Global").style(
+                            f"background:{'rgba(30,64,175,.10)' if is_client else 'rgba(109,40,217,.10)'};"
+                            f"color:{badge_clr};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;")
+                        if r.get("seed"):
+                            ui.label("default").style(
+                                f"color:{COLORS['text_muted']};font-size:10px;border:1px solid {COLORS['border']};"
+                                "border-radius:6px;padding:0 6px;")
+                    loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                    ui.label(f"{loc}  ·  metro: {metro}").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;")
+                    if r.get("rationale"):
+                        ui.label(r["rationale"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
+                # Actions in a bottom row set off by a thin divider — consistent with the
+                # peer-prospect, institution, and Today dashboard cards.
+                with ui.row().classes("w-full gap-1 items-center").style(
+                        f"margin-top:6px;padding-top:6px;border-top:1px solid {COLORS['border']};"):
+                    ui.button("Add to pipeline", on_click=lambda r=r: (
+                        peer_prospects.promote(r, cid=client_id),
+                        ui.notify(f"Added {r['filer']} to the pipeline (Target Database).", type="positive"),
+                    )).props("dense size=sm color=primary")
+                    if not r.get("seed"):
+                        ui.button(icon="delete", on_click=lambda r=r: (
+                            curated_targets.remove(r["key"], scope=r.get("scope", "client"), cid=client_id),
+                            _panel.refresh(),
+                        )).props("flat dense size=sm color=negative")
 
     _panel()
 
@@ -1343,26 +1345,29 @@ def _render_peer_prospects_tab(client_id):
                                     f"background:{'rgba(30,64,175,.10)' if tight else COLORS['surface_hover_bg']};"
                                     f"color:{COLORS['accent_strong'] if tight else COLORS['text_secondary']};"
                                     "border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;")
-                    with ui.column().classes("gap-1 items-end").style("flex-shrink:0;"):
+                    with ui.column().classes("gap-0 items-end").style("flex-shrink:0;"):
                         ui.label(f"{r['conviction']:.0f}").classes("font-bold").style(
                             f"color:{COLORS['accent']};font-size:20px;line-height:1;")
                         ui.label("conviction").style(f"color:{COLORS['text_muted']};font-size:10px;")
-                        with ui.row().classes("gap-1").style("margin-top:2px;"):
-                            if promoted:
-                                ui.button("Undo", on_click=lambda r=r: (peer_prospects.reset(r["key"]), _list.refresh())).props(
-                                    "flat dense size=sm")
-                            else:
-                                def _promote(r=r):
-                                    peer_prospects.promote(r)
-                                    ui.notify(f"Promoted {r['filer']} to the pipeline (Target Database).", type="positive")
-                                    _list.refresh()
+                # Actions in a bottom row set off by a thin divider — same treatment as the
+                # Today dashboard and institution cards.
+                with ui.row().classes("w-full gap-1 items-center").style(
+                        f"margin-top:6px;padding-top:6px;border-top:1px solid {COLORS['border']};"):
+                    if promoted:
+                        ui.button("Undo", on_click=lambda r=r: (peer_prospects.reset(r["key"]), _list.refresh())).props(
+                            "flat dense size=sm")
+                    else:
+                        def _promote(r=r):
+                            peer_prospects.promote(r)
+                            ui.notify(f"Promoted {r['filer']} to the pipeline (Target Database).", type="positive")
+                            _list.refresh()
 
-                                def _dismiss(r=r):
-                                    peer_prospects.dismiss(r["key"])
-                                    _list.refresh()
+                        def _dismiss(r=r):
+                            peer_prospects.dismiss(r["key"])
+                            _list.refresh()
 
-                                ui.button("Promote", on_click=_promote).props("dense size=sm color=primary")
-                                ui.button("Dismiss", on_click=_dismiss).props("flat dense size=sm")
+                        ui.button("Promote", on_click=_promote).props("dense size=sm color=primary")
+                        ui.button("Dismiss", on_click=_dismiss).props("flat dense size=sm")
 
         # Show-all control — every qualified peer-owner is listable, not just the top 40.
         _total = c["candidates"]
