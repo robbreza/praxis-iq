@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customers | IRconnect</title>
+<meta name="description" content="Real IR teams running IRconnect on real, computed numbers. Case study template ready for your first named, approved reference.">
+<meta property="og:title" content="Customers | IRconnect">
+<meta property="og:description" content="Real IR teams running IRconnect on real, computed numbers. Case study template ready for your first named, approved reference.">
+<meta property="og:type" content="website">
+<style>
+:root{
+  --navy:#16223F; --navy-deep:#0E1730; --gold:#A9832E; --gold-light:#C9A24B;
+  --ink:#1F2430; --muted:#5C6472; --bg:#FFFFFF; --bg-soft:#F6F4EE; --border:#E6E2D6;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;}
+h1,h2,h3,h4{font-family:Georgia,Cambria,"Times New Roman",serif;color:var(--navy);font-weight:600;line-height:1.25;margin:0 0 .5em;}
+p{margin:0 0 1em;color:var(--ink);}
+a{color:inherit;text-decoration:none;}
+.container{max-width:1180px;margin:0 auto;padding:0 32px;}
+.section{padding:88px 0;}
+.section-soft{background:var(--bg-soft);}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:14px;display:block;}
+.btn{display:inline-block;padding:14px 30px;font-size:14px;font-weight:600;letter-spacing:.02em;border-radius:2px;line-height:1.4;white-space:nowrap;font-family:inherit;border:none;cursor:pointer;}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-primary:hover{background:var(--navy-deep);}
+.btn-ghost{border:1px solid var(--navy);color:var(--navy);background:transparent;}
+.btn-ghost:hover{background:var(--navy);color:#fff;}
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);}
+.navwrap{max-width:1180px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:Georgia,serif;font-weight:700;font-size:20px;color:var(--navy);letter-spacing:.02em;}
+.logo span{display:block;font-family:-apple-system,"Segoe UI",sans-serif;font-size:9px;letter-spacing:.22em;color:var(--gold);font-weight:700;margin-top:2px;}
+.navlinks{display:flex;gap:16px;align-items:center;}
+.navlinks a{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;flex-shrink:0;}
+.navlinks a.active{color:var(--gold);}
+.navlinks a:hover{color:var(--gold);}
+/* TAG LANGUAGE (the signature: computed vs not-tracked) */
+.tag{font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;letter-spacing:.04em;white-space:nowrap;display:inline-block;}
+.tag-green{background:#E4F1E8;color:#1F6B3B;}
+.tag-amber{background:#FBF0DD;color:#8A5E10;}
+.tag-gray{background:#EEEEEE;color:#777;}
+.tag-blue{background:#E4EAF8;color:#28407E;}
+/* HERO */
+.hero{padding:92px 0 68px;background:linear-gradient(180deg,#fff 0%,var(--bg-soft) 100%);}
+.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center;}
+.hero h1{font-size:44px;margin-bottom:22px;}
+.hero p.lead{font-size:18px;color:var(--muted);max-width:520px;margin-bottom:32px;}
+.hero-ctas{display:flex;gap:16px;margin-bottom:34px;flex-wrap:wrap;}
+.pillrow{display:flex;flex-wrap:wrap;gap:10px;}
+.pill{font-size:12px;font-weight:600;color:var(--navy);background:#fff;border:1px solid var(--border);padding:7px 14px;border-radius:20px;}
+/* PRODUCT MOCKUP PANEL (swap for real screenshots) */
+.mockup{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 24px 48px -20px rgba(22,34,63,.26);overflow:hidden;}
+.mockup-bar{background:var(--navy-deep);padding:10px 14px;display:flex;gap:6px;align-items:center;}
+.mockup-bar span{width:9px;height:9px;border-radius:50%;background:#3B4A72;}
+.mockup-bar .mockup-url{margin-left:12px;font-size:10px;color:#8C97B5;letter-spacing:.04em;font-family:-apple-system,sans-serif;}
+.mockup-body{padding:22px;}
+.mockup-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:14px;}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.mrow:last-child{border-bottom:none;}
+.metricgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px;}
+.metric{background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:14px;}
+.metric .num{font-family:Georgia,serif;font-size:22px;color:var(--navy);font-weight:700;}
+.metric .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+.bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px;}
+.bar span{display:block;height:100%;background:var(--gold);}
+.shot-note{font-size:11px;color:var(--muted);margin-top:8px;text-align:center;font-style:italic;}
+.shot{display:block;width:100%;height:auto;}
+.mockup-hero{margin-top:56px;box-shadow:0 40px 80px -32px rgba(22,34,63,.42);}
+.mockup-hero .mockup-bar{padding:13px 18px;}
+.mockup-hero .mockup-bar span{width:11px;height:11px;}
+/* STATS */
+.statbar{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:40px 0;}
+.statbar .stat{text-align:center;}
+.statbar .num{font-family:Georgia,serif;font-size:36px;color:var(--gold);font-weight:700;}
+.statbar .lbl{font-size:13px;color:var(--muted);margin-top:4px;}
+/* GRID CARDS */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;}
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:30px;}
+.card h3{font-size:19px;}
+.card h4{font-size:16px;}
+.card p.k{font-size:14px;color:var(--muted);}
+.card ul{margin:14px 0 0;padding-left:18px;color:var(--muted);font-size:14px;}
+.card ul li{margin-bottom:6px;}
+.badge-soft{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold);background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:5px 12px;margin-bottom:12px;}
+/* MODULE (product page alternating rows) */
+.module{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:76px 0;border-bottom:1px solid var(--border);}
+.module.reverse .txt{order:2;}
+.module.reverse .vis{order:1;}
+.module h2{font-size:28px;}
+.module p.desc{color:var(--muted);font-size:15px;max-width:480px;}
+.checklist{list-style:none;padding:0;margin:20px 0 0;}
+.checklist li{padding-left:26px;position:relative;font-size:14px;color:var(--ink);margin-bottom:10px;}
+.checklist li:before{content:"\2014";position:absolute;left:0;color:var(--gold);font-weight:700;}
+/* PROCESS */
+.process{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;}
+.proc-step .stepnum{font-family:Georgia,serif;font-size:30px;color:var(--border);font-weight:700;margin-bottom:8px;}
+.proc-step h4{font-size:17px;margin-bottom:8px;}
+.proc-step p{font-size:14px;color:var(--muted);margin:0;}
+/* CALLOUT */
+.callout{background:var(--navy);border-radius:10px;padding:44px;color:#fff;}
+.callout .eyebrow{color:var(--gold-light);}
+.callout h3{color:#fff;}
+.callout p{color:#C9D0DE;}
+/* PRICING */
+.pricegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;align-items:stretch;}
+.plan{background:#fff;border:1px solid var(--border);border-radius:10px;padding:32px;display:flex;flex-direction:column;}
+.plan.featured{border:2px solid var(--gold);box-shadow:0 24px 48px -24px rgba(169,131,46,.4);}
+.plan .planname{font-family:Georgia,serif;font-size:22px;color:var(--navy);}
+.plan .planfor{font-size:13px;color:var(--muted);margin:6px 0 18px;min-height:38px;}
+.plan .priceline{font-family:Georgia,serif;font-size:28px;color:var(--navy);margin-bottom:2px;}
+.plan .pricesub{font-size:12px;color:var(--muted);margin-bottom:20px;}
+.plan ul{list-style:none;padding:0;margin:0 0 24px;flex-grow:1;}
+.plan ul li{font-size:14px;color:var(--ink);padding:8px 0 8px 24px;position:relative;border-bottom:1px solid var(--border);}
+.plan ul li:before{content:"\2713";position:absolute;left:0;color:var(--gold);font-weight:700;}
+.plan .btn{width:100%;text-align:center;}
+.featured-flag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
+/* MATRIX */
+.matrix{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px;}
+.matrix th,.matrix td{text-align:left;padding:14px 16px;border-bottom:1px solid var(--border);}
+.matrix th{font-family:-apple-system,sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;}
+.matrix td.c{text-align:center;}
+.matrix .yes{color:var(--gold);font-weight:700;}
+.matrix .no{color:#C9C4B6;}
+/* SECURITY LIST */
+.seclist{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+.secitem{background:#fff;border:1px solid var(--border);border-radius:8px;padding:26px;}
+.secitem h4{font-size:16px;margin-bottom:6px;}
+.secitem p{font-size:14px;color:var(--muted);margin:0;}
+/* PULLQUOTE */
+.pullquote{border-left:3px solid var(--gold);padding-left:24px;font-family:Georgia,serif;font-size:20px;color:var(--navy);font-style:italic;max-width:760px;}
+/* PORTRAIT */
+.hero-grid.about{grid-template-columns:.85fr 1.15fr;}
+.portrait{width:100%;aspect-ratio:1/1.12;background:linear-gradient(160deg,var(--navy) 0%,var(--navy-deep) 100%);border-radius:10px;display:flex;align-items:flex-end;padding:24px;box-shadow:0 24px 48px -20px rgba(22,34,63,.3);}
+.portrait .name h3{color:#fff;font-size:22px;margin-bottom:2px;}
+.portrait .name span{color:var(--gold-light);font-size:13px;}
+/* FORM */
+.contact-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;}
+.infocard{background:var(--navy);color:#fff;border-radius:10px;padding:40px;height:fit-content;}
+.infocard h3{color:#fff;font-size:22px;}
+.infocard p{color:#C9D0DE;font-size:15px;}
+.infolink{display:block;color:var(--gold-light);font-size:15px;font-weight:600;margin-top:16px;}
+.formcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:40px;}
+.field{margin-bottom:18px;}
+.field label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px;}
+.field input,.field textarea,.field select{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:4px;font-size:14px;font-family:inherit;background:var(--bg-soft);color:var(--ink);}
+.field textarea{min-height:120px;resize:vertical;}
+.field .err{color:#B23A2E;font-size:12px;margin-top:6px;display:none;}
+.field.invalid .err{display:block;}
+.field.invalid input,.field.invalid textarea{border-color:#B23A2E;}
+.formnote{font-size:12px;color:var(--muted);margin-top:14px;}
+#formstatus{margin-top:16px;font-size:14px;padding:14px 16px;border-radius:6px;display:none;}
+#formstatus.ok{display:block;background:#E4F1E8;color:#1F6B3B;}
+#formstatus.bad{display:block;background:#FBEBE9;color:#B23A2E;}
+.calembed{margin-top:16px;background:var(--bg-soft);border:1px dashed var(--border);border-radius:8px;padding:22px;text-align:center;color:var(--muted);font-size:13px;}
+/* FOOTER */
+footer{background:var(--navy-deep);color:#B9C1D6;padding:64px 0 28px;}
+.footgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:40px;padding-bottom:40px;border-bottom:1px solid #263356;}
+footer h5{color:#fff;font-family:-apple-system,sans-serif;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;}
+footer a{display:block;font-size:14px;color:#B9C1D6;margin-bottom:10px;}
+footer a:hover{color:var(--gold-light);}
+.footlogo{font-family:Georgia,serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:.02em;}
+.footlogo span{display:block;font-size:9px;letter-spacing:.22em;color:var(--gold);font-weight:700;margin-top:2px;font-family:-apple-system,sans-serif;}
+.copyright{padding-top:24px;font-size:13px;color:#7C89A8;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+@media (max-width: 900px){
+  .hero-grid,.hero-grid.about,.grid3,.grid2,.grid4,.process,.statbar,.footgrid,.module,.module.reverse,.pricegrid,.seclist,.contact-grid{grid-template-columns:1fr;}
+  .module.reverse .txt,.module.reverse .vis{order:0;}
+  .navlinks{display:none;}
+  .hero h1{font-size:32px;}
+  .matrix{font-size:13px;}
+  .matrix th,.matrix td{padding:10px;}
+}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="navwrap">
+    <a href="index.html" class="logo">IRCONNECT<span>BY PRAXIS POINT</span></a>
+    <nav class="navlinks">
+      <a href="product.html">Product</a>
+      <a href="security.html">Security</a>
+      <a href="customers.html" class="active">Customers</a>
+      <a href="about.html">About</a>
+      <a href="demo.html" class="btn btn-primary" style="padding:9px 16px;font-size:13px;">Book a Demo</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="text-align:center;">
+  <div class="container">
+    <span class="eyebrow">Customers</span>
+    <h1 style="max-width:720px;margin:0 auto 20px;">Real IR teams, real computed numbers.</h1>
+    <p class="lead" style="margin:0 auto;">A named reference &mdash; with results attributed and approved &mdash; will out-convert every paragraph on this site. This page is built to hold that story the moment you have sign-off.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="callout">
+      <span class="eyebrow">Featured customer &mdash; template</span>
+      <h3 style="font-size:26px;">&ldquo;[One sentence on the outcome IRconnect drove &mdash; in the customer&rsquo;s words.]&rdquo;</h3>
+      <p style="max-width:640px;font-size:15px;">[Name, Title, Company]. Replace with a real, approved quote. The strongest version names a concrete before/after &mdash; e.g. hours saved per quarter, targets prioritized, a risk caught early.</p>
+    </div>
+    <div class="grid3" style="margin-top:40px;">
+      <div class="card"><h3>The challenge</h3><p class="k">[What the IR team was struggling with before IRconnect &mdash; rebuilt trackers every quarter, no real targeting, guidance by gut feel.]</p></div>
+      <div class="card"><h3>What they run</h3><p class="k">[Which modules: Targeting, Guidance Engine, Risk Dashboard, AI inbox &mdash; and on what cadence.]</p></div>
+      <div class="card"><h3>The result</h3><p class="k">[The concrete, approved outcome. Numbers if you can get them cleared. This is the sentence prospects remember.]</p></div>
+    </div>
+    <p class="formnote" style="margin-top:24px;">Do not publish a customer name, quote, or logo without written permission. Until then, keep this page unlinked from the nav or clearly labeled &ldquo;coming soon.&rdquo;</p>
+  </div>
+</section>
+
+<section class="section section-soft" style="text-align:center;">
+  <div class="container">
+    <h2 style="font-size:30px;">Want to be the first named reference?</h2>
+    <p style="max-width:520px;margin:0 auto 28px;color:var(--muted);">Early customers get founder-level attention and favorable terms in exchange for a case study.</p>
+    <a href="demo.html" class="btn btn-primary">Book a Demo</a>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footgrid">
+      <div>
+        <div class="footlogo">IRCONNECT<span>BY PRAXIS POINT</span></div>
+        <p style="color:#8C97B5;font-size:14px;margin-top:16px;max-width:340px;">IRconnect is the investor relations platform that computes the work behind the IR calendar &mdash; investor targeting, guidance analytics, and risk monitoring &mdash; from real, disclosed data. Built by Praxis Point.</p>
+      </div>
+      <div>
+        <h5>Product</h5>
+        <a href="product.html">Overview</a>
+        <a href="security.html">Security &amp; Data</a>
+        <a href="customers.html">Customers</a>
+        <a href="demo.html">Book a Demo</a>
+      </div>
+      <div>
+        <h5>Company</h5>
+        <a href="about.html">About</a>
+        <a href="demo.html">Book a Demo</a>
+        <a href="https://www.linkedin.com/in/robert-breza/">LinkedIn</a>
+        <a href="mailto:contact@praxispointir.com">contact@praxispointir.com</a>
+      </div>
+    </div>
+    <div class="copyright">
+      <span>&copy; 2026 Praxis Point &middot; IRconnect</span>
+      <span>Investor Relations Software for Technology Companies</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
