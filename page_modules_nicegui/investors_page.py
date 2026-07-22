@@ -182,31 +182,20 @@ def _save_json(name, data):
 # dates are computed relative to whenever the seed is first created (not
 # hardcoded absolute dates), so they never render as literally impossible.
 # ─────────────────────────────────────────────────────────────────────────
-def _seed_ndr_requests():
-    today = datetime.now().date()
-    return [
-        {"id": "seed-1", "analyst": "Scott Buck", "firm": "H.C. Wainwright", "city": "New York", "metro": "New York Metro",
-         "reason": "H.C. Wainwright's Annual Global Investment Conference is coming up — Scott is asking to slot "
-                   f"{CT('ticker')} 1x1s with attending funds while management is already in the city.",
-         "received": (today - timedelta(days=11)).strftime("%b %d, %Y"), "resolved": False, "seeded": True},
-        {"id": "seed-2", "analyst": "Gary Prestopino", "firm": "Barrington Research", "city": "Boston", "metro": "Boston / New England",
-         "reason": "Gary is bringing two institutional accounts through Boston and wants to add a "
-                   f"{CT('ticker')} management meeting to that itinerary.",
-         "received": (today - timedelta(days=9)).strftime("%b %d, %Y"), "resolved": False, "seeded": True},
-        {"id": "seed-3", "analyst": "Barry Sine", "firm": "Litchfield Hills Research", "city": "Chicago", "metro": "Chicago / Midwest",
-         "reason": "Barry wants an in-person working session before he'll complete his model build — he missed the "
-                   "last call entirely and says a call alone won't get him there.",
-         "received": (today - timedelta(days=10)).strftime("%b %d, %Y"), "resolved": False, "seeded": True},
-    ]
-
 
 def _load_ndr_requests():
-    records = db.load_json("ndr_requests.json", default=None)
-    if records is not None:
-        return records
-    seeded = _seed_ndr_requests()
-    db.save_json("ndr_requests.json", seeded)
-    return seeded
+    """This client's inbound NDR requests. EMPTY when none have been logged.
+
+    There used to be a hardcoded fallback here — three invented requests naming real
+    sell-side analysts (Scott Buck / H.C. Wainwright, Gary Prestopino / Barrington,
+    Barry Sine / Litchfield Hills). Because it fired for ANY tenant with no saved
+    requests, every client's pipeline showed USIO's analysts asking for meetings —
+    and it PERSISTED them to that tenant's store. Northlake's "Ranked actions for
+    management" read "Respond to Barry Sine (Litchfield Hills Research)".
+
+    That is the same trap load_meeting_log documents: a fabricated REQUEST asserts a
+    named person asked for something they didn't. An unworked request list is empty."""
+    return db.load_json("ndr_requests.json", default=[]) or []
 
 
 def _save_ndr_requests(records):
@@ -1109,7 +1098,8 @@ def _render_nobo_tab():
 
 
 def _render_prospects_by_metro(client_id):
-    """Unified all-buckets view — every fund that owns a USIO comp but not USIO, grouped into
+    """Unified all-buckets view — every fund that owns one of THIS client's comps but not the
+    client itself, grouped into
     ~60-mile roadshow metros so an NDR stop = the funds you could actually see in one trip. Reads
     the roadshow-viability of each metro (a day is 4-6 meetings) and surfaces the scattered book."""
     from collections import defaultdict
@@ -1123,11 +1113,12 @@ def _render_prospects_by_metro(client_id):
 
     ui.label("All peer-owners by roadshow metro — the complete non-holder universe").classes(
         "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
+    _tk = CT("ticker")
     ui.label(f"{len(cands)} funds across every bucket (institutional, RIA/wealth, diversified, market-maker) that "
-             "hold a USIO comp but not USIO — plus hand-curated targets that don't hold a peer today (a Geneva/Lugano "
-             "private bank, a carried relationship) — clustered into ~60-mile metros, a day's drive, the way an NDR is "
-             "actually planned. Twin Cities is its own stop, not lumped with Chicago; a state that scatters "
-             "(Wisconsin) is the hardest to cover.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             f"hold a {_tk} comp but not {_tk} — plus hand-curated targets that don't hold a peer today (a "
+             "Geneva/Lugano private bank, a carried relationship) — clustered into ~60-mile metros, a day's drive, "
+             "the way an NDR is actually planned. Twin Cities is its own stop, not lumped with Chicago; a state "
+             "that scatters (Wisconsin) is the hardest to cover.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     def _tc(funds, tier):
         return sum(1 for f in funds if f.get("tier") == tier)
@@ -1270,15 +1261,20 @@ def _render_curated_targets(client_id):
 
 def _render_peer_prospects_tab(client_id):
     """Reviewed, conviction-ranked peer-overlap candidates (core.peer_prospects).
-    Funds that hold a close comp but not USIO, filtered for noise and false
+    Funds that hold a close comp but not the client, filtered for noise and false
     positives, each with its evidence and a promote/dismiss gate — nothing enters
     the pipeline unvetted."""
     from core import peer_prospects
 
+    # Ticker and comp names come from THIS client. They were hardcoded to USIO's, so
+    # every other tenant read "…but not USIO (Repay / Cass / CSG…)" on their own page.
+    _tk = CT("ticker")
+    _tight = sorted(peer_prospects.tight_comps(client_id))
+    _comps = " / ".join(_tight[:5]) if _tight else "its closest comps"
     ui.label("Peer Prospects — comp overlap, to qualify").classes("text-lg font-bold")
-    ui.label("Funds that hold a close payment comp (Repay / Cass / CSG / Paysafe / Paymentus) but not USIO, "
+    ui.label(f"Funds that hold a close comp ({_comps}) but not {_tk}, "
              "ranked by conviction — position weight in their own book, focus on the tightest comps, active "
-             "vs. index breadth, and micro-cap fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
+             "vs. index breadth, and size fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
              "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
@@ -1376,7 +1372,7 @@ def _render_peer_prospects_tab(client_id):
             def _showall():
                 _state["show_all"] = True
                 _list.refresh()
-            ui.button(f"Show all {_total} funds that own a peer but not USIO",
+            ui.button(f"Show all {_total} funds that own a peer but not {CT('ticker')}",
                       icon="expand_more", on_click=_showall).props("flat dense").style("margin-top:8px;")
         elif _state.get("show_all"):
             ui.label(f"Showing all {len(cands)} qualified peer-owners (funds holding a comp, not USIO).").style(

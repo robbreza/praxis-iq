@@ -28,7 +28,25 @@ from datetime import datetime
 from config.client_config import CP, CT, get_active_client_id
 
 # Closest small/mid-cap payment comps — holding these is the highest signal.
-_TIGHT = {"RPAY", "CASS", "CSGS", "PSFE", "PAY"}
+_TIGHT_FALLBACK = {"RPAY", "CASS", "CSGS", "PSFE", "PAY"}
+
+
+def tight_comps(cid=None):
+    """The client's CLOSEST comps — holding one of these is the highest-conviction
+    signal, and the prospect score weights them accordingly.
+
+    Derived from the client's own peer set (tiers 'core'/'close'). This was a
+    hardcoded USIO ticker list, so every other tenant scored zero tight-comp points
+    for every prospect — the strongest component of the model was silently dead for
+    them. Falls back to the original list only if a client defines no peer tiers."""
+    try:
+        tight = {(p.get("ticker") or "").upper() for p in CP()
+                 if p.get("tier") in ("core", "close") and p.get("ticker")}
+        if tight:
+            return tight
+    except Exception:
+        pass
+    return set(_TIGHT_FALLBACK)
 _DECISIONS_KEY = "peer_prospect_decisions.json"
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -291,10 +309,11 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
     sup_names, sup_ciks = _suppressed(cid)
     decisions = db.load_json(_DECISIONS_KEY, {}, client_id=cid) or {}
 
+    _tight = tight_comps(cid)
     cand = {}
     for p in prospecting:
         tkr = p["ticker"]
-        tight = tkr in _TIGHT
+        tight = tkr in _tight
         for h in sec_filings.get_cached_13f_holders(tkr).get("holders", []):
             name = (h.get("filer") or "").strip()
             if not name:
