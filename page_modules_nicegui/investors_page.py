@@ -1698,12 +1698,11 @@ def _render_big_picture(institutions):
         top_metro_conf = wainwright_conf
 
     tier1_preview = [i for i in institutions if _score_val(i) >= 80]
-    weakest_request = ndr_requests[-1] if ndr_requests else None
-    quiet_start = CE().get("quiet_start", "")
-    try:
-        quiet_period_days = max((datetime.strptime(quiet_start, "%Y-%m-%d").date() - datetime.now().date()).days, 0)
-    except Exception:
-        quiet_period_days = 0
+    # weakest_request / quiet_period_days removed with the "respond before the quiet
+    # period begins in N days" line. That countdown collapsed "not configured" and
+    # "already started" to the same 0, so BOTH tenants rendered "in 0 days". Reports'
+    # quiet-period banner is the correct pattern if a countdown is wanted again: it
+    # renders only when a quiet_start exists AND the count is positive.
 
     ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:10px;")
 
@@ -1763,12 +1762,18 @@ def _render_big_picture(institutions):
         f"{'zero NDR trips logged here yet' if top_visits == 0 else f'only {top_visits} trip(s) so far'}."
         + top_req_html + top_conf_html + "</div></div>"
     )
+    # Targeting moves only. The "respond to <analyst> before the quiet period" line
+    # used to live here too, which put a second, competing "actions for management"
+    # list one page away from Today's — and the two could disagree (Today reported
+    # no outstanding analyst follow-ups while this urged replying to one). Inbound
+    # requests are now counted in Today's follow-up line, which is the surface for
+    # things with a clock on them; what's left here is the tier/metro read that the
+    # table below substantiates.
     ui.html(
-        f"<div style='font-size:13px;color:{COLORS['text_secondary']};margin-top:10px;'><b>Ranked actions for management this week:</b></div>"
+        f"<div style='font-size:13px;color:{COLORS['text_secondary']};margin-top:10px;'><b>Targeting moves this week:</b></div>"
         f"<ol style='font-size:13px;color:{COLORS['text_secondary']};margin-top:4px;line-height:1.7;'>"
         f"<li>Direct 1x1 call: <b>{next((i['Fund'] for i in tier1_preview if not i['USIO_Holder']), 'top Tier 1 non-holder')}</b> — highest-scoring active conversion target.</li>"
         f"<li>Defend the position: <b>{next((i['Fund'] for i in tier1_preview if i['USIO_Holder']), 'top Tier 1 holder')}</b> — actively adding shares, needs 15 minutes before the print.</li>"
-        + (f"<li>Respond to <b>{weakest_request['analyst']}</b> ({weakest_request['firm']}) before the quiet period begins in {quiet_period_days} days — {weakest_request['reason']}</li>" if weakest_request else "")
         + f"<li>Scope a <b>{top_metro}</b> NDR as the next roadshow"
         + (f", timed around {top_metro_request['analyst']}'s request" if top_metro_request else "")
         + " — it now outranks every other market on an opportunity-per-visit-and-request basis.</li></ol>"

@@ -210,11 +210,25 @@ def _talking_points(state, overdue, readiness_pct):
     each line reflects an actual queryable fact (overdue count, script
     readiness, open signal count) rather than a fixed script."""
     points = []
-    if overdue:
-        names = ", ".join(o["entity"] for o in overdue[:3])
-        points.append(f"{len(overdue)} analyst follow-up(s) overdue (>24h, no response logged): {names} — close these before the quiet period.")
+    # Analyst follow-ups run BOTH ways: model requests we sent that nobody answered
+    # (outbound), and meeting requests analysts sent US that are still unresolved
+    # (inbound). This counted only the outbound half, so Today could report "no
+    # analyst follow-ups are overdue" on the same day Investor Targeting said
+    # "respond to Owen Pike before the quiet period" — two management to-do lists
+    # contradicting each other. Today is the authoritative one, so it counts both.
+    inbound = [r for r in (db.load_json("ndr_requests.json", default=[]) or [])
+               if not r.get("resolved")]
+    if overdue or inbound:
+        bits = []
+        if overdue:
+            bits.append(f"{len(overdue)} model request(s) unanswered >24h ("
+                        + ", ".join(o["entity"] for o in overdue[:3]) + ")")
+        if inbound:
+            bits.append(f"{len(inbound)} analyst meeting request(s) awaiting your reply ("
+                        + ", ".join(f"{r.get('analyst','?')} — {r.get('city','?')}" for r in inbound[:3]) + ")")
+        points.append(" · ".join(bits) + " — close these before the quiet period.")
     else:
-        points.append("No analyst follow-ups are overdue right now.")
+        points.append("No analyst follow-ups are outstanding — nothing sent unanswered, nothing awaiting your reply.")
 
     if readiness_pct >= 80:
         points.append(f"Earnings script is {readiness_pct:.0f}% through its review stages — on track.")
