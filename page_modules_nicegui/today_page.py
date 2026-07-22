@@ -958,7 +958,9 @@ def _collapsible_head(title, start_open=True):
     with ui.row().classes("w-full items-center no-wrap").style("gap:6px;justify-content:space-between;"):
         ui.label(title).classes("section-head")
         btn = ui.button(icon="expand_less" if start_open else "expand_more").props(
-            "flat dense round size=sm").style(f"color:{COLORS['text_muted']};")
+            "flat dense round size=sm").style(
+            f"color:{COLORS['text_secondary']};border:1.5px solid {COLORS['text_secondary']};"
+            "background:rgba(0,0,0,0.02);").tooltip("Collapse / expand this section")
     body = ui.column().classes("w-full").style("gap:4px;")
     body.set_visibility(start_open)
     state = {"open": start_open}
