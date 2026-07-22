@@ -96,6 +96,24 @@ def _earnings_readiness_pct():
     return complete / len(stages) * 100 if stages else 0.0
 
 
+def _as_of_short(snap):
+    """Quote timestamp in a form a person reads, not a log line.
+
+    "2026-07-22 12:03 · up to 60-min delay" was the loudest text in the metrics card.
+    Same-day quotes render as "12:03 today"; older ones as "Jul 21, 16:20"."""
+    raw = (snap or {}).get("as_of") or ""
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", ""))
+    except ValueError:
+        return str(raw)[:16].replace("T", " ") or "time unavailable"
+    now = datetime.now()
+    if dt.date() == now.date():
+        return f"{dt:%H:%M} today"
+    if (now.date() - dt.date()).days == 1:
+        return f"{dt:%H:%M} yesterday"
+    return f"{dt:%b} {dt.day}, {dt:%H:%M}"
+
+
 def _consensus_pt_avg(period="Q2 2026E"):
     """Average price target across currently-active covering analysts for
     `period` — replaces the hardcoded "$5.12" with a real average of
@@ -169,8 +187,9 @@ def _today_story_text(snap, recent):
         if snap.get("volume") and snap.get("avg_volume_10d"):
             ratio = snap["volume"] / snap["avg_volume_10d"]
             vol_txt = f", on {ratio:.1f}x its 10-day average volume"
-        as_of = (snap.get("as_of") or "")[:16].replace("T", " ")
-        price_line = f"{ticker} is {direction} {abs(chg):.1f}% as of {as_of}{vol_txt}."
+        # No raw "as of 2026-07-22 12:03" mid-sentence — it reads like a log line and
+        # breaks the narrative. The delay is disclosed in the Key market metrics footnote.
+        price_line = f"{ticker} is {direction} {abs(chg):.1f}%{vol_txt}."
     else:
         price_line = f"Market data for {ticker} hasn't been fetched yet — it refreshes automatically shortly after the app starts, or use Refresh on the Today page."
 
@@ -316,13 +335,13 @@ def render_today_page():
                 _kpi_label("Last price", top=False)
                 with ui.row().classes("items-baseline gap-2"):
                     _kpi_value(f"${snap['last_price']:.2f}")
+                    ui.label("*").style(f"color:{COLORS['text_muted']};font-size:12px;") \
+                        .tooltip("Delayed quote — see note below")
                     ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{chg_clr};font-size:12px;")
                 _kpi_label("Volume vs 10-day avg")
                 vol = (f"{snap['volume']/snap['avg_volume_10d']:.1f}x"
                        if (snap.get("volume") and snap.get("avg_volume_10d")) else "—")
                 _kpi_value(vol)
-                as_of = (snap.get("as_of") or "")[:16].replace("T", " ")
-                ui.label(f"as of {as_of} · up to 60-min delay").classes("t-fine").style("margin-top:2px;")
             else:
                 ui.label("Not yet fetched — refreshes automatically shortly after startup.").classes("t-meta")
 
@@ -338,6 +357,13 @@ def render_today_page():
                             "font-bold").style(f"color:{up_clr};font-size:12px;")
             else:
                 ui.label("No active-analyst price targets on file.").classes("t-meta")
+
+            # Footnote rather than a full "as of 2026-07-22 12:03 · up to 60-min delay"
+            # line under the values — the raw stamp was the loudest thing in the card and
+            # drew the eye away from the numbers. The asterisk carries it instead.
+            if snap and snap.get("last_price") is not None:
+                ui.label(f"* Delayed quote · {_as_of_short(snap)}").classes("t-fine").style(
+                    "margin-top:10px;")
 
     _render_top_story()
 
