@@ -821,46 +821,47 @@ def _render_investor_pipeline():
         detail = (f"{inst.get('Action', '')} · {inst.get('IR_Visits_30d', 0)} IR site visits in the last 30 days "
                   f"(last: {inst.get('Last_Visit', '—')}) · {inst.get('Metro', '—')}.")
 
-        with ui.row().classes("w-full items-start gap-2"):
-            with ui.card().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
-                with ui.row().classes("w-full justify-between"):
-                    ui.label(f"{dot} {nm}").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:13px;")
-                    ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                ui.label(f"{hld} · {nt}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        # Defined before the card so the Details button — now INSIDE the card,
+        # in its own bottom action row — can bind to it.
+        def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
+            with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:380px;"):
+                ui.label(f"{nm} — {hld} · Engagement {score}/100").classes("font-bold")
+                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:13px;")
+                _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
 
-            def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
-                with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:380px;"):
-                    ui.label(f"{nm} — {hld} · Engagement {score}/100").classes("font-bold")
-                    ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:13px;")
-                    _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
+                def mark_sent(nm=nm, info=info):
+                    log = load_meeting_log()
+                    log.append({
+                        "Fund": nm, "Date": datetime.now().strftime("%Y-%m-%d"),
+                        "Type": "Email outreach (Today's Pipeline)",
+                        "Attendees": info.get("name", ""),
+                        "Notes": "Quick outreach logged from Today's Investor Pipeline signal.",
+                        # Deliberately neutral (0 pts) — a just-sent email has no
+                        # outcome yet. It's still a real, dated, logged interaction
+                        # (so this card clears and the fund's Meeting Log shows it),
+                        # but it shouldn't move the Interaction Score until someone
+                        # logs what actually happened (a reply, a meeting, etc.) via
+                        # the full Meeting Log dialog in Investor Targeting.
+                        "Outcome": "No clear signal",
+                        "Logged By": CI().get("name") or "IR Team", "Source": "Today Pipeline",
+                    })
+                    save_meeting_log(log)
+                    activity_log.log_event("email_sent", entity=nm, launched_from="Today · Investor Pipeline")
+                    ui.notify(f"Logged outreach to {nm} — clearing this card from the pipeline.")
+                    d.close()
+                    nav.go_to("Today")
 
-                    def mark_sent(nm=nm, info=info):
-                        log = load_meeting_log()
-                        log.append({
-                            "Fund": nm, "Date": datetime.now().strftime("%Y-%m-%d"),
-                            "Type": "Email outreach (Today's Pipeline)",
-                            "Attendees": info.get("name", ""),
-                            "Notes": "Quick outreach logged from Today's Investor Pipeline signal.",
-                            # Deliberately neutral (0 pts) — a just-sent email has no
-                            # outcome yet. It's still a real, dated, logged interaction
-                            # (so this card clears and the fund's Meeting Log shows it),
-                            # but it shouldn't move the Interaction Score until someone
-                            # logs what actually happened (a reply, a meeting, etc.) via
-                            # the full Meeting Log dialog in Investor Targeting.
-                            "Outcome": "No clear signal",
-                            "Logged By": CI().get("name") or "IR Team", "Source": "Today Pipeline",
-                        })
-                        save_meeting_log(log)
-                        activity_log.log_event("email_sent", entity=nm, launched_from="Today · Investor Pipeline")
-                        ui.notify(f"Logged outreach to {nm} — clearing this card from the pipeline.")
-                        d.close()
-                        nav.go_to("Today")
+                ui.button("Mark as sent", on_click=mark_sent).props("color=primary")
+                ui.button("Close", on_click=d.close).props("flat")
+            d.open()
 
-                    ui.button("Mark as sent", on_click=mark_sent).props("color=primary")
-                    ui.button("Close", on_click=d.close).props("flat")
-                d.open()
-
-            ui.button("Details", on_click=open_detail).props("flat dense")
+        with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(f"{dot} {nm}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:13px;")
+                ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+            ui.label(f"{hld} · {nt}").classes("t-meta")
+            with _signal_actions():
+                ui.button("Details", on_click=open_detail).props("flat dense")
 
     # Deep-link straight to the Target Database (the searchable investor database),
     # not the default Buy-Side tab — matches "open the database" and keeps the
