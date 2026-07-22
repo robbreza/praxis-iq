@@ -234,7 +234,7 @@ def render_today_page():
     ui.button(
         "Hide automation stats" if show_roi else "Show automation stats",
         on_click=toggle_roi,
-    ).props("flat dense").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;padding-left:0;")
+    ).props("flat dense size=sm").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;padding-left:0;")
 
     if show_roi:
         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
@@ -371,9 +371,10 @@ def _signal_card(dot, title, desc):
 
 def _signal_actions():
     """A consistent bottom action row inside a signal card — a thin top divider
-    sets the buttons off from the text so they read as the card's own actions."""
+    sets the buttons off from the text so they read as the card's own actions.
+    Tight spacing so the buttons hug the divider (no dead whitespace)."""
     return ui.row().classes("w-full items-center gap-1").style(
-        f"margin-top:6px;padding-top:6px;border-top:1px solid {COLORS['border']};")
+        f"margin-top:4px;padding-top:4px;border-top:1px solid {COLORS['border']};")
 
 
 def _render_risk_signals(state, days, snap=None, pt_avg=None):
@@ -388,18 +389,18 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
         with _signal_card("", "Missing models — muted",
                           f"Snoozed until {signals.muted_until_label(state, 'models_request')} — still unresolved, just hidden till then."):
             with _signal_actions():
-                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "models_request")).props("flat dense")
+                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "models_request")).props("flat dense size=sm")
     elif state.get("models_request_sent"):
         with _signal_card("", "Emails sent to 3 analysts",
                           f"Requests sent {state.get('models_request_sent_date','')} — pending responses."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "models_request_sent", "models_request_sent_date", "models_sent_names")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "models_request_sent", "models_request_sent_date", "models_sent_names")).props("flat dense size=sm")
     elif state.get("models_marked_noted"):
         reason = f" — {state['models_noted_reason_val']}" if state.get("models_noted_reason_val") else ""
         with _signal_card("", "Model requests noted — not pursued",
                           f"Reviewed {state.get('models_noted_date','')} — no outreach sent{reason}."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "models_marked_noted", "models_noted_date", "models_noted_reason_val")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "models_marked_noted", "models_noted_date", "models_noted_reason_val")).props("flat dense size=sm")
     else:
         with _signal_card("", "3 of 5 analyst models missing",
                           "Maxim, Litchfield Hills, Barrington have no model on file — consensus unreliable"):
@@ -412,18 +413,18 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
         with _signal_card("", "Beat bar above guidance — muted",
                           f"Snoozed until {signals.muted_until_label(state, 'guidance_gap')} — still unresolved, just hidden till then."):
             with _signal_actions():
-                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "guidance_gap")).props("flat dense")
+                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "guidance_gap")).props("flat dense size=sm")
     elif state.get("guidance_marked_sent"):
         with _signal_card("", "Guidance clarification sent",
                           f"Sent {state.get('guidance_sent_date','')} — pending analyst response."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_sent", "guidance_sent_date")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_sent", "guidance_sent_date")).props("flat dense size=sm")
     elif state.get("guidance_marked_noted"):
         reason = f" — {state['guidance_noted_reason_val']}" if state.get("guidance_noted_reason_val") else ""
         with _signal_card("", "Guidance gap noted — not pursued",
                           f"Reviewed {state.get('guidance_noted_date','')} — no outreach sent{reason}."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_noted", "guidance_noted_date", "guidance_noted_reason_val")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_noted", "guidance_noted_date", "guidance_noted_reason_val")).props("flat dense size=sm")
     else:
         with _signal_card("", "Beat bar above guidance",
                           "Street consensus $25.1M sits 2.7% above your $24.5M guidance midpoint"):
@@ -437,18 +438,18 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
         with _signal_card("", "Days to consensus lock — muted",
                           f"Snoozed until {signals.muted_until_label(state, 'checkin')} — still unresolved, just hidden till then."):
             with _signal_actions():
-                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "checkin")).props("flat dense")
+                ui.button("Unmute now", on_click=lambda: _unmute_signal(state, "checkin")).props("flat dense size=sm")
     elif state.get("checkin_marked_sent"):
         with _signal_card("", "Check-in proposed",
                           f"Sent {state.get('checkin_sent_date','')} — pending analyst confirmation."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_sent", "checkin_sent_date")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_sent", "checkin_sent_date")).props("flat dense size=sm")
     elif state.get("checkin_marked_noted"):
         reason = f" — {state['checkin_noted_reason_val']}" if state.get("checkin_noted_reason_val") else ""
         with _signal_card("", "Check-in outreach noted — not pursued",
                           f"Reviewed {state.get('checkin_noted_date','')} — no check-in scheduled{reason}."):
             with _signal_actions():
-                ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_noted", "checkin_noted_date", "checkin_noted_reason_val")).props("flat dense")
+                ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_noted", "checkin_noted_date", "checkin_noted_reason_val")).props("flat dense size=sm")
     else:
         with _signal_card("", f"{checkin_days} days to consensus lock",
                           f"Quiet period starts in {checkin_days} days — model requests need to close by Aug 1"):
@@ -471,17 +472,17 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
     with ui.expansion("More market signals", value=False).classes("w-full").style("margin-top:4px;"):
         with _signal_card("", pt_title, pt_desc):
             with _signal_actions():
-                ui.button("Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense")
+                ui.button("Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense size=sm")
 
         _chg = _top_ownership_change()
         if _chg:
             with _signal_card("", "Ownership change", _chg):
                 with _signal_actions():
-                    ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
+                    ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense size=sm")
 
         with _signal_card("", "1 conference confirmed", "H.C. Wainwright Sep 8 — Scott Buck attending in person"):
             with _signal_actions():
-                ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense")
+                ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense size=sm")
 
 
 def _reset(state, *keys):
@@ -515,7 +516,7 @@ def _unmute_signal(state, key):
 
 def _mute_button(state, key, launched_from):
     """A small flat button + dropdown menu with the 4 mute windows."""
-    with ui.button("Mute").props("flat dense"):
+    with ui.button("Mute").props("flat dense size=sm"):
         with ui.menu():
             for days, label in signals.MUTE_OPTIONS:
                 ui.menu_item(label, on_click=lambda days=days: _mute_signal(state, key, days, launched_from))
@@ -874,7 +875,7 @@ def _render_investor_pipeline():
                 ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
             ui.label(f"{hld} · {nt}").classes("t-meta")
             with _signal_actions():
-                ui.button("Details", on_click=open_detail).props("flat dense")
+                ui.button("Details", on_click=open_detail).props("flat dense size=sm")
 
     # Deep-link straight to the Target Database (the searchable investor database),
     # not the default Buy-Side tab — matches "open the database" and keeps the
@@ -949,7 +950,7 @@ def _render_analyst_coverage():
                         # opens; the `e=None` swallows the click event NiceGUI passes so
                         # it can't clobber the captured `firm`.
                         ui.button("Consensus →", on_click=lambda e=None, firm=firm: nav.go_to(
-                            "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense")
+                            "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense size=sm")
 
             if not expanded["value"]:
                 ui.button(f"+ Load {len(all_analysts)-3} more", on_click=toggle).props("flat")
