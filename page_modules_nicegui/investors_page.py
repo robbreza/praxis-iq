@@ -2079,7 +2079,10 @@ def _institution_card(inst, meeting_log, contacts):
         ui.label(f"Action: {inst['Action']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;")
 
         contact = contacts.get(inst["Fund"], {})
-        with ui.row().classes("gap-3 items-center").style("margin-top:6px;"):
+        # Actions sit in a bottom row set off by a thin top divider — same treatment
+        # as the Today dashboard cards, so the whole app reads consistently.
+        with ui.row().classes("w-full gap-3 items-center").style(
+                f"margin-top:6px;padding-top:6px;border-top:1px solid {COLORS['border']};"):
             if contact.get("email"):
                 _mailto(contact["email"], f"{CT('ticker')} — Following up, {inst['Fund']}", "Hi,\n\n", f"Email {contact.get('name','Contact')}")
             ui.button("Draft Pre-Earnings Outreach", on_click=lambda inst=inst, contact=contact: _open_outreach_dialog(inst, contact)).props("flat dense")
