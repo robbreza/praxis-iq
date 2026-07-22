@@ -1710,9 +1710,16 @@ def _render_big_picture(institutions):
     with ui.row().classes("w-full gap-3"):
         _bp_metric("NDR Requests/City", str(len(ndr_requests)),
                    [f"{r['analyst']} ({r['firm']}) → {r['city']}: {r['reason']} — received {r['received']}" for r in ndr_requests])
-        _bp_metric("New Investor Signals", str(call_signal + visitor_signal),
-                   [("Call engagement by city: " + ", ".join(f"{m} ({n})" for m, n in sorted(call_by_metro.items(), key=lambda x: -x[1]))) if call_by_metro else "No call-engagement signal on file.",
-                    f"{visitor_signal} new site visitors (city unknown) · {prospect_q_count} in prospect queue"])
+        # Was "New Investor Signals" = call-listener + website-visitor counts. Both read
+        # CSVs that exist for NO client (there is no call or web-analytics integration),
+        # so this headline tile was structurally pinned at 0 for every customer, forever.
+        # New positions ARE measurable — they come from the 13F holder history — and
+        # "who just bought in" is the more useful number anyway.
+        _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
+        _bp_metric("New Positions (13F)", str(len(_new_pos)),
+                   [f"{pretty_name(i['Fund'])} — {i.get('Metro') or '—'}"
+                    f"{(' · ' + i['Conviction']) if i.get('Conviction') else ''}" for i in _new_pos[:6]]
+                   or ["No new positions in the latest 13F cycle."])
         _bp_metric("Existing Holders Tracked", f"{holder_count} / {tracked_total}",
                    [("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1]))) if holders_by_metro else "No holders tracked yet.",
                     f"{tracked_total - holder_count} active non-holder prospects being worked"])

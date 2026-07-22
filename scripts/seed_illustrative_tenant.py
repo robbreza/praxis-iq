@@ -81,11 +81,9 @@ RECORD = {
          "email": "mreyes@denbysec.com", "covering": True},
         {"name": "Owen Pike", "firm": "Westmark Partners", "pt": 4.25, "rating": "Hold",
          "email": "opike@westmarkpartners.com", "covering": True},
-        # Deliberately no model on file — this is what makes the "we don't guess"
-        # discipline visible in a screenshot.
-        {"name": "Neil Barrow", "firm": "Calder & Co.", "pt": None, "rating": None,
+        {"name": "Neil Barrow", "firm": "Calder & Co.", "pt": 5.00, "rating": "Buy",
          "email": "nbarrow@calderco.com", "covering": True},
-        {"name": "Sara Lindqvist", "firm": "Brightwater Equity", "pt": None, "rating": None,
+        {"name": "Sara Lindqvist", "firm": "Brightwater Equity", "pt": 5.75, "rating": "Buy",
          "email": "slindqvist@brightwatereq.com", "covering": True},
     ],
     "peers": [
@@ -274,15 +272,66 @@ def seed():
     ], client_id=CID)
     print(f"[demo] seeded {len(meetings)} logged meetings (varied outcomes → differentiated scores)")
 
-    # 4. Consensus: three analysts with models, two without (the honest gap, on purpose)
+    # 3d. Inbound NDR requests from THIS client's own analysts, and logged NDR trips.
+    # A demo must show a workspace being actively coordinated — an account with zeros
+    # across the headline tiles reads as "this system is empty", which is the opposite
+    # of the point. These are ordinary records the product manages for real clients.
+    reqs = [
+        ("Ellis Grant",    "Ashfield Research",  "New York",    "New York, NY",
+         "Ashfield's payments conference is in three weeks — Ellis wants to slot NLKP 1x1s with "
+         "attending funds while management is already in the city.", 6),
+        ("Marta Reyes",    "Denby Securities",   "Boston",      "Boston, MA",
+         "Marta is bringing two institutional accounts through Boston and wants to add an NLKP "
+         "management meeting to that itinerary.", 4),
+        ("Owen Pike",      "Westmark Partners",  "Minneapolis", "Minneapolis-St. Paul, MN",
+         "Owen is hosting a small-cap fintech lunch and has asked for the CFO on the panel.", 9),
+    ]
+    db.save_json("ndr_requests.json", [
+        {"id": f"req-{i+1}", "analyst": a, "firm": f, "city": c, "metro": m, "reason": why,
+         "received": (TODAY - timedelta(days=d)).strftime("%b %d, %Y"), "resolved": False}
+        for i, (a, f, c, m, why, d) in enumerate(reqs)
+    ], client_id=CID)
+    trips = [
+        ("New York, NY",              38, "Ashfield Research", 6),
+        ("Boston, MA",                61, "Denby Securities",  5),
+        ("San Francisco / Bay Area",  96, "Westmark Partners", 4),
+    ]
+    db.save_json("ndr_trips.json", [
+        {"id": f"trip-{i+1}", "city": c, "metro": c,
+         "date": (TODAY - timedelta(days=d)).strftime("%Y-%m-%d"),
+         "time": "Full day", "sponsor": sp, "meetings": n, "status": "complete"}
+        for i, (c, d, sp, n) in enumerate(trips)
+    ], client_id=CID)
+    print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips")
+
+    # 3e. A curated target of this client's own, so the house book isn't the only entry.
+    from core import curated_targets
+    for nm, city, st, why in [
+        ("Kestrel Ridge Capital II", "MINNEAPOLIS", "MN",
+         "Sister fund to an existing holder — same PM, asked to be kept in the loop."),
+        ("Bracken Hill Advisors", "BOSTON", "MA",
+         "Relationship carried from the CFO's prior seat; not a peer-holder today."),
+    ]:
+        curated_targets.add(nm, city, st, why, scope="client", cid=CID)
+    print("[demo] seeded 2 client-scoped curated targets")
+
+    # 4. Consensus — a WORKED book: every covering analyst's model is on file. The
+    # "we don't guess" discipline still shows through the unscored call pillar and the
+    # provenance notes; it does not need a permanently-broken consensus to make the point.
     period = "Q2 2026E"
+    _est_by_firm = {
+        "Ashfield Research":   (0.06, 29.6, 2.3),
+        "Denby Securities":    (0.07, 30.1, 2.5),
+        "Westmark Partners":   (0.05, 28.9, 2.1),
+        "Calder & Co.":        (0.06, 29.4, 2.2),
+        "Brightwater Equity":  (0.06, 29.8, 2.4),
+    }
     ests = {}
     for a in RECORD["analysts"]:
+        eps, rev, ebitda = _est_by_firm[a["firm"]]
         ests[a["firm"]] = {
-            "Rating": a["rating"], "Price Target": a["pt"],
-            "EPS Est": 0.06 if a["pt"] else None,
-            "Revenue Est ($M)": 29.6 if a["pt"] else None,
-            "EBITDA Est ($M)": 2.3 if a["pt"] else None,
+            "Rating": a["rating"] or "Buy", "Price Target": a["pt"] or 5.25,
+            "EPS Est": eps, "Revenue Est ($M)": rev, "EBITDA Est ($M)": ebitda,
         }
     db.save_json("period_estimates.json", {period: ests, "FY 2026E": ests}, client_id=CID)
     db.save_json("period_guidance.json", {
@@ -356,6 +405,54 @@ def seed():
     db.save_json("sec_cik_fallback.json",
                  {tk: None for tk in [TICKER] + list(by_peer)}, client_id=CID)
     print(f"[demo] seeded price snapshots for {len(prices)} tickers + CIK short-circuit")
+
+    # 9. Calendar — an IR year actually has things on it.
+    _d = lambda n: (TODAY + timedelta(days=n)).strftime("%Y-%m-%d")
+    db.save_json("ir_conference_calendar.csv", [
+        {"Event": "Q2 2026 Earnings Call", "Type": "Earnings", "Date": _d(21),
+         "Location": "Virtual / Conference Bridge", "Organizer": "Northlake Internal",
+         "Status": "Confirmed", "Deadline": _d(20),
+         "Notes": "5:00 PM ET · webcast at northlakepay.com/events/", "Source": "Press Release",
+         "Attending": "Marcus Ellery, Priya Raman, Dana Whitfield", "Priority": "High"},
+        {"Event": "Ashfield Research Payments & Fintech Conference", "Type": "Conference",
+         "Date": _d(34), "Location": "New York, NY", "Organizer": "Ashfield Research",
+         "Status": "Invited — pending confirmation", "Deadline": _d(12),
+         "Notes": "1x1 track; Ellis Grant hosting.", "Source": "Analyst invite",
+         "Attending": "Marcus Ellery, Dana Whitfield", "Priority": "High"},
+        {"Event": "Denby Small-Cap Growth Forum", "Type": "Conference", "Date": _d(56),
+         "Location": "Boston, MA", "Organizer": "Denby Securities", "Status": "Confirmed",
+         "Deadline": _d(28), "Notes": "Fireside + six 1x1s.", "Source": "Analyst invite",
+         "Attending": "Priya Raman, Dana Whitfield", "Priority": "Medium"},
+        {"Event": "Twin Cities Institutional NDR", "Type": "NDR", "Date": _d(47),
+         "Location": "Minneapolis-St. Paul, MN", "Organizer": "Westmark Partners",
+         "Status": "Needs to be Scheduled", "Deadline": _d(25),
+         "Notes": "Four accounts identified; sequencing with the Westmark lunch.",
+         "Source": "Internal", "Attending": "Marcus Ellery, Dana Whitfield", "Priority": "High"},
+        {"Event": "Q3 2026 Earnings Call", "Type": "Earnings", "Date": _d(112),
+         "Location": "Virtual / Conference Bridge", "Organizer": "Northlake Internal",
+         "Status": "Not yet contacted", "Deadline": _d(111), "Notes": "Date provisional.",
+         "Source": "Internal", "Attending": "Management + IR", "Priority": "Medium"},
+    ], client_id=CID)
+    print("[demo] seeded 5 calendar events (earnings, conferences, an NDR to schedule)")
+
+    # 10. Activity ledger — the platform's own record of work done, so Today reads
+    # "N tasks automated today" instead of "no activity logged yet".
+    from core import activity_log
+    for et, ent, det in [
+        ("email_sent", "Ellis Grant", {"launched_from": "Consensus · model request"}),
+        ("email_sent", "Marta Reyes", {"launched_from": "Consensus · model request"}),
+        ("model_ingested", "Calder & Co.", {"period": "Q2 2026E"}),
+        ("model_ingested", "Brightwater Equity", {"period": "Q2 2026E"}),
+        ("signal_resolved", "guidance_gap", {"note": "CFO briefed; guidance language tightened"}),
+        ("meeting_logged", "Halewood Capital Management", {"type": "1x1 — Investor Conference"}),
+        ("ndr_trip_logged", "New York, NY", {"meetings": 6}),
+        ("report_generated", "Quarterly Board Package", {"format": "pdf"}),
+    ]:
+        try:
+            activity_log.log_event(et, entity=ent, client_id=CID, **det)
+        except Exception as exc:
+            print(f"   (activity_log {et} skipped: {exc})")
+    print("[demo] seeded 8 activity-ledger events")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
