@@ -1142,9 +1142,14 @@ def _render_insider_activity():
         _tone = {"P": COLORS["success"], "S": COLORS["danger"]}
         for t in txns[:6]:
             col = _tone.get(t.get("code"), COLORS["text_muted"])
-            with ui.row().classes("w-full items-center").style("gap:8px;"):
-                ui.label(insider_feed.glyph(t)).style(f"color:{col};font-weight:800;font-size:12px;")
-                ui.label(insider_feed.describe(t)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
+            # Bullet inline-left, text flexing to its right — no-wrap + items-start so
+            # the glyph sits on the first text line and wrapped lines hang under the text,
+            # not under the bullet (previously the row wrapped and the dot floated above).
+            with ui.row().classes("w-full items-start no-wrap").style("gap:8px;"):
+                ui.label(insider_feed.glyph(t)).style(
+                    f"color:{col};font-weight:800;font-size:12px;line-height:1.45;flex-shrink:0;")
+                ui.label(insider_feed.describe(t)).classes("flex-1").style(
+                    f"color:{COLORS['text_secondary']};font-size:12px;line-height:1.45;")
 
 
 def _render_peer_watch():
