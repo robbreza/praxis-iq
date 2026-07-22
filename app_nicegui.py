@@ -166,6 +166,11 @@ def apply_theme():
             --nicegui-default-padding: 0.625rem;  /* 16px -> 10px */
             --nicegui-default-gap: 0.25rem;       /* 16px ->  4px */
         }}
+        /* Buttons in sentence case, not Quasar's default SHOUTING uppercase.
+           ALL-CAPS button labels (RESOLVE / MUTE / DETAILS) read as dated and
+           shouty — caps is reserved as a deliberate accent (small eyebrows),
+           not applied wholesale to every control. */
+        .q-btn {{ text-transform: none; }}
         .ir-card {{
             background: {COLORS["surface_bg"]};
             border: 1px solid {COLORS["border"]};

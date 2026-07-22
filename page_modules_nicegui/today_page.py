@@ -41,6 +41,7 @@ from nicegui import ui
 from config.client_config import C, CA, CE, CI, CT
 from config.theme_tokens import ACTIVE as COLORS
 from core import activity_log, db, inbox_queue, market_data, signals, ui_context
+from core.textfmt import pretty_name
 from data.seed.institution_contacts import get_institution_contacts
 from page_modules_nicegui import nav
 
@@ -825,7 +826,7 @@ def _render_investor_pipeline():
         # in its own bottom action row — can bind to it.
         def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
             with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:380px;"):
-                ui.label(f"{nm} — {hld} · Engagement {score}/100").classes("font-bold")
+                ui.label(f"{pretty_name(nm)} — {hld} · Engagement {score}/100").classes("font-bold")
                 ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:13px;")
                 _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
 
@@ -857,7 +858,7 @@ def _render_investor_pipeline():
 
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
             with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"{dot} {nm}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:13px;")
+                ui.label(f"{dot} {pretty_name(nm)}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:13px;")
                 ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
             ui.label(f"{hld} · {nt}").classes("t-meta")
             with _signal_actions():
