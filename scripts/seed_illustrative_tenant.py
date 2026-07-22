@@ -163,9 +163,16 @@ PEER_OWNERS = [
 ]
 
 
+def _cik_for(filer):
+    """Stable synthetic CIK per fund. Needed because position history and contacts
+    are both keyed by CIK — with a blank one every holder reads "No history pulled
+    yet" and every Engagement Score collapses to the same number."""
+    return str(1_400_000 + (abs(hash(filer)) % 500_000))
+
+
 def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSIP):
     return {
-        "cik": "", "city": city, "state": state, "cusip": cusip, "filer": filer,
+        "cik": _cik_for(filer), "city": city, "state": state, "cusip": cusip, "filer": filer,
         "value": value, "shares": shares, "filename": "", "accession": "",
         "file_date": FILE_DATE, "book_total": book_total, "size_known": True,
         "book_positions": positions,
@@ -201,6 +208,49 @@ def seed():
     for peer, hs in by_peer.items():
         db.save_json(f"sec_13f_holders_{peer}.json", _cache(peer, hs, cusip=f"{peer}00000"), client_id=CID)
         print(f"[demo] seeded {len(hs):>2} holders of peer {peer}")
+
+    # 3b. Position history — the add/trim/new/exit read behind each holder's "Action".
+    # Without this every card reads "No history pulled yet".
+    directions = ["adding", "trimming", "new", "flat", "adding", "trimming", "flat", "exited"]
+    hist = {}
+    for i, h in enumerate(HOLDERS):
+        filer = h[0]
+        d = directions[i % len(directions)]
+        qoq = {"adding": 42_000, "trimming": -31_000, "new": 96_000,
+               "flat": 0, "exited": -120_000}[d]
+        hist[_cik_for(filer).lstrip("0")] = {
+            "as_of": TODAY.isoformat(timespec="seconds"), "direction": d, "continuous": d != "new",
+            "peer_overlap": ["PYRA", "CLRT"][: (i % 3)], "quarters_held": 1 if d == "new" else 4,
+            "net_change_shares": qoq * 2, "qoq_change_shares": qoq, "quarters_examined": 4,
+            "held_since_at_least": "2025-07-31",
+        }
+    db.save_json(f"holder_history_{TICKER}.json", hist, client_id=CID)
+    print(f"[demo] seeded position history for {len(hist)} holders (add/trim/new/flat/exit)")
+
+    # 3c. Meeting history — differentiates the Engagement Scores on Today's pipeline.
+    # All dated >7 days back on purpose: top_engagement_targets() drops any fund
+    # contacted inside 7 days, so recent entries would empty the widget.
+    meetings = [
+        ("Halewood Capital Management",  32, "1x1 — Investor Conference", "CFO follow-up required",
+         "Michael Hale", "Wants FY guidance bridge and segment detail ahead of the print."),
+        ("Corveth Advisors",             26, "NDR meeting", "Positive — follow up",
+         "Frederick Marsh", "Building a position; asked for the gross-margin walk."),
+        ("Brentmoor Capital Management", 19, "Follow-up call", "Warm — send materials",
+         "Alice Kenner", "Requested the investor deck and peer comp sheet."),
+        ("Ashcombe Partners",            41, "Intro call", "Neutral — maintain",
+         "Rahul Menon", "Introductory; tracking the story, no position change signalled."),
+        ("Reddington Asset Management",  55, "Earnings call Q&A", "Flag — possible exit",
+         "Dana Kirby", "Pressed on take rate compression twice — watch the next 13F."),
+        ("Kestrel Ridge Capital",        12, "1x1 — Investor Conference", "Positive — follow up",
+         "Sofia Braun", "Micro-cap specialist, added on the last print."),
+    ]
+    db.save_json("meeting_log.csv", [
+        {"Fund": f, "Date": (TODAY - timedelta(days=ago)).strftime("%Y-%m-%d"), "Type": typ,
+         "Attendees": who, "Notes": note, "Outcome": outcome,
+         "Logged By": RECORD["ir_contact"]["name"], "Source": "Manual"}
+        for f, ago, typ, outcome, who, note in meetings
+    ], client_id=CID)
+    print(f"[demo] seeded {len(meetings)} logged meetings (varied outcomes → differentiated scores)")
 
     # 4. Consensus: three analysts with models, two without (the honest gap, on purpose)
     period = "Q2 2026E"

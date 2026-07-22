@@ -417,8 +417,8 @@ def _signal_actions():
 def _render_risk_signals(state, days, snap=None, pt_avg=None):
     ui.label("Risk signals").classes("section-head")
 
-    # Covering analysts whose current PT we haven't logged — the concrete chase list
-    # (Maxim, Litchfield, Barrington). "No PT on file" ≠ "dropped coverage": all five cover.
+    # Covering analysts whose current PT we haven't logged — the concrete chase list.
+    # "No PT on file" ≠ "dropped coverage": they cover, we just haven't collected it.
     missing_model_analysts = [a for a in CA() if a.get("pt") is None]
 
     # 1. Missing models — 4-state: default / sent / noted / muted
@@ -439,8 +439,14 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
             with _signal_actions():
                 ui.button("Reset", on_click=lambda: _reset(state, "models_marked_noted", "models_noted_date", "models_noted_reason_val")).props("flat dense size=sm")
     else:
-        with _signal_card("", "3 of 5 analyst models missing",
-                          "Maxim, Litchfield Hills, Barrington have no model on file — consensus unreliable"):
+        # Built from THIS client's own analysts. It used to hardcode "3 of 5 —
+        # Maxim, Litchfield Hills, Barrington", so every tenant was shown USIO's
+        # coverage list regardless of who they actually are.
+        _n_missing, _n_total = len(missing_model_analysts), len(CA())
+        _firms = ", ".join(a.get("firm", "?") for a in missing_model_analysts) or "—"
+        with _signal_card("", f"{_n_missing} of {_n_total} analyst models missing",
+                          f"{_firms} {'has' if _n_missing == 1 else 'have'} no model on file "
+                          f"— consensus unreliable"):
             with _signal_actions():
                 ui.button("Resolve", on_click=lambda: _open_models_dialog(state, missing_model_analysts)).props("dense size=sm color=primary")
                 _mute_button(state, "models_request", "Today · Risk Signals · Missing Models")
@@ -499,8 +505,9 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
             with _signal_actions():
                 ui.button("Reset", on_click=lambda: _reset(state, "checkin_marked_noted", "checkin_noted_date", "checkin_noted_reason_val")).props("flat dense size=sm")
     else:
-        with _signal_card("", f"{checkin_days} days to consensus lock",
-                          f"Quiet period starts in {checkin_days} days — model requests need to close by Aug 1"):
+        _d = "day" if checkin_days == 1 else "days"
+        with _signal_card("", f"{checkin_days} {_d} to consensus lock",
+                          f"Quiet period starts in {checkin_days} {_d} — model requests need to close first"):
             with _signal_actions():
                 ui.button("Propose check-in", on_click=lambda: _open_checkin_dialog(state, missing_model_analysts, checkin_days)).props("dense size=sm color=primary")
                 _mute_button(state, "checkin", "Today · Risk Signals · Days to Consensus Lock")
