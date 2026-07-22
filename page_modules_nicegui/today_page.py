@@ -924,20 +924,19 @@ def _render_analyst_coverage():
         visible = all_analysts if expanded["value"] else all_analysts[:3]
         with container:
             for firm, an, pt, rt, chg, clr in visible:
-                with ui.row().classes("w-full items-center gap-2"):
-                    with ui.card().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};"):
-                        with ui.row().classes("w-full justify-between"):
-                            ui.label(firm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
-                            ui.label(pt).classes("font-bold").style(f"color:{clr};")
-                        ui.label(f"{an} · {rt} · {chg}").style(f"color:{COLORS['text_muted']};font-size:11px;")
-
-                    # Deep-link straight to Consensus / Guidance with this analyst
-                    # highlighted. Pass the tab explicitly (not just the highlight)
-                    # so the sidebar's active-tab highlight matches the tab that
-                    # opens; the `e=None` swallows the click event NiceGUI passes so
-                    # it can't clobber the captured `firm`.
-                    ui.button("→", on_click=lambda e=None, firm=firm: nav.go_to(
-                        "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense")
+                with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
+                    with ui.row().classes("w-full justify-between items-center"):
+                        ui.label(firm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(pt).classes("font-bold").style(f"color:{clr};")
+                    ui.label(f"{an} · {rt} · {chg}").classes("t-meta")
+                    with _signal_actions():
+                        # Deep-link straight to Consensus / Guidance with this analyst
+                        # highlighted. Pass the tab explicitly (not just the highlight)
+                        # so the sidebar's active-tab highlight matches the tab that
+                        # opens; the `e=None` swallows the click event NiceGUI passes so
+                        # it can't clobber the captured `firm`.
+                        ui.button("Consensus →", on_click=lambda e=None, firm=firm: nav.go_to(
+                            "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense")
 
             if not expanded["value"]:
                 ui.button(f"+ Load {len(all_analysts)-3} more", on_click=toggle).props("flat")
