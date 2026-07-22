@@ -719,6 +719,26 @@ _SEC_CITY_METRO = {
 }
 
 
+# Major international financial hubs — a foreign fund lands in its city cluster (a real roadshow
+# stop: a London or Toronto swing) rather than one undifferentiated "International" blob. Keyed by
+# normalised city; province/country suffixes ("TORONTO ONTARIO", "PARIS FRANCE") are stripped first.
+# Only reached for non-US state codes, so ambiguous names (Burlington ON) can't collide with US.
+_INTL_CITY_METRO = {
+    "TORONTO": "Toronto, ON", "MISSISSAUGA": "Toronto, ON", "OAKVILLE": "Toronto, ON",
+    "MARKHAM": "Toronto, ON", "VAUGHAN": "Toronto, ON", "RICHMOND HILL": "Toronto, ON",
+    "BURLINGTON": "Toronto, ON", "WATERLOO": "Toronto, ON",
+    "MONTREAL": "Montreal, QC", "VANCOUVER": "Vancouver, BC", "CALGARY": "Calgary, AB",
+    "LONDON": "London, UK", "EDINBURGH": "Edinburgh, UK",
+    "PARIS": "Paris, FR", "FRANKFURT": "Frankfurt, DE", "FRANKFURT AM MAIN": "Frankfurt, DE",
+    "MUNICH": "Munich, DE", "BERLIN": "Berlin, DE", "ZURICH": "Zurich, CH", "GENEVA": "Geneva, CH",
+    "TOKYO": "Tokyo, JP", "HONG KONG": "Hong Kong", "SINGAPORE": "Singapore",
+    "STOCKHOLM": "Stockholm, SE", "AMSTERDAM": "Amsterdam, NL", "OSLO": "Oslo, NO",
+    "COPENHAGEN": "Copenhagen, DK", "COPENHAGEN V": "Copenhagen, DK", "HELSINKI": "Helsinki, FI",
+    "SYDNEY": "Sydney, AU", "MELBOURNE": "Melbourne, AU", "SAO PAULO": "Sao Paulo, BR",
+    "WARSAW": "Warsaw, PL", "DUBLIN": "Dublin, IE",
+}
+
+
 def _norm_city(city):
     """Collapse the St. / Saint / St spelling variants that otherwise fragment a metro into
     separate rows (the data carries 'ST LOUIS', 'ST. LOUIS' and 'SAINT LOUIS' for the same city)."""
@@ -744,7 +764,15 @@ def _metro_from_city(city, state):
     if c in _SEC_CITY_METRO:
         return _SEC_CITY_METRO[c]
     if st and st not in _US_STATES:
-        return "International"
+        # Cluster the major international hubs (Toronto, London, Paris...) — a real roadshow stop —
+        # rather than one undifferentiated "International" bucket. Strip province/country suffixes
+        # ("TORONTO ONTARIO", "PARIS FRANCE") so the variants collapse.
+        fc = c
+        for _suf in (" ONTARIO", " QUEBEC", " FRANCE", " GERMANY", " ENGLAND", " JAPAN", " CANADA"):
+            if fc.endswith(_suf):
+                fc = fc[: -len(_suf)].strip()
+                break
+        return _INTL_CITY_METRO.get(fc, "International")
     if c and st:
         return f"{c.title()}, {st}"      # normalised so St / St. / Saint variants don't split
     if c:
