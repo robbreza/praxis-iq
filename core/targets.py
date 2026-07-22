@@ -117,6 +117,11 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
             "Continuous_Holder": hist.get("continuous"),
             "Peer_Overlap": hist.get("peer_overlap"),
             "History_As_Of": hist.get("as_of"),
+            # Peer Ownership pillar. This used to be left None for every 13F holder, so a
+            # quarter of the Engagement model was discarded even though the input — which
+            # of OUR peers this holder also owns — is already crawled and stored. Scored
+            # from that overlap now; see _peer_score for why [] and None differ.
+            "Peer_Score": _peer_score(hist.get("peer_overlap")),
             # No source yet — returned as None so nothing downstream invents a number.
             "QoQ_Change": None,                 # legacy field; use QoQ_Change_Shares
             "IR_Visits_30d": None,              # web analytics: no source
@@ -131,6 +136,29 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
 
 # Direction -> the IR action it implies. A trimming holder is the most urgent call in the book;
 # a new position is the warmest. Derived from a real filing trail, not asserted.
+# Peer Ownership pillar input. The Engagement model scales this out of 35
+# (investor_scoring._pts(raw, 25, 35)), matching the legacy seed records' 20/30/35.
+_PEER_SCORE_MAX = 35
+
+
+def _peer_score(peer_overlap):
+    """How much of OUR peer set this holder also owns, scored 0-35.
+
+    None vs [] is the whole point. None means position history hasn't been pulled
+    for this holder yet — we genuinely don't know, so the pillar is omitted rather
+    than scored zero. An empty LIST is a measured zero: we crawled the peer books
+    and this holder owns none of them, which is real information and scores as such.
+
+    A holder who owns several of our comps is the strongest cold-outreach signal
+    there is — they already understand the model and the sector."""
+    if peer_overlap is None:
+        return None
+    n = len([p for p in peer_overlap if p])
+    if n <= 0:
+        return 0
+    return min(_PEER_SCORE_MAX, 12 + 8 * n)      # 1 -> 20, 2 -> 28, 3+ -> 35
+
+
 _ACTION_BY_DIRECTION = {
     "new": "New position — engage now",
     "adding": "Adding — deepen the relationship",
@@ -195,8 +223,13 @@ def targets_as_institutions(client_id=None, ticker=None):
             "Contact_Title": r.get("Contact_Title"),
             "Contact_Email": r.get("Contact_Email"),
             "Contact_Phone": r.get("Contact_Phone"),
-            # No source — left None so scoring omits them instead of scoring a fabricated zero.
-            "Call_Score": None, "Peer_Score": None, "Visit_Score": None,
+            # Peer Ownership IS measurable — it comes from the peer-13F crawl (see
+            # targets_from_13f/_peer_score). It was being re-nulled here, which silently
+            # threw away a quarter of the Engagement model for every real holder.
+            "Peer_Score": r.get("Peer_Score"),
+            # These genuinely have no source — left None so scoring omits them instead of
+            # scoring a fabricated zero.
+            "Call_Score": None, "Visit_Score": None,
             "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
             "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
         })

@@ -107,12 +107,15 @@ RECORD = {
 # Cities are real because the roadshow-metro clustering is the point: a day's-drive
 # NDR map only reads as a capability if the geography is real. The FUNDS are invented.
 HOLDERS = [
-    ("Halewood Capital Management",  "NEW YORK",      "NY", 1_420_000, 4_032_800,  2_100_000_000,  84),
-    ("Corveth Advisors",             "GREENWICH",     "CT",   960_000, 2_726_400,  1_400_000_000,  61),
-    ("Brentmoor Capital Management", "BOSTON",        "MA",   735_000, 2_087_400,    380_000_000,  47),
+    # Book totals on the top names are sized so the position is ~1%+ of the holder's
+    # OWN book — that is what "conviction" means to the model, and it's what separates
+    # a real owner from an index sliver.
+    ("Halewood Capital Management",  "NEW YORK",      "NY", 1_420_000, 4_032_800,    340_000_000,  38),
+    ("Corveth Advisors",             "GREENWICH",     "CT",   960_000, 2_726_400,    235_000_000,  31),
+    ("Brentmoor Capital Management", "BOSTON",        "MA",   735_000, 2_087_400,    178_000_000,  24),
     ("Ashcombe Partners",            "STAMFORD",      "CT",   612_000, 1_738_080,    920_000_000, 130),
     ("Reddington Asset Management",  "CHICAGO",       "IL",   580_000, 1_647_200,  3_400_000_000, 210),
-    ("Kestrel Ridge Capital",        "MINNEAPOLIS",   "MN",   498_000, 1_414_320,    260_000_000,  38),
+    ("Kestrel Ridge Capital",        "MINNEAPOLIS",   "MN",   498_000, 1_414_320,    126_000_000,  21),
     ("Thornbury Investment Partners","SAN FRANCISCO", "CA",   455_000, 1_292_200,  1_800_000_000, 155),
     ("Marchmont Capital",            "DALLAS",        "TX",   402_000, 1_141_680,    540_000_000,  72),
     ("Ellinwood Advisors",           "PHILADELPHIA",  "PA",   361_000, 1_025_240,    310_000_000,  55),
@@ -218,9 +221,14 @@ def seed():
         d = directions[i % len(directions)]
         qoq = {"adding": 42_000, "trimming": -31_000, "new": 96_000,
                "flat": 0, "exited": -120_000}[d]
+        # Peer overlap drives the Peer Ownership pillar. Varied deliberately: the top
+        # holders own most of the comp set (the strongest signal), the tail owns none —
+        # an empty list is a measured zero, not missing data.
+        _overlap = [["PYRA", "CLRT", "VNTG"], ["PYRA", "CLRT"], ["PYRA", "VNTG"],
+                    ["CLRT"], ["PYRA", "CLRT", "VNTG"], ["VNTG"], [], ["PYRA"]][i % 8]
         hist[_cik_for(filer).lstrip("0")] = {
             "as_of": TODAY.isoformat(timespec="seconds"), "direction": d, "continuous": d != "new",
-            "peer_overlap": ["PYRA", "CLRT"][: (i % 3)], "quarters_held": 1 if d == "new" else 4,
+            "peer_overlap": _overlap, "quarters_held": 1 if d == "new" else 4,
             "net_change_shares": qoq * 2, "qoq_change_shares": qoq, "quarters_examined": 4,
             "held_since_at_least": "2025-07-31",
         }
@@ -231,12 +239,26 @@ def seed():
     # All dated >7 days back on purpose: top_engagement_targets() drops any fund
     # contacted inside 7 days, so recent entries would empty the widget.
     meetings = [
+        # A worked relationship stacks: several logged outcomes over a couple of quarters
+        # is what a genuinely engaged holder looks like in the model.
         ("Halewood Capital Management",  32, "1x1 — Investor Conference", "CFO follow-up required",
          "Michael Hale", "Wants FY guidance bridge and segment detail ahead of the print."),
+        ("Halewood Capital Management",  78, "NDR meeting", "Positive — follow up",
+         "Michael Hale", "Second meeting this year; added on the Q4 print."),
+        ("Halewood Capital Management", 121, "Intro call", "Warm — send materials",
+         "Rebecca Ilves", "Initial diligence — sent the comp sheet and 10-K walk."),
         ("Corveth Advisors",             26, "NDR meeting", "Positive — follow up",
          "Frederick Marsh", "Building a position; asked for the gross-margin walk."),
+        ("Corveth Advisors",             94, "Follow-up call", "Positive — follow up",
+         "Frederick Marsh", "Followed up on take-rate trajectory; constructive."),
+        ("Corveth Advisors",            140, "Intro call", "Warm — send materials",
+         "Frederick Marsh", "First contact via the payments conference."),
         ("Brentmoor Capital Management", 19, "Follow-up call", "Warm — send materials",
          "Alice Kenner", "Requested the investor deck and peer comp sheet."),
+        ("Brentmoor Capital Management", 86, "1x1 — Investor Conference", "Positive — follow up",
+         "Alice Kenner", "Micro-cap specialist; understands the gross-vs-net reporting."),
+        ("Kestrel Ridge Capital",        68, "NDR meeting", "CFO follow-up required",
+         "Sofia Braun", "Asked for time with the CFO on capital allocation."),
         ("Ashcombe Partners",            41, "Intro call", "Neutral — maintain",
          "Rahul Menon", "Introductory; tracking the story, no position change signalled."),
         ("Reddington Asset Management",  55, "Earnings call Q&A", "Flag — possible exit",
