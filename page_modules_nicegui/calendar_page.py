@@ -33,7 +33,7 @@ from core import db, ui_context
 from data.seed.conferences import get_seed_conferences
 
 STATUS_OPTIONS = [
-    "Confirmed", "Invited — pending confirmation", "Scheduled",
+    "Confirmed", "Needs to be Scheduled", "Invited — pending confirmation", "Scheduled",
     "Evaluating", "Not yet contacted", "Declined", "Completed",
 ]
 
@@ -314,7 +314,8 @@ def render_calendar_page():
             date_in = _date_field("Event date", str(today + timedelta(days=30)))
             deadline_in = _date_field("Registration deadline", str(today + timedelta(days=14)))
             status_sel2 = ui.select(
-                ["Evaluating", "Invited — pending confirmation", "Confirmed", "Not yet contacted"],
+                ["Evaluating", "Invited — pending confirmation", "Confirmed",
+                 "Needs to be Scheduled", "Not yet contacted"],
                 value="Evaluating", label="Status",
             ).classes("flex-1")
         with ui.row().classes("w-full gap-4"):
