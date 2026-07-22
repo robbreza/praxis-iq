@@ -896,22 +896,45 @@ def _render_investor_pipeline():
 
 def _render_earnings_readiness(days):
     ui.label(f"Earnings readiness — {days} days out").classes("section-head")
+
+    # Earnings date/time from config, not a hardcoded "Aug 12" literal.
+    edate = CE().get("earnings_date", "")
+    try:
+        _dt = datetime.strptime(edate, "%Y-%m-%d")
+        date_lbl = f"{_dt.strftime('%b')} {_dt.day}"
+    except ValueError:
+        date_lbl = edate or "—"
+    time_lbl = CE().get("earnings_time") or "4:30 PM ET"
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};"):
         ui.label(f"{days} days").classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
-        ui.label("Aug 12 · 4:30 PM ET").style(f"color:{COLORS['accent_light2']};font-size:12px;")
+        ui.label(f"{date_lbl} · {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:12px;")
 
-    readiness = [
-        ("Script", "", COLORS["success"], "Stage 2 — IR review"),
-        ("Slides", "", COLORS["success"], "Investor deck current"),
-        ("Q&A prep", "70%", COLORS["warning"], "3 analyst-specific gaps"),
-        ("Guidance", "", COLORS["warning"], "Waiting on CFO numbers"),
-        ("Legal review", "—", COLORS["text_muted"], "Not yet started"),
-        ("Webcast", "", COLORS["success"], "Chorus Call confirmed"),
-    ]
-    for item, stat, clr, note in readiness:
-        with ui.row().classes("w-full justify-between items-center").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-            ui.label(f"{item} — {note}").style(f"color:{COLORS['text_body']};font-size:13px;")
-            ui.label(stat).style(f"color:{clr};font-weight:bold;")
+    # REAL Script Generation stage status (script_workflow_state.json) — the one
+    # earnings-prep workflow this app actually tracks. The old version hardcoded a
+    # 6-row checklist (slides/Q&A/webcast "✓") that contradicted the real 40%
+    # script progress shown in Today's Story. If it isn't tracked, it isn't shown.
+    from page_modules_nicegui.earnings_page import STAGES
+    stages = (db.load_json("script_workflow_state.json", None) or {}).get("stages", {})
+    _status = {
+        "complete": ("Complete", COLORS["success"], "✓"),
+        "active":   ("In progress", COLORS["warning"], "●"),
+        "pending":  ("Not started", COLORS["text_muted"], "○"),
+    }
+    if stages:
+        done = sum(1 for s in STAGES if stages.get(s["id"], {}).get("status") == "complete")
+        total = len(STAGES)
+        ui.label(f"Script generation — {done} of {total} stages complete ({done/total*100:.0f}%)") \
+            .classes("t-sec").style("margin-top:6px;")
+        for s in STAGES:
+            st = stages.get(s["id"], {}).get("status", "pending")
+            lbl, clr, glyph = _status.get(st, _status["pending"])
+            with ui.row().classes("w-full justify-between items-center").style(
+                    f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                ui.label(s["name"]).classes("t-body")
+                ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:12px;font-weight:600;")
+    else:
+        ui.label("Script Generation hasn't been started yet — open it to begin this quarter's script.") \
+            .classes("t-meta").style("margin-top:6px;")
 
     # Deep-link straight into the Script Generation tab by passing it as the
     # explicit nav target, so the page opens there AND the sidebar highlights the
