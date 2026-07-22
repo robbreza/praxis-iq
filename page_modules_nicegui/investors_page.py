@@ -1681,6 +1681,16 @@ def _render_big_picture(institutions):
         priority = (d["tier1_nonholder"] * 3 + d["holders"] * 1.5 + d["count"] + req_count * 2.5) / (visits + 1)
         metro_priority.append((m, priority, d, visits, req_count))
     metro_priority.sort(key=lambda x: -x[1])
+    if not metro_priority:
+        # A genuinely new client — no 13F holders on file and no inbound NDR requests
+        # logged yet — has no metros to rank. This crashed until the fabricated seed
+        # requests were removed; the seed had been masking it by guaranteeing three.
+        ui.label("No geography to prioritise yet.").classes("section-head")
+        ui.label("This view ranks where to spend roadshow time from your 13F holder book and any inbound "
+                 "NDR requests. Neither is on file for this client yet — run a 13F refresh on the SEC "
+                 "Intelligence tab, and log requests as they come in.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        return
     top_metro, _tp, top_d, top_visits, _tr = metro_priority[0]
     top_metro_request = next((r for r in ndr_requests if r["metro"] == top_metro), None)
     top_metro_conf = None
