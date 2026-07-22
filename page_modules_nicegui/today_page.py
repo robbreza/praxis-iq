@@ -116,6 +116,43 @@ def _consensus_pt_avg(period="Q2 2026E"):
     return sum(pts) / len(pts) if pts else None
 
 
+def _guidance_midpoint(period="Q2 2026E"):
+    """Real Q2 revenue-guidance midpoint from the consensus store, not a literal."""
+    from config.client_config import get_active_client_id
+    from core.consensus import get_consensus
+    g = get_consensus(get_active_client_id()).get("period_guidance", {}).get(period, {})
+    return g.get("Revenue Est ($M)")
+
+
+def _street_rev_consensus(period="Q2 2026E"):
+    """Real Street revenue consensus = mean of covering analysts' revenue estimates,
+    or None when no covering analyst has a revenue model on file (USIO's actual
+    state) — so callers can be honest that there's no Street number to compare to."""
+    from config.client_config import get_active_client_id
+    from core.consensus import get_consensus
+    ests = get_consensus(get_active_client_id()).get("period_estimates", {}).get(period, {})
+    covering = {a["firm"] for a in CA() if a.get("covering", True)}
+    revs = [ests[f]["Revenue Est ($M)"] for f in ests
+            if f in covering and ests.get(f, {}).get("Revenue Est ($M)") is not None]
+    return sum(revs) / len(revs) if revs else None
+
+
+def _upcoming_conferences():
+    """Upcoming INVESTOR conferences with their REAL status, from the same source
+    the Calendar uses (db 'ir_conference_calendar.csv', else the client seed) — not
+    a hardcoded 'confirmed' literal."""
+    from datetime import date
+    from config.client_config import get_active_client_id
+    rows = db.load_json("ir_conference_calendar.csv", None)
+    if not rows:
+        from data.seed.conferences import get_seed_conferences
+        rows = get_seed_conferences(get_active_client_id())
+    today_s = date.today().isoformat()
+    out = [r for r in (rows or [])
+           if "investor" in str(r.get("Type", "")).lower() and str(r.get("Date", "")) >= today_s]
+    return sorted(out, key=lambda r: str(r.get("Date", "")))
+
+
 def _today_story_text(snap, recent):
     """Templated narrative built from the real price/volume snapshot
     (core.market_data) and the most recent logged activity — replaces the
@@ -426,11 +463,22 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
             with _signal_actions():
                 ui.button("Reset", on_click=lambda: _reset(state, "guidance_marked_noted", "guidance_noted_date", "guidance_noted_reason_val")).props("flat dense size=sm")
     else:
-        with _signal_card("", "Beat bar above guidance",
-                          "Street consensus $25.1M sits 2.7% above your $24.5M guidance midpoint"):
+        gm, street = _guidance_midpoint(), _street_rev_consensus()
+        if gm is not None and street is not None:
+            delta = (street - gm) / gm * 100
+            g_title = f"Street {'above' if delta >= 0 else 'below'} guidance — {delta:+.1f}%"
+            g_desc = f"Street revenue consensus ${street:.1f}M vs your ${gm:.1f}M guidance midpoint."
+        elif gm is not None:
+            g_title = "No Street revenue consensus to check guidance against"
+            g_desc = (f"Q2 guidance midpoint is ${gm:.1f}M, but no covering analyst has a revenue model on "
+                      f"file yet — there's no Street revenue number to compare it against.")
+        else:
+            g_title = "Guidance not on file"
+            g_desc = "No Q2 revenue guidance midpoint is configured yet."
+        with _signal_card("", g_title, g_desc):
             with _signal_actions():
                 ui.button("Draft clarification", on_click=lambda: _open_guidance_dialog(state)).props("dense size=sm color=primary")
-                _mute_button(state, "guidance_gap", "Today · Risk Signals · Beat Bar Above Guidance")
+                _mute_button(state, "guidance_gap", "Today · Risk Signals · Guidance vs Street")
 
     # 3. Days to consensus lock
     checkin_days = max(days - 20, 0)
@@ -480,9 +528,16 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
                 with _signal_actions():
                     ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense size=sm")
 
-        with _signal_card("", "1 conference confirmed", "H.C. Wainwright Sep 8 — Scott Buck attending in person"):
-            with _signal_actions():
-                ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense size=sm")
+        _confs = _upcoming_conferences()
+        if _confs:
+            _c = _confs[0]
+            _status = _c.get("Status", "") or "status unknown"
+            _confirmed = _status.lower().startswith("confirmed")
+            _c_title = f"Conference {'confirmed' if _confirmed else 'invite — pending'}: {_c.get('Event','')}"
+            _c_desc = " · ".join(x for x in [_c.get("Date", ""), _c.get("Location", ""), _status] if x)
+            with _signal_card("", _c_title, _c_desc):
+                with _signal_actions():
+                    ui.button("Cross-reference target list", on_click=_open_target_list_dialog).props("flat dense size=sm")
 
 
 def _reset(state, *keys):
@@ -572,14 +627,24 @@ def _open_models_dialog(state, missing_model_analysts):
 def _open_guidance_dialog(state):
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Draft Guidance Clarification").classes("text-lg font-bold")
-        guide_mid, street = 24.5, 25.1
-        ui.label(f"Guidance midpoint: ${guide_mid}M · Street consensus: ${street}M · Delta: +${street-guide_mid:.1f}M / +2.7%").style(
-            f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:13px;"
-        )
+        guide_mid, street = _guidance_midpoint(), _street_rev_consensus()
+        gm_str = f"${guide_mid:.1f}M" if guide_mid is not None else "not on file"
+        if guide_mid is not None and street is not None:
+            delta = street - guide_mid
+            ui.label(f"Guidance midpoint: {gm_str} · Street consensus: ${street:.1f}M · "
+                     f"Delta: {delta:+.1f}M / {delta/guide_mid*100:+.1f}%").style(
+                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:13px;")
+            street_line = f"We've noticed current Street consensus is modeling at ${street:.1f}M vs our {gm_str} midpoint."
+        else:
+            ui.label(f"Guidance midpoint: {gm_str} · No Street revenue consensus yet — no covering analyst "
+                     f"has a revenue model on file.").style(
+                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:13px;")
+            street_line = ("We don't yet have Street revenue models on file, and want to make sure covering "
+                           "analysts are building to our guidance.")
         memo = (f"Hi [Analyst],\n\nAhead of our upcoming earnings release, I'm reaching out to ensure all covering "
                 f"models are closely aligned with our stated guidance parameters.\n\nManagement's Q2 guidance "
-                f"midpoint stands at ${guide_mid}M. We've noticed current Street consensus is modeling slightly "
-                f"above this at ${street}M. Let me know if you'd like to review the core assumptions.\n\nBest,\n{CI().get('name','')}")
+                f"midpoint stands at {gm_str}. {street_line} Let me know if you'd like to review the core "
+                f"assumptions.\n\nBest,\n{CI().get('name','')}")
         ui.textarea("Memo template — edit before sending", value=memo).classes("w-full").props("rows=6")
         for a in CA():
             first = a["name"].split()[0]

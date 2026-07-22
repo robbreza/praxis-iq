@@ -737,13 +737,33 @@ def render_earnings_page():
 # Tab 0 — Prior Qtr Review
 # ─────────────────────────────────────────────────────────────────────────
 def _render_lookback_tab():
-    ui.label("Q1 2026 Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
+    # Prior quarter + its real call date, derived — not hardcoded "Q1 2026 · May 13
+    # · 72 minutes" (the 72-min length was invented; the date comes from the
+    # ingested transcript when present).
+    import re
+    from core import transcripts
+    _m = re.match(r"Q([1-4])\s+(\d{4})", CE().get("current_quarter", "") or "")
+    if _m:
+        _qn, _yr = int(_m.group(1)), int(_m.group(2))
+        prior_q = f"Q{_qn-1} {_yr}" if _qn > 1 else f"Q4 {_yr-1}"
+    else:
+        prior_q = "the prior quarter"
+    _rec = transcripts.get_transcript(prior_q) if prior_q != "the prior quarter" else None
+    call_meta = "Chorus Call archive"
+    if _rec and _rec.get("call_date"):
+        try:
+            _d = datetime.strptime(_rec["call_date"], "%Y-%m-%d")
+            call_meta = f"{_d.strftime('%B')} {_d.day}, {_d.year} · Chorus Call archive"
+        except ValueError:
+            call_meta = f"{_rec['call_date']} · Chorus Call archive"
+
+    ui.label(f"{prior_q} Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Every Q2 script decision should start here. What worked, what was missed, and what analysts actually cared about.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.row().classes("w-full gap-3 items-stretch"):
         with ui.card().classes("flex-[2]").style("background:#E8EEF7;border:1px solid #D3DBE4;border-radius:8px;"):
-            ui.label("Q1 2026 earnings call replay").classes("font-bold").style("color:#0F172A;")
-            ui.label("May 13, 2026 · 4:30 PM ET · 72 minutes · Chorus Call archive").style("color:#475569;font-size:12px;")
+            ui.label(f"{prior_q} earnings call replay").classes("font-bold").style("color:#0F172A;")
+            ui.label(call_meta).style("color:#475569;font-size:12px;")
         ui.link("Play on Chorus Call", "https://www.choruscall.com", new_tab=True).classes("flex-1 text-center").style(
             f"background:{COLORS['accent']};color:white;padding:10px;border-radius:8px;")
         with ui.column().classes("flex-1"):
