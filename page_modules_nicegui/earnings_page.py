@@ -2805,25 +2805,33 @@ def _render_speaker_gate(period, on_done, editing=False):
         @ui.refreshable
         def _rows():
             for r in rows:
-                with ui.row().classes("w-full items-center").style("gap:8px;"):
-                    ui.select(role_opts, value=r.get("role") if r.get("role") in role_opts else role_opts[0]) \
-                        .props("outlined dense").style("min-width:110px;") \
+                # no-wrap so the Remove button never gets pushed onto its own line (NiceGUI rows
+                # wrap by default, which buried the delete control under the next speaker). Each
+                # field is directly editable; Remove is an explicit, labelled, red button.
+                with ui.row().classes("w-full items-center no-wrap").style("gap:8px;"):
+                    ui.select(role_opts, value=r.get("role") if r.get("role") in role_opts else role_opts[0],
+                              label="Role") \
+                        .props("outlined dense").style("min-width:104px;") \
                         .bind_value(r, "role")
-                    ui.input("Name", value=r.get("name", "")).props("outlined dense") \
-                        .style("min-width:180px;").bind_value(r, "name")
+                    ui.input("Name", value=r.get("name", "")).props("outlined dense clearable") \
+                        .style("flex:1;min-width:150px;").bind_value(r, "name") \
+                        .tooltip("Type to rename, or clear and enter a replacement")
                     ui.input("Title", value=r.get("title", "")).props("outlined dense") \
-                        .style("flex:1;min-width:160px;").bind_value(r, "title")
+                        .style("flex:1;min-width:150px;").bind_value(r, "title")
                     ui.switch("Speaking", value=r.get("speaking", True)).props("dense") \
                         .bind_value(r, "speaking").tooltip("Delivers prepared remarks (vs Q&A-only)")
-                    ui.button(icon="delete", on_click=lambda r=r: (rows.remove(r), _rows.refresh())) \
-                        .props("flat dense round").style(f"color:{COLORS['text_muted']};")
+                    ui.button("Remove", icon="person_remove",
+                              on_click=lambda r=r: (rows.remove(r), _rows.refresh())) \
+                        .props("flat dense color=negative").style("flex-shrink:0;") \
+                        .tooltip("Remove this person from the lineup (e.g. a departure)")
         _rows()
 
         with ui.row().classes("w-full items-center").style("gap:8px;margin-top:6px;"):
             def _add():
                 rows.append({"role": role_opts[0], "name": "", "title": "", "speaking": True})
                 _rows.refresh()
-            ui.button("Add speaker", icon="person_add", on_click=_add).props("flat dense")
+            ui.button("Add speaker / replacement", icon="person_add", on_click=_add).props(
+                "flat dense color=primary")
             ui.space()
             if editing:
                 ui.button("Cancel", on_click=on_done).props("flat")
