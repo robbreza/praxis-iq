@@ -946,13 +946,22 @@ def _render_earnings_readiness(days):
 
 def _render_analyst_coverage():
     ui.label("Analyst coverage").classes("section-head")
-    all_analysts = [
-        ("H.C. Wainwright", "Scott Buck", "$4.00", "Buy", "No change", COLORS["success"]),
-        ("Ladenburg Thalmann", "Jon Hickman", "$6.25", "Buy", "No change", COLORS["success"]),
-        ("Maxim Group", "Michael Diana", "Inactive", "—", "Re-init expected", COLORS["warning"]),
-        ("Litchfield Hills Research", "Barry Sine", "Inactive", "—", "Model requested · awaiting", COLORS["warning"]),
-        ("Barrington Research", "Gary Prestopino", "Inactive", "—", "Model requested · awaiting", COLORS["warning"]),
-    ]
+    # Real analyst registry (config.client_config.CA), not a hardcoded roster. The
+    # old literal wrongly marked Maxim/Litchfield/Barrington "Inactive" and dropped
+    # Barrington's real "Underperform" rating — all five actually cover (covering=True),
+    # they just don't all have a PT/model on file.
+    all_analysts = []
+    for a in CA():
+        firm, an = a.get("firm", ""), a.get("name", "")
+        pt, rating, covering = a.get("pt"), a.get("rating") or "—", a.get("covering", True)
+        if pt is not None:
+            pt_str, clr = f"${pt:.2f}", (COLORS["success"] if rating == "Buy" else COLORS["warning"])
+        elif covering:
+            pt_str, clr = "No PT", COLORS["warning"]
+        else:
+            pt_str, clr = "—", COLORS["text_muted"]
+        note = "covering" if pt is not None else ("model not on file" if covering else "not covering")
+        all_analysts.append((firm, an, pt_str, rating, note, clr))
     container = ui.column().classes("w-full gap-2")
     expanded = {"value": False}
 
