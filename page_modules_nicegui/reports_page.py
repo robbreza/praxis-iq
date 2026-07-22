@@ -142,7 +142,7 @@ def _render_live_weekly_brief():
             ui.label(f"{b['week_label']} · live").classes("font-bold").style(
                 f"color:{COLORS['text_heading']};")
             ui.label("Composed now").style(
-                f"background:{COLORS['accent']};color:white;padding:2px 10px;border-radius:10px;font-size:12px;")
+                f"background:{COLORS['accent']};color:white;padding:2px 10px;border-radius:6px;font-size:12px;")
         ui.label(b["headline"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
         if b["stats"]:
@@ -156,9 +156,9 @@ def _render_live_weekly_brief():
                         ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:10px;")
 
         for sec in b["sections"]:
-            ui.label(sec["title"]).classes("section-head").style("margin-top:8px;")
+            ui.label(sec["title"]).classes("section-head").style("margin-top:10px;")
             for line in sec["lines"]:
-                ui.label("• " + line).style(f"color:{COLORS['text_muted']};font-size:11.5px;margin-left:4px;")
+                ui.label("• " + line).style(f"color:{COLORS['text_muted']};font-size:12px;margin-left:4px;")
 
         def _dl():
             try:
@@ -171,7 +171,7 @@ def _render_live_weekly_brief():
             ui.button("Download PDF", icon="picture_as_pdf", on_click=_dl).props("color=primary dense")
         ui.label("Live brief — every figure recomputes from the latest price, filing and activity log; the PDF "
                  "is generated on the spot from the same numbers.").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
+            f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
 
 
 def _b64_image(b64_string):
@@ -311,7 +311,7 @@ def _render_quarterly_trend():
                 "like-for-like read 13F-style snapshots can't give.")
         if flagged:
             note += " ⚠ = an implausibly large swing, likely a big filer's XBRL tagging quirk, not a real move — treat as low-confidence."
-        ui.label(note).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+        ui.label(note).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _render_board_reports_tab(reviews, review_path):
@@ -360,7 +360,7 @@ def _render_board_reports_tab(reviews, review_path):
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label(b["week"] + (" · example" if b.get("seeded") else "")).classes("font-bold")
-                ui.label(b["status"]).style(f"background:{status_color};color:white;padding:2px 10px;border-radius:10px;font-size:13px;")
+                ui.label(b["status"]).style(f"background:{status_color};color:white;padding:2px 10px;border-radius:6px;font-size:13px;")
             ui.label(b["summary"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     def generate_weekly():
@@ -467,7 +467,7 @@ def _render_valuation_comp():
             ui.label(sens["note"]).style(f"color:{COLORS['text_body']};font-size:11px;")
 
     ui.label("Comp table — ranked by EV/Gross Profit (cheapest first)").classes(
-        "section-head").style("margin-top:8px;")
+        "section-head").style("margin-top:10px;")
     cols = [{"name": "ticker", "label": "", "field": "ticker", "align": "left"},
             {"name": "name", "label": "Company", "field": "name", "align": "left"},
             {"name": "ev", "label": "EV ($M)", "field": "ev", "align": "right"},
@@ -499,7 +499,7 @@ def _render_valuation_comp():
     ui.label("* EV/Revenue and gross margin are NOT comparable across these rows and are shown for "
              "context only — gross-vs-net revenue treatment varies across these companies. Revenue "
              "cancels out of EV/Gross Profit, which is why the ranking and the implied value use it "
-             "and nothing else.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+             "and nothing else.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     try:
         from core import valuation_comp as _vc
@@ -531,7 +531,7 @@ def _render_valuation_comp():
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                 "border-left:3px solid #1E40AF;padding:6px 10px;margin-top:4px;"):
             ui.label("The finding").style("color:#1E40AF;font-size:12px;font-weight:700;")
-            ui.label(bg["read"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+            ui.label(bg["read"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
     if imp:
         with ui.expansion("The bridge — how the implied value is built").classes("w-full").style(
@@ -555,7 +555,7 @@ def _render_valuation_comp():
                 "w-full").style("margin-top:4px;"):
             ui.label("Excluded from every median and rank: you don't apply a $100B processor's "
                      "multiple to a micro cap. Shown because they set the growth and margin bar.").style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                f"color:{COLORS['text_muted']};font-size:11px;")
             for r in d["reference"]:
                 ui.label("• {} {} — EV/GP {} · growth {}".format(
                     r["ticker"], r["name"],
@@ -610,7 +610,7 @@ def _render_forensics():
             _bm_stat("Peers comparable", f"{len(d['peers_comparable'])} of {d['n_primary']}",
                      f"{d['pct_comparable']}% of the primary comp set", "#B45309")
 
-    ui.label("What each peer's own filing supports").classes("section-head").style("margin-top:8px;")
+    ui.label("What each peer's own filing supports").classes("section-head").style("margin-top:10px;")
     cols = [{"name": "ticker", "label": "", "field": "ticker", "align": "left"},
             {"name": "gm", "label": "Gross margin", "field": "gm", "align": "right"},
             {"name": "period", "label": "Period", "field": "period", "align": "left"},
@@ -633,7 +633,7 @@ def _render_forensics():
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             "border-left:3px solid #1E40AF;padding:8px 10px;margin-top:8px;"):
         ui.label("The finding").style("color:#1E40AF;font-size:12px;font-weight:700;")
-        ui.label(d["verdict"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+        ui.label(d["verdict"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
     # The SBC-on-gross-profit interchange argument is USIO-specific.
     sb = d.get("sbc")
@@ -665,14 +665,14 @@ def _render_forensics():
             f"background:{COLORS['surface_bg']};border:1px solid #B45309;"
             "border-left:3px solid #B45309;padding:6px 10px;margin-top:6px;"):
         ui.label("Source discipline — why this panel is thinner than the workbook's").style(
-            "color:#B45309;font-size:11.5px;font-weight:700;")
+            "color:#B45309;font-size:12px;font-weight:700;")
         ui.label("Every figure here resolves to an SEC filing this code fetched itself. The prior "
                  "version of this analysis was built from USIO_Peer_Benchmarking_Report_v2_2.xlsx, "
                  "whose verbatim '10-K p.58 / p.38 / p.94' quotes do not appear in the respective "
                  "10-Ks. That workbook is quarantined at "
                  "data/seed/quarantine/peer_forensics_QUARANTINED.py with the evidence. Where a "
                  "figure cannot be sourced, this panel says so rather than estimating it.").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;")
+            f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _render_script_scorecard():
@@ -727,10 +727,10 @@ def _render_script_scorecard():
             _bm_stat("Hedging words", str(h["counts"]["Weak_Modal"] + h["counts"]["Uncertainty"]),
                      "weak-modal + uncertainty")
             _bm_stat("Commitments", str(h["counts"]["Strong_Modal"]), "strong-modal")
-        ui.label(h["hedge_read"]).style(f"color:{clr};font-size:11.5px;")
+        ui.label(h["hedge_read"]).style(f"color:{clr};font-size:12px;")
         _ex = ", ".join(h["examples"]["Weak_Modal"] + h["examples"]["Uncertainty"])[:110]
         if _ex:
-            ui.label(f"qualifiers found: {_ex}").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+            ui.label(f"qualifiers found: {_ex}").style(f"color:{COLORS['text_muted']};font-size:11px;")
         ui.label(h["caveat"] + f"  Licence: {h['license']}.").style(
             f"color:{COLORS['text_muted']};font-size:10px;")
 
@@ -748,12 +748,12 @@ def _render_script_scorecard():
                     "color:#B45309;font-size:11px;")
             for c in g["conflicts"]:
                 ui.label(f"✗ {c['source']} states {c['stated']}").style(
-                    "color:#B91C1C;font-size:11.5px;font-weight:600;margin-top:3px;")
+                    "color:#B91C1C;font-size:12px;font-weight:600;margin-top:3px;")
                 ui.label(c["excerpt"]).style(
-                    f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
             ui.label("Every stated range should come from the one input. Re-draft the guidance prose from "
                      "the decision, or re-decide — but don't leave two answers in one script.").style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
+                f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
 
     ui.label("Carry-over from last quarter's post-mortem").classes("section-head").style("margin-top:10px;")
     for c in d["carryover"]:
@@ -766,7 +766,7 @@ def _render_script_scorecard():
             ui.label(f"Q1: {c['q1']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
             if c["evidence"]:
                 ui.label(f"Found in script: {c['evidence']}").style(
-                    f"color:{COLORS['text_secondary']};font-size:10.5px;font-style:italic;")
+                    f"color:{COLORS['text_secondary']};font-size:11px;font-style:italic;")
 
     if d["gaps"]:
         ui.label("Not scored here — and why").classes("section-head").style("margin-top:10px;")
@@ -781,7 +781,7 @@ def _render_script_scorecard():
             ui.notify(f"PDF failed: {e}", type="negative")
 
     ui.button("Download PDF", icon="picture_as_pdf", on_click=_dl).props("color=primary dense").style("margin-top:10px;")
-    ui.label(d["method"]).style(f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
+    ui.label(d["method"]).style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
 
 
 def _bm_stat(label, value, sub, color=None):
@@ -789,7 +789,7 @@ def _bm_stat(label, value, sub, color=None):
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:150px;"):
         ui.label(value).classes("text-xl font-bold").style(f"color:{color or COLORS['text_heading']};")
         ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
-        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _bm_bar(bm, field, fmt, title, median=None, better_low=False):
@@ -821,7 +821,7 @@ def _talking_card(points):
         ui.label("Talking points for investor meetings").style(
             "color:#15803D;font-size:11px;font-weight:700;letter-spacing:.03em;")
         for p in points:
-            ui.label("• " + p).style(f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+            ui.label("• " + p).style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
 
 
 def _render_company_financials():
@@ -835,10 +835,10 @@ def _render_company_financials():
 
     ui.label(f"{s['entity']} — Financial Analysis").classes("text-lg font-bold")
     ui.label(f"Quarter ended {s['quarter_end']} · pulled live from the SEC EDGAR 10-Q (XBRL) · CIK {s['cik']}").style(
-        f"color:{COLORS['text_muted']};font-size:11.5px;")
+        f"color:{COLORS['text_muted']};font-size:12px;")
 
     # ---- Income statement & operating metrics ----
-    ui.label("Income statement & operating metrics").classes("section-head").style("margin-top:8px;")
+    ui.label("Income statement & operating metrics").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _bm_stat("Revenue", f"${inc['revenue']/1e6:.1f}M", f"{inc['rev_growth_yoy']:+.0f}% YoY",
                  "#15803D" if (inc['rev_growth_yoy'] or 0) >= 10 else None)
@@ -857,7 +857,7 @@ def _render_company_financials():
         _talking_card(tp.get("income", []))
 
     # ---- Balance sheet ----
-    ui.label("Balance sheet").classes("section-head").style("margin-top:8px;")
+    ui.label("Balance sheet").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _nc = bs.get('net_cash')
         if _nc is not None:
@@ -886,18 +886,18 @@ def _render_company_financials():
                      f"is customer settlement and prepaid-card float held in custody, offset by matching obligations. "
                      f"It's pass-through, not corporate leverage. On a corporate basis the business is net cash: "
                      f"${bs['cash']/1e6:.1f}M cash vs only ${bs['debt']/1e6:.1f}M debt.").style(
-                f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+                f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
         elif bs.get("assets") is not None and bs.get("liabilities") is not None and bs.get("equity") is not None:
             ui.label(f"Assets of ${bs['assets']/1e6:.0f}M against ${bs['liabilities']/1e6:.0f}M of liabilities and "
                      f"${bs['equity']/1e6:.0f}M of equity.").style(
-                f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+                f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
     if isinstance(tp, dict):
         _talking_card(tp.get("balance", []))
 
     # ---- Cash flow ----
     _cf = lambda v: f"${v/1e3:.0f}K" if isinstance(v, (int, float)) else "—"
     _cp = lambda v: f"{v:.0f}%" if isinstance(v, (int, float)) else "—"
-    ui.label("Cash flow").classes("section-head").style("margin-top:8px;")
+    ui.label("Cash flow").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _bm_stat("Operating cash flow", _cf(cf.get('operating_cf')), f"{_cp(cf.get('ocf_margin'))} of revenue")
         _bm_stat("Free cash flow", _cf(cf.get('fcf')), f"{_cp(cf.get('fcf_margin'))} margin",
@@ -958,12 +958,12 @@ def _render_benchmark_analysis():
                 "these companies (some gross, some net or mixed per-contract under ASC 606). A median "
                 "across those bases describes no company — use EV/Gross Profit, where revenue cancels."
                 + (f" {', '.join(missing)} are absent because they report no gross profit line at all."
-                   if missing else "")).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                   if missing else "")).style(f"color:{COLORS['text_muted']};font-size:11px;")
         with ui.column().classes("flex-1").style("min-width:300px;"):
             _bm_bar(bm, "rev_growth", lambda v: f"{v:.0f}%", "Revenue growth (YoY)", median=bm["median_gr"])
 
     # Comparison table (ranked by EV/Gross Profit — cheapest first)
-    ui.label("Primary valuation peers — ranked by EV/Gross Profit").classes("section-head").style("margin-top:6px;")
+    ui.label("Primary valuation peers — ranked by EV/Gross Profit").classes("section-head").style("margin-top:10px;")
     _seg_desc = ("USIO is a hybrid (Merchant Services + Output Solutions), so it's benchmarked against a "
                  "segmented peer set — integrated payments, billing/output, and prepaid — not one generic "
                  "payments median. ◆ marks the closest single operating analog."
@@ -995,7 +995,7 @@ def _render_benchmark_analysis():
 
     if bm.get("reference"):
         ui.label("Large-cap reference — industry growth / margin bar, excluded from the median").classes(
-            "section-head").style("margin-top:8px;")
+            "section-head").style("margin-top:10px;")
         ui.label("You don't apply a mega-cap processor's multiple to a micro-cap; these set context only.").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
         ui.table(columns=cols, rows=[_bm_row(r) for r in bm["reference"]], row_key="co").classes("w-full").props("dense flat")
@@ -1013,7 +1013,7 @@ def _render_benchmark_analysis():
                      f"primary-peer median, #{bm['usio_gp_rank']} of {len(bm['gp_ranked'])}) / SHORT "
                      f"{bm['short']['ticker']} ({bm['short']['ev_gp']:.1f}x EV/Gross Profit, the priciest primary "
                      f"comp) — a valuation gap, not a growth gap.").style(
-                f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+                f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
 
     _exc_note = ", ".join(e["ticker"] for e in bm.get("excluded", [])) or "none"
     _no_gp = ", ".join(r["ticker"] for r in bm.get("primary", []) if r.get("gross_margin") is None) or "none"
@@ -1024,7 +1024,7 @@ def _render_benchmark_analysis():
              "— and NOT comparable across these names, so it is context only. Excluded from the EV comparison "
              f"(net-cash / non-positive EV, not meaningful): {_exc_note}. A licensed feed (Capital IQ/"
              "Bloomberg) would add cleaner normalization and is the eventual upgrade; nothing here costs "
-             "anything today.").style(f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:8px;")
+             "anything today.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
 
     def _dl_bench_pdf():
         try:
@@ -1059,7 +1059,7 @@ def _render_board_deck_live():
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent_strong']};"
             f"border-left:4px solid {COLORS['accent']};"):
         ui.label("BOARD SUMMARY — VALUATION & PEER POSITION").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;font-weight:700;letter-spacing:.05em;")
+            f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;")
         ui.label(benchmarking_engine.key_finding(bm)).style(
             f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
     faster = bm["median_gr"] is not None and u["rev_growth"] > bm["median_gr"]
@@ -1086,7 +1086,7 @@ def _render_board_deck_live():
              "out of sync with the numbers. Upside is stated as a percentage rather than a price "
              "target: the two share-count sources on file disagree by 7.6% (config 26.8M vs "
              "market-implied 28.8M), and a per-share figure would inherit that without saying so.").style(
-        f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:6px;")
+        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
 
 
 def _render_ndr_by_city():
@@ -1117,7 +1117,7 @@ def _render_ndr_by_city():
                      "#15803D" if good else "#B91C1C")
     ui.label(d["read"]).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
 
-    ui.label("Every metro, ranked").classes("section-head").style("margin-top:8px;")
+    ui.label("Every metro, ranked").classes("section-head").style("margin-top:10px;")
     ui.table(
         columns=[{"name": "r", "label": "#", "field": "r", "align": "left"},
                  {"name": "m", "label": "Metro", "field": "m", "align": "left"},
@@ -1132,7 +1132,7 @@ def _render_ndr_by_city():
     ui.label(f"Ranked on the average engagement score of the top {d['day_capacity']} non-holders in "
              f"each metro — not the average across every fund. An NDR is {d['day_capacity']} meetings "
              f"in a day, not a survey; averaging the whole list penalises deep markets for their "
-             f"tail.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+             f"tail.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     for f in d["findings"]:
         col = "#B91C1C" if f["level"] == "red" else "#B45309"
@@ -1151,7 +1151,7 @@ def _render_ndr_by_city():
                      f"{r['booked']} booked").style(
                 f"color:{COLORS['text_body']};font-size:11px;font-weight:600;margin-top:4px;")
             ui.label(" · ".join(f"{x['fund']} ({x['score']})" for x in r["top_targets"])).style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                f"color:{COLORS['text_muted']};font-size:11px;")
 
     def _dl_ndr():
         try:
@@ -1178,10 +1178,10 @@ def _render_onboarding_checklist():
         return
     ui.label(f"Answered from the platform, not from a form — {d['ready']} of {d['total']} items are "
              f"live and working. Items sourced from SEC filings are not asked of the client at "
-             f"all.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+             f"all.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     for name, items in d["sections"]:
-        ui.label(name).classes("section-head").style("margin-top:8px;")
+        ui.label(name).classes("section-head").style("margin-top:10px;")
         ui.table(
             columns=[{"name": "s", "label": "", "field": "s", "align": "left"},
                      {"name": "i", "label": "Item", "field": "i", "align": "left"},
@@ -1193,7 +1193,7 @@ def _render_onboarding_checklist():
         for x in items:
             if x.get("note"):
                 ui.label(f"{x['item']}: {x['note']}").style(
-                    f"color:{COLORS['text_muted']};font-size:10.5px;")
+                    f"color:{COLORS['text_muted']};font-size:11px;")
 
     pol = d["peer_policy"]
     ui.label("Policy change — the peer/comp group").classes("section-head").style("margin-top:10px;")
@@ -1211,10 +1211,10 @@ def _render_onboarding_checklist():
         ui.label(pol["new"]).style(f"color:{COLORS['text_body']};font-size:11px;")
     for head, body in pol["criteria"]:
         ui.label(f"• {head} — {body}").style(f"color:{COLORS['text_body']};font-size:11px;")
-    ui.label(pol["evidence"]).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+    ui.label(pol["evidence"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     ui.label("Criteria run against the current comp set, live").classes(
-        "section-head").style("margin-top:8px;")
+        "section-head").style("margin-top:10px;")
     ui.table(
         columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
                  {"name": "n", "label": "Company", "field": "n", "align": "left"},
@@ -1227,7 +1227,7 @@ def _render_onboarding_checklist():
     ui.label("Criterion (a) — no pending or approved M&A — cannot be checked from XBRL and needs a "
              "human eye on each name's filings each quarter. It is the one that caught GDOT, and it "
              "caught it from an 8-K, not a feed.").style(
-        f"color:{COLORS['text_muted']};font-size:10.5px;")
+        f"color:{COLORS['text_muted']};font-size:11px;")
 
     def _dl_cl():
         try:
@@ -1257,7 +1257,7 @@ def _render_onboarding_kit():
     pol = d.get("policy") or {}
     ui.label("Built to be handed to a sell-side analyst. Every answer carries the source it can be "
              "checked against — the reader has the 10-K open.").style(
-        f"color:{COLORS['text_muted']};font-size:11.5px;")
+        f"color:{COLORS['text_muted']};font-size:12px;")
 
     # Gross-as-principal / interchange "start here" card is USIO-specific (pol empty otherwise).
     if CT("ticker") == "USIO" and pol.get("basis"):
@@ -1276,22 +1276,22 @@ def _render_onboarding_kit():
 
     for i, q in enumerate(d["qa"], 1):
         with ui.expansion(f"Q{i}. {q['q']}", value=(i == 1)).classes("w-full").style("margin-top:4px;"):
-            ui.label(q["a"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+            ui.label(q["a"]).style(f"color:{COLORS['text_body']};font-size:12px;")
             if q.get("flag"):
                 ui.label("Note to IR: " + q["flag"]).style(
-                    "color:#B45309;font-size:10.5px;font-weight:600;")
+                    "color:#B45309;font-size:11px;font-weight:600;")
             ui.label("Source: " + " · ".join(q["sources"])).style(
                 f"color:{COLORS['text_muted']};font-size:10px;font-style:italic;")
 
     ui.label("What this kit does not claim, and why").classes("section-head").style("margin-top:10px;")
     ui.label("A kit that quietly drops what it can't support looks thinner. One that says why is "
              "more credible than the version that made it up.").style(
-        f"color:{COLORS['text_muted']};font-size:10.5px;")
+        f"color:{COLORS['text_muted']};font-size:11px;")
     for g in d["gaps"]:
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid #B45309;"
                 "border-left:3px solid #B45309;padding:6px 10px;margin-top:4px;"):
-            ui.label(g["item"]).style("color:#B45309;font-size:11.5px;font-weight:700;")
+            ui.label(g["item"]).style("color:#B45309;font-size:12px;font-weight:700;")
             ui.label(g["why"]).style(f"color:{COLORS['text_body']};font-size:11px;")
 
     def _dl_kit():
@@ -1324,16 +1324,16 @@ def _render_earnings_prep():
 
     ui.label(f"{d['quarter']} call · {d['earnings_date']} · {d['days_out']} days out — composed live "
              f"from the consensus file, the CFO's guidance decision, the risk scorecard and the "
-             f"{last_q} transcript.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+             f"{last_q} transcript.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
             "border-left:3px solid #B91C1C;padding:8px 10px;margin-top:4px;"):
         ui.label("Read this first").style("color:#B91C1C;font-size:12px;font-weight:700;")
         ui.label(earnings_prep.headline(d)).style(
-            f"color:{COLORS['text_body']};font-size:11.5px;font-weight:600;")
+            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
         if d.get("sequential"):
-            ui.label(d["sequential"]).style(f"color:{COLORS['text_body']};font-size:11.5px;margin-top:2px;")
+            ui.label(d["sequential"]).style(f"color:{COLORS['text_body']};font-size:12px;margin-top:2px;")
 
     seg = d.get("segment_story")
     if seg:
@@ -1345,7 +1345,7 @@ def _render_earnings_prep():
             ui.label(seg["talking_point"]).style(f"color:{COLORS['text_body']};font-size:12px;line-height:1.6;")
             ui.label(f"Expect: “{seg['qa']['question']}”").style(
                 f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:4px;")
-            ui.label(f"Answer: {seg['qa']['answer']}").style(f"color:{COLORS['text_body']};font-size:11.5px;")
+            ui.label(f"Answer: {seg['qa']['answer']}").style(f"color:{COLORS['text_body']};font-size:12px;")
             ui.label("Sourced from the filing's XBRL segment data (Merchant Services vs Output Solutions) and "
                      "the live peer-median valuation — not a static line.").style(
                 f"color:{COLORS['text_muted']};font-size:10px;")
@@ -1406,7 +1406,7 @@ def _render_earnings_prep():
             ui.label(b["read"]).style(f"color:{COLORS['text_body']};font-size:11px;")
 
     if r and r.get("complete"):
-        ui.label("Do our own numbers add up?").classes("section-head").style("margin-top:8px;")
+        ui.label("Do our own numbers add up?").classes("section-head").style("margin-top:10px;")
         cols = [{"name": "p", "label": "Period", "field": "p", "align": "left"},
                 {"name": "src", "label": "Source", "field": "src", "align": "left"},
                 {"name": "rev", "label": "Revenue", "field": "rev", "align": "right"}]
@@ -1418,19 +1418,19 @@ def _render_earnings_prep():
                          "rev": f"${r['fy_low']:.1f} – {r['fy_high']:.1f}M"})
         ui.table(columns=cols, rows=rows).classes("w-full dense-table").props("flat dense")
         ui.label(r["read"]).style(
-            "color:{};font-size:11.5px;font-weight:600;".format(
+            "color:{};font-size:12px;font-weight:600;".format(
                 "#15803D" if r.get("reconciles") else "#B91C1C"))
         ui.label("Nothing else in the platform checks this. The guidance-consistency engine verifies "
                  "the script's PROSE states the same FY range the CFO decided — it does not add the "
-                 "quarters up.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                 "quarters up.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     if d.get("scenarios"):
-        ui.label("Beat / miss scenarios").classes("section-head").style("margin-top:8px;")
+        ui.label("Beat / miss scenarios").classes("section-head").style("margin-top:10px;")
         ui.label("Thresholds are the street's published LOW / AVERAGE / HIGH plus our guide. The "
                  "market feed gives the distribution but not per-analyst attribution, so these do not "
                  "name which firm writes 'miss' — the only per-analyst numbers on file are demo seed "
                  "values that sit outside the real range.").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;")
+            f"color:{COLORS['text_muted']};font-size:11px;")
         cols = [{"name": "rev", "label": "If revenue is", "field": "rev", "align": "right"},
                 {"name": "g", "label": "vs guide", "field": "g", "align": "right"},
                 {"name": "s", "label": "vs Street", "field": "s", "align": "right"},
@@ -1443,8 +1443,8 @@ def _render_earnings_prep():
 
     if q and q.get("open"):
         ui.label(f"Q&A prep — unpaid from the {q['from_quarter']} call").classes(
-            "section-head").style("margin-top:8px;")
-        ui.label(q["read"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+            "section-head").style("margin-top:10px;")
+        ui.label(q["read"]).style(f"color:{COLORS['text_body']};font-size:12px;")
         for f in q["open"]:
             with ui.expansion(f"{f.get('verdict')} — {str(f.get('anchor'))[:70]}").classes(
                     "w-full").style("margin-top:4px;"):
@@ -1456,7 +1456,7 @@ def _render_earnings_prep():
                  "kind of answer is owed (a GOOD number owes REPEATABILITY, a CLAIM owes BACKING); the "
                  "verdict records whether it was paid. MISMATCH and DEFERRED are unpaid debts, and "
                  "analysts carry debts forward.").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;")
+            f"color:{COLORS['text_muted']};font-size:11px;")
 
     for s in d.get("risks", []):
         col = "#B91C1C" if s.get("level") == "red" else "#B45309"
@@ -1511,14 +1511,14 @@ def _render_board_ir_report():
 
     ui.label(f"{s['entity']} — Board IR Report").classes("text-lg font-bold")
     ui.label(f"As of the {s['quarter_end']} 10-Q · composed live from SEC EDGAR filings + market data").style(
-        f"color:{COLORS['text_muted']};font-size:11.5px;")
+        f"color:{COLORS['text_muted']};font-size:12px;")
 
     # Executive summary (BLUF)
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent_strong']};"
             f"border-left:4px solid {COLORS['accent']};"):
         ui.label("EXECUTIVE SUMMARY").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;font-weight:700;letter-spacing:.05em;")
+            f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;")
         # The old text asserted "cheap on a growing base" on every branch and quoted
         # EV/Revenue as supporting evidence. Both are claims, not facts: the discount can
         # be a premium, and EV/Revenue is not comparable across this peer set at all.
@@ -1564,7 +1564,7 @@ def _render_board_ir_report():
     def _pct(v, dec=0):
         return f"{v:.{dec}f}%" if isinstance(v, (int, float)) else "—"
 
-    ui.label("Quarter financials").classes("section-head").style("margin-top:8px;")
+    ui.label("Quarter financials").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _bm_stat("Revenue", _m(inc.get('revenue')),
                  f"{_pct(inc.get('rev_growth_yoy'))} YoY" if inc.get('rev_growth_yoy') is not None else "",
@@ -1573,7 +1573,7 @@ def _render_board_ir_report():
         _bm_stat("Adjusted EBITDA", _m(inc.get('adjusted_ebitda'), 1e3, 0, '$', 'K'), f"{_pct(inc.get('adj_ebitda_margin'))} margin")
         _bm_stat("Net income", _m(inc.get('net_income'), 1e3, 0, '$', 'K'), f"{_pct(inc.get('net_margin'))} margin")
 
-    ui.label("Balance sheet & cash flow").classes("section-head").style("margin-top:8px;")
+    ui.label("Balance sheet & cash flow").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _nc2 = bs.get('net_cash')
         _bm_stat("Net cash" if (_nc2 or 0) >= 0 else "Net debt",
@@ -1587,7 +1587,7 @@ def _render_board_ir_report():
         if CT("ticker") == "USIO" and bs.get('customer_deposits') is not None:
             _bm_stat("Settlement float", _m(bs.get('customer_deposits'), 1e6, 0, '$', 'M'), "customer money — not debt")
 
-    ui.label("Valuation & peer position").classes("section-head").style("margin-top:8px;")
+    ui.label("Valuation & peer position").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _rank_sub = (f"#{bm['usio_gp_rank']} of {len(bm['gp_ranked'])} · median {bm['median_gp']:.1f}x"
                      if bm.get('usio_gp_rank') is not None and bm.get('median_gp') is not None
@@ -1601,7 +1601,7 @@ def _render_board_ir_report():
                  "context only — NOT comparable", None)
         _bm_stat("Growth vs peers", _pct(u.get('rev_growth')), f"vs {_pct(bm.get('median_gr'))} median")
 
-    ui.label("Ownership & the Street").classes("section-head").style("margin-top:8px;")
+    ui.label("Ownership & the Street").classes("section-head").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         if pt and upside is not None:
             _bm_stat("Consensus PT", f"${pt:.2f}", f"{upside:+.0f}% vs ${price:.2f}", "#15803D" if upside > 0 else "#B45309")
@@ -1613,7 +1613,7 @@ def _render_board_ir_report():
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:4px solid #B45309;margin-top:8px;"):
-        ui.label("THE BOARD TAKEAWAY").style("color:#B45309;font-size:10.5px;font-weight:700;letter-spacing:.05em;")
+        ui.label("THE BOARD TAKEAWAY").style("color:#B45309;font-size:11px;font-weight:700;letter-spacing:.05em;")
         _om = inc.get('operating_margin')
         if CT("ticker") == "USIO":
             _take = (f"Cheap, clean, and self-funding — but the re-rating case rests on operating-margin "
@@ -1630,7 +1630,7 @@ def _render_board_ir_report():
                      + (f", with operating margin currently {_om:.1f}%" if _om is not None else "")
                      + ". The IR priority is a credible, model-matched valuation bridge and a clear "
                        "operating-leverage story — not a headline discount taken at face value.")
-        ui.label(_take).style(f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.55;")
+        ui.label(_take).style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
 
     try:
         tp = edgar_financials.talking_points(s)
@@ -1658,7 +1658,7 @@ def _render_board_ir_report():
                    "p": f"${c['price_target']:.2f}" if c.get("price_target") else "—",
                    "d": c.get("date") or "—", "s": "DORMANT" if c.get("stale") else "active"}
                   for c in _ss["coverage"]]).classes("w-full dense-table").props("flat dense")
-        ui.label(_ss["read"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+        ui.label(_ss["read"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
     if _pkg and _pkg.get("buy_side", {}).get("note"):
         _bs = _pkg["buy_side"]
@@ -1671,7 +1671,7 @@ def _render_board_ir_report():
             if _bs.get("passive_recent") is not None:
                 _bm_stat("Schedule 13G", str(_bs["passive_recent"]),
                          f"last {_bs['window_days']//365}y (passive)", None)
-        ui.label(_bs["note"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+        ui.label(_bs["note"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
     if _pkg and _pkg.get("open_items"):
         ui.label("Open items for board awareness").classes("section-head").style("margin-top:10px;")
@@ -1689,7 +1689,7 @@ def _render_board_ir_report():
             ui.label("Every name carries the reason it is in the set. A comp sheet without a written "
                      "rationale is how the prior package listed an acquired company, a pending "
                      "acquisition and a bank as 'Active' for a quarter.").style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                f"color:{COLORS['text_muted']};font-size:11px;")
             ui.table(
                 columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
                          {"name": "n", "label": "Company", "field": "n", "align": "left"},
@@ -1715,7 +1715,7 @@ def _render_board_ir_report():
              "platform's activity log. The quarter it reports is derived from the filing, never from a "
              "title. Where a number cannot be sourced (short interest, per-analyst models) it is "
              "reported as absent rather than estimated.").style(
-        f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:6px;")
+        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
 
 
 def _render_ir_plan(reviews, review_path):
@@ -1726,7 +1726,7 @@ def _render_ir_plan(reviews, review_path):
     ui.label(f"{ctx['name']} — 90-Day IR Plan").classes("text-lg font-bold")
     ui.label(f"{p['as_of']:%b %d} – {p['window_end']:%b %d, %Y} · forward action plan, composed live from the "
              f"earnings calendar, roadshow schedule, catalysts, and ownership signals.").style(
-        f"color:{COLORS['text_muted']};font-size:11.5px;")
+        f"color:{COLORS['text_muted']};font-size:12px;")
 
     with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
         if ctx.get("rev_growth") is not None:
@@ -1747,15 +1747,15 @@ def _render_ir_plan(reviews, review_path):
     ui.label("Objectives this quarter").classes("section-head").style("margin-top:10px;")
     for i, (title, detail) in enumerate(p["objectives"], 1):
         with ui.row().classes("w-full items-start gap-3").style(
-                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
                 f"padding:11px 14px;margin:3px 0;"):
             ui.label(str(i)).style(
                 f"background:{COLORS['accent_soft'] if 'accent_soft' in COLORS else 'rgba(30,64,175,.08)'};"
-                f"color:{COLORS['accent']};width:26px;height:26px;border-radius:7px;display:flex;"
+                f"color:{COLORS['accent']};width:26px;height:26px;border-radius:6px;display:flex;"
                 "align-items:center;justify-content:center;font-weight:700;flex-shrink:0;")
             with ui.column().classes("gap-0"):
                 ui.label(title).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
-                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     # Timeline
     ui.label("Key dates & milestones").classes("section-head").style("margin-top:10px;")
@@ -1765,8 +1765,8 @@ def _render_ir_plan(reviews, review_path):
         with ui.row().classes("w-full items-center gap-3").style(
                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:5px 10px;margin:2px 0;"):
             ui.label(f"{d:%b %d}").style(f"color:{COLORS['accent']};font-size:12px;font-weight:700;width:64px;")
-            ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;width:230px;")
-            ui.label(det).classes("flex-1").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+            ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;width:230px;")
+            ui.label(det).classes("flex-1").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     # Targeting
     ui.label("Targeting & outreach").classes("section-head").style("margin-top:10px;")
@@ -1774,7 +1774,7 @@ def _render_ir_plan(reviews, review_path):
         ui.label("Booked roadshows").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
         for t in p["trips"]:
             ui.label(f"• {t['city']} · {t['dates']} · {t['meetings']} meetings — {t['name']}").style(
-                f"color:{COLORS['text_muted']};font-size:11.5px;")
+                f"color:{COLORS['text_muted']};font-size:12px;")
     if p["prospects"]:
         ui.label("Priority prospects — non-holders by engagement").style(
             f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:6px;")
@@ -1782,7 +1782,7 @@ def _render_ir_plan(reviews, review_path):
             for pr in p["prospects"]:
                 ui.label(f"{pr['fund']} · {pr['score']}").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:2px 9px;"
-                    f"color:{COLORS['text_body']};font-size:11.5px;")
+                    f"color:{COLORS['text_body']};font-size:12px;")
 
     # Catalysts
     if p["catalysts"]:
@@ -1791,14 +1791,14 @@ def _render_ir_plan(reviews, review_path):
             for c in p["catalysts"]:
                 ui.label(c).style(
                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:999px;"
-                    f"padding:4px 11px;color:{COLORS['text_secondary']};font-size:11.5px;")
+                    f"padding:4px 11px;color:{COLORS['text_secondary']};font-size:12px;")
 
     # Positioning
     ui.label("Positioning — the messages to land").classes("section-head").style("margin-top:10px;")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid #15803D;"):
         for msg in p["positioning"]:
-            ui.label("• " + msg).style(f"color:{COLORS['text_secondary']};font-size:12.5px;line-height:1.5;")
+            ui.label("• " + msg).style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.5;")
 
     # Ownership actions
     if p["ownership"]:
@@ -1806,8 +1806,8 @@ def _render_ir_plan(reviews, review_path):
         for action, detail in p["ownership"]:
             with ui.row().classes("w-full items-baseline gap-2").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:6px 10px;margin:2px 0;"):
-                ui.label(action).style(f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;")
-                ui.label(detail).classes("flex-1").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                ui.label(action).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                ui.label(detail).classes("flex-1").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
     def _dl_plan_pdf():
         try:
@@ -1818,7 +1818,7 @@ def _render_ir_plan(reviews, review_path):
     ui.button("Download PDF", icon="picture_as_pdf", on_click=_dl_plan_pdf).props(
         "color=primary dense").style("margin-top:10px;")
     ui.label("Live plan — recomposes from the earnings calendar, NDR schedule, catalysts, and ownership signals "
-             "each time you open it.").style(f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:6px;")
+             "each time you open it.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
     _reviewed_row(reviews, review_path, "USIO_90_Day_IR_Plan")
 
 
@@ -1871,14 +1871,14 @@ def _render_automation_tracker_tab():
             ]:
                 with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
                     ui.label(val).classes("text-lg font-bold").style(f"color:{COLORS['success']};")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
-        ui.label("Breakdown by category — this week").classes("section-head").style("margin-top:14px;")
+        ui.label("Breakdown by category — this week").classes("section-head").style("margin-top:10px;")
         if breakdown:
             for item in breakdown:
                 label = EVENT_LABELS.get(item["event_type"], item["event_type"].replace("_", " ").title())
                 with ui.row().classes("w-full justify-between items-center").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-                    ui.label(label).style(f"color:{COLORS['text_body']};font-size:12.5px;")
+                    ui.label(label).style(f"color:{COLORS['text_body']};font-size:13px;")
                     ui.label(f"{item['count']}× · {item['minutes']} min").style(f"color:{COLORS['text_muted']};font-size:12px;")
         else:
             ui.label("Nothing logged yet this week.").style(f"color:{COLORS['text_muted']};font-size:12px;")
@@ -2052,7 +2052,7 @@ def _render_regfd_tab():
                         with ui.card().classes("w-full").style(f"background:#FDECEC;border:1px solid {COLORS['danger']}55;"):
                             with ui.row().classes("w-full items-center justify-between"):
                                 with ui.column().classes("gap-0"):
-                                    ui.label(f"{e['date']} · {e['institution']}").classes("font-bold").style("color:#0F172A;font-size:13.5px;")
+                                    ui.label(f"{e['date']} · {e['institution']}").classes("font-bold").style("color:#0F172A;font-size:13px;")
                                     ui.label(f"MNPI: {e['mnpi_status']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
                                 def mark_reviewed(e=e):
@@ -2069,7 +2069,7 @@ def _render_regfd_tab():
                         with ui.card().classes("w-full").style(f"background:#FCF0E0;border:1px solid {COLORS['warning']}55;"):
                             with ui.row().classes("w-full items-center justify-between"):
                                 with ui.column().classes("gap-0"):
-                                    ui.label(f"{e['date']} · {e['institution']} · 8-K required").classes("font-bold").style("color:#0F172A;font-size:13.5px;")
+                                    ui.label(f"{e['date']} · {e['institution']} · 8-K required").classes("font-bold").style("color:#0F172A;font-size:13px;")
                                     ui.label((e.get("summary") or "")[:120]).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
                                 def mark_8k_resolved(e=e):
@@ -2127,6 +2127,6 @@ def _metric(label, value, hint=""):
         ui.label(str(value)).classes("text-xl font-bold").style(f"color:{COLORS['text_heading']}")
         ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:12px;font-weight:600;")
         if hint:
-            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
 
