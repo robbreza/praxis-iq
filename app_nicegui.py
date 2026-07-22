@@ -279,6 +279,37 @@ def apply_theme():
             color: {COLORS["accent_strong"]} !important;
             font-weight: 700 !important;
         }}
+        /* ─────────────────────────────────────────────────────────────
+           SHARED UI STANDARD (2026-07-21 consistency pass)
+           A semantic type scale, card variants, and status-colour utilities
+           so pages stop hand-rolling inline font-size / color / radius (the
+           audit found 16 font sizes, 10 card radii, ~307 hardcoded status
+           hexes). Apply with .classes("t-meta"), .classes("ir-tile c-pos").
+           Section vertical rhythm comes ONLY from .section-head — do not add
+           ad-hoc margin-top overrides on it.
+           ───────────────────────────────────────────────────────────── */
+        .t-title   {{ font-size:20px; font-weight:700; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
+        .t-head    {{ font-size:16px; font-weight:600; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
+        .t-subhead {{ font-size:13px; font-weight:700; color:{COLORS["text_body"]}; }}
+        .t-body    {{ font-size:13px; font-weight:400; color:{COLORS["text_body"]}; line-height:1.45; }}
+        .t-sec     {{ font-size:12px; font-weight:400; color:{COLORS["text_secondary"]}; line-height:1.45; }}
+        .t-meta    {{ font-size:11px; font-weight:400; color:{COLORS["text_muted"]}; }}
+        .t-fine    {{ font-size:10px; font-weight:400; color:{COLORS["text_muted"]}; }}
+        .t-eyebrow {{ font-size:11px; font-weight:600; color:{COLORS["text_muted"]};
+                      text-transform:uppercase; letter-spacing:.08em; }}
+        .t-kpi     {{ font-size:20px; font-weight:700; line-height:1; }}
+        /* Inner content tile (inside a section / .ir-card) — the compact card */
+        .ir-tile    {{ background:{COLORS["surface_hover_bg"]}; border-radius:8px; padding:10px 12px; }}
+        .ir-card-sm {{ background:{COLORS["surface_bg"]}; border:1px solid {COLORS["border"]};
+                       border-radius:8px; padding:12px 14px; }}
+        /* Status colour utilities — tied to tokens, replacing hardcoded hexes */
+        .c-pos    {{ color:{COLORS["positive"]}; }}
+        .c-neg    {{ color:{COLORS["negative"]}; }}
+        .c-warn   {{ color:{COLORS["warning"]}; }}
+        .c-accent {{ color:{COLORS["accent"]}; }}
+        .c-muted  {{ color:{COLORS["text_muted"]}; }}
+        .fw-600 {{ font-weight:600; }}
+        .fw-700 {{ font-weight:700; }}
     """)
 
 
