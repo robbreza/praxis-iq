@@ -41,6 +41,14 @@ from core import client_store, db  # noqa: E402
 
 CID = "demo"
 TICKER = "NLKP"
+# A $2 stock reads as distressed and throws absurd upside percentages (+85%).
+# Repriced to a credible small-cap. OLD_PX is what the position values in HOLDERS
+# were struck at, so BOOK_SCALE keeps every holder's position-as-%-of-their-own-book
+# — and therefore every conviction score — exactly where it was.
+PRICE = 32.84
+PREV_CLOSE = 32.26
+OLD_PX = 2.84
+BOOK_SCALE = PRICE / OLD_PX
 CUSIP = "66512X104"          # invented
 TODAY = datetime.now()
 FILE_DATE = TODAY.strftime("%d-%b-%Y").upper()
@@ -54,9 +62,9 @@ RECORD = {
     "exchange": "NASDAQ",
     "email_domain": "northlakepay.com",
     "sector": "Fintech / Payments",
-    "market_cap_m": 78,
-    "ev_m": 91,
-    "last_price": 2.84,
+    "market_cap_m": 920,
+    "ev_m": 975,
+    "last_price": PRICE,
     "price_date": TODAY.strftime("%b %d, %Y"),
     "fy_guidance": "9-12% revenue growth",
     "peer_median_ev_rev": 2.4,
@@ -75,15 +83,15 @@ RECORD = {
                 "email": "tvance@northlakepay.com"},
     },
     "analysts": [
-        {"name": "Ellis Grant", "firm": "Ashfield Research", "pt": 5.50, "rating": "Buy",
+        {"name": "Ellis Grant", "firm": "Ashfield Research", "pt": 43.00, "rating": "Buy",
          "email": "egrant@ashfieldresearch.com", "covering": True},
-        {"name": "Marta Reyes", "firm": "Denby Securities", "pt": 6.00, "rating": "Buy",
+        {"name": "Marta Reyes", "firm": "Denby Securities", "pt": 45.00, "rating": "Buy",
          "email": "mreyes@denbysec.com", "covering": True},
-        {"name": "Owen Pike", "firm": "Westmark Partners", "pt": 4.25, "rating": "Hold",
+        {"name": "Owen Pike", "firm": "Westmark Partners", "pt": 38.00, "rating": "Hold",
          "email": "opike@westmarkpartners.com", "covering": True},
-        {"name": "Neil Barrow", "firm": "Calder & Co.", "pt": 5.00, "rating": "Buy",
+        {"name": "Neil Barrow", "firm": "Calder & Co.", "pt": 42.00, "rating": "Buy",
          "email": "nbarrow@calderco.com", "covering": True},
-        {"name": "Sara Lindqvist", "firm": "Brightwater Equity", "pt": 5.75, "rating": "Buy",
+        {"name": "Sara Lindqvist", "firm": "Brightwater Equity", "pt": 45.50, "rating": "Buy",
          "email": "slindqvist@brightwatereq.com", "covering": True},
     ],
     "peers": [
@@ -96,8 +104,8 @@ RECORD = {
         "earnings_date": (TODAY + timedelta(days=21)).strftime("%Y-%m-%d"),
         "call_time": "5:00 PM ET",
     },
-    "financials": {"last_quarter": "Q1 2026", "last_rev": 28.4, "last_rev_yoy": 11.0},
-    "guidance": {"Revenue Est ($M)": 118.0, "EPS Est": 0.24, "EBITDA Est ($M)": 9.1},
+    "financials": {"last_quarter": "Q1 2026", "last_rev": 98.5, "last_rev_yoy": 11.0},
+    "guidance": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
 }
 
 # ── Holders and peer-owners ──────────────────────────────────────────────────
@@ -172,6 +180,11 @@ def _cik_for(filer):
 
 
 def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSIP):
+    # `value` in the table was struck at OLD_PX; recompute at the new price and scale
+    # the book by the same factor, so position-as-%-of-book (conviction) is untouched.
+    if cusip == CUSIP:
+        value = round(shares * PRICE)
+        book_total = round(book_total * BOOK_SCALE)
     return {
         "cik": _cik_for(filer), "city": city, "state": state, "cusip": cusip, "filer": filer,
         "value": value, "shares": shares, "filename": "", "accession": "",
@@ -202,7 +215,7 @@ def seed():
     # 3. Peer books (drives Peer Prospects + the non-holder side of the metro map)
     by_peer = {}
     for filer, city, state, peer, value, book_total, positions in PEER_OWNERS:
-        shares = round(value / 3.10)
+        shares = round(value / 3.10)  # peer positions, unrelated to NLKP's price
         by_peer.setdefault(peer, []).append(
             _holder(filer, city, state, shares, value, book_total, positions, cusip=f"{peer}00000")
         )
@@ -320,11 +333,11 @@ def seed():
     # provenance notes; it does not need a permanently-broken consensus to make the point.
     period = "Q2 2026E"
     _est_by_firm = {
-        "Ashfield Research":   (0.06, 29.6, 2.3),
-        "Denby Securities":    (0.07, 30.1, 2.5),
-        "Westmark Partners":   (0.05, 28.9, 2.1),
-        "Calder & Co.":        (0.06, 29.4, 2.2),
-        "Brightwater Equity":  (0.06, 29.8, 2.4),
+        "Ashfield Research":   (0.33, 102.4, 14.2),
+        "Denby Securities":    (0.35, 103.6, 14.8),
+        "Westmark Partners":   (0.30,  99.8, 13.4),
+        "Calder & Co.":        (0.32, 101.5, 14.0),
+        "Brightwater Equity":  (0.34, 102.9, 14.5),
     }
     ests = {}
     for a in RECORD["analysts"]:
@@ -335,19 +348,19 @@ def seed():
         }
     db.save_json("period_estimates.json", {period: ests, "FY 2026E": ests}, client_id=CID)
     db.save_json("period_guidance.json", {
-        period: {"Revenue Est ($M)": 29.0, "EPS Est": 0.05, "EBITDA Est ($M)": 2.2},
-        "FY 2026E": {"Revenue Est ($M)": 118.0, "EPS Est": 0.24, "EBITDA Est ($M)": 9.1},
+        period: {"Revenue Est ($M)": 100.0, "EPS Est": 0.32, "EBITDA Est ($M)": 13.8},
+        "FY 2026E": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
     }, client_id=CID)
     print("[demo] seeded consensus + guidance (3 of 5 models on file)")
 
     # 5. Dated analyst rating actions → the real PT drift chart
     actions = [
-        ("2026-01-22", "Ashfield Research",  "Buy",  4.75, 5.00, "Raises"),
-        ("2026-02-14", "Denby Securities",   "Buy",  5.25, 5.50, "Raises"),
-        ("2026-03-19", "Westmark Partners",  "Hold", 4.50, 4.25, "Lowers"),
-        ("2026-04-24", "Ashfield Research",  "Buy",  5.00, 5.25, "Raises"),
-        ("2026-05-20", "Denby Securities",   "Buy",  5.50, 6.00, "Raises"),
-        ("2026-06-18", "Ashfield Research",  "Buy",  5.25, 5.50, "Raises"),
+        ("2026-01-22", "Ashfield Research",  "Buy",  37.00, 39.00, "Raises"),
+        ("2026-02-14", "Denby Securities",   "Buy",  40.00, 42.00, "Raises"),
+        ("2026-03-19", "Westmark Partners",  "Hold", 40.00, 38.00, "Lowers"),
+        ("2026-04-24", "Ashfield Research",  "Buy",  39.00, 41.00, "Raises"),
+        ("2026-05-20", "Denby Securities",   "Buy",  42.00, 45.00, "Raises"),
+        ("2026-06-18", "Ashfield Research",  "Buy",  41.00, 43.00, "Raises"),
     ]
     db.save_json("rating_actions.json", [
         {"id": f"{TICKER}|{firm}|{d}|{grade}|{pt}", "date": d, "firm": firm, "action": "main",
@@ -369,12 +382,12 @@ def seed():
 
     # 7. Form 4 insider activity — a real capability (SEC EDGAR), so it may be shown.
     ins = [
-        ("Ellery Marcus A",  "Chief Executive Officer", "P", 40_000, 2.71, "2026-06-24"),
-        ("Raman Priya",      "Chief Financial Officer", "P", 25_000, 2.68, "2026-06-24"),
-        ("Vance Thomas R",   "Chief Revenue Officer",   "P", 15_000, 2.70, "2026-06-25"),
-        ("Okafor Adaeze",    "Director",                "P", 12_000, 2.74, "2026-06-26"),
-        ("Raman Priya",      "Chief Financial Officer", "F",  4_800, 2.81, "2026-07-01"),
-        ("Lindgren Erik",    "Director",                "S", 18_000, 2.92, "2026-07-08"),
+        ("Ellery Marcus A",  "Chief Executive Officer", "P", 12_000, 31.40, "2026-06-24"),
+        ("Raman Priya",      "Chief Financial Officer", "P",  7_500, 31.28, "2026-06-24"),
+        ("Vance Thomas R",   "Chief Revenue Officer",   "P",  4_500, 31.55, "2026-06-25"),
+        ("Okafor Adaeze",    "Director",                "P",  3_600, 31.90, "2026-06-26"),
+        ("Raman Priya",      "Chief Financial Officer", "F",  1_450, 32.40, "2026-07-01"),
+        ("Lindgren Erik",    "Director",                "S",  5_200, 33.10, "2026-07-08"),
     ]
     # `open_market` is what net_open_market() filters on — P/S are open-market,
     # grants/exercises/withholdings are routine comp and must not count as signal.
@@ -391,7 +404,7 @@ def seed():
     # a warm cache every render burns ~20s per ticker on lookups that can only fail.
     # Seeding the cache keeps the screenshot tenant fast and deterministic.
     from core import market_data
-    prices = {TICKER: (2.84, 2.79, 1.79, 412_000, 355_000),
+    prices = {TICKER: (PRICE, PREV_CLOSE, 1.80, 412_000, 355_000),
               "PYRA": (18.40, 18.62, -1.18, 1_240_000, 1_100_000),
               "CLRT": (9.15, 9.02, 1.44, 880_000, 795_000),
               "VNTG": (5.62, 5.71, -1.58, 615_000, 560_000)}
