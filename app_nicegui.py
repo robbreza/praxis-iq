@@ -163,8 +163,8 @@ def apply_theme():
            (.ir-card at 20/24) keep it; only the default gap tightens there. Section
            rhythm is unaffected (that comes from .section-head margins). */
         :root {{
-            --nicegui-default-padding: 0.75rem;   /* 16px -> 12px */
-            --nicegui-default-gap: 0.375rem;      /* 16px ->  6px */
+            --nicegui-default-padding: 0.625rem;  /* 16px -> 10px */
+            --nicegui-default-gap: 0.25rem;       /* 16px ->  4px */
         }}
         .ir-card {{
             background: {COLORS["surface_bg"]};
@@ -304,7 +304,7 @@ def apply_theme():
         .t-subhead {{ font-size:13px; font-weight:700; color:{COLORS["text_body"]}; }}
         .t-body    {{ font-size:13px; font-weight:400; color:{COLORS["text_body"]}; line-height:1.45; }}
         .t-sec     {{ font-size:12px; font-weight:400; color:{COLORS["text_secondary"]}; line-height:1.45; }}
-        .t-meta    {{ font-size:11px; font-weight:400; color:{COLORS["text_muted"]}; }}
+        .t-meta    {{ font-size:12px; font-weight:400; color:{COLORS["text_muted"]}; }}
         .t-fine    {{ font-size:10px; font-weight:400; color:{COLORS["text_muted"]}; }}
         .t-eyebrow {{ font-size:11px; font-weight:600; color:{COLORS["text_muted"]};
                       text-transform:uppercase; letter-spacing:.08em; }}
