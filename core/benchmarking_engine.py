@@ -346,6 +346,12 @@ def _pair_trade(bm, u):
     ranked = [r for r in bm.get("gp_ranked", []) if r.get("ev_gp") is not None]
     if not short or not ranked:
         return ""
+    # The CLIENT's own multiple may not be computable yet — a newly onboarded issuer
+    # with no gross-profit data on file. The peer legs were already None-guarded; this
+    # one wasn't, so the page died formatting None. There is no pair-trade read without
+    # the client's own multiple, so say nothing rather than assert half a trade.
+    if u.get("ev_gp") is None or short.get("ev_gp") is None:
+        return ""
     cheap = ranked[0]
     if cheap["is_client"]:
         return (f"Pair-trade read: LONG {u['ticker']} / SHORT {short['ticker']} "

@@ -907,6 +907,16 @@ def _render_company_financials():
         _talking_card(tp.get("cashflow", []))
 
 
+def _fmt_or_dash(val, spec, suffix=""):
+    """Format a benchmark number, or an em-dash when it isn't computable.
+
+    A newly onboarded issuer has no gross profit, growth, EV or rank until its
+    financials are ingested — every one of those comes back None. These stats used
+    to format them straight into an f-string, so a single missing value killed the
+    entire Reports page. Missing is a normal state here, not an error."""
+    return f"{val:{spec}}{suffix}" if val is not None else "—"
+
+
 def _render_benchmark_analysis():
     bm = benchmarking_engine.build_benchmark()
     u = bm["usio"]
@@ -919,21 +929,26 @@ def _render_benchmark_analysis():
         ui.label(benchmarking_engine.key_finding(bm)).style(
             f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
         _mc, _ev = u.get("market_cap"), u.get("enterprise_value")
-        if _mc and _ev:
+        if _mc and _ev and u.get("ev_gp") is not None and u.get("gross_margin") is not None \
+                and u.get("ev_rev") is not None:
             _exc = ", ".join(e["ticker"] for e in bm.get("excluded", []))
             ui.label(f"{CT('ticker')}: market cap ${_mc/1e6:.0f}M, enterprise value ${_ev/1e6:.0f}M → {u['ev_rev']:.2f}x "
                      f"EV/Revenue, {u['ev_gp']:.1f}x EV/Gross Profit (gross margin {u['gross_margin']:.0f}% from "
                      f"the 10-Q). Peer EV/Revenue & gross margins from market data (Yahoo){(' — ' + _exc + ' excluded from EV (bank / net-cash EVs aren’t comparable)') if _exc else ''}.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
 
-    faster = bm["median_gr"] is not None and u["rev_growth"] > bm["median_gr"]
+    _v = _fmt_or_dash
+    faster = (bm.get("median_gr") is not None and u.get("rev_growth") is not None
+              and u["rev_growth"] > bm["median_gr"])
+    _rank = bm.get("usio_gp_rank")
     with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
-        _bm_stat("EV / Gross Profit", f"{u['ev_gp']:.1f}x", f"vs {bm['median_gp']:.1f}x peer median", COLORS["accent"])
-        _bm_stat("Discount (EV/GP)", f"{bm['discount_gp']:.0f}%", "below peer median", "#15803D")
-        _bm_stat("Revenue growth", f"{u['rev_growth']:.0f}%", f"vs {bm['median_gr']:.0f}% median",
-                 "#15803D" if faster else None)
-        _bm_stat("EV/GP rank", f"#{bm['usio_gp_rank']} of {len(bm['gp_ranked'])}", "cheapest = best",
-                 COLORS["accent"] if bm["usio_gp_rank"] == 1 else None)
+        _bm_stat("EV / Gross Profit", _v(u.get("ev_gp"), ".1f", "x"),
+                 f"vs {_v(bm.get('median_gp'), '.1f', 'x')} peer median", COLORS["accent"])
+        _bm_stat("Discount (EV/GP)", _v(bm.get("discount_gp"), ".0f", "%"), "below peer median", "#15803D")
+        _bm_stat("Revenue growth", _v(u.get("rev_growth"), ".0f", "%"),
+                 f"vs {_v(bm.get('median_gr'), '.0f', '%')} median", "#15803D" if faster else None)
+        _bm_stat("EV/GP rank", f"#{_rank} of {len(bm.get('gp_ranked', []))}" if _rank else "—",
+                 "cheapest = best", COLORS["accent"] if _rank == 1 else None)
 
     with ui.row().classes("w-full gap-4 items-start").style("margin-top:6px;"):
         with ui.column().classes("flex-1").style("min-width:300px;"):
@@ -1003,7 +1018,11 @@ def _render_benchmark_analysis():
     ui.label("* estimated (not separately reported in the filing / market feed).").style(
         f"color:{COLORS['text_muted']};font-size:10px;")
 
-    if bm["short"]:
+    # Needs BOTH legs plus the client's own multiple/rank — a newly onboarded issuer
+    # has none of those until its financials are ingested, and a half-formatted
+    # pair trade is worse than no pair trade.
+    if bm["short"] and bm["short"].get("ev_gp") is not None and u.get("ev_gp") is not None \
+            and bm.get("discount_gp") is not None and bm.get("usio_gp_rank"):
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                 f"border-left:4px solid #15803D;margin-top:6px;"):
@@ -1062,23 +1081,28 @@ def _render_board_deck_live():
             f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;")
         ui.label(benchmarking_engine.key_finding(bm)).style(
             f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
-    faster = bm["median_gr"] is not None and u["rev_growth"] > bm["median_gr"]
+    faster = (bm.get("median_gr") is not None and u.get("rev_growth") is not None
+              and u["rev_growth"] > bm["median_gr"])
+    _rank = bm.get("usio_gp_rank")
     with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-        _bm_stat("EV / Gross Profit", f"{u['ev_gp']:.1f}x",
-                 f"#{bm['usio_gp_rank']} of {len(bm['gp_ranked'])} · median {bm['median_gp']:.1f}x",
+        _bm_stat("EV / Gross Profit", _fmt_or_dash(u.get("ev_gp"), ".1f", "x"),
+                 f"{('#' + str(_rank) + ' of ' + str(len(bm.get('gp_ranked', [])))) if _rank else 'unranked'} · "
+                 f"median {_fmt_or_dash(bm.get('median_gp'), '.1f', 'x')}",
                  COLORS["accent"])
-        if imp:
+        if imp and imp.get("upside_pct") is not None:
             _bm_stat("Implied upside", f"{imp['upside_pct']:+.0f}%",
                      f"at the {imp['peer_median_multiple']:.1f}x peer median, equity basis",
                      "#15803D" if imp["upside_pct"] > 0 else "#B91C1C")
-        _bm_stat("Revenue growth", f"{u['rev_growth']:.0f}%", f"vs {bm['median_gr']:.0f}% median",
+        _bm_stat("Revenue growth", _fmt_or_dash(u.get("rev_growth"), ".0f", "%"),
+                 f"vs {_fmt_or_dash(bm.get('median_gr'), '.0f', '%')} median",
                  "#15803D" if faster else None)
         # EV/Revenue is NOT comparable across this peer set and is deliberately NOT
         # given a "% below median" or a green tick. USIO reports revenue gross of
         # interchange, so a low EV/Rev overstates how cheap it is — that artefact is
         # exactly what produced the retired deck's $9–12 price.
-        _bm_stat("EV / Revenue", f"{u['ev_rev']:.2f}x", "context only — NOT comparable", None)
-        if bm.get("short"):
+        _bm_stat("EV / Revenue", _fmt_or_dash(u.get("ev_rev"), ".2f", "x"),
+                 "context only — NOT comparable", None)
+        if bm.get("short") and u.get("ev_gp") is not None and bm["short"].get("ev_gp") is not None:
             _bm_stat("Pair-trade", f"L {u['ticker']} / S {bm['short']['ticker']}",
                      f"{u['ev_gp']:.1f}x vs {bm['short']['ev_gp']:.1f}x EV/GP")
     ui.label("Board-ready summary — the same live figures as the full analysis above (SEC EDGAR "
