@@ -61,7 +61,7 @@ def _metric_card(label, value, hint, active, on_click):
     edge = COLORS["accent"] if active else "transparent"
     card = ui.card().classes("flex-1 cursor-pointer").style(
         f"background:{bg};border:1px solid {border};border-left:4px solid {edge};"
-        f"border-radius:10px;padding:16px;"
+        f"border-radius:8px;padding:16px;"
     )
     with card:
         ui.label(str(value)).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']}")
@@ -205,15 +205,15 @@ def render_calendar_page():
             caption = f"{ev['Date']} · {ev.get('Location','—')} · {ev['Status']}" + (
                 " · High priority" if is_high else "")
             with ui.expansion(ev["Event"], caption=caption).classes("w-full").style(
-                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
             ):
                 ui.label(f"Type: {ev.get('Type','—')}  ·  Organizer: {ev.get('Organizer','—')}").style(
-                    f"color:{COLORS['text_secondary']};font-size:12.5px;")
+                    f"color:{COLORS['text_secondary']};font-size:13px;")
                 ui.label(f"Attending: {ev.get('Attending','TBD')}").style(
-                    f"color:{COLORS['text_secondary']};font-size:12.5px;")
+                    f"color:{COLORS['text_secondary']};font-size:13px;")
                 if ev.get("Deadline"):
                     ui.label(f"Registration deadline: {ev['Deadline']}").style(
-                        f"color:{COLORS['text_secondary']};font-size:12.5px;")
+                        f"color:{COLORS['text_secondary']};font-size:13px;")
                 if ev.get("Notes"):
                     ui.label(ev["Notes"]).style(
                         f"color:{COLORS['text_muted']};font-size:12px;margin-top:4px;")
@@ -238,14 +238,14 @@ def render_calendar_page():
             for ev in day_events[:3]:
                 clr = COLORS["danger"] if ev.get("Priority") == "High" else COLORS["accent"]
                 chip = ui.label(ev["Event"]).classes("cursor-pointer").style(
-                    f"background:{clr}22;color:{clr};font-size:10px;font-weight:600;border-radius:4px;"
+                    f"background:{clr}22;color:{clr};font-size:10px;font-weight:600;border-radius:6px;"
                     f"padding:1px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;"
                     f"text-overflow:ellipsis;max-width:100%;")
                 chip.tooltip(f"{ev['Event']} · {ev.get('Status','')}")
                 chip.on("click", lambda e=ev: open_edit_dialog(e))
             if len(day_events) > 3:
                 ui.label(f"+{len(day_events) - 3} more").style(
-                    f"color:{COLORS['text_muted']};font-size:9px;margin-top:2px;")
+                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
 
     def _render_calendar(shown):
         import calendar as _calmod
