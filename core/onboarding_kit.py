@@ -90,18 +90,17 @@ def _q_gross_margin(pol, val):
               f"{u['ev_rev_warranted']:.2f}x against {u['ev_rev_actual']:.2f}x traded — which is "
               f"why the “revenue discount” you may have seen quoted off EV/Revenue is a margin "
               f"difference, not a valuation gap.")
-    a += (" Separately, interest income on prepaid float — a ~100%-margin line — fell about "
-          "$400K year over year as rates normalised, which cost roughly 150bps of reported margin. "
-          "Ex-interest, processing margin is improving.")
+    a += (" Separately, interest income on prepaid float — a high-margin line — declined year over "
+          "year as rates normalised, a modest drag on reported margin. Ex-interest, processing "
+          "margin is improving.")
     return {
-        "q": "Why is gross margin only ~23% when competitors report 30–75%?",
+        "q": "Why is our reported gross margin far below peers who report on a net basis?",
         "a": a,
         "flag": "CRITICAL — the first question every analyst asks, and the one the prior kit "
                 "answered backwards. The reader has the 10-K open; this answer is built to survive that.",
         "sources": [f"{pol['form']} filed {pol['filed']} — revenue recognition note",
                     "core.valuation_comp.revenue_bridge() — live",
-                    "interest income decline: corroborated by the TwoTier CompSheet SOTP "
-                    "($1.5M FY25A → $1.1M FY26E)"],
+                    "interest income decline: corroborated by the TwoTier CompSheet SOTP"],
     }
 
 

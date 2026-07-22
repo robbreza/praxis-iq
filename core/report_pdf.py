@@ -298,9 +298,8 @@ def _segments_story(story):
         f"<b>Note the period.</b> Growth here is <b>FY{seg['fy'][:4]} vs FY{str(seg['prior_fy'])[:4]} "
         f"(annual)</b>, because that is the only basis the segment note is reported on. The comp "
         f"table above uses <b>latest-quarter YoY</b>, the basis every peer is measured on. Both are "
-        f"correct and neither is a typo &mdash; USIO is accelerating (Q1 FY26 revenue $25.5M vs "
-        f"$22.0M a year prior, against an FY2025 average quarter near $21.3M). The annual-vs-"
-        f"quarterly comparison on both bases is set out below.", _S["small"]))
+        f"correct and neither is a typo. The annual-vs-quarterly comparison on both bases is set "
+        f"out below, drawn from the filings.", _S["small"]))
     _annual_growth_story(story)
 
     sotp = seg.get("sotp")
@@ -832,10 +831,13 @@ def earnings_prep_pdf(client_id=None):
         story.append(Paragraph(
             "The EPS bridge management&rsquo;s own guidance implies &mdash; which nobody has built",
             _S["h2"]))
+        def _assump(k):
+            # Read each scenario's assumptions straight from the model, not typed.
+            return f"{mm[k]['rev_growth']:.0f}% rev &middot; {mm[k]['gross_margin']:.0f}% GM"
         story.append(_stat_row([
-            (f"${mm['low']['eps']:.2f}", "LOW", "10% rev &middot; 23% GM", INK),
-            (f"${mm['mid']['eps']:.2f}", "MID", "11% rev &middot; 24% GM", ACCENT),
-            (f"${mm['high']['eps']:.2f}", "HIGH", "12% rev &middot; 25% GM", GOOD),
+            (f"${mm['low']['eps']:.2f}", "LOW", _assump("low"), INK),
+            (f"${mm['mid']['eps']:.2f}", "MID", _assump("mid"), ACCENT),
+            (f"${mm['high']['eps']:.2f}", "HIGH", _assump("high"), GOOD),
         ]))
         story.append(Paragraph(
             f"Against FY2025&rsquo;s actual <b>-${abs(mm['fy25']['eps_diluted']):.2f}</b>. Revenue "
