@@ -38,6 +38,34 @@ STATUS_OPTIONS = [
 ]
 
 
+def _attendee_options(client_id=None):
+    """The client's actual roster (IR + named executives) for the Attending
+    picker — real people, not a generic 'Management + IR' string."""
+    from config.client_config import role_roster
+    return [e["name"] for e in role_roster(client_id) if e.get("name")]
+
+
+def _parse_attending(val):
+    """Split a stored Attending string ('Louis Hoch, Michael White', or a legacy
+    'Management + IR') into a list for the multi-select's initial value."""
+    import re
+    if not val or str(val).strip().upper() in ("TBD", ""):
+        return []
+    return [p.strip() for p in re.split(r"[,+/;]", str(val)) if p.strip()]
+
+
+def _attend_select(current="", client_id=None, cls="w-full"):
+    """A chips multi-select of the roster, pre-filled from `current`, that also
+    lets you type a guest name not on the roster (new_value_mode add-unique)."""
+    opts = _attendee_options(client_id)
+    vals = _parse_attending(current)
+    for v in vals:                       # keep any names/guests not in the roster
+        if v not in opts:
+            opts.append(v)
+    return ui.select(opts, multiple=True, value=vals, label="Attending",
+                     new_value_mode="add-unique").props("use-chips").classes(cls)
+
+
 def _load_conferences(key):
     """Returns (events, was_freshly_seeded) — the caller uses the second
     value to decide whether to persist the seed data immediately, same as
@@ -164,12 +192,12 @@ def render_calendar_page():
             ui.label(ev["Event"]).classes("text-lg font-bold")
             status_sel = ui.select(STATUS_OPTIONS, value=ev["Status"], label="Status").classes("w-full")
             notes_input = ui.textarea("Notes", value=ev.get("Notes", "")).classes("w-full")
-            attend_input = ui.input("Attending", value=ev.get("Attending", "TBD")).classes("w-full")
+            attend_input = _attend_select(ev.get("Attending", ""))
 
             def save():
                 ev["Status"] = status_sel.value
                 ev["Notes"] = notes_input.value
-                ev["Attending"] = attend_input.value
+                ev["Attending"] = ", ".join(attend_input.value or [])
                 _save_conferences(conf_path, events)
                 dialog.close()
                 render_view()
@@ -321,7 +349,7 @@ def render_calendar_page():
         with ui.row().classes("w-full gap-4"):
             location_in = ui.input("Location").classes("flex-1")
             organizer_in = ui.input("Organizer").classes("flex-1")
-            attending_in = ui.input("Attending", value="TBD").classes("flex-1")
+            attending_in = _attend_select("", cls="flex-1")
         notes_in = ui.textarea("Notes / logistics").classes("w-full")
 
         def add_event():
@@ -333,7 +361,7 @@ def render_calendar_page():
                 "Location": location_in.value, "Organizer": organizer_in.value,
                 "Status": status_sel2.value, "Deadline": deadline_in.value,
                 "Notes": notes_in.value, "Source": "Manual entry",
-                "Attending": attending_in.value, "Priority": priority_sel.value,
+                "Attending": ", ".join(attending_in.value or []), "Priority": priority_sel.value,
             })
             _save_conferences(conf_path, events)
             render_cards()
