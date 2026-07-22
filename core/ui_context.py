@@ -17,32 +17,60 @@ Typical page use:
     if ui_context.can_edit():
         ui.button("Save", on_click=save)
 
-Caveat: this context is process-global, not per-browser-tab. The platform is
-an internal, effectively single-operator tool today — the same simplification
-config.client_config.get_active_client_id() already makes (it falls back to a
-single default client outside a Streamlit session). If the app ever needs true
-multi-user / multi-tab isolation, move this state into nicegui app.storage.tab
-and have set_page_context write there instead of a module global.
+PER-CLIENT, NOT PROCESS-GLOBAL. This used to be a single module-level dict, and
+that silently swallowed writes. set_page_context() runs during a render, but the
+button callbacks that later read it fire long afterwards — so with two browser
+tabs open, tab B's render overwrote the context, and a click in tab A then
+evaluated can_edit() against tab B's page. Where that came back False, every
+_save_state()-style RBAC choke point discarded the write and the control simply
+appeared dead (this is what killed Today's "Show automation stats" toggle, and
+could equally have dropped a resolve/mute/mark-noted action).
+
+State is therefore keyed by nicegui's client id and cleaned up on disconnect —
+the same fix, for the same reason, as page_modules_nicegui/nav.py. Outside a
+NiceGUI client (tests, scripts, the smoke renderer) it falls back to one shared
+slot, which is correct there because those are single-threaded and sequential.
 """
 
 from config.client_config import role_can_edit, DEFAULT_ROLE_KEY
 
-_ctx = {"role": DEFAULT_ROLE_KEY, "page": None}
+_slots = {}          # client_id -> {"role", "page"}
+
+
+def _slot():
+    """This client's context, created (and scheduled for cleanup) on first use."""
+    cid = "_global"
+    try:                                   # lazy: core/ must import cleanly without nicegui
+        from nicegui import context
+        cid = context.client.id
+    except Exception:
+        pass
+    s = _slots.get(cid)
+    if s is None:
+        s = _slots[cid] = {"role": DEFAULT_ROLE_KEY, "page": None}
+        if cid != "_global":
+            try:
+                from nicegui import context
+                context.client.on_disconnect(lambda cid=cid: _slots.pop(cid, None))
+            except Exception:
+                pass
+    return s
 
 
 def set_page_context(role, page):
     """Called by app_nicegui.render_page() right before it renders `page`,
     recording which role is viewing which page for the render that follows."""
-    _ctx["role"] = role or DEFAULT_ROLE_KEY
-    _ctx["page"] = page
+    s = _slot()
+    s["role"] = role or DEFAULT_ROLE_KEY
+    s["page"] = page
 
 
 def current_role():
-    return _ctx["role"]
+    return _slot()["role"]
 
 
 def current_page():
-    return _ctx["page"]
+    return _slot()["page"]
 
 
 def can_edit():
@@ -57,7 +85,8 @@ def can_edit():
     from core import db
     if db.session_is_readonly():
         return False
-    return role_can_edit(_ctx["role"], _ctx["page"])
+    s = _slot()
+    return role_can_edit(s["role"], s["page"])
 
 
 def is_read_only():
@@ -78,7 +107,11 @@ def read_only_banner(ui=None):
     if db.session_is_readonly():
         msg = "🔒 View-only — client access is read-only."
     else:
-        msg = f"🔒 View-only — the {_ctx['role']} role can't edit {_ctx['page']}."
+        # Name the page only when we actually have one — this read "can't edit
+        # None" whenever the context wasn't set for this client.
+        _s = _slot()
+        _pg = f" {_s['page']}" if _s.get("page") else " this page"
+        msg = f"🔒 View-only — the {_s['role']} role can't edit{_pg}."
     ui.label(msg) \
         .style("color:#B45309;background:#FEF3C7;border:1px solid #FCD34D;"
                "border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;"

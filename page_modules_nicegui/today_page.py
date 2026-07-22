@@ -266,45 +266,29 @@ def render_today_page():
     # See the helper functions above render_today_page() for how each is
     # derived, and their docstrings for what's still a partial proxy
     # (e.g. earnings readiness only reflects Script Generation stages).
-    tasks_today = activity_log.count_today()
-    hrs_saved = activity_log.minutes_saved_this_week() / 60
-    open_signals = _open_signal_count(state)
+    # count_today() / minutes_saved_this_week() were read here only to feed the
+    # removed automation-stats strip — dropped, which also spares Today two
+    # activity_log round-trips per render. Reports → Automation Tracker still
+    # reads both for its own (properly contextualised) view.
     overdue = activity_log.overdue_sent_without_response("model_request_sent", ["model_received"], hours=24)
     readiness_pct = _earnings_readiness_pct()
     snap = market_data.get_snapshot(CT("ticker"))
     recent = activity_log.recent_events(limit=5)
 
-    # ── ROI strip — hideable ──
-    # Defaults to hidden, per the user: greeting flows straight into Today's
-    # Story. The "tasks automated" / "hrs saved" numbers this strip used to
-    # be the only place for now have a proper home in Reports' Automation
-    # Tracker tab (with real breakdown/trend, not just a headline number) —
-    # this strip is now just a quick optional glance, not the only view.
-    show_roi = state.get("show_roi_strip", False)
-
-    def toggle_roi():
-        state["show_roi_strip"] = not state.get("show_roi_strip", False)
-        _save_state(state)
-        nav.go_to("Today")
-
-    ui.button(
-        "Hide automation stats" if show_roi else "Show automation stats",
-        on_click=toggle_roi,
-    ).props("flat dense size=sm").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;padding-left:0;")
-
-    if show_roi:
-        with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-            for val, lbl, clr in [
-                (str(tasks_today), "tasks automated today", COLORS["success"]),
-                (f"{hrs_saved:.1f} hrs", "saved this week", COLORS["success"]),
-                (str(open_signals), "signals needing follow-up", COLORS["accent_light"] if open_signals else COLORS["success"]),
-                (str(len(overdue)), "analyst requests overdue", COLORS["danger"] if overdue else COLORS["success"]),
-                (f"{readiness_pct:.0f}%", "script workflow readiness", COLORS["warning"]),
-            ]:
-                with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-                    ui.label(val).classes("text-lg font-bold").style(f"color:{clr};")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
-        ui.markdown("---")
+    # ── (removed) ROI / "automation stats" strip ──
+    # This showed "N tasks automated today" and "N hrs saved this week" behind a
+    # Show/Hide toggle. Removed deliberately:
+    #   * it answered the VENDOR's question, not the IR lead's, on the surface they
+    #     open to find out who is buying and what needs a call today;
+    #   * "hours saved" is an assumption (a per-event-type minute constant times a
+    #     count), not a measurement — a soft number in the most prominent position
+    #     on the app, which is exactly where a sharp CFO will poke at it;
+    #   * it duplicated Reports → Automation Tracker, which presents the same
+    #     activity with a real breakdown and trend, in the context (QBR / renewal)
+    #     where the question is actually asked.
+    # The Automation Tracker keeps every number; the ledger it reads
+    # (core.activity_log) is untouched. Only this strip is gone, so the greeting
+    # now flows straight into Today's Story.
 
     # ── Today's Story + Key Metrics ──
     with ui.row().classes("w-full gap-4 items-stretch"):
