@@ -17,6 +17,9 @@ _KEEP_UPPER = {
     # well-known manager initialisms that look wrong Title-cased
     "FMR", "BNY", "UBS", "PNC", "TIAA", "CPP", "APG", "GIC", "BMO", "RBC", "TD",
 }
+# Period-insensitive form, so "L.P." (which loses its trailing dot to strip()) still
+# matches "LP" — otherwise "Holdings L.P." Title-cased to a wrong "L.p.".
+_KEEP_UPPER_NODOTS = {k.replace(".", "") for k in _KEEP_UPPER}
 # Small connector words kept lower (unless they lead the name).
 _KEEP_LOWER = {"of", "and", "the", "for", "de", "van", "der", "den", "del",
                "la", "le", "el", "di", "da", "du", "et", "und"}
@@ -54,7 +57,7 @@ def pretty_name(raw):
         low = core.lower()
         if up in _SPECIAL:
             out.append(tok.replace(core, _SPECIAL[up]))
-        elif up in _KEEP_UPPER:
+        elif up in _KEEP_UPPER or up.replace(".", "") in _KEEP_UPPER_NODOTS:
             out.append(tok)
         elif _ROMAN_RE.match(up) and up not in ("I",):   # III, IV, ... (not lone "I")
             out.append(tok.replace(core, up))
