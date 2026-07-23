@@ -802,6 +802,24 @@ def _loc_line(r):
     return raw
 
 
+def _shortlist_record(c):
+    """A peer-prospect candidate captured as a 'shortlisted' NDR target (pipeline entry, no slot
+    yet). Kept in trip['shortlist'] — NOT trip['meetings'] — so the slot-based schedule renderer is
+    untouched until a target confirms (see NDR-pipeline design, phases 1→3)."""
+    from datetime import datetime as _dt
+    comps = ", ".join(sorted((c.get("comps") or {}).keys()))
+    return {
+        "institution": c.get("filer"),
+        "city": c.get("city"), "state": c.get("state"),
+        "metro": _metro_from_city(c.get("city"), c.get("state")),
+        "conviction": c.get("conviction"),
+        "peers": comps or ("Curated target" if c.get("kind") == "curated" else ""),
+        "bucket": c.get("tier"),
+        "status": "shortlisted", "source": "outbound",
+        "added_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+
 def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
@@ -1172,11 +1190,31 @@ def _render_prospects_by_metro(client_id):
             if not funds:
                 ui.label("No funds in this metro.").style(f"color:{COLORS['text_muted']};")
             else:
+                cand_by_filer = {c.get("filer"): c for c in funds}
+                # ── Bulk "Add to NDR" bar (NDR pipeline, Phase 1) ────────────────────
+                _trips = _load_json("ndr_trips.json", [])
+                _open = [(i, t) for i, t in enumerate(_trips) if t.get("status") != "Completed"]
+                trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
+                trip_opts["__new__"] = "＋ New NDR…"
+                with ui.row().classes("w-full items-end gap-2").style(
+                        f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
+                    ui.label("Tick funds below, then add them to an NDR as shortlisted targets.").style(
+                        f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                    trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+                    new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
+                    add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
+
+                def _sync_new():
+                    new_name.set_visibility(trip_sel.value == "__new__")
+                trip_sel.on_value_change(lambda *_: _sync_new())
+                _sync_new()
+
                 d_rows = []
                 for c in funds:
                     conv = c.get("conviction")
                     peers = ", ".join(sorted((c.get("comps") or {}).keys()))
                     d_rows.append({
+                        "_filer": c.get("filer"),           # unique key + lookup (not displayed)
                         "Fund": pretty_name(c.get("filer") or "—"),
                         "City": c.get("city") or "—",
                         "Bucket": c.get("tier") or "—",
@@ -1184,8 +1222,48 @@ def _render_prospects_by_metro(client_id):
                         "Peers held": peers or ("Curated target" if c.get("kind") == "curated" else "—"),
                     })
                 d_cols = [{"name": k, "label": k, "field": k,
-                           "align": "right" if k == "Conviction" else "left"} for k in d_rows[0].keys()]
-                ui.table(columns=d_cols, rows=d_rows, row_key="Fund").classes("w-full").props("dense flat")
+                           "align": "right" if k == "Conviction" else "left"}
+                          for k in d_rows[0].keys() if k != "_filer"]
+                tbl = ui.table(columns=d_cols, rows=d_rows, row_key="_filer",
+                               selection="multiple").classes("w-full").props("dense flat")
+
+                def _do_add():
+                    sel = tbl.selected
+                    if not sel:
+                        ui.notify("Tick at least one fund first.", type="warning"); return
+                    trips2 = _load_json("ndr_trips.json", [])
+                    if trip_sel.value == "__new__":
+                        nm = (new_name.value or "").strip()
+                        if not nm:
+                            ui.notify("Name the new NDR.", type="warning"); return
+                        trips2.append({
+                            "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                            "city": metro, "focus": "", "team": [], "notes": "", "meetings": [],
+                            "shortlist": [], "status": "Planning", "debrief": {},
+                            "created": datetime.now().strftime("%Y-%m-%d"),
+                        })
+                        target, tname = trips2[-1], nm
+                    else:
+                        target = trips2[int(trip_sel.value)]
+                        tname = target.get("name") or "NDR"
+                    target.setdefault("shortlist", [])
+                    have = {s.get("institution") for s in target["shortlist"]} | \
+                           {m.get("institution") for m in target.get("meetings", [])}
+                    added = 0
+                    for row in sel:
+                        c = cand_by_filer.get(row.get("_filer"))
+                        if not c or c.get("filer") in have:
+                            continue
+                        target["shortlist"].append(_shortlist_record(c))
+                        have.add(c.get("filer"))
+                        added += 1
+                    _save_json("ndr_trips.json", trips2)
+                    skipped = len(sel) - added
+                    ui.notify(f"Shortlisted {added} fund(s) to '{tname}'"
+                              + (f" · {skipped} already on it" if skipped else "")
+                              + ". See Investor Targeting → NDR Planner → Active NDRs.", type="positive")
+                    metro_detail.close()
+                add_btn.on_click(_do_add)
         metro_detail.open()
 
     prospect_metro_table = ui.table(
@@ -2940,6 +3018,25 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
 
                             ui.select(["Planning", "In Progress", "Completed"], value=trip_status,
                                       on_change=set_trip_status).props("dense outlined").classes("min-w-[130px]")
+
+                    # Shortlisted targets (NDR pipeline Phase 1) — funds added from Peer Prospects,
+                    # awaiting outreach. Held in trip['shortlist'], separate from the slot schedule below.
+                    shortlist = trip.get("shortlist", [])
+                    if shortlist:
+                        with ui.expansion(f"Shortlisted — {len(shortlist)} target(s) pending outreach",
+                                          icon="playlist_add_check").classes("w-full").style("margin-top:6px;"):
+                            for s in shortlist:
+                                with ui.row().classes("w-full items-center gap-2").style(
+                                        f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
+                                    ui.label(pretty_name(s.get("institution", ""))).classes("flex-1").style(
+                                        f"color:{COLORS['text_body']};font-size:13px;")
+                                    _sl_loc = ", ".join(x for x in [s.get("city"), s.get("state")] if x) or s.get("metro", "—")
+                                    ui.label(_sl_loc).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    if s.get("conviction") is not None:
+                                        ui.label(f"{s['conviction']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    ui.label(s.get("bucket", "")).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label("Contact + confirm → automatic slot assignment arrives in the next phase.").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
 
                     meetings_with_idx = sorted(enumerate(all_meetings), key=lambda x: (x[1].get("day", 1), x[0]))
                     current_day = None
