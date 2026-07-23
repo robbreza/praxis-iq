@@ -1142,9 +1142,45 @@ def _render_prospects_by_metro(client_id):
             "Curated": _tc(funds, "Curated"),
             "Roadshow read": read,
         })
-    ui.table(columns=[{"name": k, "label": k, "field": k,
-                       "align": "left" if k in ("Metro", "Roadshow read") else "right"} for k in rows[0].keys()],
-             rows=rows, row_key="Metro").classes("w-full").props("dense flat")
+    # Click a metro row to see exactly WHICH funds are there — same interaction as the
+    # "Where they are — tracked institutions by metro" table below. The counts alone
+    # always raised "OK, which 114 in New York?"; this opens the named list on demand.
+    metro_detail = ui.dialog()
+
+    def _open_prospect_metro(metro):
+        funds = sorted(groups.get(metro, []), key=lambda c: -(c.get("conviction") or 0))
+        metro_detail.clear()
+        with metro_detail, ui.card().style("min-width:min(760px,94vw);max-width:94vw;"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(f"{metro} — {len(funds)} peer-owner{'s' if len(funds) != 1 else ''} "
+                         "(own a comp, not us)").classes("text-lg font-bold")
+                ui.button(icon="close", on_click=metro_detail.close).props("flat round dense")
+            if not funds:
+                ui.label("No funds in this metro.").style(f"color:{COLORS['text_muted']};")
+            else:
+                d_rows = []
+                for c in funds:
+                    conv = c.get("conviction")
+                    peers = ", ".join(sorted((c.get("comps") or {}).keys()))
+                    d_rows.append({
+                        "Fund": pretty_name(c.get("filer") or "—"),
+                        "City": c.get("city") or "—",
+                        "Bucket": c.get("tier") or "—",
+                        "Conviction": round(conv) if conv is not None else "—",
+                        "Peers held": peers or ("Curated target" if c.get("kind") == "curated" else "—"),
+                    })
+                d_cols = [{"name": k, "label": k, "field": k,
+                           "align": "right" if k == "Conviction" else "left"} for k in d_rows[0].keys()]
+                ui.table(columns=d_cols, rows=d_rows, row_key="Fund").classes("w-full").props("dense flat")
+        metro_detail.open()
+
+    prospect_metro_table = ui.table(
+        columns=[{"name": k, "label": k, "field": k,
+                  "align": "left" if k in ("Metro", "Roadshow read") else "right"} for k in rows[0].keys()],
+        rows=rows, row_key="Metro").classes("w-full cursor-pointer").props("dense flat")
+    prospect_metro_table.on("rowClick", lambda e: _open_prospect_metro(e.args[1]["Metro"]))
+    ui.label("Click any metro row to see the named funds there.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
     singles = [(m, f[0]) for m, f in groups.items() if len(f) == 1 and m != "International"]
     ui.label(f"{full} metro(s) are full-day-viable ({len(rows)} shown, ≥2 funds). Plus {len(singles)} fund(s) alone in "
              "scattered single-city stops (virtual / opportunistic — the hard-to-cover tail, e.g. much of Wisconsin) — "
