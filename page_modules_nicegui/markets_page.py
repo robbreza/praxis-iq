@@ -609,8 +609,12 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
 
     ui.label("Street Consensus Matrix").classes("text-lg font-bold")
     ui.label("Estimate horizon — where is the risk?").classes("font-bold").style("margin-top:8px;")
-    ui.label("Street = analyst consensus estimate · Guidance = management's own number · In line (~2-3%) · "
-             "Watch (partial coverage) · Flag (models missing, or the gap is wide enough to matter in a call).").style(
+    ui.html(
+        "Street = analyst consensus · Guidance = management's own number. "
+        "<b style='color:#B45309;'>Beat bar</b> = Street above guide (you must beat your own guide to meet the Street) · "
+        "<b style='color:#15803D;'>Cushion</b> = Street below guide · "
+        "<b>In line</b> = Street matches guide · "
+        "Flag = models missing, or the gap is wide enough to matter in a call.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
     horizon_periods = ["Q2 2026E", "Q3 2026E", "FY 2026E", "FY 2027E"]
