@@ -2066,19 +2066,59 @@ def _render_big_picture(institutions):
     # "these institutions... where ARE they?" One row per metro with its holders,
     # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
     ui.markdown("---")
-    ui.label("Where they are — tracked institutions by metro").classes("section-head").style("margin-top:6px;")
+    ui.label("Where they are — tracked institutions & peer-owners by metro").classes("section-head").style("margin-top:6px;")
+
+    # Join the all-bucket peer-owner universe (Peer Prospects' data) onto the same metro rows, so this
+    # is the ONE metro list — no separate "peer-owners by metro" table. Uses all_candidates (every
+    # bucket) rather than build_candidates (institutional only), matching the Peer Prospects counts.
+    try:
+        from core import peer_prospects as _pp
+        _all_cands = _pp.all_candidates(get_active_client_id())
+    except Exception:
+        _all_cands = []
+    _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
+                 "Market maker": "mm", "Curated": "curated"}
+    peer_by_metro = {}
+    for _c in _all_cands:
+        _m = _metro_from_city(_c.get("city"), _c.get("state"))
+        _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
+        _pm["funds"] += 1
+        _k = _tier_key.get(_c.get("tier"))
+        if _k:
+            _pm[_k] += 1
+
+    def _roadshow_read(metro, n):
+        if metro == "International":
+            return "Intl — virtual"
+        if n >= 4:
+            return "Full-day NDR stop"
+        if n >= 2:
+            return "Half-day"
+        return "Single stop" if n else "—"
+
+    # Union all metro keys (a metro may have holders but no peer-owners, or vice-versa).
+    _all_metros = set(metro_summary) | set(peer_by_metro)
+    _blank_pm = {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0}
     geo_rows = sorted(
-        [{"metro": m, "n": d["count"], "holders": d["holders"], "nonholders": d["count"] - d["holders"],
-          "t1": d["tier1_nonholder"], "trips": visits_by_metro.get(m, 0), "top": d.get("top") or "—"}
-         for m, d in metro_summary.items()],
-        key=lambda r: (-r["n"], -r["t1"]))
+        [{"metro": m, "holders": (d := metro_summary.get(m, {})).get("holders", 0),
+          "t1": d.get("tier1_nonholder", 0), "trips": visits_by_metro.get(m, 0),
+          "funds": (pm := peer_by_metro.get(m, _blank_pm))["funds"], "inst": pm["inst"],
+          "ria": pm["ria"], "div": pm["div"], "mm": pm["mm"], "curated": pm["curated"],
+          "read": _roadshow_read(m, pm["funds"]), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
+         for m in _all_metros],
+        key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
     geo_cols = [
         {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left"},
-        {"name": "n", "label": "Institutions", "field": "n", "align": "right"},
         {"name": "holders", "label": "Holders", "field": "holders", "align": "right"},
-        {"name": "nonholders", "label": "Non-holders", "field": "nonholders", "align": "right"},
         {"name": "t1", "label": "Tier-1 ready", "field": "t1", "align": "right"},
+        {"name": "funds", "label": "Peer-owners", "field": "funds", "align": "right"},
+        {"name": "inst", "label": "Inst", "field": "inst", "align": "right"},
+        {"name": "ria", "label": "RIA", "field": "ria", "align": "right"},
+        {"name": "div", "label": "Diversified", "field": "div", "align": "right"},
+        {"name": "mm", "label": "MM", "field": "mm", "align": "right"},
+        {"name": "curated", "label": "Curated", "field": "curated", "align": "right"},
         {"name": "trips", "label": "NDRs", "field": "trips", "align": "right"},
+        {"name": "read", "label": "Roadshow read", "field": "read", "align": "left"},
         {"name": "top", "label": "Top name", "field": "top", "align": "left"},
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
@@ -2118,9 +2158,11 @@ def _render_big_picture(institutions):
     geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes(
         "w-full cursor-pointer").props("dense flat")
     geo_table.on("rowClick", lambda e: _open_metro_detail(e.args[1]["metro"]))
-    ui.label(f"{tracked_total} tracked institutions across {len(metro_summary)} metros · {holder_count} current "
-             "holders. Click any metro row to see the institutions there, or filter the full list on the "
-             "Buy-Side Intelligence list below.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+    _peer_total = sum(v["funds"] for v in peer_by_metro.values())
+    ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
+             f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
+             "Curated (they sum to Peer-owners). Click any metro to see the tracked names there.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
 
 
 def _bp_metric(label, value, detail_lines):
