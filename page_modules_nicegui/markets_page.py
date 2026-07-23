@@ -283,11 +283,37 @@ def _last_price():
     return CT("last_price", 2.15)
 
 
-def _metric(label, value, sub):
+def _metric(label, value, sub, delta=None):
     with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
         ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        # Optional beat/miss chip (text, colour) — makes Street-vs-guidance explicit
+        # instead of leaving the reader to spot the difference.
+        if delta and delta[0]:
+            ui.label(delta[0]).style(f"color:{delta[1]};font-size:11px;font-weight:700;")
+
+
+# Beat / miss / in-line of Street vs Guidance, WITH a colour — the platform's job
+# is to identify the difference, not render two numbers and let the reader do the
+# math. Street ABOVE guide is the "beat bar" (management must beat its own guide to
+# meet the Street) → amber; Street BELOW guide is cushion → green; equal at the
+# displayed precision is genuinely in line → muted. Compared at display precision,
+# so a $0.33 vs $0.32 penny reads as a beat bar, not "in line".
+_BM_ABOVE, _BM_BELOW, _BM_INLINE = "#B45309", "#15803D", None
+
+
+def _bm_tag(street, guid, money=False):
+    """(text, colour, direction) for Street vs Guidance. direction ∈ {above, below, inline, None}."""
+    if street is None or guid is None:
+        return None, COLORS["text_muted"], None
+    d = round(street - guid, 1 if money else 2)
+    if d == 0:
+        return "in line with guide", COLORS["text_muted"], "inline"
+    amt = f"${abs(d):.1f}M" if money else f"${abs(d):.2f}"
+    if d > 0:
+        return f"▲ {amt} above guide", _BM_ABOVE, "above"
+    return f"▼ {amt} below guide", _BM_BELOW, "below"
 
 
 def _vs_guidance(est, guid, money=False):
@@ -599,27 +625,42 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
             con_pt = _safe_avg([v.get("Price Target") for v in ingested])
             con_rev = _safe_avg([v.get("Revenue Est ($M)") for v in ingested])
             con_eps = _safe_avg([v.get("EPS Est") for v in ingested])
-            level, label = _risk_level({"Revenue Est ($M)": g["Revenue Est ($M)"], "street_rev": con_rev or 0}, models_in, models_total)
-            bc = {"green": "#15803D", "amber": "#B45309", "red": "#B91C1C"}[level]
-            # Guard each VALUE, not a single models_in flag: a firm can be ingested (Rating set)
-            # while its Revenue/EPS estimate is still None — which is exactly USIO's "0 of 5
-            # models received" state. models_in was 5, no_data False, con_rev None, and the
-            # f-string raised TypeError: unsupported format string passed to NoneType.__format__,
-            # taking the Markets page down. Guidance can be None too on a new tenant.
-            no_data = models_in == 0
+            # Beat/miss vs guidance, revenue-primary, EPS as the tie-break. "In line"
+            # means Street MATCHES guide at the displayed precision — not "within
+            # 2-3%". Any real difference is called out by direction: Street above =
+            # beat bar (must beat the guide to meet Street); below = cushion.
+            grev, geps = g.get("Revenue Est ($M)"), g.get("EPS Est")
+            _rev_tag, _rev_clr, _rev_dir = _bm_tag(con_rev, grev, money=True)
+            _eps_tag, _eps_clr, _eps_dir = _bm_tag(con_eps, geps, money=False)
+            rev_var = abs(con_rev - grev) / grev * 100 if (con_rev is not None and grev) else 0
+            if models_in == 0:
+                bc, label = "#B91C1C", "No models yet"
+            elif models_in / models_total < 0.5:
+                bc, label = "#B91C1C", "Models missing — consensus unreliable"
+            elif _rev_dir == "above" and rev_var > 5:
+                bc, label = "#B91C1C", "Gap too wide — Street well above guide"
+            elif _rev_dir == "above" or _eps_dir == "above":
+                bc, label = "#B45309", "Beat bar — Street above guide"
+            elif _rev_dir == "below" or _eps_dir == "below":
+                bc, label = "#15803D", "Cushion — Street below guide"
+            else:
+                bc, label = "#15803D", "In line — Street matches guide"
             _srev = "—" if con_rev is None else f"${con_rev:.1f}M"
             _seps = "—" if con_eps is None else f"${con_eps:.2f}"
-            _grev = "—" if g.get("Revenue Est ($M)") is None else f"${g['Revenue Est ($M)']:.1f}M"
-            _geps = "—" if g.get("EPS Est") is None else f"${g['EPS Est']:.2f}"
+            _grev = "—" if grev is None else f"${grev:.1f}M"
+            _geps = "—" if geps is None else f"${geps:.2f}"
             upside_pct = round((con_pt - last_price) / last_price * 100, 1) if con_pt else None
             with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {bc};"):
                 ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:12px;font-weight:600;")
                 ui.label(label).style(f"color:{bc};font-size:12px;font-weight:700;")
                 ui.label(f"Models: {models_in}/{models_total}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
-                ui.label(f"Street rev: {_srev}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Guidance rev: {_grev}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Street EPS: {_seps}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"Guidance EPS: {_geps}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                # Revenue: Street vs Guidance on one line, then the coloured beat/miss call.
+                ui.label(f"Rev — Street {_srev} · Guide {_grev}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                if _rev_tag:
+                    ui.label(_rev_tag).style(f"color:{_rev_clr};font-size:11px;font-weight:700;")
+                ui.label(f"EPS — Street {_seps} · Guide {_geps}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                if _eps_tag:
+                    ui.label(_eps_tag).style(f"color:{_eps_clr};font-size:11px;font-weight:700;")
                 if con_pt:
                     ui.label(f"Consensus PT: ${con_pt:.2f} ({upside_pct:+.0f}%)").style("color:#15803D;font-size:12px;font-weight:600;")
 
@@ -658,8 +699,14 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                 _metric("Street Rating", f"{buy_count} Buy" if ingested_ests else "—", f"{len(ingested_ests)} rated")
                 _metric("Consensus PT", f"${con_pt:.2f}" if con_pt else "—",
                         f"{(con_pt-last_price)/last_price*100:+.0f}% upside" if con_pt else "")
-                _metric("Consensus EPS", f"${con_eps:.2f}" if con_eps is not None else "—", f"guidance {'—' if g.get('EPS Est') is None else '$' + format(g['EPS Est'], '.2f')}")
-                _metric("Consensus Rev", f"${con_rev:.1f}M" if con_rev else "—", f"guidance {'—' if g.get('Revenue Est ($M)') is None else '$' + format(g['Revenue Est ($M)'], '.1f') + 'M'}")
+                _eps_d = _bm_tag(con_eps, g.get("EPS Est"), money=False)
+                _rev_d = _bm_tag(con_rev, g.get("Revenue Est ($M)"), money=True)
+                _metric("Consensus EPS", f"${con_eps:.2f}" if con_eps is not None else "—",
+                        f"guidance {'—' if g.get('EPS Est') is None else '$' + format(g['EPS Est'], '.2f')}",
+                        delta=(_eps_d[0], _eps_d[1]))
+                _metric("Consensus Rev", f"${con_rev:.1f}M" if con_rev else "—",
+                        f"guidance {'—' if g.get('Revenue Est ($M)') is None else '$' + format(g['Revenue Est ($M)'], '.1f') + 'M'}",
+                        delta=(_rev_d[0], _rev_d[1]))
 
             rows = []
             analyst_dates = seed.get("analyst_dates", {})
