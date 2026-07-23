@@ -106,7 +106,11 @@ RECORD = {
     ],
     "earnings": {
         "current_quarter": "Q2 2026",
-        "earnings_date": (TODAY + timedelta(days=21)).strftime("%Y-%m-%d"),
+        # 35 days out, not 21: the Today "consensus lock" countdown is
+        # (days_to_earnings − 20), so a 21-day window collapsed to "0 days to
+        # consensus lock" once the seed date aged. 35 keeps a healthy ~15-day lock
+        # runway and reads sensibly on the demo whenever it's shot.
+        "earnings_date": (TODAY + timedelta(days=35)).strftime("%Y-%m-%d"),
         "call_time": "5:00 PM ET",
     },
     # Q1 2026 reported actuals — full line so the FY roll-up (Q1 actual + Q2-Q4
