@@ -884,6 +884,81 @@ def _next_open_slot(trip):
     return None, None
 
 
+def _open_schedule_request_dialog(request, on_done):
+    """NDR pipeline Phase 4 — an inbound analyst request IS a confirmation, so it goes straight into
+    an NDR's schedule at the next open slot (flagged source='inbound'), and the request is resolved.
+    Inbound and outbound converge into one Active NDR instead of two tabs."""
+    trips = _load_json("ndr_trips.json", [])
+    open_trips = [(i, t) for i, t in enumerate(trips) if t.get("status") != "Completed"]
+
+    def _match(t):
+        tc = (t.get("city") or "").lower()
+        rm, rc = (request.get("metro") or "").lower(), (request.get("city") or "").lower()
+        return bool(tc) and (rm and (rm in tc or tc in rm) or rc and (rc in tc or tc in rc))
+
+    opts = {str(i): (("★ " if _match(t) else "") + (t.get("name") or f"NDR {i+1}")) for i, t in open_trips}
+    opts["__new__"] = "＋ New NDR…"
+    default = next((str(i) for i, t in open_trips if _match(t)),
+                   (str(open_trips[0][0]) if open_trips else "__new__"))
+    with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(520px,94vw);"):
+        ui.label(f"Schedule request — {request.get('analyst', '')} ({request.get('firm', '')}) → {request.get('city', '')}").classes("text-lg font-bold")
+        ui.label("An inbound request is a confirmed meeting — it drops straight into the schedule at the "
+                 "next open slot.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        sel = ui.select(opts, value=default, label="Add to NDR").props("dense outlined").classes("w-full")
+        new_name = ui.input("New NDR name", value=f"{request.get('city', '')} NDR").props("dense outlined").classes("w-full")
+        new_name.bind_visibility_from(sel, "value", backward=lambda v: v == "__new__")
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def _go():
+                trips2 = _load_json("ndr_trips.json", [])
+                if sel.value == "__new__":
+                    nm = (new_name.value or "").strip()
+                    if not nm:
+                        ui.notify("Name the new NDR.", type="warning"); return
+                    trips2.append({
+                        "name": nm, "sponsor_bank": request.get("firm", ""), "dates": "TBD",
+                        "ndr_type": "in-person", "city": request.get("city", ""), "focus": "", "team": [],
+                        "notes": "", "meetings": [], "shortlist": [], "status": "Planning", "debrief": {},
+                        "days": 2, "slots_per_day": 6, "created": datetime.now().strftime("%Y-%m-%d"),
+                    })
+                    trip, tname = trips2[-1], nm
+                else:
+                    trip = trips2[int(sel.value)]
+                    tname = trip.get("name") or "NDR"
+                day, slot = _next_open_slot(trip)
+                if day is None:
+                    ui.notify("That NDR's slots are full — raise its capacity or pick another.", type="warning"); return
+                trip.setdefault("meetings", []).append({
+                    "institution": request.get("firm", ""), "contact": request.get("analyst", ""),
+                    "day": day, "slot_index": slot, "time": _slot_time(slot), "type": "1x1",
+                    "format": "In-person", "status": "scheduled", "notes": request.get("reason", ""),
+                    "non_holder": True, "score": None, "source": "inbound",
+                    "inbound_request_id": request.get("id"),
+                    "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                })
+                _save_json("ndr_trips.json", trips2)
+                reqs = _load_ndr_requests()
+                for rr in reqs:
+                    if rr.get("id") == request.get("id"):
+                        rr["resolved"] = True
+                        rr["resolved_at"] = datetime.now().strftime("%b %d, %Y")
+                        rr["scheduled_into"] = tname
+                _save_ndr_requests(reqs)
+                try:
+                    from core import activity_log
+                    activity_log.log_event("ndr_inbound_scheduled", entity=request.get("firm", ""),
+                                           launched_from=f"NDR · {tname}")
+                except Exception:
+                    pass
+                dlg.close()
+                ui.notify(f"Scheduled {request.get('analyst', '')} → Day {day} · {_slot_time(slot)}. Request resolved.",
+                          type="positive")
+                on_done()
+            ui.button("Schedule into NDR", icon="event_available", on_click=_go).props("color=primary")
+    dlg.open()
+
+
 def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
@@ -3231,7 +3306,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                         with ui.row().classes("w-full items-center gap-2").style(
                                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                             ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;width:110px;")
-                            ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").classes("flex-1").style(f"color:{COLORS['text_body']};font-size:13px;")
+                            with ui.row().classes("flex-1 items-center gap-1").style("min-width:0;"):
+                                ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").style(f"color:{COLORS['text_body']};font-size:13px;")
+                                if m.get("source") == "inbound":
+                                    ui.label("inbound").style("background:#B4530922;color:#B45309;border-radius:6px;"
+                                                              "padding:0 6px;font-size:9.5px;font-weight:700;")
                             if m.get("score") is not None:
                                 ui.label(f"{m['score']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
@@ -3646,7 +3725,10 @@ def _render_ndr_requests_tab():
                 ui.notify("Marked resolved.")
                 _refresh()
 
-            ui.button("Resolve", on_click=mark_resolved).props("flat dense").style("margin-top:6px;")
+            with ui.row().classes("gap-2").style("margin-top:6px;"):
+                ui.button("Schedule into NDR", icon="event_available",
+                          on_click=lambda r=r: _open_schedule_request_dialog(r, _refresh)).props("flat dense color=primary")
+                ui.button("Resolve without scheduling", on_click=mark_resolved).props("flat dense")
 
     if resolved_reqs:
         with ui.expansion(f"{len(resolved_reqs)} resolved").classes("w-full").style("margin-top:8px;"):
