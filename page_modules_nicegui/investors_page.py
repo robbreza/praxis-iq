@@ -820,6 +820,41 @@ def _shortlist_record(c):
     }
 
 
+def _open_shortlist_outreach(entry, contact, on_invited):
+    """NDR pipeline Phase 2 — the 'Contact' draft. Opens a pre-filled outreach email the user
+    SENDS themselves (never auto-sent), and a button to mark the target Invited + log it. If no
+    email is on file, the draft is still shown so they can reach out via their own channel."""
+    fund = entry.get("institution", "")
+    tkr, cname = CT("ticker"), CT("name")
+    ir = CI()
+    where = entry.get("metro") or entry.get("city") or "your area"
+    peers = entry.get("peers") or "names in our space"
+    greeting = (contact.get("name", "").split()[0] if contact.get("name") else "there")
+    subject = f"{tkr} — meeting request during our {where} investor visit"
+    body = (f"Hi {greeting},\n\nWe're planning an investor visit around {where} and would value 30 "
+            f"minutes with your team. {pretty_name(fund)} holds {peers}, so {tkr}'s story should be "
+            f"directly relevant.\n\nWould a meeting work during that window?\n\n"
+            f"{ir.get('name', '')}\n{ir.get('title', 'Investor Relations')} · {cname} (NASDAQ: {tkr})")
+    with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(520px,94vw);"):
+        ui.label(f"Contact — {pretty_name(fund)}").classes("text-lg font-bold")
+        ui.textarea(value=body).classes("w-full").props("rows=10")
+        email = contact.get("email", "")
+        if email:
+            _mailto(email, subject, body, f"✉ Open email to {contact.get('name', 'the contact')} ({email})")
+        else:
+            ui.label("No contact email on file — reach out via your own channel, then mark Invited below.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def _mark():
+                on_invited()
+                dlg.close()
+                ui.notify(f"{pretty_name(fund)} marked Invited and logged.", type="positive")
+            ui.button("Mark as invited & log", icon="outgoing_mail", on_click=_mark).props("color=primary")
+    dlg.open()
+
+
 def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
@@ -2991,6 +3026,34 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
             if not trips:
                 ui.label("No NDR trips logged yet.").style(f"color:{COLORS['text_muted']};")
             status_options = ["scheduled", "completed", "cancelled", "no-show"]
+
+            # ── Shortlist status transitions (NDR pipeline Phase 2) ──────────────
+            def _sl_set(ti, si, new_status):
+                trips_ = _load_json("ndr_trips.json", [])
+                try:
+                    entry = trips_[ti]["shortlist"][si]
+                except (IndexError, KeyError):
+                    _active_ndrs_panel.refresh(); return
+                entry["status"] = new_status
+                stamp = {"invited": "contacted_at", "confirmed": "confirmed_at",
+                         "declined": "declined_at"}.get(new_status)
+                if stamp:
+                    entry[stamp] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                _save_json("ndr_trips.json", trips_)
+                try:
+                    from core import activity_log
+                    ev = {"invited": "ndr_outreach", "confirmed": "ndr_confirmed",
+                          "declined": "ndr_declined"}.get(new_status, "ndr_update")
+                    activity_log.log_event(ev, entity=entry.get("institution", ""),
+                                           launched_from=f"NDR · {trips_[ti].get('name', '')}")
+                except Exception:
+                    pass
+                _active_ndrs_panel.refresh()
+
+            def _sl_contact(ti, si, entry):
+                contact = get_institution_contacts().get(entry.get("institution", ""), {})
+                _open_shortlist_outreach(entry, contact, lambda: _sl_set(ti, si, "invited"))
+
             for idx, trip in enumerate(trips):
                 all_meetings = trip.get("meetings", [])
                 real_meetings = [m for m in all_meetings if m.get("type") != "break"]
@@ -3019,23 +3082,52 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                             ui.select(["Planning", "In Progress", "Completed"], value=trip_status,
                                       on_change=set_trip_status).props("dense outlined").classes("min-w-[130px]")
 
-                    # Shortlisted targets (NDR pipeline Phase 1) — funds added from Peer Prospects,
-                    # awaiting outreach. Held in trip['shortlist'], separate from the slot schedule below.
+                    # NDR pipeline (Phase 2) — shortlisted → invited → confirmed → declined.
+                    # Held in trip['shortlist'], separate from the slot schedule below (Phase 3
+                    # moves a confirmed target into meetings[] with a slot).
                     shortlist = trip.get("shortlist", [])
                     if shortlist:
-                        with ui.expansion(f"Shortlisted — {len(shortlist)} target(s) pending outreach",
-                                          icon="playlist_add_check").classes("w-full").style("margin-top:6px;"):
-                            for s in shortlist:
+                        _counts = {}
+                        for s in shortlist:
+                            k = s.get("status", "shortlisted")
+                            _counts[k] = _counts.get(k, 0) + 1
+                        _order = ["shortlisted", "invited", "confirmed", "declined"]
+                        _summ = " · ".join(f"{_counts[k]} {k}" for k in _order if _counts.get(k))
+                        _badge = {"shortlisted": ("#64748B", "Shortlisted"), "invited": ("#B45309", "Invited"),
+                                  "confirmed": ("#15803D", "Confirmed"), "declined": ("#94A3B8", "Declined")}
+                        with ui.expansion(f"NDR pipeline — {len(shortlist)} target(s) · {_summ}",
+                                          icon="filter_alt").classes("w-full").style("margin-top:6px;"):
+                            for si, s in enumerate(shortlist):
+                                st = s.get("status", "shortlisted")
+                                clr, lbl = _badge.get(st, ("#64748B", st.title()))
                                 with ui.row().classes("w-full items-center gap-2").style(
-                                        f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
+                                        f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;"
+                                        f"margin:2px 0;{'opacity:.55;' if st == 'declined' else ''}"):
+                                    ui.label(lbl).style(f"background:{clr}22;color:{clr};border-radius:6px;"
+                                                        "padding:1px 8px;font-size:10px;font-weight:700;white-space:nowrap;")
                                     ui.label(pretty_name(s.get("institution", ""))).classes("flex-1").style(
                                         f"color:{COLORS['text_body']};font-size:13px;")
                                     _sl_loc = ", ".join(x for x in [s.get("city"), s.get("state")] if x) or s.get("metro", "—")
                                     ui.label(_sl_loc).style(f"color:{COLORS['text_muted']};font-size:11px;")
                                     if s.get("conviction") is not None:
                                         ui.label(f"{s['conviction']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                                    ui.label(s.get("bucket", "")).style(f"color:{COLORS['text_muted']};font-size:11px;")
-                            ui.label("Contact + confirm → automatic slot assignment arrives in the next phase.").style(
+                                    # Per-status actions
+                                    if st == "shortlisted":
+                                        ui.button("Contact", icon="mail",
+                                                  on_click=lambda ti=idx, si=si, e=s: _sl_contact(ti, si, e)).props("flat dense size=sm color=primary")
+                                        ui.button("Decline", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "declined")).props("flat dense size=sm")
+                                    elif st == "invited":
+                                        ui.button("Confirm", icon="check",
+                                                  on_click=lambda ti=idx, si=si: _sl_set(ti, si, "confirmed")).props("flat dense size=sm color=positive")
+                                        ui.button("Re-contact", on_click=lambda ti=idx, si=si, e=s: _sl_contact(ti, si, e)).props("flat dense size=sm")
+                                        ui.button("Decline", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "declined")).props("flat dense size=sm")
+                                    elif st == "confirmed":
+                                        ui.label("→ slots in Phase 3").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                                        ui.button("Undo", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "invited")).props("flat dense size=sm")
+                                    elif st == "declined":
+                                        ui.button("Restore", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "shortlisted")).props("flat dense size=sm")
+                            ui.label("Contact opens a draft you send yourself and marks the target Invited (logged). "
+                                     "Confirm → automatic slot assignment arrives in Phase 3.").style(
                                 f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
 
                     meetings_with_idx = sorted(enumerate(all_meetings), key=lambda x: (x[1].get("day", 1), x[0]))
