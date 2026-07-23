@@ -104,7 +104,11 @@ RECORD = {
         "earnings_date": (TODAY + timedelta(days=21)).strftime("%Y-%m-%d"),
         "call_time": "5:00 PM ET",
     },
-    "financials": {"last_quarter": "Q1 2026", "last_rev": 98.5, "last_rev_yoy": 11.0},
+    # Q1 2026 reported actuals — full line so the FY roll-up (Q1 actual + Q2-Q4
+    # guidance) computes EPS/EBITDA, not just revenue. Q1+Q2+Q3+Q4 ties to the
+    # $410M / $1.30 / $58M FY guide.
+    "financials": {"last_quarter": "Q1 2026", "last_rev": 98.5, "last_eps": 0.29,
+                   "last_ebitda": 13.5, "last_rev_yoy": 11.0},
     "guidance": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
 }
 
@@ -348,6 +352,11 @@ def seed():
             "Westmark Partners": (0.32, 102.0, 13.8), "Calder & Co.":     (0.34, 103.8, 14.3),
             "Brightwater Equity": (0.36, 105.1, 14.9),
         },
+        "Q4 2026E": {
+            "Ashfield Research": (0.36, 109.0, 16.6), "Denby Securities": (0.38, 110.2, 17.0),
+            "Westmark Partners": (0.34, 107.0, 15.9), "Calder & Co.":     (0.35, 108.3, 16.3),
+            "Brightwater Equity": (0.37, 109.6, 16.8),
+        },
         "FY 2026E": {
             "Ashfield Research": (1.30, 411.0, 57.5), "Denby Securities": (1.35, 415.0, 59.2),
             "Westmark Partners": (1.26, 406.0, 55.8), "Calder & Co.":     (1.31, 412.0, 57.9),
@@ -375,6 +384,9 @@ def seed():
     db.save_json("period_guidance.json", {
         "Q2 2026E": {"Revenue Est ($M)": 100.0, "EPS Est": 0.32, "EBITDA Est ($M)": 13.8},
         "Q3 2026E": {"Revenue Est ($M)": 103.0, "EPS Est": 0.34, "EBITDA Est ($M)": 14.2},
+        # Q4 completes the quarterly book: Q1a 98.5 + Q2 100 + Q3 103 + Q4 108.5 = 410
+        # ties the four-quarter roll-up to the FY 2026E guide exactly.
+        "Q4 2026E": {"Revenue Est ($M)": 108.5, "EPS Est": 0.35, "EBITDA Est ($M)": 16.5},
         "FY 2026E": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
         # FY 2027E: a preliminary long-term framework — low-teens growth off FY26 —
         # so the roll-forward card renders "in line" rather than blank.
