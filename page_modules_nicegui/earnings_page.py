@@ -1859,7 +1859,13 @@ def _render_persona_steps(ss, role, key):
     CEO gets an extra Guidance & Outlook Decision Engine ahead of Step 1 —
     see _render_guidance_decision. IR gets the locked Call Opening (operator
     + Reg FD/safe-harbor reading) ahead of Step 1 — see _render_call_opening."""
-    if role == "CEO":
+    # The Guidance & Outlook Decision Engine renders for CEO and IR both. It used
+    # to be CEO-only, which broke the Markets "Open the Guidance Decision Engine →"
+    # deep-link for every other seat: that button is visible to all roles and
+    # scrolls to this engine's anchor, but as an IR Director you'd land in Script
+    # Generation with no engine rendered and nothing to scroll to. Guidance
+    # strategy (raise/reiterate/narrow) is core IR work anyway, not CEO-only.
+    if role in ("CEO", "IR"):
         _render_guidance_decision(ss)
     if role == "IR":
         _render_call_opening(ss)

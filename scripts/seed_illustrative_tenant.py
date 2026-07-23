@@ -394,6 +394,16 @@ def seed():
     }, client_id=CID)
     print("[demo] seeded consensus + guidance across 4 horizon periods (Q2, Q3, FY26, FY27) — full book")
 
+    # 4b. Confirm the Q2 2026 speaker lineup. Without this, Script Generation shows
+    # the "Confirm the speaker lineup" gate instead of the actual workflow — so the
+    # tab looks empty, AND the persona canvases (which hold the Guidance & Outlook
+    # Decision Engine the Markets deep-link scrolls to) never render.
+    from core import speakers as _speakers
+    _period = _speakers.current_period(CID)
+    if _period:
+        _speakers.confirm(_period, _speakers.default_lineup(CID), client_id=CID)
+        print(f"[demo] confirmed {_period} speaker lineup (Script Generation renders the workflow, not the gate)")
+
     # 5. Dated analyst rating actions → the real PT drift chart
     actions = [
         ("2026-01-22", "Ashfield Research",  "Buy",  37.00, 39.00, "Raises"),
