@@ -331,27 +331,56 @@ def seed():
     # 4. Consensus — a WORKED book: every covering analyst's model is on file. The
     # "we don't guess" discipline still shows through the unscored call pillar and the
     # provenance notes; it does not need a permanently-broken consensus to make the point.
-    period = "Q2 2026E"
-    _est_by_firm = {
-        "Ashfield Research":   (0.33, 102.4, 14.2),
-        "Denby Securities":    (0.35, 103.6, 14.8),
-        "Westmark Partners":   (0.30,  99.8, 13.4),
-        "Calder & Co.":        (0.32, 101.5, 14.0),
-        "Brightwater Equity":  (0.34, 102.9, 14.5),
+    # Per-firm (EPS, Revenue $M, EBITDA $M) for EACH horizon period the Consensus
+    # Matrix shows. Quarters are quarterly-scale; FY periods are full-year — the
+    # earlier version reused the QUARTERLY estimates for FY 2026E, so the FY card
+    # showed street $102M vs $410M guidance and flagged "beat/miss bar too wide".
+    # FY 2027E is the roll-forward year: this is where street re-rates first, so an
+    # IR team needs the view before management ever guides it.
+    _est_by_period = {
+        "Q2 2026E": {
+            "Ashfield Research": (0.33, 102.4, 14.2), "Denby Securities": (0.35, 103.6, 14.8),
+            "Westmark Partners": (0.30,  99.8, 13.4), "Calder & Co.":     (0.32, 101.5, 14.0),
+            "Brightwater Equity": (0.34, 102.9, 14.5),
+        },
+        "Q3 2026E": {
+            "Ashfield Research": (0.35, 104.6, 14.6), "Denby Securities": (0.37, 105.8, 15.1),
+            "Westmark Partners": (0.32, 102.0, 13.8), "Calder & Co.":     (0.34, 103.8, 14.3),
+            "Brightwater Equity": (0.36, 105.1, 14.9),
+        },
+        "FY 2026E": {
+            "Ashfield Research": (1.30, 411.0, 57.5), "Denby Securities": (1.35, 415.0, 59.2),
+            "Westmark Partners": (1.26, 406.0, 55.8), "Calder & Co.":     (1.31, 412.0, 57.9),
+            "Brightwater Equity": (1.33, 414.0, 58.6),
+        },
+        "FY 2027E": {
+            "Ashfield Research": (1.52, 458.0, 66.0), "Denby Securities": (1.60, 468.0, 68.5),
+            "Westmark Partners": (1.46, 450.0, 63.5), "Calder & Co.":     (1.54, 461.0, 66.4),
+            "Brightwater Equity": (1.58, 465.0, 67.6),
+        },
     }
-    ests = {}
-    for a in RECORD["analysts"]:
-        eps, rev, ebitda = _est_by_firm[a["firm"]]
-        ests[a["firm"]] = {
-            "Rating": a["rating"] or "Buy", "Price Target": a["pt"] or 5.25,
-            "EPS Est": eps, "Revenue Est ($M)": rev, "EBITDA Est ($M)": ebitda,
-        }
-    db.save_json("period_estimates.json", {period: ests, "FY 2026E": ests}, client_id=CID)
+
+    def _ests_for(table):
+        out = {}
+        for a in RECORD["analysts"]:
+            eps, rev, ebitda = table[a["firm"]]
+            out[a["firm"]] = {
+                "Rating": a["rating"] or "Buy", "Price Target": a["pt"] or 42.0,
+                "EPS Est": eps, "Revenue Est ($M)": rev, "EBITDA Est ($M)": ebitda,
+            }
+        return out
+
+    db.save_json("period_estimates.json",
+                 {p: _ests_for(t) for p, t in _est_by_period.items()}, client_id=CID)
     db.save_json("period_guidance.json", {
-        period: {"Revenue Est ($M)": 100.0, "EPS Est": 0.32, "EBITDA Est ($M)": 13.8},
+        "Q2 2026E": {"Revenue Est ($M)": 100.0, "EPS Est": 0.32, "EBITDA Est ($M)": 13.8},
+        "Q3 2026E": {"Revenue Est ($M)": 103.0, "EPS Est": 0.34, "EBITDA Est ($M)": 14.2},
         "FY 2026E": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
+        # FY 2027E: a preliminary long-term framework — low-teens growth off FY26 —
+        # so the roll-forward card renders "in line" rather than blank.
+        "FY 2027E": {"Revenue Est ($M)": 460.0, "EPS Est": 1.52, "EBITDA Est ($M)": 66.0},
     }, client_id=CID)
-    print("[demo] seeded consensus + guidance (3 of 5 models on file)")
+    print("[demo] seeded consensus + guidance across 4 horizon periods (Q2, Q3, FY26, FY27) — full book")
 
     # 5. Dated analyst rating actions → the real PT drift chart
     actions = [
