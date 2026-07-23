@@ -855,6 +855,35 @@ def _open_shortlist_outreach(entry, contact, on_invited):
     dlg.open()
 
 
+def _slot_time(slot_index):
+    """Clock time for the Nth slot of a day — 90-min cadence from 9:00 AM (matches the Plan New NDR
+    grid). Slot 0 → 9:00 AM, slot 1 → 10:30 AM, …"""
+    total = slot_index * 90
+    hr, mn = 9 + total // 60, total % 60
+    hr12 = hr if hr <= 12 else hr - 12
+    return f"{hr12 or 12}:{mn:02d} {'AM' if hr < 12 else 'PM'}"
+
+
+def _ndr_capacity(trip):
+    return int(trip.get("days") or 2), int(trip.get("slots_per_day") or 6)
+
+
+def _next_open_slot(trip):
+    """(day, slot_index) of the next free slot in the trip's day×slots grid, filling days in order.
+    Counts existing meetings per day (works for legacy trips with no slot_index). (None, None) = full."""
+    days, per = _ndr_capacity(trip)
+    count = {}
+    for m in trip.get("meetings", []):
+        if m.get("type") == "break":
+            continue
+        d = m.get("day") or 1
+        count[d] = count.get(d, 0) + 1
+    for d in range(1, days + 1):
+        if count.get(d, 0) < per:
+            return d, count.get(d, 0)
+    return None, None
+
+
 def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
@@ -3054,6 +3083,49 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                 contact = get_institution_contacts().get(entry.get("institution", ""), {})
                 _open_shortlist_outreach(entry, contact, lambda: _sl_set(ti, si, "invited"))
 
+            # Confirm → move the target out of the pipeline and into the schedule at the next open
+            # slot (NDR pipeline Phase 3). This is the "slot on confirmation" rule: only confirmed
+            # targets take calendar capacity; declines never do.
+            def _sl_confirm_and_slot(ti, si):
+                trips_ = _load_json("ndr_trips.json", [])
+                try:
+                    trip_ = trips_[ti]
+                    entry = trip_["shortlist"][si]
+                except (IndexError, KeyError):
+                    _active_ndrs_panel.refresh(); return
+                day, slot = _next_open_slot(trip_)
+                if day is None:
+                    ui.notify("This NDR's slots are full — raise its days or meetings/day to schedule more.",
+                              type="warning")
+                    return
+                trip_.setdefault("meetings", []).append({
+                    "institution": entry.get("institution"), "day": day, "slot_index": slot,
+                    "time": _slot_time(slot), "type": "1x1", "format": "In-person", "status": "scheduled",
+                    "notes": entry.get("peers", ""), "non_holder": True, "score": entry.get("conviction"),
+                    "contact": "", "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "source": entry.get("source", "outbound"),
+                })
+                del trip_["shortlist"][si]
+                _save_json("ndr_trips.json", trips_)
+                try:
+                    from core import activity_log
+                    activity_log.log_event("ndr_confirmed", entity=entry.get("institution", ""),
+                                           launched_from=f"NDR · {trip_.get('name', '')}")
+                except Exception:
+                    pass
+                ui.notify(f"{pretty_name(entry.get('institution', ''))} confirmed → Day {day} · {_slot_time(slot)}.",
+                          type="positive")
+                _active_ndrs_panel.refresh()
+
+            def _set_capacity(ti, field, value):
+                # Persist silently (no refresh) so the number input keeps focus while you type.
+                trips_ = _load_json("ndr_trips.json", [])
+                try:
+                    trips_[ti][field] = max(1, int(value or 1))
+                except (IndexError, ValueError, TypeError):
+                    return
+                _save_json("ndr_trips.json", trips_)
+
             for idx, trip in enumerate(trips):
                 all_meetings = trip.get("meetings", [])
                 real_meetings = [m for m in all_meetings if m.get("type") != "break"]
@@ -3081,6 +3153,20 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
 
                             ui.select(["Planning", "In Progress", "Completed"], value=trip_status,
                                       on_change=set_trip_status).props("dense outlined").classes("min-w-[130px]")
+
+                    # Capacity grid (NDR pipeline Phase 3) — days × meetings/day. Confirmed targets
+                    # fill it in order. Editable inline; persists silently to keep input focus.
+                    _cap_d, _cap_p = _ndr_capacity(trip)
+                    _filled = len([m for m in all_meetings if m.get("type") != "break"])
+                    with ui.row().classes("w-full items-center gap-2").style("margin-top:4px;"):
+                        ui.label("Capacity").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.number(value=_cap_d, min=1, max=10,
+                                  on_change=lambda e, ti=idx: _set_capacity(ti, "days", e.value)).props("dense outlined").style("width:66px;").tooltip("Days")
+                        ui.label("days ×").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.number(value=_cap_p, min=1, max=12,
+                                  on_change=lambda e, ti=idx: _set_capacity(ti, "slots_per_day", e.value)).props("dense outlined").style("width:66px;").tooltip("Meetings per day")
+                        ui.label(f"/day  ·  {_filled} of {_cap_d * _cap_p} slots filled").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
 
                     # NDR pipeline (Phase 2) — shortlisted → invited → confirmed → declined.
                     # Held in trip['shortlist'], separate from the slot schedule below (Phase 3
@@ -3117,12 +3203,14 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                                                   on_click=lambda ti=idx, si=si, e=s: _sl_contact(ti, si, e)).props("flat dense size=sm color=primary")
                                         ui.button("Decline", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "declined")).props("flat dense size=sm")
                                     elif st == "invited":
-                                        ui.button("Confirm", icon="check",
-                                                  on_click=lambda ti=idx, si=si: _sl_set(ti, si, "confirmed")).props("flat dense size=sm color=positive")
+                                        ui.button("Confirm & slot", icon="event_available",
+                                                  on_click=lambda ti=idx, si=si: _sl_confirm_and_slot(ti, si)).props("flat dense size=sm color=positive")
                                         ui.button("Re-contact", on_click=lambda ti=idx, si=si, e=s: _sl_contact(ti, si, e)).props("flat dense size=sm")
                                         ui.button("Decline", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "declined")).props("flat dense size=sm")
                                     elif st == "confirmed":
-                                        ui.label("→ slots in Phase 3").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                                        # Legacy Phase-2 confirmed (still in the pipeline) — slot it now.
+                                        ui.button("Slot now", icon="event_available",
+                                                  on_click=lambda ti=idx, si=si: _sl_confirm_and_slot(ti, si)).props("flat dense size=sm color=positive")
                                         ui.button("Undo", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "invited")).props("flat dense size=sm")
                                     elif st == "declined":
                                         ui.button("Restore", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "shortlisted")).props("flat dense size=sm")
