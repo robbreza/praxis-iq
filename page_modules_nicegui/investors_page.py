@@ -820,6 +820,22 @@ def _shortlist_record(c):
     }
 
 
+def _shortlist_from_inst(inst):
+    """Shortlist record from a scored Buy-Side institution (different shape than a peer-prospect
+    candidate). Lets the Buy-Side list feed the same NDR pipeline (Phase 4B)."""
+    from datetime import datetime as _dt
+    peers = inst.get("Peer_Holdings") or []
+    return {
+        "institution": inst.get("Fund"),
+        "city": inst.get("City"), "state": None, "metro": inst.get("Metro"),
+        "conviction": inst.get("Engagement_Score"),
+        "peers": ", ".join(peers) if peers else "",
+        "bucket": "Holder" if inst.get("USIO_Holder") else "Tracked",
+        "status": "shortlisted", "source": "outbound",
+        "added_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+
 def _open_shortlist_outreach(entry, contact, on_invited):
     """NDR pipeline Phase 2 — the 'Contact' draft. Opens a pre-filled outreach email the user
     SENDS themselves (never auto-sent), and a button to mark the target Invited + log it. If no
@@ -2198,11 +2214,63 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     ui.markdown("---")
     banner_container = ui.column().classes("w-full")
     ui.label("Full Institution List").classes("font-bold")
+
+    # ── Add-to-NDR bar (NDR pipeline Phase 4B) — the Buy-Side list feeds the same
+    # pipeline as Peer Prospects. Filter to the set you want (metro, holder, score),
+    # tick institutions, and shortlist them onto an NDR.
+    bs_checks = {}
+    _bs_open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+    _bs_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _bs_open}
+    _bs_opts["__new__"] = "＋ New NDR…"
+    with ui.row().classes("w-full items-end gap-2").style(
+            f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin:6px 0;"):
+        ui.label("Tick institutions below, then add them to an NDR as shortlisted targets.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+        _bs_sel = ui.select(_bs_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+        _bs_name = ui.input("New NDR name", value="Buy-Side NDR").props("dense outlined").style("min-width:150px;")
+        _bs_name.bind_visibility_from(_bs_sel, "value", backward=lambda v: v == "__new__")
+
+        def _bs_add():
+            picked = [(f, inst) for f, (cb, inst) in bs_checks.items() if cb.value]
+            if not picked:
+                ui.notify("Tick at least one institution first.", type="warning"); return
+            trips2 = _load_json("ndr_trips.json", [])
+            if _bs_sel.value == "__new__":
+                nm = (_bs_name.value or "").strip()
+                if not nm:
+                    ui.notify("Name the new NDR.", type="warning"); return
+                trips2.append({
+                    "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                    "city": "Multiple", "focus": "", "team": [], "notes": "", "meetings": [],
+                    "shortlist": [], "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
+                    "created": datetime.now().strftime("%Y-%m-%d"),
+                })
+                target, tname = trips2[-1], nm
+            else:
+                target = trips2[int(_bs_sel.value)]
+                tname = target.get("name") or "NDR"
+            target.setdefault("shortlist", [])
+            have = {s.get("institution") for s in target["shortlist"]} | \
+                   {m.get("institution") for m in target.get("meetings", [])}
+            added = 0
+            for f, inst in picked:
+                if f in have:
+                    continue
+                target["shortlist"].append(_shortlist_from_inst(inst))
+                have.add(f); added += 1
+            _save_json("ndr_trips.json", trips2)
+            skipped = len(picked) - added
+            ui.notify(f"Shortlisted {added} to '{tname}'"
+                      + (f" · {skipped} already on it" if skipped else "")
+                      + ". See NDR Planner → Active NDRs.", type="positive")
+        ui.button("Add selected", icon="playlist_add", on_click=_bs_add).props("dense color=primary")
+
     list_container = ui.column().classes("w-full gap-3")
 
     def apply_and_render():
         banner_container.clear()
         list_container.clear()
+        bs_checks.clear()
         sel_tiers = tier_filter.value or [1, 2, 3]
         sel_turnover = turnover_filter.value or turnover_options
         filtered = [i for i in institutions
@@ -2226,7 +2294,13 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             if not filtered:
                 ui.label("No institutions match these filters.").style(f"color:{COLORS['text_muted']};")
             for inst in filtered:
-                _institution_card(inst, meeting_log, contacts)
+                # Checkbox lives OUTSIDE the card (no change to _institution_card), so ticking a
+                # fund registers it for the Add-to-NDR bar above.
+                with ui.row().classes("w-full items-start no-wrap gap-2"):
+                    bs_checks[inst["Fund"]] = (
+                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
+                    with ui.column().classes("flex-1").style("min-width:0;"):
+                        _institution_card(inst, meeting_log, contacts)
 
     filter_btn.on_click(apply_and_render)
     apply_and_render()
@@ -2364,8 +2438,17 @@ def _institution_card(inst, meeting_log, contacts):
         # the original hand-typed seed guess — that ticker hasn't been
         # 13F-refreshed yet (SEC Intelligence tab's "Refresh 13F
         # Institutional Holders" button).
-        _peer_src = inst.get("Peer_Holdings_Source", {})
-        _peer_labels = [t + (" " if _peer_src.get(t) == "live" else "") for t in inst["Peer_Holdings"]]
+        # Defensive: several record shapes feed this list; Peer_Holdings_Source is a
+        # {ticker: "live"} dict for enriched 13F holders but can be a bare string (or
+        # missing) on SEC/peer-prospect records, and Peer_Holdings can be a str — either
+        # of which used to crash the whole Buy-Side tab here.
+        _peer_src = inst.get("Peer_Holdings_Source") or {}
+        if not isinstance(_peer_src, dict):
+            _peer_src = {}
+        _peers = inst.get("Peer_Holdings") or []
+        if isinstance(_peers, str):
+            _peers = [_peers]
+        _peer_labels = [t + (" " if _peer_src.get(t) == "live" else "") for t in _peers]
         ui.label(f"Peers held: {', '.join(_peer_labels) or '—'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
         ui.label(f"Action: {inst['Action']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;")
 
