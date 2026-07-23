@@ -788,6 +788,20 @@ def _metro_from_city(city, state):
     return "Unknown (SEC)"
 
 
+def _loc_line(r):
+    """A prospect card's location, reconciled with the roadshow-metro aggregation. Shows the raw
+    'City, ST' and, when the fund clusters into a DIFFERENT metro (e.g. Greenwich, CT → New York),
+    appends that metro so the card matches the by-metro table instead of contradicting it."""
+    city, state = r.get("city"), r.get("state")
+    raw = ", ".join(x for x in [city, state] if x)
+    metro = _metro_from_city(city, state)
+    if not raw:
+        return metro or "—"
+    if metro and metro not in ("International", "Unknown (SEC)") and metro != raw:
+        return f"{raw} · {metro} metro"
+    return raw
+
+
 def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
@@ -1273,7 +1287,7 @@ def _render_curated_targets(client_id):
                             ui.label("default").style(
                                 f"color:{COLORS['text_muted']};font-size:10px;border:1px solid {COLORS['border']};"
                                 "border-radius:6px;padding:0 6px;")
-                    loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                    loc = _loc_line(r)
                     ui.label(f"{loc}  ·  metro: {metro}").style(
                         f"color:{COLORS['text_muted']};font-size:11px;")
                     if r.get("rationale"):
@@ -1364,7 +1378,7 @@ def _render_peer_prospects_tab(client_id):
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                         _nm = pretty_name(r["filer"]) + ("  ✓ promoted" if promoted else "")
                         ui.label(_nm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
-                        loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                        loc = _loc_line(r)
                         conc = f"{r['concentration']*100:.1f}% of book" if r.get("concentration") is not None else "book n/a"
                         bp = f"{r['book_positions']} positions" if r.get("book_positions") else "breadth n/a"
                         pv = f"${r['peer_value']/1e6:.1f}M position" if r.get("peer_value") else ""
@@ -1440,7 +1454,7 @@ def _render_peer_prospects_tab(client_id):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
                                 f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                            loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                            loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps}").style(
                                 f"color:{COLORS['text_muted']};font-size:11px;")
@@ -1483,7 +1497,7 @@ def _render_peer_prospects_tab(client_id):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
                                 f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                            loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                            loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             why = "wide book" if r.get("broad_book") else "index / bank AM"
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps} · {why}").style(
@@ -1519,7 +1533,7 @@ def _render_peer_prospects_tab(client_id):
                          "complete picture of who owns the peer set; not an NDR queue.").style(
                     f"color:{COLORS['text_muted']};font-size:11px;")
                 for r in sorted(_mm, key=lambda x: -(x.get("peer_value") or 0)):
-                    loc = ", ".join(x for x in [r.get("city"), r.get("state")] if x) or "—"
+                    loc = _loc_line(r)
                     comps = ", ".join(sorted(r["comps"].keys()))
                     ui.label(f"{r['filer']} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
                         f"color:{COLORS['text_muted']};font-size:11px;border-bottom:1px solid {COLORS['border']};"
