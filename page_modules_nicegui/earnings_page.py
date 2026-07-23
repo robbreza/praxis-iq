@@ -676,15 +676,20 @@ def render_earnings_page():
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
 
     if scroll_to_guidance:
-        # Scroll to the Decision Engine once the Script Generation tab paints.
-        # The engine sits far down a heavy tab that reflows as forms/charts
-        # settle, so a single scroll lands too early — this retries a handful
-        # of times so the final position sticks. No-op if the anchor is absent.
+        # Land on the Guidance & Outlook Decision Engine. It lives in the Script
+        # Canvas, which only renders under a REVIEW stage sub-tab (IR Review and
+        # later) — never under the default Stage 1 (CFO Numbers intake). So the
+        # deep-link must first activate a review stage, then scroll to the anchor.
+        # Each retry: if the anchor isn't in the DOM yet, click the "IR Review"
+        # stage tab; once it is, scroll to it. Retries a handful of times because
+        # the heavy tab reflows as forms/charts settle. No-op if neither exists.
         ui.timer(0.2, lambda: ui.run_javascript(
             "(function(){var n=0;function go(){"
             "var el=document.getElementById('guidance-engine-anchor');"
             "if(el){el.scrollIntoView({block:'start'});}"
-            "if(++n<7){setTimeout(go,450);}}setTimeout(go,250);})()"), once=True)
+            "else{var t=[].slice.call(document.querySelectorAll('[role=\"tab\"],.q-tab'))"
+            ".find(function(x){return /IR Review/i.test(x.textContent);});if(t){t.click();}}"
+            "if(++n<9){setTimeout(go,450);}}setTimeout(go,250);})()"), once=True)
 
     lazy_panels = {
         t1.props["name"]: (p1, _render_lookback_tab),

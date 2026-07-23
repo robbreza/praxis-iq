@@ -64,6 +64,11 @@ RECORD = {
     "sector": "Fintech / Payments",
     "market_cap_m": 920,
     "ev_m": 975,
+    # Curated Q2 street consensus ($M) — the beat/miss calc in the Guidance
+    # Decision Engine compares Q2 actual ($102.5M) against this. Without it the
+    # engine falls back to an unverified live value (None) and shows the Q2
+    # actual as the entire "beat vs street".
+    "q2_consensus_rev": 102.0,
     "last_price": PRICE,
     "price_date": TODAY.strftime("%b %d, %Y"),
     "fy_guidance": "9-12% revenue growth",
@@ -110,6 +115,17 @@ RECORD = {
     "financials": {"last_quarter": "Q1 2026", "last_rev": 98.5, "last_eps": 0.29,
                    "last_ebitda": 13.5, "last_rev_yoy": 11.0},
     "guidance": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
+    # Guidance-policy inputs for the seasonality-adjusted Decision Engine
+    # (core.guidance_engine.seasonal_read). Without these every figure in the
+    # engine reads $0.0M. Prior FY2025 quarters sum to $369M; a 10-12% range
+    # implies an FY2026 midpoint of ~$410M — matching the guide above. Weights
+    # are payments-seasonal (Q4 heaviest) and sum to 1.0.
+    "guidance_policy": {
+        "prior_fy_label": "FY2025",
+        "prior_fy_quarterly_revenue": {"Q1": 86.0, "Q2": 90.0, "Q3": 92.0, "Q4": 101.0},
+        "seasonal_weights": {"Q1": 0.233, "Q2": 0.244, "Q3": 0.249, "Q4": 0.274},
+        "fy_growth_low": 0.10, "fy_growth_high": 0.12,
+    },
 }
 
 # ── Holders and peer-owners ──────────────────────────────────────────────────
@@ -421,15 +437,33 @@ def seed():
     ], client_id=CID)
     print(f"[demo] seeded {len(actions)} dated rating actions")
 
-    # 6. Earnings script workflow — mid-flight, so readiness shows a real mix
-    db.save_json("script_workflow_state.json", {"stages": {
-        "cfo_numbers":   {"status": "complete", "completed_at": (TODAY - timedelta(days=6)).strftime("%Y-%m-%d %H:%M"), "notes": ""},
-        "ir_review":     {"status": "complete", "completed_at": (TODAY - timedelta(days=3)).strftime("%Y-%m-%d %H:%M"), "notes": ""},
-        "exec_review":   {"status": "active",   "completed_at": None, "notes": ""},
-        "consolidate":   {"status": "pending",  "completed_at": None, "notes": ""},
-        "legal_signoff": {"status": "pending",  "completed_at": None, "notes": ""},
-    }}, client_id=CID)
-    print("[demo] seeded script workflow (2 of 5 stages complete)")
+    # 6. Earnings script workflow — mid-flight, so readiness shows a real mix.
+    # q2_numbers holds the just-closed Q2 actuals the CFO entered at Stage 1; the
+    # Guidance Decision Engine reads rev from here (YTD = Q1 actual + Q2). A Q2 of
+    # $102.5M beats the $100M guide and the $102M street, and with YTD running
+    # ~1.4pp above seasonal pace the engine lands on "RAISE LOW END" — a clean,
+    # positive story. Detail lines sum to revenue so the Stage-1 form reads real.
+    db.save_json("script_workflow_state.json", {
+        "version": 1,
+        "current_stage": "exec_review",
+        "q2_numbers": {
+            "rev": 102.5, "ach": 41.0, "card": 44.5, "prepaid": 11.0, "output": 6.0,
+            "gp": 24.6, "gm": 24.0, "ebitda": 14.5, "eps": 0.34, "sga": 18.4,
+            "vol": 8.9, "vol_yoy": 12.0, "txn": 118.0, "cash": 42.0, "buyback": 0.0,
+            "what_new": "Q2 closed at $102.5M, ahead of the $100M guide and $102M Street. "
+                        "PayFac attach and Prepaid float drove the beat; margin held at 24%.",
+            "submitted_by": "Priya Raman (CFO)",
+            "submitted_at": (TODAY - timedelta(days=6)).strftime("%Y-%m-%d %H:%M"),
+        },
+        "stages": {
+            "cfo_numbers":   {"status": "complete", "completed_at": (TODAY - timedelta(days=6)).strftime("%Y-%m-%d %H:%M"), "notes": ""},
+            "ir_review":     {"status": "complete", "completed_at": (TODAY - timedelta(days=3)).strftime("%Y-%m-%d %H:%M"), "notes": ""},
+            "exec_review":   {"status": "active",   "completed_at": None, "notes": ""},
+            "consolidate":   {"status": "pending",  "completed_at": None, "notes": ""},
+            "legal_signoff": {"status": "pending",  "completed_at": None, "notes": ""},
+        },
+    }, client_id=CID)
+    print("[demo] seeded script workflow (2 of 5 stages complete, Q2 actuals in -> engine computes)")
 
     # 7. Form 4 insider activity — a real capability (SEC EDGAR), so it may be shown.
     ins = [
