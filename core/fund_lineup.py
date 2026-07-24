@@ -32,8 +32,11 @@ from core import db, sec_filings as sf
 
 _MF_INDEX_KEY = "sec_fund_mf_index"          # ticker/series universe, one small SEC file
 _ROSTER_KEY = "sec_fund_roster_"             # + registrant CIK
+_REG_NORMS_KEY = "sec_fund_registrant_norms"  # norm(name) -> [ciks] for fund registrants
+_CROSSWALK_KEY = "sec_fund_crosswalk"        # auto/confirmed adviser -> registrant links
 _MF_TTL = timedelta(days=30)
 _ROSTER_TTL = timedelta(days=30)
+_REG_NORMS_TTL = timedelta(days=30)
 
 # Forms whose SGML header enumerates ALL of a registrant's series at once.
 _ROSTER_FORMS = ("N-CEN", "485BPOS", "485APOS", "497")
@@ -174,15 +177,143 @@ def series_roster(registrant_cik, force=False):
     return result
 
 
+def _crosswalk():
+    """Persisted adviser->registrant links (auto-bootstrapped + user-confirmed),
+    keyed by _norm(name): {"cik", "registrant", "confidence", "confirmed"}."""
+    return db.load_json(_CROSSWALK_KEY, default={}) or {}
+
+
+def _registrant_cik(manager_name):
+    """Resolve a manager name to a fund-registrant CIK: hardcoded seed first, then
+    the persisted crosswalk (a high-confidence auto-match or a confirmed one).
+    Ambiguous matches awaiting confirmation are NOT used. Returns None if unmapped."""
+    nk = _norm(manager_name)
+    if nk in _MANAGER_REGISTRANT:
+        return _MANAGER_REGISTRANT[nk]
+    e = _crosswalk().get(nk)
+    if e and (e.get("confirmed") or e.get("confidence") == "high"):
+        return e.get("cik")
+    return None
+
+
 def lineup_for_manager(manager_name):
     """The fund lineup for a 13F manager name, or None if we can't confidently map
     it to a registered fund family. Never guesses — an unmapped name returns None."""
-    cik = _MANAGER_REGISTRANT.get(_norm(manager_name))
+    cik = _registrant_cik(manager_name)
     if not cik:
         return None
     return series_roster(cik)
 
 
 def has_lineup(manager_name):
-    """Cheap check (no network) for whether a manager is in the crosswalk."""
-    return _norm(manager_name) in _MANAGER_REGISTRANT
+    """Cheap check (no network) for whether a manager resolves to a fund family."""
+    return _registrant_cik(manager_name) is not None
+
+
+# ── Auto-bootstrap: match managers in a book against the SEC fund-registrant universe ──
+def _fund_registrant_norms():
+    """{norm(name): [cik,...]} over every SEC investment-company registrant (the CIKs
+    that appear in the mutual-fund ticker file). Built once from the EDGAR CIK->name
+    dump, filtered to fund registrants, cached 30 days. This is what lets us match a
+    13F adviser name to the trust that files the fund lineup."""
+    cached = db.load_json(_REG_NORMS_KEY, default=None)
+    if cached and not sf._is_stale(cached.get("_fetched_at"), _REG_NORMS_TTL):
+        return {k: v for k, v in cached.items() if k != "_fetched_at"}
+    fund_ciks = set(_mf_index().keys())
+    if not fund_ciks:
+        return {k: v for k, v in (cached or {}).items() if k != "_fetched_at"}
+    try:
+        # NAME:CIK: per line, uppercase. One ~40MB download; parsed line by line.
+        txt = sf._get("https://www.sec.gov/Archives/edgar/cik-lookup-data.txt", timeout=60).text
+    except Exception:
+        return {k: v for k, v in (cached or {}).items() if k != "_fetched_at"}
+    norms = {}
+    for line in txt.splitlines():
+        # lines look like "HEARTLAND GROUP INC:0000809586:"
+        m = re.match(r"^(.*):(\d+):\s*$", line)
+        if not m:
+            continue
+        cik = int(m.group(2))
+        if cik not in fund_ciks:
+            continue
+        nk = _norm(m.group(1))
+        if not nk:
+            continue
+        norms.setdefault(nk, [])
+        if cik not in norms[nk]:
+            norms[nk].append(cik)
+    store = dict(norms)
+    store["_fetched_at"] = _iso_now()
+    try:
+        db.save_json(_REG_NORMS_KEY, store)
+    except Exception:
+        pass
+    return norms
+
+
+def _name_agrees(manager_norm, registrant_name):
+    """True if the manager's normalized name still lines up with the registrant's
+    CURRENT name — same token, or one is a token-subset of the other. Rejects stale
+    EDGAR aliases (a match on a former name that no longer describes the family)."""
+    rn = _norm(registrant_name)
+    if not rn or not manager_norm:
+        return False
+    if rn == manager_norm:
+        return True
+    mt, rt = set(manager_norm.split()), set(rn.split())
+    return mt.issubset(rt) or rt.issubset(mt)
+
+
+def bootstrap_crosswalk(manager_names, persist=True):
+    """Match each manager name against the fund-registrant universe by normalized
+    name. A unique match is auto-filled as high-confidence; multiple matches (a
+    mega-complex with many trusts, or a genuine name collision) are flagged for the
+    user to confirm; no match means no registered fund family (a hedge fund/SMA).
+
+    Returns {"high": {norm: {...}}, "review": {norm: {...}}, "unmatched": [names]}.
+    Persists the high-confidence links (and the review candidates, unconfirmed) to
+    the crosswalk store when persist=True."""
+    norms = _fund_registrant_norms()
+    high, review, unmatched, seen = {}, {}, [], set()
+    for name in manager_names:
+        nk = _norm(name)
+        if not nk or nk in seen or nk in _MANAGER_REGISTRANT:
+            continue
+        seen.add(nk)
+        ciks = norms.get(nk, [])
+        if len(ciks) == 1:
+            # Precision guard: EDGAR's CIK dump carries old name aliases, so a unique
+            # match can be a stale collision (adviser "Potomac Capital Management" hits
+            # CIK for the fund family FORMERLY named "Potomac Funds", now Direxion).
+            # Validate against the registrant's CURRENT name and require a live lineup;
+            # a mismatch is demoted to review rather than shown as fact.
+            roster = series_roster(ciks[0])
+            if roster and roster.get("funds") and _name_agrees(nk, roster.get("registrant")):
+                high[nk] = {"cik": ciks[0], "manager": name, "registrant": roster.get("registrant"),
+                            "confidence": "high", "confirmed": False}
+            else:
+                review[nk] = {"ciks": ciks, "manager": name, "confidence": "review",
+                              "confirmed": False,
+                              "note": "current registrant name doesn't match — likely a stale EDGAR alias"}
+        elif len(ciks) > 1:
+            review[nk] = {"ciks": ciks, "manager": name, "confidence": "review", "confirmed": False}
+        else:
+            unmatched.append(name)
+    if persist:
+        cw = _crosswalk()
+        for nk, e in high.items():
+            prev = cw.get(nk)
+            if prev and prev.get("confirmed"):      # never clobber a user confirmation
+                continue
+            cw[nk] = {"cik": e["cik"], "registrant": None, "confidence": "high",
+                      "confirmed": False, "manager": e["manager"], "added_at": _iso_now()}
+        for nk, e in review.items():
+            if nk in cw and cw[nk].get("confirmed"):
+                continue
+            cw.setdefault(nk, {"ciks": e["ciks"], "confidence": "review", "confirmed": False,
+                               "manager": e["manager"], "added_at": _iso_now()})
+        try:
+            db.save_json(_CROSSWALK_KEY, cw)
+        except Exception:
+            pass
+    return {"high": high, "review": review, "unmatched": unmatched}
