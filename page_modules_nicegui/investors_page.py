@@ -874,6 +874,13 @@ def _open_metro_select_dialog(metro, funds):
                   for k in d_rows[0].keys() if k != "_filer"]
         tbl = ui.table(columns=d_cols, rows=d_rows, row_key="_filer",
                        selection="multiple").classes("w-full").props("dense flat")
+        _header_tooltips(tbl, {
+            "Fund": "The fund / manager (tick to add to an NDR)",
+            "City": "Fund HQ city",
+            "Bucket": "Ownership bucket (Institutional / RIA / Diversified / Market maker / Curated)",
+            "Conviction": "Prospect conviction, 0-100 — position weight, tight-comp focus, active vs. index, size fit",
+            "Peers held": f"Which of {CT('ticker')}'s comps this fund owns",
+        })
 
         def _do_add():
             sel = tbl.selected
@@ -1753,6 +1760,20 @@ def _render_mode_description(mode):
 # ─────────────────────────────────────────────────────────────────────────
 # Big Picture synthesis
 # ─────────────────────────────────────────────────────────────────────────
+def _header_tooltips(table, tips):
+    """Hover-explain column HEADINGS: adds a per-cell header slot (leaves any selection
+    checkbox column intact, unlike a full header slot) with a q-tooltip and a help
+    cursor. `tips` maps column name -> tooltip text. Reusable across any ui.table."""
+    for name, text in tips.items():
+        safe = (text or "").replace("<", "&lt;").replace(">", "&gt;")
+        table.add_slot(f"header-cell-{name}", (
+            '<q-th :props="props" class="cursor-help">'
+            '{{ props.col.label }}'
+            '<q-tooltip>' + safe + '</q-tooltip>'
+            '</q-th>'))
+    return table
+
+
 def _card_rec(inst):
     """Adapt a Buy-Side institution dict into the shape the 360 profile reads (its comps
     come from Peer_Holdings; carry city/cik through)."""
@@ -2469,6 +2490,14 @@ def _render_big_picture(institutions):
                 _extra = {"selection": "multiple"} if is_peer else {}
                 tbl = ui.table(columns=dcols, rows=d_rows, row_key=("_filer" if is_peer else "Fund"),
                                pagination=25, **_extra).classes("w-full").props("dense flat")   # 25 per page
+                _header_tooltips(tbl, {
+                    "Fund": "The fund / manager — click the name for its Account 360",
+                    "City": "Fund HQ city",
+                    "Category": "Ownership bucket / holder status",
+                    "Score": "Conviction (peer-owners) or engagement score (holders), 0-100",
+                    "Detail": f"Which of {CT('ticker')}'s comps they own, or their signal",
+                    "Funds": "The manager's individual '40-Act funds, from its latest SEC N-CEN/485 filing",
+                })
                 # Fund name → Account 360 profile. @click.stop so it doesn't toggle the row checkbox.
                 _orig_by_fund = {pretty_name(it.get("filer") or it.get("Fund") or ""): it for it in items}
                 tbl.add_slot("body-cell-Fund", (
@@ -2734,6 +2763,15 @@ def _render_accounts_tab(client_id, institutions=None):
                 for k in ("Name", "Segment", "Tier", "Quality", "Touches", "Last contact", "Cadence")]
         tbl = ui.table(columns=cols, rows=rows, row_key="Name", pagination=25).classes(
             "w-full cursor-pointer").props("dense flat")
+        _header_tooltips(tbl, {
+            "Name": "The firm — click for its Account 360",
+            "Segment": "Holder (owns you) · Peer-owner (owns a comp, not you) · — (your own note)",
+            "Tier": "Peer-owner bucket (Institutional / RIA / Diversified / Market maker / Curated)",
+            "Quality": "Your relationship read — good to deal with, responsive, neutral, hard to reach, low-touch",
+            "Touches": "Interactions logged (calls, meetings, NDR touches) — computed, not typed",
+            "Last contact": "Most recent interaction date — computed from the event log",
+            "Cadence": "Active ≤30d · Cooling ≤90d · Gone quiet >90d · No contact",
+        })
         tbl.add_slot("body-cell-Name", (
             '<q-td :props="props"><span class="cursor-pointer" '
             f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
