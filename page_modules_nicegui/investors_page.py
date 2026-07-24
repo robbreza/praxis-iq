@@ -2565,6 +2565,30 @@ def _acct_cadence(last_contact):
     return "Active" if n <= 30 else "Cooling" if n <= 90 else "Gone quiet"
 
 
+def _size_calibration_note(client_id):
+    """Onboarding-critical: show the market-cap size tier the whole peer/CRM book is
+    calibrated to — and warn loudly if no market cap is on record (which silently
+    defaults to the strictest micro-cap targeting, wrong for a mid/large issuer)."""
+    from core import peer_prospects
+    p = peer_prospects.size_profile(client_id)
+    mc = p.get("market_cap_m") or 0
+    cap_str = (f"${mc/1000:.1f}B" if mc >= 1000 else f"${mc:,.0f}M") if mc else "—"
+    tier = p["tier"]
+    div = ("large diversified / bank-AM houses are PRIMARY targets"
+           if p["diversified_are_targets"] else
+           "large diversified / index houses are a review bucket, not primary targets")
+    if not p.get("has_market_cap"):
+        ui.label(f"⚠ No market cap on record for {CT('name')} — peer targeting is defaulting to the strictest "
+                 "micro-cap profile. Set the market cap at onboarding so the book is calibrated to the issuer's size.").style(
+            f"background:#FBEFE1;color:{COLORS['warning']};border:1px solid {COLORS['warning']};"
+            "border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;margin:6px 0;")
+        return
+    ui.label(f"Sized as a {tier}-cap issuer ({cap_str}) — peer targeting is calibrated to this: {div}. "
+             "Set at onboarding; a different size (e.g. a mid-cap like SARO) reshapes the whole book.").style(
+        f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};border-radius:8px;"
+        "padding:6px 10px;font-size:12px;margin:6px 0;")
+
+
 def _render_accounts_tab(client_id, institutions=None):
     from core import account_api, accounts, interactions
     ui.label("Accounts — your relationship book").classes("text-lg font-bold").style(
@@ -2572,6 +2596,7 @@ def _render_accounts_tab(client_id, institutions=None):
     ui.label(f"Your {CT('ticker')} holders and every firm you've noted or logged an interaction with. Quality and "
              "notes are yours; touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
+    _size_calibration_note(client_id)
 
     # Start from the CRM book (noted/logged/seeded), then fold in the current holder book
     # and the peer-owner universe so your whole investable relationship set is in the CRM

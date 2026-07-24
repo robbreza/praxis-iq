@@ -260,10 +260,10 @@ def size_profile(cid=None):
         if cap is None or mcap < cap:
             return {"tier": tier, "market_cap_m": mcap, "breadth_max": breadth_max,
                     "diversified_are_targets": div_targets, "breadth_bands": bands,
-                    "prefer_small_books": prefer_small}
+                    "prefer_small_books": prefer_small, "has_market_cap": mcap > 0}
     return {"tier": "micro", "market_cap_m": mcap, "breadth_max": 600,
             "diversified_are_targets": False, "breadth_bands": (60, 150, 300),
-            "prefer_small_books": True}
+            "prefer_small_books": True, "has_market_cap": mcap > 0}
 
 
 def _score(r, size_rank, profile=None):
