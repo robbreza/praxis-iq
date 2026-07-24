@@ -42,6 +42,21 @@ _ROSTER_SCHEMA = 2                            # bump to invalidate cached roster
 # Forms whose SGML header enumerates ALL of a registrant's series at once.
 _ROSTER_FORMS = ("N-CEN", "485BPOS", "485APOS", "497")
 
+# Everything here is SHARED across tenants — SEC reference data (MF index, rosters,
+# registrant names) is client-independent, and the manager->fund-family crosswalk is a
+# house book that accretes as any client is scanned (a Gabelli match confirmed for one
+# issuer helps every issuer). Stored under the reserved global client id (same
+# convention core.curated_targets uses for its global house book).
+_GLOBAL = "_global"
+
+
+def _gload(key, default=None):
+    return db.load_json(key, default=default, client_id=_GLOBAL)
+
+
+def _gsave(key, data):
+    db.save_json(key, data, client_id=_GLOBAL)
+
 
 def _norm(name):
     """Loose match key: lowercase, drop punctuation and the common adviser/entity
@@ -69,7 +84,7 @@ _MANAGER_REGISTRANT = {
 def _mf_index():
     """{registrant_cik(int): {"series": set(seriesId), "classes": int,
     "tickers": [symbol,...]}} from company_tickers_mf.json. Cached 30 days."""
-    cached = db.load_json(_MF_INDEX_KEY, default=None)
+    cached = _gload(_MF_INDEX_KEY)
     if cached and not sf._is_stale(cached.get("_fetched_at"), _MF_TTL):
         # JSON keys come back as strings — rebuild int-keyed view.
         return {int(k): v for k, v in cached.items() if k != "_fetched_at"}
@@ -89,7 +104,7 @@ def _mf_index():
                         "tickers": sorted(v["tickers"])} for cik, v in idx.items()}
     store["_fetched_at"] = sf._now_iso() if hasattr(sf, "_now_iso") else _iso_now()
     try:
-        db.save_json(_MF_INDEX_KEY, store)
+        _gsave(_MF_INDEX_KEY, store)
     except Exception:
         pass
     return {int(k): v for k, v in store.items() if k != "_fetched_at"}
@@ -138,7 +153,7 @@ def series_roster(registrant_cik, force=False):
     header. Cached 30 days. Returns None if nothing usable is on file."""
     cik = int(registrant_cik)
     ck = f"{_ROSTER_KEY}{cik}"
-    cached = db.load_json(ck, default=None)
+    cached = _gload(ck)
     # schema gate — entries cached under an older shape are refetched once so the new
     # aggregation/completeness logic actually applies.
     if (cached and not force and cached.get("schema") == _ROSTER_SCHEMA
@@ -204,7 +219,7 @@ def series_roster(registrant_cik, force=False):
         "source": source, "schema": _ROSTER_SCHEMA, "_fetched_at": _iso_now(),
     }
     try:
-        db.save_json(ck, result)
+        _gsave(ck, result)
     except Exception:
         pass
     return result
@@ -213,7 +228,7 @@ def series_roster(registrant_cik, force=False):
 def _crosswalk():
     """Persisted adviser->registrant links (auto-bootstrapped + user-confirmed),
     keyed by _norm(name): {"cik", "registrant", "confidence", "confirmed"}."""
-    return db.load_json(_CROSSWALK_KEY, default={}) or {}
+    return _gload(_CROSSWALK_KEY, {}) or {}
 
 
 def _registrant_cik(manager_name):
@@ -236,7 +251,7 @@ def _registrant_name(cik):
     if not cik:
         return None
     key = f"sec_reg_name_{int(cik)}"
-    c = db.load_json(key, default=None)
+    c = _gload(key)
     if c and c.get("name"):
         return c["name"]
     try:
@@ -245,7 +260,7 @@ def _registrant_name(cik):
     except Exception:
         return None
     try:
-        db.save_json(key, {"name": nm})
+        _gsave(key, {"name": nm})
     except Exception:
         pass
     return nm
@@ -280,7 +295,7 @@ def confirm_entry(norm, cik=None):
     e["registrant"] = _registrant_name(e.get("cik"))
     e["confirmed_at"] = _iso_now()
     cw[norm] = e
-    db.save_json(_CROSSWALK_KEY, cw)
+    _gsave(_CROSSWALK_KEY, cw)
 
 
 def reject_entry(norm):
@@ -292,7 +307,7 @@ def reject_entry(norm):
     e["confirmed"] = False
     e["rejected_at"] = _iso_now()
     cw[norm] = e
-    db.save_json(_CROSSWALK_KEY, cw)
+    _gsave(_CROSSWALK_KEY, cw)
 
 
 def restore_entry(norm):
@@ -305,7 +320,7 @@ def restore_entry(norm):
     e["confirmed"] = False
     e["rejected"] = False
     cw[norm] = e
-    db.save_json(_CROSSWALK_KEY, cw)
+    _gsave(_CROSSWALK_KEY, cw)
 
 
 def bootstrap_from_book(cid=None):
@@ -336,7 +351,7 @@ def _fund_registrant_norms():
     that appear in the mutual-fund ticker file). Built once from the EDGAR CIK->name
     dump, filtered to fund registrants, cached 30 days. This is what lets us match a
     13F adviser name to the trust that files the fund lineup."""
-    cached = db.load_json(_REG_NORMS_KEY, default=None)
+    cached = _gload(_REG_NORMS_KEY)
     if cached and not sf._is_stale(cached.get("_fetched_at"), _REG_NORMS_TTL):
         return {k: v for k, v in cached.items() if k != "_fetched_at"}
     fund_ciks = set(_mf_index().keys())
@@ -365,7 +380,7 @@ def _fund_registrant_norms():
     store = dict(norms)
     store["_fetched_at"] = _iso_now()
     try:
-        db.save_json(_REG_NORMS_KEY, store)
+        _gsave(_REG_NORMS_KEY, store)
     except Exception:
         pass
     return norms
@@ -434,7 +449,7 @@ def bootstrap_crosswalk(manager_names, persist=True):
                                "rejected": False, "manager": e["manager"],
                                "note": e.get("note"), "added_at": _iso_now()})
         try:
-            db.save_json(_CROSSWALK_KEY, cw)
+            _gsave(_CROSSWALK_KEY, cw)
         except Exception:
             pass
     return {"high": high, "review": review, "unmatched": unmatched}

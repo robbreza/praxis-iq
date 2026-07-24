@@ -2226,7 +2226,8 @@ def _render_big_picture(institutions):
         if "filer" in x:
             conv = x.get("conviction")
             peers = ", ".join(sorted((x.get("comps") or {}).keys()))
-            return {"Fund": pretty_name(x.get("filer") or "—"),
+            return {"_filer": x.get("filer"),          # row key for selection (not a column)
+                    "Fund": pretty_name(x.get("filer") or "—"),
                     "City": (x.get("city") or "—").title(),
                     "Bucket": x.get("tier") or "—",
                     "Score": round(conv) if isinstance(conv, (int, float)) else "—",
@@ -2242,12 +2243,18 @@ def _render_big_picture(institutions):
 
     _drill_dialog = ui.dialog()
 
+    # Peer-owner buckets are NDR candidates, so their drill-down is selectable → Add to NDR
+    # (same shortlist flow as the metro row-click). Holders / Tier-1 are tracked institutions,
+    # not prospecting targets, so those stay read-only.
+    _selectable_cols = {"funds", "inst", "ria", "div", "mm", "curated"}
+
     def _open_cell_drill(e):
         metro, col = e.args.get("metro"), e.args.get("col")
         items = _drill_list(metro, col)
         d_rows = [_drill_row(x) for x in items]
+        is_peer = col in _selectable_cols
         _drill_dialog.clear()
-        with _drill_dialog, ui.card().style("min-width:min(840px,95vw);max-width:95vw;"):
+        with _drill_dialog, ui.card().style("min-width:min(900px,95vw);max-width:95vw;"):
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label(f"{metro} — {_CLICKABLE.get(col, col)} · {len(d_rows)} "
                          f"name{'s' if len(d_rows) != 1 else ''}").classes("text-lg font-bold")
@@ -2256,14 +2263,69 @@ def _render_big_picture(institutions):
                 ui.label("No names behind this number.").style(f"color:{COLORS['text_muted']};")
             else:
                 _n_lineups = sum(1 for r in d_rows if r.get("Funds"))
+                # Add-to-NDR bar (restored) — only for the peer-owner buckets, which are the
+                # NDR-prospecting universe. Tick names → shortlist onto a new or existing trip.
+                trip_sel = new_name = tbl = None
+                cand_by_filer = {c.get("filer"): c for c in items} if is_peer else {}
+                if is_peer:
+                    _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+                    trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
+                    trip_opts["__new__"] = "＋ New NDR…"
+                    with ui.row().classes("w-full items-end gap-2").style(
+                            f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
+                        ui.label("Tick names, then add them to an NDR as shortlisted targets.").style(
+                            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                        trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+                        new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
+                        new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
+                        add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
                 dcols = [{"name": k, "label": ("Fund lineup (SEC)" if k == "Funds" else k),
                           "field": k, "sortable": True,
                           "align": "right" if k == "Score" else "left",
                           **({"style": "white-space:normal;min-width:230px;",
                               "headerStyle": "white-space:normal;"} if k == "Funds" else {})}
                          for k in ("Fund", "City", "Bucket", "Score", "Detail", "Funds")]
-                ui.table(columns=dcols, rows=d_rows, row_key="Fund",
-                         pagination=25).classes("w-full").props("dense flat")   # 25 per page
+                _extra = {"selection": "multiple"} if is_peer else {}
+                tbl = ui.table(columns=dcols, rows=d_rows, row_key=("_filer" if is_peer else "Fund"),
+                               pagination=25, **_extra).classes("w-full").props("dense flat")   # 25 per page
+
+                if is_peer:
+                    def _do_add():
+                        sel = tbl.selected
+                        if not sel:
+                            ui.notify("Tick at least one name first.", type="warning"); return
+                        trips2 = _load_json("ndr_trips.json", [])
+                        if trip_sel.value == "__new__":
+                            nm = (new_name.value or "").strip()
+                            if not nm:
+                                ui.notify("Name the new NDR.", type="warning"); return
+                            trips2.append({
+                                "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                                "city": metro, "focus": "", "team": [], "notes": "", "meetings": [], "shortlist": [],
+                                "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
+                                "created": datetime.now().strftime("%Y-%m-%d"),
+                            })
+                            target, tname = trips2[-1], nm
+                        else:
+                            target = trips2[int(trip_sel.value)]
+                            tname = target.get("name") or "NDR"
+                        target.setdefault("shortlist", [])
+                        have = {s.get("institution") for s in target["shortlist"]} | \
+                               {m.get("institution") for m in target.get("meetings", [])}
+                        added = 0
+                        for row in sel:
+                            c = cand_by_filer.get(row.get("_filer"))
+                            if not c or c.get("filer") in have:
+                                continue
+                            target["shortlist"].append(_shortlist_record(c))
+                            have.add(c.get("filer")); added += 1
+                        _save_json("ndr_trips.json", trips2)
+                        skipped = len(sel) - added
+                        ui.notify(f"Shortlisted {added} name(s) to '{tname}'"
+                                  + (f" · {skipped} already on it" if skipped else "")
+                                  + ". See NDR Planner → Active NDRs.", type="positive")
+                        _drill_dialog.close()
+                    add_btn.on_click(_do_add)
                 if _n_lineups:
                     ui.label(f"“Fund lineup” names the individual '40-Act funds the manager runs (from its "
                              f"latest SEC N-CEN/485 filing) — the strategy sleeve a 13F hides. Shown for "
