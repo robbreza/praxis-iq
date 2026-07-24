@@ -90,6 +90,26 @@ def save(name, cik=None, **fields):
     return e
 
 
+def get_by_key(key):
+    """Stored note for a resolved canonical key (no seed overlay — used by the account
+    API when it already holds the key)."""
+    return dict(_store().get(key, {})) if key else {}
+
+
+def save_by_key(key, **fields):
+    """Field-merge a stored note directly onto a canonical key."""
+    if not key:
+        return {}
+    s = _store()
+    e = dict(s.get(key, {}))
+    for k, v in fields.items():
+        e[k] = v
+    e["updated_at"] = datetime.now().isoformat()
+    s[key] = e
+    db.save_json(_KEY, s, client_id=_GLOBAL)
+    return e
+
+
 def _migrate_key(old_key, new_key):
     """Move a stored note from one account key to another (used when identity merges a
     house id into a CIK id). The destination wins on any field conflict."""

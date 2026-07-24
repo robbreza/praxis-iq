@@ -1754,7 +1754,7 @@ def _open_account_profile(rec):
     notes). `rec` is the original candidate/institution dict from wherever it was
     clicked. Prototype: read-rich, with an editable relationship strip that persists
     to the global house book (core.relationship_notes)."""
-    from core import fund_lineup, relationship_notes as rn
+    from core import fund_lineup, account_api
 
     name = rec.get("filer") or rec.get("Fund") or "—"
     disp = pretty_name(name)
@@ -1775,10 +1775,9 @@ def _open_account_profile(rec):
             ui.label(label).style(f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;")
             ui.label(str(value)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
 
-    from core import interactions, accounts
     acct_cik = rec.get("cik")
-    acct_key = accounts.resolve(name, cik=acct_cik, register=False)   # read-only resolve
-    note = rn.get(name, acct_cik)
+    acct = account_api.get_account(name=name, cik=acct_cik)   # one read: identity + both layers
+    note = acct["relationship"]
 
     with ui.dialog() as dlg, ui.card().style("min-width:min(680px,95vw);max-width:95vw;"):
         with ui.row().classes("w-full justify-between items-start"):
@@ -1788,7 +1787,7 @@ def _open_account_profile(rec):
             with ui.row().classes("items-center gap-2"):
                 q = note.get("quality")
                 if q:
-                    ui.label(rn.QUALITY.get(q, q)).style(
+                    ui.label(account_api.QUALITY.get(q, q)).style(
                         f"background:{COLORS['positive'] if q in ('good','responsive') else COLORS['surface_hover_bg']};"
                         f"color:{'#fff' if q in ('good','responsive') else COLORS['text_secondary']};"
                         "font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;")
@@ -1824,7 +1823,7 @@ def _open_account_profile(rec):
 
         @ui.refreshable
         def _interactions():
-            summ = interactions.summary(acct_key)
+            summ = account_api.get_account(name=name, cik=acct_cik)["interactions"]
             with ui.row().classes("items-baseline gap-4"):
                 ui.label(f"{summ['touches']} touch{'es' if summ['touches'] != 1 else ''}").style(
                     f"color:{COLORS['text_heading']};font-weight:700;font-size:13px;")
@@ -1835,7 +1834,7 @@ def _open_account_profile(rec):
                 with ui.row().classes("w-full items-baseline gap-2").style("padding:1px 0;"):
                     ui.label(e.get("date") or "—").style(
                         f"color:{COLORS['text_muted']};font-size:11px;min-width:88px;")
-                    ui.label(f"{interactions.TYPES.get(e.get('type'), e.get('type'))} — "
+                    ui.label(f"{account_api.TYPES.get(e.get('type'), e.get('type'))} — "
                              f"{e.get('summary') or ''}{src}").style(
                         f"color:{COLORS['text_secondary']};font-size:12px;")
             if not summ["events"]:
@@ -1844,31 +1843,31 @@ def _open_account_profile(rec):
         _interactions()
         # log an event → appends (never overwrites); touches/last-contact recompute
         with ui.row().classes("w-full items-end gap-2").style("margin-top:6px;"):
-            it_type = ui.select({k: v for k, v in interactions.TYPES.items()}, value="meeting",
+            it_type = ui.select({k: v for k, v in account_api.TYPES.items()}, value="meeting",
                                 label="Type").props("dense outlined").style("min-width:120px;")
             it_date = ui.input("Date", value=datetime.now().strftime("%Y-%m-%d")).props("dense outlined").style("min-width:130px;")
             it_sum = ui.input("What happened").props("dense outlined").style("flex:1;min-width:150px;")
 
             def _log_it():
-                key = accounts.resolve(name, cik=acct_cik, register=True)   # ensure account exists
-                interactions.log(key, type=it_type.value, date=(it_date.value or "").strip() or None,
-                                 summary=(it_sum.value or "").strip() or None, source="manual")
+                account_api.log_interaction(name=name, cik=acct_cik, type=it_type.value,
+                                            date=(it_date.value or "").strip() or None,
+                                            summary=(it_sum.value or "").strip() or None)
                 it_sum.value = ""
-                ui.notify(f"Logged {interactions.TYPES.get(it_type.value, 'event').lower()} for {disp}.",
+                ui.notify(f"Logged {account_api.TYPES.get(it_type.value, 'event').lower()} for {disp}.",
                           type="positive")
                 _interactions.refresh()
             ui.button("Log", icon="add", on_click=_log_it).props("dense color=primary")
 
         # ── Relationship (human opinion — quality + free note; global to the firm) ──
         _section("Relationship — your notes")
-        q_opts = {"": "— quality —", **rn.QUALITY}
+        q_opts = {"": "— quality —", **account_api.QUALITY}
         q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
             "dense outlined").style("min-width:200px;")
         note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2")
 
         def _save_note():
-            rn.save(name, cik=acct_cik, quality=(q_sel.value or None),
-                    note=(note_box.value or "").strip() or None)
+            account_api.save_relationship(name=name, cik=acct_cik, quality=(q_sel.value or None),
+                                          note=(note_box.value or "").strip() or None)
             ui.notify(f"Saved relationship note for {disp}.", type="positive")
             dlg.close()
         with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
