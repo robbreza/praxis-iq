@@ -29,6 +29,13 @@ def _today():
     return date.today().isoformat()
 
 
+def _as_list(v):
+    """Trip shape varies across tenants — the demo tenant stores `meetings` as a COUNT
+    (int) and `shortlist` as None, while live tenants use lists. Coerce so iteration is
+    always safe."""
+    return v if isinstance(v, list) else []
+
+
 def _manual(cid):
     return db.load_json(_KEY, [], client_id=cid) or []
 
@@ -72,7 +79,7 @@ def _ndr_events(account_key, cid):
                         "date": dt or tdate, "who": who, "summary": summary,
                         "source": "ndr", "created_at": ""})
 
-        for s in t.get("shortlist", []):
+        for s in _as_list(t.get("shortlist")):
             nm = s.get("institution")
             if not nm or accounts.resolve(nm, register=False) != account_key:
                 continue
@@ -84,7 +91,7 @@ def _ndr_events(account_key, cid):
             elif st == "declined":
                 _add("note", s.get("added_at"), f"Declined — {tname}")
 
-        for m in t.get("meetings", []):
+        for m in _as_list(t.get("meetings")):
             nm = m.get("institution")
             if not nm or accounts.resolve(nm, register=False) != account_key:
                 continue
@@ -131,7 +138,7 @@ def active_index(cid=None):
     for t in db.load_json("ndr_trips.json", [], client_id=cid) or []:
         tdate = t.get("dates") or t.get("created") or ""
         seen = set()
-        for s in t.get("shortlist", []):
+        for s in _as_list(t.get("shortlist")):
             nm = s.get("institution")
             st = (s.get("status") or "").lower()
             typ = ("meeting" if st in ("met", "slotted", "confirmed")
@@ -143,7 +150,7 @@ def active_index(cid=None):
                 continue
             seen.add((k, typ))
             _bump(k, s.get("added_at") or tdate)
-        for m in t.get("meetings", []):
+        for m in _as_list(t.get("meetings")):
             nm = m.get("institution")
             if not nm:
                 continue
