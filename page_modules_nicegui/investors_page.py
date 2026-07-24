@@ -2573,45 +2573,63 @@ def _render_accounts_tab(client_id, institutions=None):
              "notes are yours; touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
-    # Start from the CRM book (noted/logged/seeded), then fold in the current holder
-    # book so your owners are in the CRM out of the box — joined live off the 13F, so
-    # holder status never goes stale (re-scored each visit).
-    by_key = {a["key"]: a for a in account_api.list_accounts(client_id)}
-    for inst in (institutions or []):
-        if not inst.get("USIO_Holder"):
-            continue
-        nm, cik = inst["Fund"], inst.get("cik")
+    # Start from the CRM book (noted/logged/seeded), then fold in the current holder book
+    # and the peer-owner universe so your whole investable relationship set is in the CRM
+    # out of the box. Both are joined LIVE off the 13F (re-scored each visit) so
+    # holder/peer status never goes stale. One bulk interaction index avoids per-account
+    # scans across the ~hundreds of peer-owners.
+    _ixidx = interactions.active_index(client_id)
+
+    def _fold(nm, cik, flag, tier=None):
+        if not nm:
+            return
         key = accounts.resolve(nm, cik=cik, register=False)
         if not key:
-            continue
+            return
         a = by_key.get(key)
         if a:
-            a["holder"] = True
+            a[flag] = True
             a["open_name"] = a.get("open_name") or nm
             if not a.get("cik") and cik:
                 a["cik"] = accounts._cik_int(cik)
         else:
-            ix = interactions.summary(key, client_id)
+            s = _ixidx.get(key, {})
             by_key[key] = {"key": key, "name": pretty_name(nm), "open_name": nm,
                            "cik": accounts._cik_int(cik), "quality": None, "note": None,
-                           "touches": ix["touches"], "last_contact": ix["last_contact"], "holder": True}
+                           "touches": s.get("touches", 0), "last_contact": s.get("last_contact"),
+                           flag: True, "tier": tier}
+
+    by_key = {a["key"]: a for a in account_api.list_accounts(client_id)}
+    for inst in (institutions or []):
+        if inst.get("USIO_Holder"):
+            _fold(inst["Fund"], inst.get("cik"), "holder")
+    try:
+        from core import peer_prospects
+        for c in peer_prospects.all_candidates(client_id):
+            _fold(c.get("filer"), c.get("cik"), "peer", c.get("tier"))
+    except Exception:
+        pass
+
+    def _rank(a):
+        return 2 if a.get("holder") else 1 if (a["quality"] or a["touches"]) else 0
     all_accts = sorted(by_key.values(),
-                       key=lambda a: (a.get("holder", False), a.get("last_contact") or "", a["touches"]),
+                       key=lambda a: (_rank(a), a.get("last_contact") or "", a["touches"]),
                        reverse=True)
 
     n_holders = sum(1 for a in all_accts if a.get("holder"))
-    quiet = sum(1 for a in all_accts if _acct_cadence(a["last_contact"]) in ("Gone quiet", "No contact"))
+    n_peers = sum(1 for a in all_accts if a.get("peer") and not a.get("holder"))
     good = sum(1 for a in all_accts if a["quality"] in ("good", "responsive"))
     with ui.row().classes("gap-6").style("margin:8px 0;"):
         for lbl, val in [("Accounts", len(all_accts)), (f"{CT('ticker')} holders", n_holders),
-                         ("Gone quiet / no contact", quiet), ("Good to deal with", good)]:
+                         ("Peer-owners", n_peers), ("Good to deal with", good)]:
             with ui.column().classes("gap-0"):
                 ui.label(str(val)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
                 ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
         search = ui.input("Search name").props("dense outlined clearable").style("min-width:190px;")
-        typ = ui.select({"": "All accounts", "holder": "Holders", "rel": "Has notes / activity"},
+        typ = ui.select({"": "All accounts", "holder": "Holders", "peer": "Peer-owners",
+                         "rel": "Has notes / activity"},
                         value="").props("dense outlined").style("min-width:160px;")
         qual = ui.select({"": "All quality", **account_api.QUALITY, "__unset__": "— unset —"},
                          value="").props("dense outlined").style("min-width:160px;")
@@ -2628,6 +2646,8 @@ def _render_accounts_tab(client_id, institutions=None):
                 continue
             if typ.value == "holder" and not a.get("holder"):
                 continue
+            if typ.value == "peer" and not (a.get("peer") and not a.get("holder")):
+                continue
             if typ.value == "rel" and not (a["quality"] or a["touches"]):
                 continue
             if qual.value == "__unset__" and a["quality"]:
@@ -2637,25 +2657,27 @@ def _render_accounts_tab(client_id, institutions=None):
             cd = _acct_cadence(a["last_contact"])
             if cad.value and cd != cad.value:
                 continue
-            rows.append({"Name": a["name"], "Holder": "Holder" if a.get("holder") else "",
+            seg = "Holder" if a.get("holder") else "Peer-owner" if a.get("peer") else ""
+            rows.append({"Name": a["name"], "Segment": seg,
                          "Quality": account_api.QUALITY.get(a["quality"], "—") if a["quality"] else "—",
                          "Touches": a["touches"], "Last contact": a["last_contact"] or "—", "Cadence": cd})
             by_name[a["name"]] = a
         if not rows:
-            ui.label("No accounts match — your book fills with your holders and anything you note or log.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No accounts match — your book holds your holders, the peer-owner universe, and "
+                     "anything you note or log.").style(f"color:{COLORS['text_muted']};font-size:12px;")
             return
         cols = [{"name": k, "label": k, "field": k, "sortable": True,
                  "align": "right" if k == "Touches" else "left"}
-                for k in ("Name", "Holder", "Quality", "Touches", "Last contact", "Cadence")]
+                for k in ("Name", "Segment", "Quality", "Touches", "Last contact", "Cadence")]
         tbl = ui.table(columns=cols, rows=rows, row_key="Name", pagination=25).classes(
             "w-full cursor-pointer").props("dense flat")
         tbl.add_slot("body-cell-Name", (
             '<q-td :props="props"><span class="cursor-pointer" '
             f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
             '@click.stop="() => $parent.$emit(\'openAcct\', props.row.Name)">{{ props.value }}</span></q-td>'))
-        tbl.add_slot("body-cell-Holder", (
-            '<q-td :props="props"><q-badge v-if="props.value" color="blue-grey" :label="props.value"/>'
+        tbl.add_slot("body-cell-Segment", (
+            '<q-td :props="props"><q-badge v-if="props.value===\'Holder\'" color="blue-grey" label="Holder"/>'
+            '<q-badge v-else-if="props.value===\'Peer-owner\'" outline color="teal" label="Peer-owner"/>'
             '<span v-else style="opacity:.4;">—</span></q-td>'))
         tbl.add_slot("body-cell-Cadence", (
             '<q-td :props="props"><q-badge outline '

@@ -109,3 +109,47 @@ def summary(account_key, cid=None):
     evs = for_account(account_key, cid)
     dates = [e.get("date") for e in evs if e.get("date")]
     return {"touches": len(evs), "last_contact": max(dates) if dates else None, "events": evs}
+
+
+def active_index(cid=None):
+    """{account_key: {touches, last_contact}} across manual + NDR events, computed in ONE
+    pass over the events (not per account). For screens that show many accounts (the CRM
+    book with holders + peer-owners) — avoids an O(accounts x events) scan."""
+    cid = cid or get_active_client_id()
+    idx = {}
+
+    def _bump(k, dt):
+        if not k:
+            return
+        d = idx.setdefault(k, {"touches": 0, "last_contact": None})
+        d["touches"] += 1
+        if dt and (not d["last_contact"] or dt > d["last_contact"]):
+            d["last_contact"] = dt
+
+    for e in _manual(cid):
+        _bump(e.get("account"), e.get("date"))
+    for t in db.load_json("ndr_trips.json", [], client_id=cid) or []:
+        tdate = t.get("dates") or t.get("created") or ""
+        seen = set()
+        for s in t.get("shortlist", []):
+            nm = s.get("institution")
+            st = (s.get("status") or "").lower()
+            typ = ("meeting" if st in ("met", "slotted", "confirmed")
+                   else "email" if st == "invited" else "note" if st == "declined" else None)
+            if not nm or not typ:
+                continue
+            k = accounts.resolve(nm, register=False)
+            if (k, typ) in seen:
+                continue
+            seen.add((k, typ))
+            _bump(k, s.get("added_at") or tdate)
+        for m in t.get("meetings", []):
+            nm = m.get("institution")
+            if not nm:
+                continue
+            k = accounts.resolve(nm, register=False)
+            if (k, "meeting") in seen:
+                continue
+            seen.add((k, "meeting"))
+            _bump(k, m.get("date") or tdate)
+    return idx
