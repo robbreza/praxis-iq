@@ -85,7 +85,7 @@ NAV_GROUPS = [
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
     ]),
     ("CORE WORKFLOWS", [
-        ("Investors", "groups", "Investor Targeting\nCRM, NDR, Peer Prospects", "Buy-side intel · NDR planner · Meeting hub · Target database"),
+        ("Investors", "groups", "Investor Targeting\nCRM, NDR, Peer Prospects", "Accounts CRM · NDR planner · Peer prospects · Buy-side intel · Meeting hub · Target database"),
         # Outreach (Mail Gateway) hidden from the sidebar for the demo — the
         # IMAP/SMTP mail workflow isn't ported to this interface yet, so it would
         # only surface a "use app.py" placeholder. Re-add this line to restore it;
@@ -891,7 +891,7 @@ def main_page():
                     with ui.button(on_click=lambda s=section: go_to(s)).props("flat align=left no-caps").classes(cls) as btn:
                         with ui.row().classes("items-center no-wrap w-full").style("gap:12px;"):
                             ui.icon(icon).classes("nav-icon")
-                            with ui.column().classes("gap-0"):
+                            with ui.column().classes("gap-0 items-start"):
                                 ui.label(line1).classes("nav-btn-line1")
                                 if line2:
                                     ui.label(line2).classes("nav-btn-line2")
