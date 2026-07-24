@@ -46,27 +46,59 @@ def _store():
     return db.load_json(_KEY, {}, client_id=_GLOBAL) or {}
 
 
-def get(name):
-    """Merged relationship note for a manager (seed + stored, stored wins). {} if none."""
+def _key(name, cik=None, register=True):
+    """Canonical account key for this firm (see core.accounts). The store is keyed by
+    identity, not by raw name, so a note follows the firm across name variants."""
+    from core import accounts
+    return accounts.resolve(name, cik=cik, register=register)
+
+
+def get(name, cik=None):
+    """Merged relationship note for a firm: the code seed (by normalized name) as a
+    default, overlaid with the stored note (by canonical account key). {} if none."""
     nk = _norm(name)
     if not nk:
         return {}
     e = dict(_SEED.get(nk, {}))
-    e.update(_store().get(nk, {}))
+    s = _store()
+    key = _key(name, cik, register=False)
+    stored = s.get(key)
+    if stored is None and nk in s:            # legacy note keyed by bare norm (pre-identity)
+        stored = s.get(nk)
+    if stored:
+        e.update(stored)
     return e
 
 
-def save(name, **fields):
-    """Upsert relationship fields (quality, last_contact, touches, note) for a manager."""
+def save(name, cik=None, **fields):
+    """Upsert relationship fields (quality, last_contact, touches, note) for a firm.
+    Resolves + registers the canonical account identity, then field-merges."""
     nk = _norm(name)
     if not nk:
         return {}
+    key = _key(name, cik)                     # resolve + register identity
     s = _store()
     e = dict(_SEED.get(nk, {}))
-    e.update(s.get(nk, {}))
+    e.update(s.get(key, {}))
+    if nk in s and key != nk:                 # fold a legacy bare-norm note forward
+        e.update(s.pop(nk))
     for k, v in fields.items():
         e[k] = v
     e["updated_at"] = datetime.now().isoformat()
-    s[nk] = e
+    s[key] = e
     db.save_json(_KEY, s, client_id=_GLOBAL)
     return e
+
+
+def _migrate_key(old_key, new_key):
+    """Move a stored note from one account key to another (used when identity merges a
+    house id into a CIK id). The destination wins on any field conflict."""
+    if old_key == new_key:
+        return
+    s = _store()
+    if old_key not in s:
+        return
+    merged = dict(s.pop(old_key))
+    merged.update(s.get(new_key, {}))         # keep the more-specific record's edits
+    s[new_key] = merged
+    db.save_json(_KEY, s, client_id=_GLOBAL)

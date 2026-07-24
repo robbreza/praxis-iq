@@ -1786,7 +1786,8 @@ def _open_account_profile(rec):
             if m.get("institution") == name:
                 pipe.append(f"{tn}: met (day {m.get('day', '?')})")
 
-    note = rn.get(name)
+    acct_cik = rec.get("cik")
+    note = rn.get(name, acct_cik)
 
     with ui.dialog() as dlg, ui.card().style("min-width:min(680px,95vw);max-width:95vw;"):
         with ui.row().classes("w-full justify-between items-start"):
@@ -1847,7 +1848,8 @@ def _open_account_profile(rec):
         note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2")
 
         def _save_note():
-            rn.save(name, quality=(q_sel.value or None), last_contact=(last.value or "").strip() or None,
+            rn.save(name, cik=acct_cik, quality=(q_sel.value or None),
+                    last_contact=(last.value or "").strip() or None,
                     touches=int(touches.value) if touches.value not in (None, "") else None,
                     note=(note_box.value or "").strip() or None)
             ui.notify(f"Saved relationship note for {disp}.", type="positive")
