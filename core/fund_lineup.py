@@ -60,24 +60,37 @@ def _gsave(key, data):
 
 def _norm(name):
     """Loose match key: lowercase, drop punctuation and the common adviser/entity
-    suffixes so 'Heartland Advisors, Inc.' and 'HEARTLAND ADVISORS INC' collapse."""
+    words so 'Harris Associates L P' (13F filer) and 'Harris Associates Investment
+    Trust' (registrant) both collapse to the same 'harris'. Deliberately aggressive so
+    the many EDGAR name variants of one firm line up."""
     s = re.sub(r"[^a-z0-9 ]+", " ", (name or "").lower())
     s = re.sub(r"\b(inc|incorporated|llc|lp|llp|ltd|co|corp|company|the|advisors?|"
-               r"advisers?|management|capital|asset|investments?|group|funds?|"
-               r"partners?|holdings?|na|sa|ag|plc)\b", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
+               r"advisers?|associates?|management|capital|asset|investments?|group|funds?|"
+               r"partners?|partnership|limited|holdings?|trust|na|sa|ag|plc)\b", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    # collapse trailing spaced-out abbreviations left behind, e.g. "harris l p" -> "harris".
+    return re.sub(r"(?:\s\w)+$", "", s).strip()
 
 
 # ── Adviser (13F filer) -> fund-trust registrant CIK ─────────────────────────────
 # Curated. Key is _norm(adviser name). Value is the registrant CIK that files the
-# fund family's N-CEN/485. Seeded with boutiques where the lineup is genuinely
-# actionable (a handful of clearly-differentiated sleeves); grow it as needed. For
-# mega-complexes (Fidelity, Vanguard) the "lineup" is hundreds of funds across many
-# trusts, so a single-CIK mapping is deliberately omitted until we decide how to
-# present those.
+# fund family's N-CEN/485. Seeded with well-known managers whose lineup is genuinely
+# actionable — a single trust with a handful of clearly-differentiated sleeves. Each
+# CIK below was resolved from a representative fund ticker and verified to yield a
+# COMPLETE roster under its CURRENT registrant name (see the bootstrap's same guards).
+# Deliberately excluded: mega-complexes (Fidelity/Vanguard/T. Rowe) whose "lineup" is
+# hundreds of funds across many trusts or a single-fund sliver, and shell SERIES
+# trusts (e.g. "Trust for Professional Managers") that host many unrelated advisers —
+# mapping an adviser to the shell CIK returns some other firm's funds.
 _MANAGER_REGISTRANT = {
-    _norm("Heartland Advisors Inc"): 809586,          # Heartland Group Inc
+    _norm("Heartland Advisors Inc"): 809586,          # Heartland Group Inc — 3 funds
     _norm("Heartland"): 809586,
+    _norm("Dodge & Cox"): 29440,                       # Dodge & Cox Funds — 7
+    _norm("Royce & Associates"): 709364,               # Royce Fund — 10 (small-cap)
+    _norm("Baron Capital"): 810902,                    # Baron Investment Funds Trust — 7
+    _norm("Artisan Partners"): 935015,                 # Artisan Partners Funds Inc — 21
+    _norm("Harris Associates"): 872323,                # Harris Associates Investment Trust — Oakmark, 8
+    _norm("Wasatch Advisors"): 806633,                 # Wasatch Funds Trust — 24 (small/mid growth)
 }
 
 
