@@ -2298,12 +2298,14 @@ def _render_big_picture(institutions):
         {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True},  # two-row header
         {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True},
         {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True},
-        {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True},
-        {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True},
+        {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True,
+         "tooltip": "Diversified — large multi-strategy / bank-AM houses"},
+        {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True,
+         "tooltip": "Market makers — no fundamental PM to pitch"},
         {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True},
         {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True},
         {"name": "read", "label": "Roadshows", "field": "read", "align": "left", "sortable": True},
-        {"name": "top", "label": "Top name", "field": "top", "align": "left", "sortable": True,
+        {"name": "top", "label": "Top holder", "field": "top", "align": "left", "sortable": True,
          "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
@@ -2341,13 +2343,13 @@ def _render_big_picture(institutions):
                     "City": (x.get("city") or "—").title(),
                     "Category": x.get("tier") or "—",
                     "Score": round(conv) if isinstance(conv, (int, float)) else "—",
-                    "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
+                    "Detail": (f"Owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
                     "Funds": _fund_lineup_label(raw_name)}
         sc = x.get("Engagement_Score")
         # A peer-prospect carried its comps in — show which comp it owns ("owns CASS, FOUR"),
         # matching the Peer-owners drill. Real tracked institutions have no comps → fall back.
         peers = ", ".join(sorted((x.get("comps") or {}).keys()))
-        detail = f"owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
+        detail = f"Owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
         return {"Fund": pretty_name(x.get("Fund") or "—"),
                 "City": x.get("City") or (x.get("Metro") or "—"),
                 "Category": "Holder" if x.get("USIO_Holder") else "Non-holder",
@@ -2468,8 +2470,10 @@ def _render_big_picture(institutions):
     geo_table.add_slot("header", r'''
         <q-tr :props="props">
           <q-th v-for="col in props.cols" :key="col.name" :props="props"
-                style="white-space:pre-line;vertical-align:bottom;line-height:1.15;">
+                style="white-space:pre-line;vertical-align:bottom;line-height:1.15;"
+                :class="col.tooltip ? 'cursor-help' : ''">
             {{ col.label }}
+            <q-tooltip v-if="col.tooltip">{{ col.tooltip }}</q-tooltip>
           </q-th>
         </q-tr>
     ''')
@@ -2502,7 +2506,7 @@ def _bp_metric(label, value, detail_lines):
     with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11px;")
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        with ui.expansion("details", value=False).classes("w-full"):
+        with ui.expansion("Details", value=False).classes("w-full"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
