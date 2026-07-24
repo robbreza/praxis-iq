@@ -218,15 +218,102 @@ def _crosswalk():
 
 def _registrant_cik(manager_name):
     """Resolve a manager name to a fund-registrant CIK: hardcoded seed first, then
-    the persisted crosswalk (a high-confidence auto-match or a confirmed one).
-    Ambiguous matches awaiting confirmation are NOT used. Returns None if unmapped."""
+    the persisted crosswalk (a high-confidence auto-match or a confirmed one). A
+    user-rejected link or an unconfirmed ambiguous one is NOT used. None if unmapped."""
     nk = _norm(manager_name)
     if nk in _MANAGER_REGISTRANT:
         return _MANAGER_REGISTRANT[nk]
     e = _crosswalk().get(nk)
-    if e and (e.get("confirmed") or e.get("confidence") == "high"):
+    if e and not e.get("rejected") and (e.get("confirmed") or e.get("confidence") == "high"):
         return e.get("cik")
     return None
+
+
+# ── Crosswalk review / confirmation (the human-in-the-loop half of auto-bootstrap) ──
+def _registrant_name(cik):
+    """Just the current registrant name for a CIK (light submissions call), cached —
+    used to label crosswalk candidates without triggering a full roster aggregation."""
+    if not cik:
+        return None
+    key = f"sec_reg_name_{int(cik)}"
+    c = db.load_json(key, default=None)
+    if c and c.get("name"):
+        return c["name"]
+    try:
+        sub = sf._get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json", timeout=20).json()
+        nm = sub.get("name")
+    except Exception:
+        return None
+    try:
+        db.save_json(key, {"name": nm})
+    except Exception:
+        pass
+    return nm
+
+
+def crosswalk_entries():
+    """All persisted crosswalk rows with their norm key, for the review UI. Each row:
+    {norm, manager, cik|ciks, registrant, confidence, confirmed, rejected}."""
+    out = []
+    for nk, e in _crosswalk().items():
+        rec = dict(e)
+        rec["norm"] = nk
+        out.append(rec)
+    return out
+
+
+def candidate_names(ciks):
+    """[{cik, name}] for a review entry's candidate registrants, so the user can pick."""
+    return [{"cik": c, "name": _registrant_name(c) or f"CIK {c}"} for c in (ciks or [])]
+
+
+def confirm_entry(norm, cik=None):
+    """Lock a mapping: mark confirmed (optionally choosing a specific candidate CIK).
+    A confirmed link is used and is never overwritten by a future re-scan."""
+    cw = _crosswalk()
+    e = cw.get(norm) or {}
+    if cik is not None:
+        e["cik"] = int(cik)
+        e["confidence"] = "manual"
+    e["confirmed"] = True
+    e["rejected"] = False
+    e["registrant"] = _registrant_name(e.get("cik"))
+    e["confirmed_at"] = _iso_now()
+    cw[norm] = e
+    db.save_json(_CROSSWALK_KEY, cw)
+
+
+def reject_entry(norm):
+    """Mark a mapping wrong: it's no longer used, and a future re-scan won't re-add it
+    (the record is kept as a tombstone so the auto-matcher doesn't resurrect it)."""
+    cw = _crosswalk()
+    e = cw.get(norm) or {}
+    e["rejected"] = True
+    e["confirmed"] = False
+    e["rejected_at"] = _iso_now()
+    cw[norm] = e
+    db.save_json(_CROSSWALK_KEY, cw)
+
+
+def restore_entry(norm):
+    """Undo a confirm/reject — back to its auto state (a high match becomes usable
+    again; a review match goes back to needing confirmation)."""
+    cw = _crosswalk()
+    e = cw.get(norm)
+    if not e:
+        return
+    e["confirmed"] = False
+    e["rejected"] = False
+    cw[norm] = e
+    db.save_json(_CROSSWALK_KEY, cw)
+
+
+def bootstrap_from_book(cid=None):
+    """Convenience for the UI 'rescan' button: match every manager in the client's
+    peer-owner book against the fund-registrant universe and persist."""
+    from core import peer_prospects
+    names = [c.get("filer") for c in peer_prospects.all_candidates(cid) if c.get("filer")]
+    return bootstrap_crosswalk(names)
 
 
 def lineup_for_manager(manager_name):
@@ -336,15 +423,16 @@ def bootstrap_crosswalk(manager_names, persist=True):
         cw = _crosswalk()
         for nk, e in high.items():
             prev = cw.get(nk)
-            if prev and prev.get("confirmed"):      # never clobber a user confirmation
+            if prev and (prev.get("confirmed") or prev.get("rejected")):  # respect user decisions
                 continue
-            cw[nk] = {"cik": e["cik"], "registrant": None, "confidence": "high",
-                      "confirmed": False, "manager": e["manager"], "added_at": _iso_now()}
+            cw[nk] = {"cik": e["cik"], "registrant": e.get("registrant"), "confidence": "high",
+                      "confirmed": False, "rejected": False, "manager": e["manager"], "added_at": _iso_now()}
         for nk, e in review.items():
-            if nk in cw and cw[nk].get("confirmed"):
+            if nk in cw and (cw[nk].get("confirmed") or cw[nk].get("rejected")):
                 continue
             cw.setdefault(nk, {"ciks": e["ciks"], "confidence": "review", "confirmed": False,
-                               "manager": e["manager"], "added_at": _iso_now()})
+                               "rejected": False, "manager": e["manager"],
+                               "note": e.get("note"), "added_at": _iso_now()})
         try:
             db.save_json(_CROSSWALK_KEY, cw)
         except Exception:

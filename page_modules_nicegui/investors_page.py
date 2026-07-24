@@ -1779,6 +1779,107 @@ def _fund_lineup_label(manager_name, head=4):
         return ""
 
 
+def _open_lineup_crosswalk_dialog():
+    """Human-in-the-loop review of the manager→fund-family crosswalk — the links that
+    let the drill-down show a holder's individual funds. Confirm the ambiguous matches,
+    reject any wrong auto-match; decisions survive a re-scan (they're never clobbered)."""
+    from core import fund_lineup as fl
+    dlg = ui.dialog()
+
+    def _row(manager, norm):
+        return pretty_name(manager or norm)
+
+    @ui.refreshable
+    def _body():
+        entries = fl.crosswalk_entries()
+        pend = [e for e in entries if not e.get("confirmed") and not e.get("rejected")]
+        review = [e for e in pend if e.get("confidence") == "review"]
+        high = [e for e in pend if e.get("confidence") == "high"]
+        confirmed = [e for e in entries if e.get("confirmed")]
+        rejected = [e for e in entries if e.get("rejected")]
+
+        ui.label(f"Needs your confirmation ({len(review)})").classes("text-md font-bold").style(
+            f"color:{COLORS['text_heading']};margin-top:4px;")
+        if not review:
+            ui.label("Nothing waiting — every ambiguous match is resolved.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+        for e in review:
+            with ui.row().classes("w-full items-center gap-2").style(
+                    f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+                ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
+                if e.get("note"):
+                    ui.label(e["note"]).style(f"color:{COLORS['warning']};font-size:11px;max-width:200px;")
+                cands = fl.candidate_names(e.get("ciks", []))
+                opts = {str(c["cik"]): f"{pretty_name(c['name'])} (CIK {c['cik']})" for c in cands}
+                opts["__none__"] = "No registered fund family"
+                sel = ui.select(opts, value=next(iter(opts)), label="Correct fund family").props(
+                    "dense outlined").style("min-width:300px;flex:1;")
+
+                def _do(ev=None, norm=e["norm"], sel=sel):
+                    if sel.value == "__none__":
+                        fl.reject_entry(norm); ui.notify("Marked: no fund family", type="info")
+                    else:
+                        fl.confirm_entry(norm, int(sel.value)); ui.notify("Confirmed", type="positive")
+                    _body.refresh()
+                ui.button("Confirm", on_click=_do).props("dense color=primary")
+
+        ui.label(f"Auto-matched — high confidence ({len(high)})").classes("text-md font-bold").style(
+            f"color:{COLORS['text_heading']};margin-top:14px;")
+        ui.label("Validated against the family's current SEC name. Skim for anything off.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        for e in high:
+            reg = e.get("registrant") or fl._registrant_name(e.get("cik"))
+            roster = fl.series_roster(e.get("cik"))
+            cnt = (roster or {}).get("expected_series")
+            with ui.row().classes("w-full items-center gap-2").style(
+                    f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+                ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
+                ui.label(f"→ {pretty_name(reg or '—')}" + (f"  ·  {cnt} funds" if cnt else "")).style(
+                    f"color:{COLORS['text_secondary']};font-size:12px;flex:1;")
+                ui.button("Looks right", on_click=lambda ev=None, n=e["norm"]: (
+                    fl.confirm_entry(n), ui.notify("Locked in", type="positive"), _body.refresh())).props(
+                    "dense flat color=positive")
+                ui.button("Wrong", on_click=lambda ev=None, n=e["norm"]: (
+                    fl.reject_entry(n), ui.notify("Removed", type="warning"), _body.refresh())).props(
+                    "dense flat color=negative")
+
+        if confirmed:
+            with ui.expansion(f"Confirmed ({len(confirmed)})", value=False).classes("w-full").style("margin-top:8px;"):
+                for e in confirmed:
+                    with ui.row().classes("w-full items-center gap-2"):
+                        ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;")
+                        ui.label(f"→ {pretty_name(e.get('registrant') or '—')}").style(
+                            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                        ui.button("Undo", on_click=lambda ev=None, n=e["norm"]: (
+                            fl.restore_entry(n), _body.refresh())).props("dense flat")
+        if rejected:
+            with ui.expansion(f"Rejected ({len(rejected)})", value=False).classes("w-full"):
+                for e in rejected:
+                    with ui.row().classes("w-full items-center gap-2"):
+                        ui.label(_row(e.get("manager"), e["norm"])).style(
+                            f"min-width:210px;color:{COLORS['text_muted']};")
+                        ui.button("Restore", on_click=lambda ev=None, n=e["norm"]: (
+                            fl.restore_entry(n), _body.refresh())).props("dense flat")
+
+    def _rescan():
+        res = fl.bootstrap_from_book(get_active_client_id())
+        ui.notify(f"Re-scanned book — {len(res['high'])} matched, {len(res['review'])} to confirm",
+                  type="info")
+        _body.refresh()
+
+    with dlg, ui.card().style("min-width:min(920px,96vw);max-width:96vw;max-height:90vh;overflow:auto;"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label("Fund-lineup matches — manager → registered fund family").classes("text-lg font-bold")
+            with ui.row().classes("items-center gap-1"):
+                ui.button("Re-scan book", icon="refresh", on_click=_rescan).props("dense flat")
+                ui.button(icon="close", on_click=dlg.close).props("flat round dense")
+        ui.label("These links are what let the drill-down name a holder's individual funds. Confirm the "
+                 "ambiguous ones, reject any wrong auto-match — your decisions stick across re-scans.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        _body()
+    dlg.open()
+
+
 def _render_big_picture(institutions):
     client_id = get_active_client_id()
 
@@ -2206,6 +2307,8 @@ def _render_big_picture(institutions):
              "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
              "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
+    ui.button("Manage fund-lineup matches", icon="account_tree",
+              on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:11px;margin-top:2px;")
 
 
 def _bp_metric(label, value, detail_lines):
