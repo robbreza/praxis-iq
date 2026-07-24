@@ -2228,7 +2228,7 @@ def _render_big_picture(institutions):
         _bp_metric("Existing Holders Tracked", f"{holder_count} / {tracked_total}",
                    [("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1]))) if holders_by_metro else "No holders tracked yet.",
                     f"{tracked_total - holder_count} active non-holder prospects being worked"])
-        _bp_metric("Past NDRs & Meetings", str(len(trip_rows)),
+        _bp_metric("NDRs logged", str(len(trip_rows)),
                    [f"{c} — {dt} · {tm} · Sponsor: {sp} · {n} meetings" for c, dt, tm, sp, n in trip_rows] or ["No NDR trips logged yet"])
 
     ui.html(
@@ -2344,21 +2344,32 @@ def _render_big_picture(institutions):
           "read": ndr_status_by_metro.get(m, "—"), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
          for m in _all_metros],
         key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
+    _tk = CT("ticker")
     geo_cols = [
-        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True},
-        {"name": "holders", "label": "Holders", "field": "holders", "align": "right", "sortable": True},
-        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right", "sortable": True},        # two-row header
-        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True},  # two-row header
-        {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True},
-        {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True},
+        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True,
+         "tooltip": "Fund HQ clustered into ~60-mile roadshow metros — a day's drive, the way an NDR is planned"},
+        {"name": "holders", "label": "Holders", "field": "holders", "align": "right", "sortable": True,
+         "tooltip": f"Funds here that own {_tk} today (13F)"},
+        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right", "sortable": True,          # two-row header
+         "tooltip": "Tier-1 ready — high-conviction NON-holders ready to convert (score ≥80 / conviction ≥70)"},
+        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True,    # two-row header
+         "tooltip": f"Funds that own a peer/comp but not {_tk} — your prospecting universe (= Inst+RIA+Divsfd+MM+Curated)"},
+        {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True,
+         "tooltip": "Institutional peer-owners — the primary NDR-target bucket"},
+        {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True,
+         "tooltip": "RIA / wealth peer-owners — video-call tier, usually no PM to pitch"},
         {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True,
          "tooltip": "Diversified — large multi-strategy / bank-AM houses"},
         {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True,
          "tooltip": "Market makers — no fundamental PM to pitch"},
-        {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True},
-        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True},
-        {"name": "read", "label": "NDR status", "field": "read", "align": "left", "sortable": True},
+        {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True,
+         "tooltip": "Hand-entered targets that don't hold a comp yet (a private bank, a prior-seat relationship)"},
+        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True,
+         "tooltip": "Trips logged for this metro — any status (planning, scheduled, completed)"},
+        {"name": "read", "label": "NDR status", "field": "read", "align": "left", "sortable": True,
+         "tooltip": "State of the most-active NDR here: Planning → Scheduled → Completed (— none yet)"},
         {"name": "top", "label": "Top holder", "field": "top", "align": "left", "sortable": True,
+         "tooltip": "Highest-scoring tracked name in this metro",
          "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
