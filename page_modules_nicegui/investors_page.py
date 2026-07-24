@@ -1237,6 +1237,7 @@ def render_investors_page():
         t5 = ui.tab("SEC Intelligence")
         t6 = ui.tab("NOBO Ownership")
         t7 = ui.tab("Peer Prospects")
+        t8 = ui.tab("Accounts (CRM)")
 
     # Lazy tab loading — this page used to build ALL FIVE tabs' content
     # (each with its own set of database reads) on every single visit,
@@ -1254,7 +1255,7 @@ def render_investors_page():
     # A sidebar sub-item can deep-link straight to any tab; map the label back to
     # its tab object so lazy loading opens (and eager-builds) the right one. All
     # tabs are lazy now — whichever we open on is built by the eager block below.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7)}
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8)}
     default_tab = _by_name.get(nav.consume_target_tab(), t1)
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
         with ui.tab_panel(t1) as p1:
@@ -1271,6 +1272,8 @@ def render_investors_page():
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t7) as p7:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t8) as p8:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
 
     # NDR Planner and Target Database read the mode-scored institutions, so
     # they pull from _mode_ctx (current mode) rather than capturing the initial
@@ -1286,6 +1289,7 @@ def render_investors_page():
         # cross-module the same way Earnings calls _render_narrative_momentum.
         t6.props["name"]: (p6, lambda: _render_nobo_tab()),
         t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
+        t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id)),
     }
     loaded_tabs = set()
     # A mode toggle also invalidates the two mode-dependent lazy tabs so they
@@ -2545,6 +2549,93 @@ def _bp_metric(label, value, detail_lines):
         with ui.expansion("Details", value=False).classes("w-full"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Accounts (CRM) tab — the relationship book, the Account 360 destination
+# ─────────────────────────────────────────────────────────────────────────
+def _acct_cadence(last_contact):
+    """Days-since-last-contact bucket, from the DERIVED last_contact date."""
+    if not last_contact:
+        return "No contact"
+    try:
+        n = (datetime.now().date() - datetime.strptime(last_contact[:10], "%Y-%m-%d").date()).days
+    except Exception:
+        return "No contact"
+    return "Active" if n <= 30 else "Cooling" if n <= 90 else "Gone quiet"
+
+
+def _render_accounts_tab(client_id):
+    from core import account_api
+    ui.label("Accounts — your relationship book").classes("text-lg font-bold").style(
+        f"color:{COLORS['text_heading']};")
+    ui.label("Every firm you've noted or logged an interaction with. Quality and notes are yours; "
+             "touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
+
+    all_accts = account_api.list_accounts(client_id)
+    quiet = sum(1 for a in all_accts if _acct_cadence(a["last_contact"]) in ("Gone quiet", "No contact"))
+    good = sum(1 for a in all_accts if a["quality"] in ("good", "responsive"))
+    with ui.row().classes("gap-6").style("margin:8px 0;"):
+        for lbl, val in [("Accounts", len(all_accts)), ("Gone quiet / no contact", quiet),
+                         ("Good to deal with", good)]:
+            with ui.column().classes("gap-0"):
+                ui.label(str(val)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+                ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
+        search = ui.input("Search name").props("dense outlined clearable").style("min-width:200px;")
+        qual = ui.select({"": "All quality", **account_api.QUALITY, "__unset__": "— unset —"},
+                         value="").props("dense outlined").style("min-width:170px;")
+        cad = ui.select({"": "All cadence", "Active": "Active", "Cooling": "Cooling",
+                         "Gone quiet": "Gone quiet", "No contact": "No contact"},
+                        value="").props("dense outlined").style("min-width:150px;")
+
+    @ui.refreshable
+    def _list():
+        rows, by_name = [], {}
+        term = (search.value or "").strip().lower()
+        for a in all_accts:
+            if term and term not in (a["name"] or "").lower():
+                continue
+            if qual.value == "__unset__" and a["quality"]:
+                continue
+            if qual.value and qual.value != "__unset__" and a["quality"] != qual.value:
+                continue
+            cd = _acct_cadence(a["last_contact"])
+            if cad.value and cd != cad.value:
+                continue
+            rows.append({"Name": a["name"],
+                         "Quality": account_api.QUALITY.get(a["quality"], "—") if a["quality"] else "—",
+                         "Touches": a["touches"], "Last contact": a["last_contact"] or "—", "Cadence": cd})
+            by_name[a["name"]] = a
+        if not rows:
+            ui.label("No accounts match — your book fills as you save a note or log a call from a "
+                     "Buy-Side card or a drill-down.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            return
+        cols = [{"name": k, "label": k, "field": k, "sortable": True,
+                 "align": "right" if k == "Touches" else "left"}
+                for k in ("Name", "Quality", "Touches", "Last contact", "Cadence")]
+        tbl = ui.table(columns=cols, rows=rows, row_key="Name", pagination=25).classes(
+            "w-full cursor-pointer").props("dense flat")
+        tbl.add_slot("body-cell-Name", (
+            '<q-td :props="props"><span class="cursor-pointer" '
+            f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
+            '@click.stop="() => $parent.$emit(\'openAcct\', props.row.Name)">{{ props.value }}</span></q-td>'))
+        tbl.add_slot("body-cell-Cadence", (
+            '<q-td :props="props"><q-badge outline '
+            ':color="props.value===\'Gone quiet\'?\'red\':props.value===\'Cooling\'?\'orange\':'
+            'props.value===\'Active\'?\'green\':\'grey\'" :label="props.value"/></q-td>'))
+
+        def _open(e):
+            a = by_name.get(e.args)
+            if a:
+                _open_account_profile({"Fund": a["name"], "cik": a.get("cik")})
+        tbl.on("openAcct", _open)
+
+    for w in (search, qual, cad):
+        w.on_value_change(lambda *_: _list.refresh())
+    _list()
 
 
 # ─────────────────────────────────────────────────────────────────────────

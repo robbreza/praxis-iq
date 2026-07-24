@@ -112,7 +112,8 @@ NAV_SECTIONS = [page for _group, items in NAV_GROUPS for page, *_ in items]
 NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
     "Investors": ["Buy-Side Intelligence", "NDR Planner", "Meeting Hub",
-                  "Target Database", "SEC Intelligence", "NOBO Ownership", "Peer Prospects"],
+                  "Target Database", "SEC Intelligence", "NOBO Ownership", "Peer Prospects",
+                  "Accounts (CRM)"],
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Narrative Momentum",
                   "Consensus Tracker", "Call Transcripts", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",

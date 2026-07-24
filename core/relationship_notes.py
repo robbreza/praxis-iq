@@ -29,11 +29,11 @@ QUALITY = {
 # Keyed by fund_lineup._norm of the real 13F filer name (FMR LLC -> "fmr", etc.).
 _SEED = {
     fund_lineup._norm("FMR LLC"): {                       # Fidelity
-        "quality": "good", "note": "Really good to deal with."},
+        "name": "Fidelity (FMR)", "quality": "good", "note": "Really good to deal with."},
     fund_lineup._norm("Price T Rowe Associates Inc"): {   # T. Rowe Price
-        "quality": "good", "note": "Really good to deal with."},
+        "name": "T. Rowe Price", "quality": "good", "note": "Really good to deal with."},
     fund_lineup._norm("Mairs & Power Inc"): {
-        "quality": "low_touch", "touches": 1,
+        "name": "Mairs & Power", "quality": "low_touch",
         "note": "Met once in ~20 years (in San Francisco — they're a St. Paul shop)."},
 }
 
