@@ -234,6 +234,8 @@ def apply_theme():
         .nav-btn-line1 {{
             font-size: 17px;
             font-weight: 600;
+            text-align: left !important;
+            width: 100%;
             /* Force graphite over Quasar's default primary (purple) label
                color — inactive items read as high-contrast body text, and
                the accent is reserved for the active item below, so the
@@ -243,6 +245,8 @@ def apply_theme():
         .nav-btn-line2 {{
             font-size: 13.5px;
             font-weight: 400;
+            text-align: left !important;
+            width: 100%;
             color: {COLORS["text_secondary"]};
         }}
         .nav-btn.active {{
@@ -891,7 +895,7 @@ def main_page():
                     with ui.button(on_click=lambda s=section: go_to(s)).props("flat align=left no-caps").classes(cls) as btn:
                         with ui.row().classes("items-center no-wrap w-full").style("gap:12px;"):
                             ui.icon(icon).classes("nav-icon")
-                            with ui.column().classes("gap-0 items-start"):
+                            with ui.column().classes("gap-0").style("align-items:flex-start;flex:1;min-width:0;"):
                                 ui.label(line1).classes("nav-btn-line1")
                                 if line2:
                                     ui.label(line2).classes("nav-btn-line2")
