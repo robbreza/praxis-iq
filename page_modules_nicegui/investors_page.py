@@ -2630,7 +2630,7 @@ def _render_accounts_tab(client_id):
         def _open(e):
             a = by_name.get(e.args)
             if a:
-                _open_account_profile({"Fund": a["name"], "cik": a.get("cik")})
+                _open_account_profile({"Fund": a.get("open_name") or a["name"], "cik": a.get("cik")})
         tbl.on("openAcct", _open)
 
     for w in (search, qual, cad):

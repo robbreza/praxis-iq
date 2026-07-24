@@ -27,13 +27,18 @@ QUALITY = {
 
 # Code-seeded from the user's ~20 years in IR (see memory: ir-relationship-notes).
 # Keyed by fund_lineup._norm of the real 13F filer name (FMR LLC -> "fmr", etc.).
+# Each seed carries `filer` (the real 13F name whose _norm equals this key — so the
+# seed overlays the actual holder) and a friendlier `name` for display. The account
+# list opens the profile by `filer`, keeping list and profile consistent.
 _SEED = {
     fund_lineup._norm("FMR LLC"): {                       # Fidelity
-        "name": "Fidelity (FMR)", "quality": "good", "note": "Really good to deal with."},
+        "filer": "FMR LLC", "name": "Fidelity (FMR)",
+        "quality": "good", "note": "Really good to deal with."},
     fund_lineup._norm("Price T Rowe Associates Inc"): {   # T. Rowe Price
-        "name": "T. Rowe Price", "quality": "good", "note": "Really good to deal with."},
+        "filer": "Price T Rowe Associates Inc", "name": "T. Rowe Price",
+        "quality": "good", "note": "Really good to deal with."},
     fund_lineup._norm("Mairs & Power Inc"): {
-        "name": "Mairs & Power", "quality": "low_touch",
+        "filer": "Mairs & Power Inc", "name": "Mairs & Power", "quality": "low_touch",
         "note": "Met once in ~20 years (in San Francisco — they're a St. Paul shop)."},
 }
 

@@ -71,11 +71,12 @@ def list_accounts(cid=None):
     from config.client_config import get_active_client_id
     cid = cid or get_active_client_id()
 
-    # seed norms carry a display name; resolve each to its (house) key
+    # seeds are keyed by the FILER-name norm (so they overlay real holders); resolve each
+    # by its filer so the row's key + open_name match what the profile will resolve.
     seed_by_key = {}
     for s in relationship_notes._SEED.values():
-        nm = s.get("name")
-        k = accounts.resolve(nm, register=False) if nm else None
+        filer = s.get("filer") or s.get("name")
+        k = accounts.resolve(filer, register=False) if filer else None
         if k:
             seed_by_key[k] = s
 
@@ -89,12 +90,16 @@ def list_accounts(cid=None):
         if not k:
             continue
         rec = accounts.get(k) or {}
-        merged = dict(seed_by_key.get(k, {}))
+        seed = seed_by_key.get(k, {})
+        merged = dict(seed)
         merged.update(relationship_notes.get_by_key(k))
         ix = interactions.summary(k, cid)
+        # open_name must _norm to the same key so the profile resolves the same record
+        open_name = rec.get("name") or seed.get("filer") or merged.get("name") or k
         out.append({
             "key": k,
-            "name": rec.get("name") or merged.get("name") or k,
+            "name": rec.get("name") or merged.get("name") or seed.get("filer") or k,
+            "open_name": open_name,
             "cik": rec.get("cik"),
             "quality": merged.get("quality"),
             "note": merged.get("note"),
