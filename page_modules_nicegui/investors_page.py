@@ -116,7 +116,7 @@ from urllib.parse import quote
 import pandas as pd
 from nicegui import ui
 
-from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id
+from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id, ndr_defaults
 from config.theme_tokens import ACTIVE as COLORS
 from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, nobo_engine, prospecting, risk_scorecard, sec_filings
 from core.investor_scoring import (
@@ -3763,7 +3763,10 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             _dates_picker.on_value_change(lambda: _fmt_ndr_dates())
                         with dates_in.add_slot("append"):
                             ui.icon("edit_calendar").on("click", _dates_menu.open).classes("cursor-pointer")
-                    type_in = ui.toggle({"in_person": "In-Person", "virtual": "Virtual"}, value="in_person")
+                    # Per-client default cadence (layered: client override > Praxis Point global).
+                    _nd = ndr_defaults(client_id)
+                    type_in = ui.toggle({"in_person": "In-Person", "virtual": "Virtual"},
+                                        value=("virtual" if _nd["type"] == "virtual" else "in_person"))
                     # Free-text city with autocomplete suggestions from the live
                     # Metro labels (same ones the NDR Requests tab and Metro
                     # Priority scoring use). A plain input guarantees manual entry
@@ -3786,8 +3789,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                          multiple=True).classes("w-full").props("label='Attendees'")
                     notes_in = ui.textarea("Trip objectives", placeholder="e.g. Re-introduce to Putnam. Get Fidelity Small Cap on record post-print.").classes("w-full")
                     with ui.row().classes("w-full gap-3"):
-                        days_in = ui.number("Days", value=1, min=1, max=3).classes("flex-1")
-                        slots_in = ui.number("Meetings per day", value=5, min=3, max=10).classes("flex-1")
+                        days_in = ui.number("Days", value=_nd["days"], min=1, max=3).classes("flex-1")
+                        slots_in = ui.number("Meetings per day", value=_nd["slots_per_day"], min=3, max=10).classes("flex-1")
 
             # ── Auto-suggested targets — real tracked institutions instead of
             # app.py's hardcoded 25-row database (see _ndr_target_candidates).

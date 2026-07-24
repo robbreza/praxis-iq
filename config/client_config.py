@@ -266,6 +266,10 @@ _CODE_SEED = {
         "market_cap_m": 8887,
         "ev_m": 11256,
         "sector": "Aerospace — Engine MRO (aftermarket)",
+        # Per-client NDR cadence override (layered default, see ndr_defaults()). A
+        # mid-cap issuer runs longer roadshows with fuller days than the global
+        # 1-day/5-slot baseline USIO inherits. Omit these keys to inherit the global.
+        "ndr_default_days": 2, "ndr_default_slots": 8, "ndr_default_type": "in-person",
         # Value-chain position — drives the tight, model-matched valuation median
         # (Layer 1). SARO is aftermarket SERVICES, so its relative-value comps are the
         # other aftermarket-services/MRO names (AAR, TAT), not the parts makers or OEMs.
@@ -617,6 +621,26 @@ def CGP():
 
 def CT(key, default=""):
     return get_client().get(key, default)
+
+
+# ── Layered defaults: Praxis Point global baseline, overridable per client ──────
+# The global is correct for most issuers; a client only sets an override when it
+# genuinely differs (e.g. a larger-cap issuer runs longer NDRs with more slots).
+# Precedence: per-client registry value > global. Documented in the onboarding
+# "Client defaults & calibration" doc; see also size_profile() (market-cap tiering).
+NDR_GLOBAL_DEFAULTS = {"days": 1, "slots_per_day": 5, "type": "in-person"}
+
+
+def ndr_defaults(client_id=None):
+    """Default NDR cadence for a client: Praxis Point global, overlaid with any
+    per-client registry overrides (ndr_default_days / ndr_default_slots /
+    ndr_default_type). Returns {days, slots_per_day, type}."""
+    c = get_client(client_id)
+    return {
+        "days": c.get("ndr_default_days", NDR_GLOBAL_DEFAULTS["days"]),
+        "slots_per_day": c.get("ndr_default_slots", NDR_GLOBAL_DEFAULTS["slots_per_day"]),
+        "type": c.get("ndr_default_type", NDR_GLOBAL_DEFAULTS["type"]),
+    }
 
 
 def _read_csv_with_fallback_encoding(path):
