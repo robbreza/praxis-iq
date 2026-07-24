@@ -57,11 +57,17 @@ Railway, Fly.io, or a small VPS also work — the steps below map cleanly to any
 
 - [x] **HTTPS only** — Render terminates TLS; only share the `https://` URL.
 - [ ] **`IRCONNECT_STORAGE_SECRET` set on the host** to a strong value (not the dev default).
-- [x] **Tenant isolation** — Paul is a `client_user` pinned to `usio`; `allowed_clients` is
-      server-derived and clamps any forged cookie. (Verified.)
-- [x] **Read-only** — `client_user` writes are refused at the data layer. (Verified.)
+- [x] **Tenant isolation** — Paul is pinned to `usio`; `allowed_clients` is server-derived and
+      clamps any forged cookie, so he only ever sees USIO regardless of account type. (Verified.)
+- [x] **Read/WRITE by design** — Paul is a **`client_admin`** (tenant-pinned but writable), NOT a
+      read-only `client_user`. He can book NDRs, save notes, log interactions, and complete scripts
+      in USIO — intended, so he can actually exercise the platform. His writes land in USIO's
+      per-tenant stores only. Wipe them afterward via **/admin/users → Reset sandbox data → Usio**
+      (clears NDRs, prospects, requests, meeting log, interactions, confirmed lineups, call-opening
+      edits; shared house data untouched). To make him read-only, change his type back to
+      `client_user` (`auth.set_account_type`), which re-enables the data-layer write block.
 - [x] **Operator surfaces gated** — `/console`, `/console/calendar`, `/admin/users` bounce
-      non-staff; Paul cannot reach them. (Verified.)
+      non-staff; Paul cannot reach them even though he can write within USIO. (Verified.)
 - [x] **Forced rotation** — Paul must change `IRconnect01` on first login.
 - [x] **`reload=False`** (production) and Neon over TLS.
 - [ ] Confirm no other client's data is expected in USIO's views (Paul only sees USIO).
@@ -71,5 +77,9 @@ Railway, Fly.io, or a small VPS also work — the steps below map cleanly to any
 - **URL:** the Render HTTPS URL
 - **Email:** `paul.manley@usio.com`
 - **Temp password:** `IRconnect01` (he'll be forced to set a new ≥10-char password on first login)
-- He lands in USIO's workspace, read-only; **Investor Targeting → Target Database** is the current
-  data he's reviewing. Convey the temp password to him out of band (not in the same email as the URL).
+- **Access:** `client_admin` — **read/write**, pinned to USIO, role IR. He can operate the platform
+  (book NDRs, save notes, complete scripts), not just view it.
+- He lands in USIO's workspace. Point him at **Investor Targeting → Buy-Side Intelligence → "Where
+  they are"** (fund-level manager drill-down + Contact & outreach) and **Earnings Cycle → Script
+  Generation**. Convey the temp password to him out of band (not in the same email as the URL).
+- When he's done exploring, reset his test data: **/admin/users → Reset sandbox data → Usio**.
