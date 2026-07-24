@@ -1851,13 +1851,16 @@ def _render_big_picture(institutions):
     metro_summary = {}
     for i in institutions:
         m = _cluster(i["Metro"])
-        d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1, "insts": []})
+        d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0, "top": None, "top_score": -1,
+                                         "insts": [], "holder_list": [], "t1_list": []})
         d["count"] += 1
         d["insts"].append(i)
         if _score_val(i) >= 80 and not i["USIO_Holder"]:
             d["tier1_nonholder"] += 1
+            d["t1_list"].append(i)                  # exact list behind the "Tier-1 ready" count, for the cell drill-down
         if i["USIO_Holder"]:
             d["holders"] += 1
+            d["holder_list"].append(i)              # exact list behind the "Holders" count
         if _score_val(i) > (d["top_score"] or 0):
             d["top_score"], d["top"] = i["Engagement_Score"], i["Fund"]
 
@@ -1874,16 +1877,19 @@ def _render_big_picture(institutions):
         city, state = (c.get("city") or "").strip(), (c.get("state") or "").strip()
         m = _metro_from_city(city, state)     # same ~60-mile roadshow clustering as the holders above
         d = metro_summary.setdefault(m, {"count": 0, "tier1_nonholder": 0, "holders": 0,
-                                         "top": None, "top_score": -1, "insts": []})
+                                         "top": None, "top_score": -1, "insts": [],
+                                         "holder_list": [], "t1_list": []})
         d["count"] += 1
+        _pinst = {"Fund": c.get("filer"), "Metro": m, "USIO_Holder": False,
+                  "City": city.title(), "Position_Value": c.get("peer_value"),
+                  "Conviction": None, "Engagement_Score": c.get("conviction"), "AUM": None,
+                  "Action": "Prospect — owns a peer/comp, not you"}
         if (c.get("conviction") or 0) >= 70:        # strong, meeting-worthy prospect (Tier-1 proxy)
             d["tier1_nonholder"] += 1
+            d["t1_list"].append(_pinst)             # prospects also count toward Tier-1 ready
         if d["top"] is None:                        # prospect-only metro: name its top prospect
             d["top"] = c.get("filer")
-        d["insts"].append({"Fund": c.get("filer"), "Metro": m, "USIO_Holder": False,
-                           "City": city.title(), "Position_Value": c.get("peer_value"),
-                           "Conviction": None, "Engagement_Score": c.get("conviction"), "AUM": None,
-                           "Action": "Prospect — owns a peer/comp, not you"})
+        d["insts"].append(_pinst)
     tracked_total = len(institutions) + len(_prospects)
 
     requests_by_metro = {}
@@ -2044,28 +2050,89 @@ def _render_big_picture(institutions):
          for m in _all_metros],
         key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
     geo_cols = [
-        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left"},
-        {"name": "holders", "label": "Holders", "field": "holders", "align": "right"},
-        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right"},          # two-row header
-        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right"},    # two-row header
-        {"name": "inst", "label": "Inst", "field": "inst", "align": "right"},
-        {"name": "ria", "label": "RIA", "field": "ria", "align": "right"},
-        {"name": "div", "label": "Divsfd", "field": "div", "align": "right"},
-        {"name": "mm", "label": "MM", "field": "mm", "align": "right"},
-        {"name": "curated", "label": "Curated", "field": "curated", "align": "right"},
-        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right"},
-        {"name": "read", "label": "Roadshows", "field": "read", "align": "left"},
-        {"name": "top", "label": "Top name", "field": "top", "align": "left",
+        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True},
+        {"name": "holders", "label": "Holders", "field": "holders", "align": "right", "sortable": True},
+        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right", "sortable": True},        # two-row header
+        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True},  # two-row header
+        {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True},
+        {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True},
+        {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True},
+        {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True},
+        {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True},
+        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True},
+        {"name": "read", "label": "Roadshows", "field": "read", "align": "left", "sortable": True},
+        {"name": "top", "label": "Top name", "field": "top", "align": "left", "sortable": True,
          "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
     # raised "which 5 institutions?"; this opens the named list on demand
     # Click a metro row → tick the peer-owners there → shortlist onto an NDR (one selectable list;
     # replaces the old tracked-only readout and the separate Peer Prospects metro table).
-    geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes(
+    # ── Cell drill-down: click any number to see the exact names behind it ────────────
+    # Every count in this table is backed by a real list, so a number is a doorway, not a
+    # dead end. Holders/Tier-1 come from the lists captured while counting (can't disagree
+    # with the cell); the bucket counts filter the same peer-owner universe the row uses.
+    _CLICKABLE = {"holders": "Holders", "t1": "Tier-1 ready", "funds": "Peer-owners",
+                  "inst": "Institutional", "ria": "RIA / wealth", "div": "Diversified",
+                  "mm": "Market maker", "curated": "Curated targets"}
+
+    def _drill_list(metro, col):
+        d = metro_summary.get(metro, {})
+        if col == "holders":
+            return d.get("holder_list", [])
+        if col == "t1":
+            return d.get("t1_list", [])
+        funds = peer_funds_by_metro.get(metro, [])
+        if col == "funds":
+            return funds
+        return [c for c in funds if _tier_key.get(c.get("tier")) == col]
+
+    def _drill_row(x):
+        # Two shapes reach here: peer-owner candidates ("filer"/"tier"/"conviction"/"comps")
+        # and tracked-institution dicts ("Fund"/"USIO_Holder"/"Engagement_Score"). Normalise both.
+        if "filer" in x:
+            conv = x.get("conviction")
+            peers = ", ".join(sorted((x.get("comps") or {}).keys()))
+            return {"Fund": pretty_name(x.get("filer") or "—"),
+                    "City": (x.get("city") or "—").title(),
+                    "Bucket": x.get("tier") or "—",
+                    "Score": round(conv) if isinstance(conv, (int, float)) else "—",
+                    "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—"))}
+        sc = x.get("Engagement_Score")
+        return {"Fund": pretty_name(x.get("Fund") or "—"),
+                "City": x.get("City") or (x.get("Metro") or "—"),
+                "Bucket": "Holder" if x.get("USIO_Holder") else "Non-holder",
+                "Score": round(sc) if isinstance(sc, (int, float)) else "—",
+                "Detail": x.get("Conviction") or x.get("Action") or "—"}
+
+    _drill_dialog = ui.dialog()
+
+    def _open_cell_drill(e):
+        metro, col = e.args.get("metro"), e.args.get("col")
+        items = _drill_list(metro, col)
+        d_rows = [_drill_row(x) for x in items]
+        _drill_dialog.clear()
+        with _drill_dialog, ui.card().style("min-width:min(840px,95vw);max-width:95vw;"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(f"{metro} — {_CLICKABLE.get(col, col)} · {len(d_rows)} "
+                         f"name{'s' if len(d_rows) != 1 else ''}").classes("text-lg font-bold")
+                ui.button(icon="close", on_click=_drill_dialog.close).props("flat round dense")
+            if not d_rows:
+                ui.label("No names behind this number.").style(f"color:{COLORS['text_muted']};")
+            else:
+                dcols = [{"name": k, "label": k, "field": k, "sortable": True,
+                          "align": "right" if k == "Score" else "left"}
+                         for k in ("Fund", "City", "Bucket", "Score", "Detail")]
+                ui.table(columns=dcols, rows=d_rows, row_key="Fund",
+                         pagination=25).classes("w-full").props("dense flat")   # 25 per page
+        _drill_dialog.open()
+
+    # pagination=25 → the metro list itself pages 25 at a time; sortable headers sort the full set.
+    geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro", pagination=25).classes(
         "w-full cursor-pointer").props("dense flat")
     # Custom header so a "\n" in a label renders as a two-row heading (pre-line) — lets the numeric
-    # columns stay narrow and hands the freed width to Top name so it isn't truncated.
+    # columns stay narrow and hands the freed width to Top name so it isn't truncated. QTh with
+    # :props keeps the sort click/arrow, so the two-row header stays sortable.
     geo_table.add_slot("header", r'''
         <q-tr :props="props">
           <q-th v-for="col in props.cols" :key="col.name" :props="props"
@@ -2074,12 +2141,26 @@ def _render_big_picture(institutions):
           </q-th>
         </q-tr>
     ''')
+    # Make each count a clickable, underlined link that opens the drill-down. @click.stop keeps the
+    # row-click ("Add to NDR" select dialog) from also firing. Zero renders as a muted, inert number.
+    for _cc in _CLICKABLE:
+        geo_table.add_slot(f"body-cell-{_cc}", (
+            '<q-td :props="props" class="text-right">'
+            '<span v-if="props.value" class="cursor-pointer" '
+            f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
+            '@click.stop="() => $parent.$emit(\'cellClick\', {metro: props.row.metro, col: \'%s\'})">'
+            '{{ props.value }}</span>'
+            '<span v-else style="opacity:.45;">{{ props.value }}</span>'
+            '</q-td>'
+        ) % _cc)
+    geo_table.on("cellClick", _open_cell_drill)
     geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
         e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], [])))
     _peer_total = sum(v["funds"] for v in peer_by_metro.values())
     ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
              f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
-             "Curated (they sum to Peer-owners). Click any metro to see the tracked names there.").style(
+             "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
+             "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
 
 
