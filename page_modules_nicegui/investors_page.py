@@ -2224,7 +2224,6 @@ def _render_big_picture(institutions):
     if top_metro_request and wainwright_conf and "Wainwright" in top_metro_request["firm"]:
         top_metro_conf = wainwright_conf
 
-    tier1_preview = [i for i in institutions if _score_val(i) >= 80]
     # weakest_request / quiet_period_days removed with the "respond before the quiet
     # period begins in N days" line. That countdown collapsed "not configured" and
     # "already started" to the same 0, so BOTH tenants rendered "in 0 days". Reports'
@@ -2280,8 +2279,8 @@ def _render_big_picture(institutions):
                      if top_metro_request else "")
     ui.html(
         f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid {COLORS['accent']};border-radius:12px;padding:18px 22px;'>"
-        f"<div class='section-head' style='margin:0;'>This week's priority</div>"
-        f"<div style='font-size:16px;font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>Focus city: {top_metro}</div>"
+        f"<div class='section-head' style='margin:0;'>Top opportunity — where to start</div>"
+        f"<div style='font-size:16px;font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>{top_metro}</div>"
         f"<div style='font-size:13px;color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
         f"{top_d['count']} tracked institution(s) here"
         + (f", including <b>{top_d['top']}</b> (score {top_d['top_score']})" if top_d.get('top') else "")
@@ -2289,22 +2288,13 @@ def _render_big_picture(institutions):
         f"{'zero NDR trips logged here yet' if top_visits == 0 else f'only {top_visits} trip(s) so far'}."
         + top_req_html + top_conf_html + "</div></div>"
     )
-    # Targeting moves only. The "respond to <analyst> before the quiet period" line
-    # used to live here too, which put a second, competing "actions for management"
-    # list one page away from Today's — and the two could disagree (Today reported
-    # no outstanding analyst follow-ups while this urged replying to one). Inbound
-    # requests are now counted in Today's follow-up line, which is the surface for
-    # things with a clock on them; what's left here is the tier/metro read that the
-    # table below substantiates.
-    ui.html(
-        f"<div style='font-size:13px;color:{COLORS['text_secondary']};margin-top:10px;'><b>Targeting moves this week:</b></div>"
-        f"<ol style='font-size:13px;color:{COLORS['text_secondary']};margin-top:4px;line-height:1.7;'>"
-        f"<li>Direct 1x1 call: <b>{next((i['Fund'] for i in tier1_preview if not i['USIO_Holder']), 'top Tier 1 non-holder')}</b> — highest-scoring active conversion target.</li>"
-        f"<li>Defend the position: <b>{next((i['Fund'] for i in tier1_preview if i['USIO_Holder']), 'top Tier 1 holder')}</b> — actively adding shares, needs 15 minutes before the print.</li>"
-        + f"<li>Scope a <b>{top_metro}</b> NDR as the next roadshow"
-        + (f", timed around {top_metro_request['analyst']}'s request" if top_metro_request else "")
-        + " — it now outranks every other market on an opportunity-per-visit-and-request basis.</li></ol>"
-    )
+    # "Targeting moves this week" (call the top non-holder / defend the top holder /
+    # scope an NDR) used to sit here — removed as page-flow cleanup. It was a second,
+    # weekly action list a page away from Today's, which owns "what needs you": Today's
+    # Investor Pipeline surfaces the same top engage/defend targets (same scoring model,
+    # with real names — these bullets showed literal placeholders for a book with no
+    # score-≥80 names). The metro/NDR-scoping insight survives in the "Top opportunity"
+    # card above, which leads straight into the metro table below.
 
     # Geographic breakdown — answers the obvious question the counts above raise:
     # "these institutions... where ARE they?" One row per metro with its holders,
