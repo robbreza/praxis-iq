@@ -85,7 +85,7 @@ NAV_GROUPS = [
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
     ]),
     ("CORE WORKFLOWS", [
-        ("Investors", "groups", "Investor Targeting\nPipeline, NDR & Meetings", "Buy-side intel · NDR planner · Meeting hub · Target database"),
+        ("Investors", "groups", "Investor Targeting\nCRM, NDR, Peer Prospects", "Buy-side intel · NDR planner · Meeting hub · Target database"),
         # Outreach (Mail Gateway) hidden from the sidebar for the demo — the
         # IMAP/SMTP mail workflow isn't ported to this interface yet, so it would
         # only surface a "use app.py" placeholder. Re-add this line to restore it;
