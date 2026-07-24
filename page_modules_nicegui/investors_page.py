@@ -2312,14 +2312,26 @@ def _render_big_picture(institutions):
         if _k:
             _pm[_k] += 1
 
-    def _roadshow_read(metro, n):
-        if metro == "International":
-            return "Intl — virtual"
-        if n >= 4:
-            return "Full-day NDR stop"
-        if n >= 2:
-            return "Half-day"
-        return "Single stop" if n else "—"
+    # NDR status per metro, from the trip book — replaces the old "full-day / half-day"
+    # viability read, which said nothing you'd act on (you plan a full day regardless;
+    # the slot count gets worked out later). This shows where a roadshow actually STANDS:
+    # Planning (trip opened) → Scheduled (dates/meetings set) → Completed. A metro can
+    # carry several trips; keep the most-active.
+    _st_rank = {"Completed": 0, "Planning": 1, "Scheduled": 2}
+    ndr_status_by_metro = {}
+    for _t in trips:
+        _c = _t.get("city")
+        if not _c or _c == "Virtual":
+            continue
+        _mk = _metro_from_city(*_c.rsplit(", ", 1)) if ", " in _c else _c
+        if (_t.get("status") or "") == "Completed":
+            _disp = "Completed"
+        elif _t.get("meetings") or (_t.get("dates") and _t.get("dates") not in ("TBD", "")):
+            _disp = "Scheduled"
+        else:
+            _disp = "Planning"
+        if _mk not in ndr_status_by_metro or _st_rank[_disp] > _st_rank[ndr_status_by_metro[_mk]]:
+            ndr_status_by_metro[_mk] = _disp
 
     # Union all metro keys (a metro may have holders but no peer-owners, or vice-versa).
     _all_metros = set(metro_summary) | set(peer_by_metro)
@@ -2329,7 +2341,7 @@ def _render_big_picture(institutions):
           "t1": d.get("tier1_nonholder", 0), "trips": visits_by_metro.get(m, 0),
           "funds": (pm := peer_by_metro.get(m, _blank_pm))["funds"], "inst": pm["inst"],
           "ria": pm["ria"], "div": pm["div"], "mm": pm["mm"], "curated": pm["curated"],
-          "read": _roadshow_read(m, pm["funds"]), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
+          "read": ndr_status_by_metro.get(m, "—"), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
          for m in _all_metros],
         key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
     geo_cols = [
@@ -2345,7 +2357,7 @@ def _render_big_picture(institutions):
          "tooltip": "Market makers — no fundamental PM to pitch"},
         {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True},
         {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True},
-        {"name": "read", "label": "Roadshows", "field": "read", "align": "left", "sortable": True},
+        {"name": "read", "label": "NDR status", "field": "read", "align": "left", "sortable": True},
         {"name": "top", "label": "Top holder", "field": "top", "align": "left", "sortable": True,
          "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
     ]
@@ -2530,6 +2542,13 @@ def _render_big_picture(institutions):
             '<span v-else style="opacity:.45;">{{ props.value }}</span>'
             '</q-td>'
         ) % _cc)
+    # NDR status as a colored badge: Scheduled (green) / Planning (blue) / Completed (grey) / — none.
+    geo_table.add_slot("body-cell-read", (
+        '<q-td :props="props">'
+        '<q-badge v-if="props.value===\'Scheduled\'" color="green" label="Scheduled"/>'
+        '<q-badge v-else-if="props.value===\'Planning\'" color="blue" label="Planning"/>'
+        '<q-badge v-else-if="props.value===\'Completed\'" outline color="grey" label="Completed"/>'
+        '<span v-else style="opacity:.4;">—</span></q-td>'))
     geo_table.on("cellClick", _open_cell_drill)
     geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
         e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], [])))
