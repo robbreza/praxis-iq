@@ -836,6 +836,84 @@ def _shortlist_from_inst(inst):
     }
 
 
+def _open_metro_select_dialog(metro, funds):
+    """Click-a-metro → tick peer-owners → shortlist them onto an NDR. Used by the unified
+    'Where they are' metro table (NDR pipeline — one list)."""
+    funds = sorted(funds, key=lambda c: -(c.get("conviction") or 0))
+    with ui.dialog() as dlg, ui.card().style("min-width:min(840px,95vw);max-width:95vw;"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label(f"{metro} — {len(funds)} peer-owner{'s' if len(funds) != 1 else ''} "
+                     "(own a comp, not us)").classes("text-lg font-bold")
+            ui.button(icon="close", on_click=dlg.close).props("flat round dense")
+        if not funds:
+            ui.label("No peer-owners in this metro.").style(f"color:{COLORS['text_muted']};")
+            dlg.open(); return
+        cand_by_filer = {c.get("filer"): c for c in funds}
+        _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+        trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
+        trip_opts["__new__"] = "＋ New NDR…"
+        with ui.row().classes("w-full items-end gap-2").style(
+                f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
+            ui.label("Tick funds below, then add them to an NDR as shortlisted targets.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+            trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+            new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
+            new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
+            add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
+        d_rows = []
+        for c in funds:
+            conv = c.get("conviction")
+            peers = ", ".join(sorted((c.get("comps") or {}).keys()))
+            d_rows.append({
+                "_filer": c.get("filer"), "Fund": pretty_name(c.get("filer") or "—"),
+                "City": c.get("city") or "—", "Bucket": c.get("tier") or "—",
+                "Conviction": round(conv) if conv is not None else "—",
+                "Peers held": peers or ("Curated target" if c.get("kind") == "curated" else "—"),
+            })
+        d_cols = [{"name": k, "label": k, "field": k, "align": "right" if k == "Conviction" else "left"}
+                  for k in d_rows[0].keys() if k != "_filer"]
+        tbl = ui.table(columns=d_cols, rows=d_rows, row_key="_filer",
+                       selection="multiple").classes("w-full").props("dense flat")
+
+        def _do_add():
+            sel = tbl.selected
+            if not sel:
+                ui.notify("Tick at least one fund first.", type="warning"); return
+            trips2 = _load_json("ndr_trips.json", [])
+            if trip_sel.value == "__new__":
+                nm = (new_name.value or "").strip()
+                if not nm:
+                    ui.notify("Name the new NDR.", type="warning"); return
+                trips2.append({
+                    "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                    "city": metro, "focus": "", "team": [], "notes": "", "meetings": [], "shortlist": [],
+                    "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
+                    "created": datetime.now().strftime("%Y-%m-%d"),
+                })
+                target, tname = trips2[-1], nm
+            else:
+                target = trips2[int(trip_sel.value)]
+                tname = target.get("name") or "NDR"
+            target.setdefault("shortlist", [])
+            have = {s.get("institution") for s in target["shortlist"]} | \
+                   {m.get("institution") for m in target.get("meetings", [])}
+            added = 0
+            for row in sel:
+                c = cand_by_filer.get(row.get("_filer"))
+                if not c or c.get("filer") in have:
+                    continue
+                target["shortlist"].append(_shortlist_record(c))
+                have.add(c.get("filer")); added += 1
+            _save_json("ndr_trips.json", trips2)
+            skipped = len(sel) - added
+            ui.notify(f"Shortlisted {added} fund(s) to '{tname}'"
+                      + (f" · {skipped} already on it" if skipped else "")
+                      + ". See NDR Planner → Active NDRs.", type="positive")
+            dlg.close()
+        add_btn.on_click(_do_add)
+    dlg.open()
+
+
 def _open_shortlist_outreach(entry, contact, on_invited):
     """NDR pipeline Phase 2 — the 'Contact' draft. Opens a pre-filled outreach email the user
     SENDS themselves (never auto-sent), and a button to mark the target Invited + log it. If no
@@ -1561,7 +1639,14 @@ def _render_peer_prospects_tab(client_id):
              "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
-    _render_prospects_by_metro(client_id)
+    # The roadshow-metro view (with click-to-select) is now the single "Where they are" table in
+    # Buy-Side Intelligence — no duplicate here. The conviction-ranked prospects below feed the
+    # same NDR pipeline. (_render_prospects_by_metro is retained but no longer called.)
+    ui.label("📍 Roadshow metro view — with click-a-metro → select → Add to NDR — now lives in "
+             "Buy-Side Intelligence → “Where they are”. The conviction-ranked prospects below feed the "
+             "same pipeline.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;background:{COLORS['surface_hover_bg']};"
+        "border-radius:8px;padding:8px 10px;")
     ui.markdown("---")
     _render_curated_targets(client_id)
     ui.markdown("---")
@@ -2079,8 +2164,10 @@ def _render_big_picture(institutions):
     _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
                  "Market maker": "mm", "Curated": "curated"}
     peer_by_metro = {}
+    peer_funds_by_metro = {}          # metro -> [candidate dicts], for the click-to-select dialog
     for _c in _all_cands:
         _m = _metro_from_city(_c.get("city"), _c.get("state"))
+        peer_funds_by_metro.setdefault(_m, []).append(_c)
         _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
         _pm["funds"] += 1
         _k = _tier_key.get(_c.get("tier"))
@@ -2124,38 +2211,8 @@ def _render_big_picture(institutions):
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
     # raised "which 5 institutions?"; this opens the named list on demand
-    # rather than forcing a jump to the filtered Buy-Side list.
-    insts_by_metro = {m: sorted(d.get("insts", []), key=lambda x: -(_score_val(x) or 0))
-                      for m, d in metro_summary.items()}
-    metro_detail_dialog = ui.dialog()
-
-    def _open_metro_detail(metro):
-        rows = insts_by_metro.get(metro, [])
-        metro_detail_dialog.clear()
-        with metro_detail_dialog, ui.card().style("min-width:min(680px,92vw);max-width:92vw;"):
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"{metro} — {len(rows)} tracked institution{'s' if len(rows) != 1 else ''}").classes(
-                    "text-lg font-bold")
-                ui.button(icon="close", on_click=metro_detail_dialog.close).props("flat round dense")
-            if not rows:
-                ui.label("No tracked institutions in this metro.").style(f"color:{COLORS['text_muted']};")
-            else:
-                d_rows = []
-                for i in rows:
-                    sc = _score_val(i)
-                    d_rows.append({
-                        "Fund": i.get("Fund", "—"),
-                        "City": i.get("City") or "—",
-                        "Status": "Holder" if i.get("USIO_Holder") else "Prospect",
-                        "Score": sc if sc else "—",
-                        "AUM": i.get("AUM") or "—",
-                        "Action": i.get("Action") or "—",
-                    })
-                d_cols = [{"name": k, "label": k, "field": k,
-                           "align": "right" if k in ("Score", "AUM") else "left"} for k in d_rows[0].keys()]
-                ui.table(columns=d_cols, rows=d_rows, row_key="Fund").classes("w-full").props("dense flat")
-        metro_detail_dialog.open()
-
+    # Click a metro row → tick the peer-owners there → shortlist onto an NDR (one selectable list;
+    # replaces the old tracked-only readout and the separate Peer Prospects metro table).
     geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes(
         "w-full cursor-pointer").props("dense flat")
     # Custom header so a "\n" in a label renders as a two-row heading (pre-line) — lets the numeric
@@ -2168,7 +2225,8 @@ def _render_big_picture(institutions):
           </q-th>
         </q-tr>
     ''')
-    geo_table.on("rowClick", lambda e: _open_metro_detail(e.args[1]["metro"]))
+    geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
+        e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], [])))
     _peer_total = sum(v["funds"] for v in peer_by_metro.values())
     ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
              f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
