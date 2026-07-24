@@ -1289,7 +1289,7 @@ def render_investors_page():
         # cross-module the same way Earnings calls _render_narrative_momentum.
         t6.props["name"]: (p6, lambda: _render_nobo_tab()),
         t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
-        t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id)),
+        t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"])),
     }
     loaded_tabs = set()
     # A mode toggle also invalidates the two mode-dependent lazy tabs so they
@@ -2565,28 +2565,56 @@ def _acct_cadence(last_contact):
     return "Active" if n <= 30 else "Cooling" if n <= 90 else "Gone quiet"
 
 
-def _render_accounts_tab(client_id):
-    from core import account_api
+def _render_accounts_tab(client_id, institutions=None):
+    from core import account_api, accounts, interactions
     ui.label("Accounts — your relationship book").classes("text-lg font-bold").style(
         f"color:{COLORS['text_heading']};")
-    ui.label("Every firm you've noted or logged an interaction with. Quality and notes are yours; "
-             "touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
+    ui.label(f"Your {CT('ticker')} holders and every firm you've noted or logged an interaction with. Quality and "
+             "notes are yours; touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
-    all_accts = account_api.list_accounts(client_id)
+    # Start from the CRM book (noted/logged/seeded), then fold in the current holder
+    # book so your owners are in the CRM out of the box — joined live off the 13F, so
+    # holder status never goes stale (re-scored each visit).
+    by_key = {a["key"]: a for a in account_api.list_accounts(client_id)}
+    for inst in (institutions or []):
+        if not inst.get("USIO_Holder"):
+            continue
+        nm, cik = inst["Fund"], inst.get("cik")
+        key = accounts.resolve(nm, cik=cik, register=False)
+        if not key:
+            continue
+        a = by_key.get(key)
+        if a:
+            a["holder"] = True
+            a["open_name"] = a.get("open_name") or nm
+            if not a.get("cik") and cik:
+                a["cik"] = accounts._cik_int(cik)
+        else:
+            ix = interactions.summary(key, client_id)
+            by_key[key] = {"key": key, "name": pretty_name(nm), "open_name": nm,
+                           "cik": accounts._cik_int(cik), "quality": None, "note": None,
+                           "touches": ix["touches"], "last_contact": ix["last_contact"], "holder": True}
+    all_accts = sorted(by_key.values(),
+                       key=lambda a: (a.get("holder", False), a.get("last_contact") or "", a["touches"]),
+                       reverse=True)
+
+    n_holders = sum(1 for a in all_accts if a.get("holder"))
     quiet = sum(1 for a in all_accts if _acct_cadence(a["last_contact"]) in ("Gone quiet", "No contact"))
     good = sum(1 for a in all_accts if a["quality"] in ("good", "responsive"))
     with ui.row().classes("gap-6").style("margin:8px 0;"):
-        for lbl, val in [("Accounts", len(all_accts)), ("Gone quiet / no contact", quiet),
-                         ("Good to deal with", good)]:
+        for lbl, val in [("Accounts", len(all_accts)), (f"{CT('ticker')} holders", n_holders),
+                         ("Gone quiet / no contact", quiet), ("Good to deal with", good)]:
             with ui.column().classes("gap-0"):
                 ui.label(str(val)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
                 ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
     with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
-        search = ui.input("Search name").props("dense outlined clearable").style("min-width:200px;")
+        search = ui.input("Search name").props("dense outlined clearable").style("min-width:190px;")
+        typ = ui.select({"": "All accounts", "holder": "Holders", "rel": "Has notes / activity"},
+                        value="").props("dense outlined").style("min-width:160px;")
         qual = ui.select({"": "All quality", **account_api.QUALITY, "__unset__": "— unset —"},
-                         value="").props("dense outlined").style("min-width:170px;")
+                         value="").props("dense outlined").style("min-width:160px;")
         cad = ui.select({"": "All cadence", "Active": "Active", "Cooling": "Cooling",
                          "Gone quiet": "Gone quiet", "No contact": "No contact"},
                         value="").props("dense outlined").style("min-width:150px;")
@@ -2598,6 +2626,10 @@ def _render_accounts_tab(client_id):
         for a in all_accts:
             if term and term not in (a["name"] or "").lower():
                 continue
+            if typ.value == "holder" and not a.get("holder"):
+                continue
+            if typ.value == "rel" and not (a["quality"] or a["touches"]):
+                continue
             if qual.value == "__unset__" and a["quality"]:
                 continue
             if qual.value and qual.value != "__unset__" and a["quality"] != qual.value:
@@ -2605,23 +2637,26 @@ def _render_accounts_tab(client_id):
             cd = _acct_cadence(a["last_contact"])
             if cad.value and cd != cad.value:
                 continue
-            rows.append({"Name": a["name"],
+            rows.append({"Name": a["name"], "Holder": "Holder" if a.get("holder") else "",
                          "Quality": account_api.QUALITY.get(a["quality"], "—") if a["quality"] else "—",
                          "Touches": a["touches"], "Last contact": a["last_contact"] or "—", "Cadence": cd})
             by_name[a["name"]] = a
         if not rows:
-            ui.label("No accounts match — your book fills as you save a note or log a call from a "
-                     "Buy-Side card or a drill-down.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No accounts match — your book fills with your holders and anything you note or log.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
             return
         cols = [{"name": k, "label": k, "field": k, "sortable": True,
                  "align": "right" if k == "Touches" else "left"}
-                for k in ("Name", "Quality", "Touches", "Last contact", "Cadence")]
+                for k in ("Name", "Holder", "Quality", "Touches", "Last contact", "Cadence")]
         tbl = ui.table(columns=cols, rows=rows, row_key="Name", pagination=25).classes(
             "w-full cursor-pointer").props("dense flat")
         tbl.add_slot("body-cell-Name", (
             '<q-td :props="props"><span class="cursor-pointer" '
             f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
             '@click.stop="() => $parent.$emit(\'openAcct\', props.row.Name)">{{ props.value }}</span></q-td>'))
+        tbl.add_slot("body-cell-Holder", (
+            '<q-td :props="props"><q-badge v-if="props.value" color="blue-grey" :label="props.value"/>'
+            '<span v-else style="opacity:.4;">—</span></q-td>'))
         tbl.add_slot("body-cell-Cadence", (
             '<q-td :props="props"><q-badge outline '
             ':color="props.value===\'Gone quiet\'?\'red\':props.value===\'Cooling\'?\'orange\':'
@@ -2630,10 +2665,11 @@ def _render_accounts_tab(client_id):
         def _open(e):
             a = by_name.get(e.args)
             if a:
-                _open_account_profile({"Fund": a.get("open_name") or a["name"], "cik": a.get("cik")})
+                _open_account_profile({"Fund": a.get("open_name") or a["name"], "cik": a.get("cik"),
+                                       "USIO_Holder": a.get("holder", False)})
         tbl.on("openAcct", _open)
 
-    for w in (search, qual, cad):
+    for w in (search, typ, qual, cad):
         w.on_value_change(lambda *_: _list.refresh())
     _list()
 
