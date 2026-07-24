@@ -1862,6 +1862,36 @@ def _open_account_profile(rec):
             ui.label(" · ".join(names[:8]) + (f"  (+{len(names) - 8} more)" if len(names) > 8 else "")).style(
                 f"color:{COLORS['text_secondary']};font-size:12px;")
 
+        # ── Contact & outreach ─────────────────────────────────────
+        # The metro → fund flow ended at "who is this" with no way to reach them. This closes
+        # it: the contact on file (if any), an editable email, and a one-click pre-filled draft
+        # the user SENDS themselves (never auto-sent).
+        _section("Contact & outreach")
+        _contact = get_institution_contacts().get(name, {}) if name else {}
+        if _contact.get("name") or _contact.get("title"):
+            _kv("Contact", " · ".join(x for x in (_contact.get("name"), _contact.get("title")) if x))
+        _tkr, _cname, _ir = CT("ticker"), CT("name"), CI()
+        with ui.row().classes("w-full items-end gap-2"):
+            _c_email = ui.input("Contact email", value=_contact.get("email", "")).props(
+                "dense outlined clearable").style("min-width:280px;flex:1;")
+
+            def _draft_outreach():
+                to = (_c_email.value or "").strip()
+                if not to:
+                    ui.notify("Add a contact email to draft to.", type="warning"); return
+                _p = peers or "names in our space"
+                subj = f"{_tkr} — meeting request"
+                body = (f"Hi {(_contact.get('name') or '').split()[0] or 'there'},\n\n"
+                        f"We'd value 30 minutes with your team. {disp} holds {_p}, so {_tkr}'s story "
+                        f"should be directly relevant.\n\nWould a short meeting work?\n\n"
+                        f"{_ir.get('name', '')}\n{_ir.get('title', 'Investor Relations')} · {_cname} (NASDAQ: {_tkr})")
+                href = "mailto:" + to + "?subject=" + quote(subj) + "&body=" + quote(body)
+                ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+            ui.button("Draft outreach email", icon="mail", on_click=_draft_outreach).props("dense color=primary")
+        if not _contact.get("email"):
+            ui.label("No contact on file — enter an email above to draft, or reach out via your own channel.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;")
+
         # ── Interactions (derived — touches & last contact are computed, not typed) ──
         _section("Interactions")
 
