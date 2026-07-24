@@ -2015,7 +2015,8 @@ def _render_big_picture(institutions):
         _pinst = {"Fund": c.get("filer"), "Metro": m, "USIO_Holder": False,
                   "City": city.title(), "Position_Value": c.get("peer_value"),
                   "Conviction": None, "Engagement_Score": c.get("conviction"), "AUM": None,
-                  "Action": "Prospect — owns a peer/comp, not you"}
+                  "comps": c.get("comps"),          # carry the specific comps so the drill-down
+                  "Action": "Prospect — owns a peer/comp, not you"}  # can show "owns CASS, FOUR"
         if (c.get("conviction") or 0) >= 70:        # strong, meeting-worthy prospect (Tier-1 proxy)
             d["tier1_nonholder"] += 1
             d["t1_list"].append(_pinst)             # prospects also count toward Tier-1 ready
@@ -2234,11 +2235,15 @@ def _render_big_picture(institutions):
                     "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
                     "Funds": _fund_lineup_label(raw_name)}
         sc = x.get("Engagement_Score")
+        # A peer-prospect carried its comps in — show which comp it owns ("owns CASS, FOUR"),
+        # matching the Peer-owners drill. Real tracked institutions have no comps → fall back.
+        peers = ", ".join(sorted((x.get("comps") or {}).keys()))
+        detail = f"owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
         return {"Fund": pretty_name(x.get("Fund") or "—"),
                 "City": x.get("City") or (x.get("Metro") or "—"),
                 "Bucket": "Holder" if x.get("USIO_Holder") else "Non-holder",
                 "Score": round(sc) if isinstance(sc, (int, float)) else "—",
-                "Detail": x.get("Conviction") or x.get("Action") or "—",
+                "Detail": detail,
                 "Funds": _fund_lineup_label(raw_name)}
 
     _drill_dialog = ui.dialog()
