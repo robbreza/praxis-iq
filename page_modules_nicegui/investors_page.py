@@ -866,7 +866,7 @@ def _open_metro_select_dialog(metro, funds):
             peers = ", ".join(sorted((c.get("comps") or {}).keys()))
             d_rows.append({
                 "_filer": c.get("filer"), "Fund": pretty_name(c.get("filer") or "—"),
-                "City": c.get("city") or "—", "Bucket": c.get("tier") or "—",
+                "City": c.get("city") or "—", "Category": c.get("tier") or "—",
                 "Conviction": round(conv) if conv is not None else "—",
                 "Peers held": peers or ("Curated target" if c.get("kind") == "curated" else "—"),
             })
@@ -1748,6 +1748,115 @@ def _render_mode_description(mode):
 # ─────────────────────────────────────────────────────────────────────────
 # Big Picture synthesis
 # ─────────────────────────────────────────────────────────────────────────
+def _open_account_profile(rec):
+    """Account 360 — one card fusing the AUTO-derived book (holdings, peers, fund
+    lineup, NDR pipeline) with the HUMAN relationship layer (quality, last contact,
+    notes). `rec` is the original candidate/institution dict from wherever it was
+    clicked. Prototype: read-rich, with an editable relationship strip that persists
+    to the global house book (core.relationship_notes)."""
+    from core import fund_lineup, relationship_notes as rn
+
+    name = rec.get("filer") or rec.get("Fund") or "—"
+    disp = pretty_name(name)
+    is_cand = "filer" in rec
+    comps = rec.get("comps") or {}
+    peers = ", ".join(sorted(comps.keys()))
+    metro = rec.get("Metro") or _metro_from_city(rec.get("city"), rec.get("state")) if is_cand else rec.get("Metro")
+    loc = (rec.get("city") or rec.get("City") or metro or "—")
+    category = rec.get("tier") or ("Current holder" if rec.get("USIO_Holder") else "Non-holder")
+    score = rec.get("conviction") if is_cand else rec.get("Engagement_Score")
+
+    def _section(title):
+        ui.label(title).style(f"color:{COLORS['text_muted']};font-size:11px;font-weight:600;"
+                              "letter-spacing:.04em;text-transform:uppercase;margin-top:10px;")
+
+    def _kv(label, value):
+        with ui.row().classes("w-full items-baseline gap-2").style("padding:1px 0;"):
+            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;")
+            ui.label(str(value)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
+
+    # NDR-pipeline scan — is this name already shortlisted / met on any trip?
+    pipe = []
+    for t in _load_json("ndr_trips.json", []):
+        tn = t.get("name") or "NDR"
+        for s in t.get("shortlist", []):
+            if s.get("institution") == name:
+                pipe.append(f"{tn}: {s.get('status', 'shortlisted')}")
+        for m in t.get("meetings", []):
+            if m.get("institution") == name:
+                pipe.append(f"{tn}: met (day {m.get('day', '?')})")
+
+    note = rn.get(name)
+
+    with ui.dialog() as dlg, ui.card().style("min-width:min(680px,95vw);max-width:95vw;"):
+        with ui.row().classes("w-full justify-between items-start"):
+            with ui.column().classes("gap-0"):
+                ui.label(disp).classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
+                ui.label(f"{category} · {loc}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            with ui.row().classes("items-center gap-2"):
+                q = note.get("quality")
+                if q:
+                    ui.label(rn.QUALITY.get(q, q)).style(
+                        f"background:{COLORS['positive'] if q in ('good','responsive') else COLORS['surface_hover_bg']};"
+                        f"color:{'#fff' if q in ('good','responsive') else COLORS['text_secondary']};"
+                        "font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;")
+                ui.button(icon="close", on_click=dlg.close).props("flat round dense")
+
+        # ── Ownership & filings (auto) ─────────────────────────────
+        _section("Ownership & filings")
+        if is_cand:
+            _kv("Owns (your comps)", peers or "—")
+            _kv("Peer position value", f"${(rec.get('peer_value') or 0):,.0f}")
+            _kv("Conviction", round(score) if isinstance(score, (int, float)) else "—")
+            _kv("Book breadth", f"{rec.get('book_positions') or '—'} positions")
+        else:
+            _kv("Relationship to you", "Holder" if rec.get("USIO_Holder") else "Non-holder")
+            if rec.get("Position_Value") is not None:
+                _kv("Position value", f"${(rec.get('Position_Value') or 0):,.0f}")
+            _kv("Engagement score", round(score) if isinstance(score, (int, float)) else "—")
+            if peers:
+                _kv("Owns (your comps)", peers)
+            if rec.get("Action"):
+                _kv("Signal", rec.get("Action"))
+
+        # ── Fund lineup (auto) ─────────────────────────────────────
+        lu = fund_lineup.lineup_for_manager(name)
+        if lu and lu.get("funds"):
+            _section(f"Fund lineup — {lu.get('registrant')}")
+            names = [f["name"] for f in lu["funds"]]
+            ui.label(" · ".join(names[:8]) + (f"  (+{len(names) - 8} more)" if len(names) > 8 else "")).style(
+                f"color:{COLORS['text_secondary']};font-size:12px;")
+
+        # ── Pipeline (auto) ────────────────────────────────────────
+        _section("NDR pipeline")
+        ui.label(" · ".join(pipe) if pipe else "Not on any NDR yet.").style(
+            f"color:{COLORS['text_secondary']};font-size:12px;")
+
+        # ── Relationship (human — editable, persists to the house book) ──
+        _section("Relationship — your notes")
+        ui.label("The one layer filings can't give you. Saved to the shared house book.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        with ui.row().classes("w-full items-end gap-2"):
+            q_opts = {"": "— quality —", **rn.QUALITY}
+            q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
+                "dense outlined").style("min-width:180px;")
+            last = ui.input("Last real contact", value=note.get("last_contact") or "").props(
+                "dense outlined").style("min-width:150px;")
+            touches = ui.number("Touches", value=note.get("touches"), format="%d").props(
+                "dense outlined").style("min-width:100px;")
+        note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2")
+
+        def _save_note():
+            rn.save(name, quality=(q_sel.value or None), last_contact=(last.value or "").strip() or None,
+                    touches=int(touches.value) if touches.value not in (None, "") else None,
+                    note=(note_box.value or "").strip() or None)
+            ui.notify(f"Saved relationship note for {disp}.", type="positive")
+            dlg.close()
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
+            ui.button("Save note", icon="save", on_click=_save_note).props("dense color=primary")
+    dlg.open()
+
+
 def _fund_lineup_label(manager_name, head=4):
     """Short inline lineup for a 13F manager: the individual fund names EDGAR shows
     for that family ('Value Fund · Value Plus · Mid Cap Value'), or "" if the manager
@@ -2230,7 +2339,7 @@ def _render_big_picture(institutions):
             return {"_filer": x.get("filer"),          # row key for selection (not a column)
                     "Fund": pretty_name(x.get("filer") or "—"),
                     "City": (x.get("city") or "—").title(),
-                    "Bucket": x.get("tier") or "—",
+                    "Category": x.get("tier") or "—",
                     "Score": round(conv) if isinstance(conv, (int, float)) else "—",
                     "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
                     "Funds": _fund_lineup_label(raw_name)}
@@ -2241,7 +2350,7 @@ def _render_big_picture(institutions):
         detail = f"owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
         return {"Fund": pretty_name(x.get("Fund") or "—"),
                 "City": x.get("City") or (x.get("Metro") or "—"),
-                "Bucket": "Holder" if x.get("USIO_Holder") else "Non-holder",
+                "Category": "Holder" if x.get("USIO_Holder") else "Non-holder",
                 "Score": round(sc) if isinstance(sc, (int, float)) else "—",
                 "Detail": detail,
                 "Funds": _fund_lineup_label(raw_name)}
@@ -2284,15 +2393,26 @@ def _render_big_picture(institutions):
                         new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
                         new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
                         add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
-                dcols = [{"name": k, "label": ("Fund lineup (SEC)" if k == "Funds" else k),
+                _dcol_label = {"Funds": "Fund lineup (SEC)", "Category": "Category"}
+                dcols = [{"name": k, "label": _dcol_label.get(k, k),
                           "field": k, "sortable": True,
                           "align": "right" if k == "Score" else "left",
                           **({"style": "white-space:normal;min-width:230px;",
                               "headerStyle": "white-space:normal;"} if k == "Funds" else {})}
-                         for k in ("Fund", "City", "Bucket", "Score", "Detail", "Funds")]
+                         for k in ("Fund", "City", "Category", "Score", "Detail", "Funds")]
                 _extra = {"selection": "multiple"} if is_peer else {}
                 tbl = ui.table(columns=dcols, rows=d_rows, row_key=("_filer" if is_peer else "Fund"),
                                pagination=25, **_extra).classes("w-full").props("dense flat")   # 25 per page
+                # Fund name → Account 360 profile. @click.stop so it doesn't toggle the row checkbox.
+                _orig_by_fund = {pretty_name(it.get("filer") or it.get("Fund") or ""): it for it in items}
+                tbl.add_slot("body-cell-Fund", (
+                    '<q-td :props="props">'
+                    '<span class="cursor-pointer" '
+                    f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
+                    '@click.stop="() => $parent.$emit(\'openProfile\', props.row.Fund)">'
+                    '{{ props.value }}</span></q-td>'))
+                tbl.on("openProfile", lambda e: _open_account_profile(
+                    _orig_by_fund.get(e.args) or {"Fund": e.args}))
 
                 if is_peer:
                     def _do_add():
