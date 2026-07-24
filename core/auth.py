@@ -180,6 +180,28 @@ def set_user_active(user_id, active):
         conn.close()
 
 
+def set_account_type(user_id, account_type, home_client_id=None, role_key=None):
+    """Change a user's account type — e.g. upgrade a read-only client_user to a
+    read-write client_admin. Optionally re-pin the home tenant / role at the same time."""
+    if account_type not in (STAFF, CLIENT, CLIENT_RW):
+        raise ValueError(f"unknown account_type: {account_type}")
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
+    sets, params = ["account_type = " + ph], [account_type]
+    if home_client_id is not None:
+        sets.append("home_client_id = " + ph); params.append(home_client_id)
+    if role_key is not None:
+        sets.append("role_key = " + ph); params.append(role_key)
+    params.append(user_id)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE users SET {', '.join(sets)} WHERE lower(user_id) = lower({ph})", params)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def touch_login(user_id):
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
