@@ -3050,6 +3050,7 @@ def _tier_card(institutions, label, action, accent_color):
 def _institution_card(inst, meeting_log, contacts):
     fund_meetings = _get_fund_meetings(meeting_log, inst["Fund"])
     repeat_gap = _get_repeat_signal(fund_meetings)
+    _tk = CT("ticker")
     score = inst["Engagement_Score"]
     holder_badge = "Current Holder" if inst["USIO_Holder"] else "Non-Holder"
     qoq_str = f"{inst['QoQ_Change']:+,}" if inst["QoQ_Change"] else "—"
@@ -3090,13 +3091,22 @@ def _institution_card(inst, meeting_log, contacts):
                 if days_contacted is not None and days_contacted <= 7:
                     ui.label(f"Contacted {days_contacted}d ago — off Today's Investor Pipeline until day 8").style(
                         f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
-            with ui.column().classes("items-center"):
+            with ui.column().classes("items-center gap-0"):
                 ui.label(str(score)).classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
-                ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                with ui.row().classes("items-center gap-1 no-wrap"):
+                    ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.icon("info").classes("cursor-help").style(
+                        f"font-size:13px;color:{COLORS['text_muted']};").tooltip(
+                        "Engagement score, 0-100 — blends who already knows the story (call-listener), "
+                        "peer-holding overlap, and recent IR visits; the weights shift with Pre-/Post-earnings "
+                        "mode. Higher = readier to engage.")
 
         with ui.row().classes("w-full gap-6").style("margin-top:6px;"):
-            ui.label(f"Shares: {shares_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"QoQ: {qoq_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Shares: {shares_str}").classes("cursor-help").style(
+                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(f"Shares of {_tk} held (latest 13F)")
+            ui.label(f"QoQ: {qoq_str}").classes("cursor-help").style(
+                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                "Quarter-over-quarter change in shares held (+ adding · − trimming)")
             # None means UNKNOWN, not "no". There is no call-listener or website-analytics
             # integration, so rendering "Did not listen" / "None · None" for a real 13F holder
             # asserts a negative we never measured. Say we don't know.
@@ -3108,8 +3118,13 @@ def _institution_card(inst, meeting_log, contacts):
                 _call_str = "Did not listen"
             _visits_str = ("no visit data" if inst.get("IR_Visits_30d") is None
                            else f"{inst['IR_Visits_30d']} · {inst.get('Last_Visit') or '—'}")
-            ui.label(f"Q1 call: {_call_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"IR visits (30d): {_visits_str}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Q1 call: {_call_str}").classes("cursor-help").style(
+                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                "Whether they listened to the last earnings call (call-listener signal). "
+                "'no call data' = we didn't measure it, not a 'no'")
+            ui.label(f"IR visits (30d): {_visits_str}").classes("cursor-help").style(
+                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                "IR-website visits in the last 30 days · last visit date. 'no visit data' = not measured")
         # marks a peer holding confirmed by a real SEC 13F filing (see
         # _enrich_peer_holdings_with_live_13f); an unmarked ticker is still
         # the original hand-typed seed guess — that ticker hasn't been
@@ -3126,8 +3141,13 @@ def _institution_card(inst, meeting_log, contacts):
         if isinstance(_peers, str):
             _peers = [_peers]
         _peer_labels = [t + (" " if _peer_src.get(t) == "live" else "") for t in _peers]
-        ui.label(f"Peers held: {', '.join(_peer_labels) or '—'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-        ui.label(f"Action: {inst['Action']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;")
+        ui.label(f"Peers held: {', '.join(_peer_labels) or '—'}").classes("cursor-help").style(
+            f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+            f"Which of {_tk}'s comps this fund owns. A checkmark = confirmed by a live SEC 13F; "
+            "unmarked = seed guess, not yet 13F-refreshed")
+        ui.label(f"Action: {inst['Action']}").classes("cursor-help").style(
+            f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;").tooltip(
+            "The suggested next move for this holder, read from its position change and signals")
 
         contact = contacts.get(inst["Fund"], {})
         # Actions sit in a bottom row set off by a thin top divider — same treatment
