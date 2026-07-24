@@ -1491,6 +1491,7 @@ def _render_peer_prospects_tab(client_id):
              "vs. index breadth, and size fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
              "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
+    _size_calibration_note(client_id)
 
     # The roadshow-metro view (with click-to-select) is now the single "Where they are" table in
     # Buy-Side Intelligence — no duplicate here. The conviction-ranked prospects below feed the
