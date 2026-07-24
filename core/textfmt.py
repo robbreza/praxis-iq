@@ -16,6 +16,7 @@ _KEEP_UPPER = {
     "GP", "SE", "AB", "AS", "USA", "US", "UK", "UAE", "ETF", "REIT", "SPA", "S.A.",
     # well-known manager initialisms that look wrong Title-cased
     "FMR", "BNY", "UBS", "PNC", "TIAA", "CPP", "APG", "GIC", "BMO", "RBC", "TD",
+    "LSV", "DZ", "KBC", "CIBC", "HSBC", "ING", "BNP", "LGT", "EFG",
 }
 # Period-insensitive form, so "L.P." (which loses its trailing dot to strip()) still
 # matches "LP" — otherwise "Holdings L.P." Title-cased to a wrong "L.p.".
@@ -30,16 +31,35 @@ _SPECIAL = {
     "VANECK": "VanEck", "ISHARES": "iShares", "POWERSHARES": "PowerShares",
     "MFS": "MFS", "PGIM": "PGIM", "AQR": "AQR", "GQG": "GQG", "DNB": "DNB",
 }
-# Trailing EDGAR state-of-incorporation cruft, e.g. "... CORP /DE/" — not part
-# of the name; dropped before formatting.
-_EDGAR_SUFFIX_RE = re.compile(r"\s*/[A-Za-z]{2}/\s*$")
+# Trailing EDGAR filer cruft — state-of-incorporation and entity-type tags EDGAR
+# appends to the registered name that aren't part of it. They arrive delimited by
+# either forward slashes ("CORP /DE/", "... /ADV", broker-dealer "... /BD") OR
+# backslashes ("US BANCORP \DE\", trailing "DEUTSCHE BANK AG\"), sometimes several
+# in a row ("... /GA/ /ADV"), and sometimes padded with long internal whitespace
+# runs. _strip_edgar_cruft peels them all off (and collapses the whitespace) before
+# formatting. The tag is 1-4 letters between slash/backslash delimiters; a real
+# name never ends that way, and legit trailing words (>4 letters, or space after
+# the delimiter) are left untouched.
+_EDGAR_TAG_RE = re.compile(r"\s*[\\/][A-Za-z]{1,4}[\\/]?\s*$")
+_TRAIL_DELIM_RE = re.compile(r"[\\/]+\s*$")
+_WS_RE = re.compile(r"\s+")
+
+
+def _strip_edgar_cruft(s):
+    s = _WS_RE.sub(" ", str(s).strip())
+    prev = None
+    while prev != s:                              # peel repeated trailing tags: "/GA/ /ADV" → ""
+        prev = s
+        s = _TRAIL_DELIM_RE.sub("", s).strip()    # stray trailing "\" or "/" (e.g. "AG\")
+        s = _EDGAR_TAG_RE.sub("", s).strip()      # "/DE/", "\DE\", "/BD", "/ADV"
+    return s
 
 
 def pretty_name(raw):
     """Title-case a screaming all-caps name for display; leave mixed-case as-is."""
     if not raw:
         return raw
-    s = _EDGAR_SUFFIX_RE.sub("", str(raw).strip())
+    s = _strip_edgar_cruft(raw)
     letters = [c for c in s if c.isalpha()]
     # Only fix genuinely all-caps strings — respect anything already cased.
     if not letters or not all(c.isupper() for c in letters):
