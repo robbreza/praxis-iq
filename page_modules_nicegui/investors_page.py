@@ -1748,6 +1748,24 @@ def _render_mode_description(mode):
 # ─────────────────────────────────────────────────────────────────────────
 # Big Picture synthesis
 # ─────────────────────────────────────────────────────────────────────────
+def _card_rec(inst):
+    """Adapt a Buy-Side institution dict into the shape the 360 profile reads (its comps
+    come from Peer_Holdings; carry city/cik through)."""
+    peers = inst.get("Peer_Holdings") or []
+    if isinstance(peers, str):
+        peers = [peers]
+    return {**inst, "comps": {t: {} for t in peers if isinstance(t, str)},
+            "city": inst.get("City"), "cik": inst.get("cik")}
+
+
+def _quick_log_call(inst):
+    """One-click 'I just talked to them' from a card — appends a call event (always safe)."""
+    from core import account_api
+    account_api.log_interaction(name=inst["Fund"], cik=inst.get("cik"), type="call",
+                                summary="Logged from Buy-Side card")
+    ui.notify(f"Logged a call for {pretty_name(inst['Fund'])}.", type="positive")
+
+
 def _open_account_profile(rec):
     """Account 360 — one card fusing the AUTO-derived book (holdings, peers, fund
     lineup, NDR pipeline) with the HUMAN relationship layer (quality, last contact,
@@ -2794,6 +2812,9 @@ def _institution_card(inst, meeting_log, contacts):
     # given fund isn't showing up there — this badge makes that visible
     # here instead of the two pages silently disagreeing.
     days_contacted = _days_since_last_contact(inst["Fund"], meeting_log)
+    from core import account_api
+    _acct = account_api.get_account(name=inst["Fund"], cik=inst.get("cik")) or {}
+    _rel, _ix = _acct.get("relationship", {}), _acct.get("interactions", {})
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {border_clr};"):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
@@ -2804,7 +2825,16 @@ def _institution_card(inst, meeting_log, contacts):
                     ui.label(_src).style(
                         f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:1px 6px;"
                         "font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap;")
+                    _q = _rel.get("quality")
+                    if _q:
+                        ui.label(account_api.QUALITY.get(_q, _q)).style(
+                            f"background:{COLORS['positive'] if _q in ('good', 'responsive') else COLORS['surface_hover_bg']};"
+                            f"color:{'#fff' if _q in ('good', 'responsive') else COLORS['text_secondary']};"
+                            "border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;")
                 ui.label(f"{inst['Metro']}  ·  {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                if _ix.get("touches"):
+                    ui.label(f"{_ix['touches']} touch{'es' if _ix['touches'] != 1 else ''} · last {_ix.get('last_contact') or '—'}").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;")
                 if repeat_gap is not None:
                     ui.label(f"Repeat meeting in {repeat_gap}d").style(f"color:#B45309;font-size:12px;font-weight:bold;")
                 if days_contacted is not None and days_contacted <= 7:
@@ -2856,6 +2886,10 @@ def _institution_card(inst, meeting_log, contacts):
                 f"margin-top:4px;padding-top:4px;border-top:1px solid {COLORS['border']};"):
             if contact.get("email"):
                 _mailto(contact["email"], f"{CT('ticker')} — Following up, {inst['Fund']}", "Hi,\n\n", f"Email {contact.get('name','Contact')}")
+            ui.button("Account 360", icon="account_circle",
+                      on_click=lambda inst=inst: _open_account_profile(_card_rec(inst))).props("flat dense")
+            ui.button("Log call", icon="add_call",
+                      on_click=lambda inst=inst: _quick_log_call(inst)).props("flat dense")
             ui.button("Draft Pre-Earnings Outreach", on_click=lambda inst=inst, contact=contact: _open_outreach_dialog(inst, contact)).props("flat dense")
             ui.button(f"Meeting Log ({len(fund_meetings)})", on_click=lambda inst=inst, fm=fund_meetings, rg=repeat_gap: _open_meeting_log_dialog(inst, fm, rg)).props("flat dense")
 
