@@ -1287,7 +1287,7 @@ def render_investors_page():
     # list — a tab built after a mode toggle uses the fresh scores.
     lazy_panels = {
         t1.props["name"]: (p1, lambda: _buyside_section()),
-        t2.props["name"]: (p2, lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id)),
+        t2.props["name"]: (p2, lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"])),
         t3.props["name"]: (p3, lambda: _render_meeting_hub_tab()),
         t4.props["name"]: (p4, lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id)),
         t5.props["name"]: (p5, lambda: _render_sec_intelligence_tab()),
@@ -3717,7 +3717,7 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
     dialog.open()
 
 
-def _render_ndr_tab(institutions, meeting_log, client_id):
+def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
     with ui.tabs().classes("w-full") as ndr_tabs:
         nt1 = ui.tab("Plan New NDR")
         nt2 = ui.tab("Active NDRs")
@@ -3773,11 +3773,15 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
                     city_in = ui.input("City / Region", placeholder="Type a city, or pick a tracked metro",
                                        autocomplete=_ndr_location_options(institutions)).classes("w-full")
                 with ui.column().classes("flex-1"):
+                    # Contextual default: follow the active engagement mode (Pre-/Post-earnings)
+                    # instead of a fixed "Post-earnings" that fought the current context.
+                    _focus_default = ("Pre-earnings — build anticipation" if mode == "pre"
+                                      else "Post-earnings — deliver results story")
                     focus_in = ui.select([
                         "Post-earnings — deliver results story", "Pre-earnings — build anticipation",
                         "New institution discovery", "Existing holder relationship maintenance",
                         "Analyst initiation support", "Other",
-                    ], value="Post-earnings — deliver results story").classes("w-full").props("label='NDR focus'")
+                    ], value=_focus_default).classes("w-full").props("label='NDR focus'")
                     team_in = ui.select([f"{v['name']} ({k})" for k, v in CT("executives", {}).items()] + [CI().get("name", "")],
                                          multiple=True).classes("w-full").props("label='Attendees'")
                     notes_in = ui.textarea("Trip objectives", placeholder="e.g. Re-introduce to Putnam. Get Fidelity Small Cap on record post-print.").classes("w-full")
@@ -4454,8 +4458,11 @@ def _render_ndr_requests_tab():
     with ui.expansion("Log a new request", value=False).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
             r_analyst = ui.input("Analyst name *").classes("flex-1")
+            # Suggest covering firms via autocomplete, but start empty — a request can
+            # come from any firm; auto-filling the first covering bank mislabeled it.
             bank_options = [a["firm"] for a in CA()] + ["Other / Non-Covering Bank"]
-            r_firm = ui.input("Firm", value=bank_options[0], autocomplete=bank_options).classes("flex-1")
+            r_firm = ui.input("Firm", placeholder="Analyst's firm — pick or type",
+                              autocomplete=bank_options).classes("flex-1")
         with ui.row().classes("w-full gap-4"):
             r_city = ui.input("City *").classes("flex-1")
             r_metro = ui.input("Metro region",
