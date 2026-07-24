@@ -2110,16 +2110,17 @@ def _render_big_picture(institutions):
     geo_cols = [
         {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left"},
         {"name": "holders", "label": "Holders", "field": "holders", "align": "right"},
-        {"name": "t1", "label": "Tier-1 ready", "field": "t1", "align": "right"},
-        {"name": "funds", "label": "Peer-owners", "field": "funds", "align": "right"},
+        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right"},          # two-row header
+        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right"},    # two-row header
         {"name": "inst", "label": "Inst", "field": "inst", "align": "right"},
         {"name": "ria", "label": "RIA", "field": "ria", "align": "right"},
-        {"name": "div", "label": "Diversified", "field": "div", "align": "right"},
+        {"name": "div", "label": "Divsfd", "field": "div", "align": "right"},
         {"name": "mm", "label": "MM", "field": "mm", "align": "right"},
         {"name": "curated", "label": "Curated", "field": "curated", "align": "right"},
         {"name": "trips", "label": "NDRs", "field": "trips", "align": "right"},
-        {"name": "read", "label": "Roadshow read", "field": "read", "align": "left"},
-        {"name": "top", "label": "Top name", "field": "top", "align": "left"},
+        {"name": "read", "label": "Roadshows", "field": "read", "align": "left"},
+        {"name": "top", "label": "Top name", "field": "top", "align": "left",
+         "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
     ]
     # Click a metro row to see exactly WHO is there — the counts above always
     # raised "which 5 institutions?"; this opens the named list on demand
@@ -2157,6 +2158,16 @@ def _render_big_picture(institutions):
 
     geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro").classes(
         "w-full cursor-pointer").props("dense flat")
+    # Custom header so a "\n" in a label renders as a two-row heading (pre-line) — lets the numeric
+    # columns stay narrow and hands the freed width to Top name so it isn't truncated.
+    geo_table.add_slot("header", r'''
+        <q-tr :props="props">
+          <q-th v-for="col in props.cols" :key="col.name" :props="props"
+                style="white-space:pre-line;vertical-align:bottom;line-height:1.15;">
+            {{ col.label }}
+          </q-th>
+        </q-tr>
+    ''')
     geo_table.on("rowClick", lambda e: _open_metro_detail(e.args[1]["metro"]))
     _peer_total = sum(v["funds"] for v in peer_by_metro.values())
     ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
