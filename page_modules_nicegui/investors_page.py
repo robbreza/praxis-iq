@@ -2590,6 +2590,8 @@ def _render_accounts_tab(client_id, institutions=None):
         if a:
             a[flag] = True
             a["open_name"] = a.get("open_name") or nm
+            if tier and not a.get("tier"):
+                a["tier"] = tier
             if not a.get("cik") and cik:
                 a["cik"] = accounts._cik_int(cik)
         else:
@@ -2631,6 +2633,9 @@ def _render_accounts_tab(client_id, institutions=None):
         typ = ui.select({"": "All accounts", "holder": "Holders", "peer": "Peer-owners",
                          "rel": "Has notes / activity"},
                         value="").props("dense outlined").style("min-width:160px;")
+        tier = ui.select({"": "All tiers", "Institutional": "Institutional", "RIA / wealth": "RIA / wealth",
+                          "Diversified": "Diversified", "Market maker": "Market maker", "Curated": "Curated"},
+                         value="").props("dense outlined").style("min-width:150px;")
         qual = ui.select({"": "All quality", **account_api.QUALITY, "__unset__": "— unset —"},
                          value="").props("dense outlined").style("min-width:160px;")
         cad = ui.select({"": "All cadence", "Active": "Active", "Cooling": "Cooling",
@@ -2650,6 +2655,8 @@ def _render_accounts_tab(client_id, institutions=None):
                 continue
             if typ.value == "rel" and not (a["quality"] or a["touches"]):
                 continue
+            if tier.value and a.get("tier") != tier.value:   # tier filter → peer-owners of that bucket
+                continue
             if qual.value == "__unset__" and a["quality"]:
                 continue
             if qual.value and qual.value != "__unset__" and a["quality"] != qual.value:
@@ -2658,7 +2665,7 @@ def _render_accounts_tab(client_id, institutions=None):
             if cad.value and cd != cad.value:
                 continue
             seg = "Holder" if a.get("holder") else "Peer-owner" if a.get("peer") else ""
-            rows.append({"Name": a["name"], "Segment": seg,
+            rows.append({"Name": a["name"], "Segment": seg, "Tier": a.get("tier") or "—",
                          "Quality": account_api.QUALITY.get(a["quality"], "—") if a["quality"] else "—",
                          "Touches": a["touches"], "Last contact": a["last_contact"] or "—", "Cadence": cd})
             by_name[a["name"]] = a
@@ -2668,7 +2675,7 @@ def _render_accounts_tab(client_id, institutions=None):
             return
         cols = [{"name": k, "label": k, "field": k, "sortable": True,
                  "align": "right" if k == "Touches" else "left"}
-                for k in ("Name", "Segment", "Quality", "Touches", "Last contact", "Cadence")]
+                for k in ("Name", "Segment", "Tier", "Quality", "Touches", "Last contact", "Cadence")]
         tbl = ui.table(columns=cols, rows=rows, row_key="Name", pagination=25).classes(
             "w-full cursor-pointer").props("dense flat")
         tbl.add_slot("body-cell-Name", (
@@ -2691,7 +2698,7 @@ def _render_accounts_tab(client_id, institutions=None):
                                        "USIO_Holder": a.get("holder", False)})
         tbl.on("openAcct", _open)
 
-    for w in (search, typ, qual, cad):
+    for w in (search, typ, tier, qual, cad):
         w.on_value_change(lambda *_: _list.refresh())
     _list()
 
