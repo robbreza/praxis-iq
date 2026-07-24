@@ -63,7 +63,7 @@ def _bind_active_client():
     from core import auth, db
     user = _current_user()
     allowed = auth.allowed_clients(user)
-    db.set_session_readonly(auth.is_client_user(user))
+    db.set_session_readonly(auth.is_readonly_user(user))   # CLIENT_RW is tenant-pinned but writable
     try:
         requested = app.storage.user.get("active_client_id")
     except Exception:
@@ -462,19 +462,20 @@ def user_admin_page():
                     a_email = ui.input("Email").props("outlined dense").style("min-width:230px;")
                     a_name = ui.input("Display name").props("outlined dense").style("min-width:180px;")
                     a_type = ui.select(
-                        {auth.CLIENT: "Client (read-only, 1 tenant)",
+                        {auth.CLIENT_RW: "Client — read/write (1 tenant)",
+                         auth.CLIENT: "Client — read-only (1 tenant)",
                          auth.STAFF: "Praxis Point staff (all tenants)"},
-                        value=auth.CLIENT, label="Account type").props("outlined dense") \
-                        .style("min-width:230px;")
+                        value=auth.CLIENT_RW, label="Account type").props("outlined dense") \
+                        .style("min-width:240px;")
                     a_tenant = ui.select(tenant_opts, value=next(iter(tenant_opts)),
                                          label="Home tenant").props("outlined dense") \
                         .style("min-width:150px;")
                     a_role = ui.select(role_keys, value=role_keys[0], label="Role") \
                         .props("outlined dense").style("min-width:120px;")
 
-                    # tenant + role only apply to a client_user; hide for staff
+                    # tenant + role apply to either client type (read-only or read/write); hide for staff
                     def _sync_type():
-                        is_client = a_type.value == auth.CLIENT
+                        is_client = a_type.value in (auth.CLIENT, auth.CLIENT_RW)
                         a_tenant.set_visibility(is_client)
                         a_role.set_visibility(is_client)
                     a_type.on_value_change(lambda _: _sync_type())
@@ -483,7 +484,7 @@ def user_admin_page():
                         email = (a_email.value or "").strip().lower()
                         if "@" not in email:
                             ui.notify("Enter a valid email.", type="warning"); return
-                        is_client = a_type.value == auth.CLIENT
+                        is_client = a_type.value in (auth.CLIENT, auth.CLIENT_RW)
                         home = a_tenant.value if is_client else None
                         role = a_role.value if is_client else "IR"
                         if is_client and not home:
@@ -500,6 +501,57 @@ def user_admin_page():
 
                     ui.button("Add user", icon="person_add", on_click=_add).props("color=primary")
                 _sync_type()
+
+            # ── reset sandbox data (per tenant) ─────────────────────────────
+            # After a client operator has been exploring with a read/write login, wipe
+            # what they created back to a clean slate. Per-tenant, user-generated stores
+            # only (see core.sandbox) — shared house data is never touched.
+            with ui.card().classes("w-full").style(
+                    f"padding:18px;background:{COLORS['surface_bg']};"
+                    f"border:1px solid {COLORS['border']};border-radius:10px;"):
+                ui.label("Reset sandbox data").classes("text-base font-bold") \
+                    .style(f"color:{COLORS['text_heading']};margin-bottom:4px;")
+                ui.label("Clears a tenant's user-generated data — NDR trips, promoted prospects, "
+                         "inbound requests, scheduled meetings, meeting log, logged interactions, "
+                         "confirmed speaker lineups, and call-opening edits — back to a clean slate. "
+                         "Shared house data (fund lineups, relationship-quality notes) is not touched.") \
+                    .style(f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:8px;")
+                with ui.row().classes("items-end").style("gap:12px;"):
+                    r_tenant = ui.select(tenant_opts, value=next(iter(tenant_opts)), label="Tenant") \
+                        .props("outlined dense").style("min-width:200px;")
+
+                    def _open_reset_confirm():
+                        from core import sandbox
+                        cid = r_tenant.value
+                        tname = tenant_opts.get(cid, cid)
+                        prev = sandbox.preview(cid)
+                        with ui.dialog() as d, ui.card().style(
+                                f"background:{COLORS['surface_bg']};min-width:min(440px,92vw);"):
+                            ui.label(f"Reset {tname} sandbox?").classes("text-lg font-bold") \
+                                .style(f"color:{COLORS['text_heading']};")
+                            if prev:
+                                ui.label("This will permanently clear:").style(
+                                    f"color:{COLORS['text_muted']};font-size:12px;")
+                                for lbl, n in prev.items():
+                                    ui.label(f"•  {n} {lbl}").style(f"color:{COLORS['text_body']};font-size:13px;")
+                            else:
+                                ui.label("Nothing to clear — this tenant is already clean.").style(
+                                    f"color:{COLORS['text_muted']};font-size:13px;")
+                            with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
+                                ui.button("Cancel", on_click=d.close).props("flat")
+
+                                def _do_reset():
+                                    cleared = sandbox.reset_tenant(cid)
+                                    d.close()
+                                    summary = ", ".join(f"{n} {l.lower()}" for l, n in cleared.items()) or "nothing"
+                                    ui.notify(f"Reset {tname} — cleared {summary}.", type="positive", timeout=8000)
+                                _rb = ui.button("Reset — clear it", icon="delete_sweep",
+                                                on_click=_do_reset).props("color=negative")
+                                if not prev:
+                                    _rb.disable()
+                        d.open()
+                    ui.button("Reset sandbox data…", icon="cleaning_services",
+                              on_click=_open_reset_confirm).props("outline color=negative")
 
             # ── user list ───────────────────────────────────────────────────
             @ui.refreshable
@@ -526,8 +578,11 @@ def user_admin_page():
                                 f"color:{COLORS['text_body']};"):
                             ui.label(u["user_id"] + (" (you)" if is_self else "")).style("word-break:break-all;")
                             ui.label(u["display_name"] or "—")
-                            ui.label("Staff" if staff else "Client") \
-                                .style("color:#1D4ED8;" if staff else "color:#B45309;")
+                            _tl = ("Staff" if staff else
+                                   "Client · R/W" if u["account_type"] == auth.CLIENT_RW else "Client · read-only")
+                            _tc = ("#1D4ED8" if staff else
+                                   "#15803D" if u["account_type"] == auth.CLIENT_RW else "#B45309")
+                            ui.label(_tl).style(f"color:{_tc};")
                             ui.label(tenant)
                             ui.label("—" if staff else u["role_key"])
                             # status: active + whether they still owe a password change
@@ -776,7 +831,7 @@ def main_page():
         ui.space()
 
         # Session identity + read-only badge + logout.
-        if auth.is_client_user(user):
+        if auth.is_readonly_user(user):
             ui.label("VIEW-ONLY").style(
                 "background:#B45309;color:white;font-size:9.5px;font-weight:700;letter-spacing:.05em;"
                 "padding:2px 8px;border-radius:10px;")

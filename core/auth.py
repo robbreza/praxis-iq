@@ -30,8 +30,9 @@ from datetime import datetime
 from core import db
 
 _ITERATIONS = 240_000
-STAFF = "praxis_staff"
-CLIENT = "client_user"
+STAFF = "praxis_staff"        # all tenants, read-write
+CLIENT = "client_user"        # one tenant, READ-ONLY
+CLIENT_RW = "client_admin"    # one tenant, READ-WRITE — a client's own IR operator
 
 
 # ── password hashing (stdlib) ──────────────────────────────────────────────
@@ -221,6 +222,13 @@ def is_staff(user):
 
 
 def is_client_user(user):
+    """Any tenant-pinned (non-staff) user — read-only or read-write client."""
+    return bool(user) and user["account_type"] in (CLIENT, CLIENT_RW)
+
+
+def is_readonly_user(user):
+    """Only the read-only client type. A client_admin (CLIENT_RW) is tenant-pinned but
+    CAN write — this is the single gate that decides db read-only mode."""
     return bool(user) and user["account_type"] == CLIENT
 
 
