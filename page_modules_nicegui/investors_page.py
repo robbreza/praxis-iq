@@ -3730,8 +3730,12 @@ def _render_ndr_tab(institutions, meeting_log, client_id):
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
                     name_in = ui.input("NDR name / label", placeholder="Post-Q2 Boston NDR").classes("w-full")
+                    # Suggest, don't pre-fill: covering analysts are OFFERED via autocomplete,
+                    # but the field starts EMPTY. Auto-filling the first covering bank tagged
+                    # every NDR as its sponsor unless someone remembered to change it.
                     bank_options = [f"{a['firm']} — {a['name']}" for a in CA()] + ["Other / Non-Covering Bank"]
-                    sponsor_in = ui.input("Sponsoring Bank", value=bank_options[0],
+                    sponsor_in = ui.input("Sponsoring Bank",
+                                          placeholder="Covering bank, or self-sponsored — pick or type",
                                           autocomplete=bank_options).classes("w-full")
                     # Calendar-backed date field — click the field (or the
                     # calendar icon) to pick a start/end range; the input shows
