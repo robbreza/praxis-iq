@@ -138,7 +138,10 @@ def series_roster(registrant_cik, force=False):
     cik = int(registrant_cik)
     ck = f"{_ROSTER_KEY}{cik}"
     cached = db.load_json(ck, default=None)
-    if cached and not force and not sf._is_stale(cached.get("_fetched_at"), _ROSTER_TTL):
+    # "complete" gates the schema version — entries cached before the completeness
+    # check are refetched once so the misleading-subset guard actually applies.
+    if (cached and not force and "complete" in cached
+            and not sf._is_stale(cached.get("_fetched_at"), _ROSTER_TTL)):
         return cached
     try:
         sub = sf._get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", timeout=25).json()
@@ -165,9 +168,19 @@ def series_roster(registrant_cik, force=False):
             break
     if not funds:
         return cached
+    # Completeness check. A single N-CEN/485 header does NOT always enumerate every
+    # series — for a big complex it can carry just the one series the filing pertains
+    # to (Nuveen's N-CEN listed 1 of 17). The mutual-fund ticker file is authoritative
+    # for how many series a registrant actually has, so compare against it: if we
+    # captured essentially all of them, the name list is trustworthy; if we captured a
+    # small fraction, the names are a misleading subset and callers should show the
+    # count only, not the partial roster.
+    expected = len((_mf_index().get(cik) or {}).get("series", []))
+    complete = expected == 0 or len(funds) >= max(1, round(expected * 0.75))
     result = {
         "cik": cik, "registrant": registrant, "funds": funds,
         "series_count": len(funds), "class_count": sum(len(f["classes"]) for f in funds),
+        "expected_series": expected, "complete": complete,
         "source": source, "_fetched_at": _iso_now(),
     }
     try:

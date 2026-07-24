@@ -1748,6 +1748,35 @@ def _render_mode_description(mode):
 # ─────────────────────────────────────────────────────────────────────────
 # Big Picture synthesis
 # ─────────────────────────────────────────────────────────────────────────
+def _fund_lineup_label(manager_name, head=4):
+    """Short inline lineup for a 13F manager: the individual fund names EDGAR shows
+    for that family ('Value Fund · Value Plus · Mid Cap Value'), or "" if the manager
+    doesn't resolve to a registered fund family. Cache-backed (see core.fund_lineup);
+    unmapped managers return "" after a cheap no-network check, so it's safe to call
+    per row. Never guesses — a name we can't confidently map shows nothing."""
+    try:
+        from core import fund_lineup
+        if not fund_lineup.has_lineup(manager_name):
+            return ""
+        lu = fund_lineup.lineup_for_manager(manager_name)
+        if not lu or not lu.get("funds"):
+            return ""
+        # Only assert individual fund NAMES when we captured essentially the whole
+        # roster. For a big complex where the filing enumerated only a fraction, show
+        # the authoritative count instead of a misleading subset (Nuveen: "17 funds",
+        # not one muni fund). Boutiques — the actionable case — resolve complete.
+        if not lu.get("complete"):
+            n = lu.get("expected_series") or len(lu["funds"])
+            return f"{n} registered funds"
+        names = [f["name"] for f in lu["funds"]]
+        label = " · ".join(names[:head])
+        if len(names) > head:
+            label += f"  (+{len(names) - head} more)"
+        return label
+    except Exception:
+        return ""
+
+
 def _render_big_picture(institutions):
     client_id = get_active_client_id()
 
@@ -2090,6 +2119,7 @@ def _render_big_picture(institutions):
     def _drill_row(x):
         # Two shapes reach here: peer-owner candidates ("filer"/"tier"/"conviction"/"comps")
         # and tracked-institution dicts ("Fund"/"USIO_Holder"/"Engagement_Score"). Normalise both.
+        raw_name = x.get("filer") or x.get("Fund") or ""
         if "filer" in x:
             conv = x.get("conviction")
             peers = ", ".join(sorted((x.get("comps") or {}).keys()))
@@ -2097,13 +2127,15 @@ def _render_big_picture(institutions):
                     "City": (x.get("city") or "—").title(),
                     "Bucket": x.get("tier") or "—",
                     "Score": round(conv) if isinstance(conv, (int, float)) else "—",
-                    "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—"))}
+                    "Detail": (f"owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
+                    "Funds": _fund_lineup_label(raw_name)}
         sc = x.get("Engagement_Score")
         return {"Fund": pretty_name(x.get("Fund") or "—"),
                 "City": x.get("City") or (x.get("Metro") or "—"),
                 "Bucket": "Holder" if x.get("USIO_Holder") else "Non-holder",
                 "Score": round(sc) if isinstance(sc, (int, float)) else "—",
-                "Detail": x.get("Conviction") or x.get("Action") or "—"}
+                "Detail": x.get("Conviction") or x.get("Action") or "—",
+                "Funds": _fund_lineup_label(raw_name)}
 
     _drill_dialog = ui.dialog()
 
@@ -2120,11 +2152,21 @@ def _render_big_picture(institutions):
             if not d_rows:
                 ui.label("No names behind this number.").style(f"color:{COLORS['text_muted']};")
             else:
-                dcols = [{"name": k, "label": k, "field": k, "sortable": True,
-                          "align": "right" if k == "Score" else "left"}
-                         for k in ("Fund", "City", "Bucket", "Score", "Detail")]
+                _n_lineups = sum(1 for r in d_rows if r.get("Funds"))
+                dcols = [{"name": k, "label": ("Fund lineup (SEC)" if k == "Funds" else k),
+                          "field": k, "sortable": True,
+                          "align": "right" if k == "Score" else "left",
+                          **({"style": "white-space:normal;min-width:230px;",
+                              "headerStyle": "white-space:normal;"} if k == "Funds" else {})}
+                         for k in ("Fund", "City", "Bucket", "Score", "Detail", "Funds")]
                 ui.table(columns=dcols, rows=d_rows, row_key="Fund",
                          pagination=25).classes("w-full").props("dense flat")   # 25 per page
+                if _n_lineups:
+                    ui.label(f"“Fund lineup” names the individual '40-Act funds the manager runs (from its "
+                             f"latest SEC N-CEN/485 filing) — the strategy sleeve a 13F hides. Shown for "
+                             f"{_n_lineups} of {len(d_rows)} here; blank where the holder has no registered "
+                             "fund family (hedge fund / SMA) or isn't yet confirmed in the crosswalk.").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
         _drill_dialog.open()
 
     # pagination=25 → the metro list itself pages 25 at a time; sortable headers sort the full set.
