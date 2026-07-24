@@ -1833,9 +1833,9 @@ def _open_account_profile(rec):
             f"color:{COLORS['text_secondary']};font-size:12px;")
 
         # ── Relationship (human — editable, persists to the house book) ──
+        # (What this is / that notes are shared across clients belongs in onboarding,
+        # not as a permanent subtitle on every card — it read as distracting jargon.)
         _section("Relationship — your notes")
-        ui.label("The one layer filings can't give you. Saved to the shared house book.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
         with ui.row().classes("w-full items-end gap-2"):
             q_opts = {"": "— quality —", **rn.QUALITY}
             q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
