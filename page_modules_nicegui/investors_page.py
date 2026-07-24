@@ -1761,17 +1761,19 @@ def _fund_lineup_label(manager_name, head=4):
         lu = fund_lineup.lineup_for_manager(manager_name)
         if not lu or not lu.get("funds"):
             return ""
-        # Only assert individual fund NAMES when we captured essentially the whole
-        # roster. For a big complex where the filing enumerated only a fraction, show
-        # the authoritative count instead of a misleading subset (Nuveen: "17 funds",
-        # not one muni fund). Boutiques — the actionable case — resolve complete.
-        if not lu.get("complete"):
-            n = lu.get("expected_series") or len(lu["funds"])
-            return f"{n} registered funds"
+        # Always DISPLAY the fund names we have — a reader who knows the family spots a
+        # gap, and showing something beats a blank. State the true total from the
+        # authoritative ticker-file count, and mark "partial" only when we genuinely
+        # couldn't capture the whole roster (rare now that we aggregate across filings).
         names = [f["name"] for f in lu["funds"]]
+        total = lu.get("expected_series") or len(names)
+        total = max(total, len(names))
         label = " · ".join(names[:head])
-        if len(names) > head:
-            label += f"  (+{len(names) - head} more)"
+        extra = total - min(len(names), head)
+        if extra > 0:
+            label += f"  (+{extra} more)"
+        if not lu.get("complete"):
+            label += " · partial"
         return label
     except Exception:
         return ""

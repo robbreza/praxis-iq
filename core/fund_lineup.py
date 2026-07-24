@@ -37,6 +37,7 @@ _CROSSWALK_KEY = "sec_fund_crosswalk"        # auto/confirmed adviser -> registr
 _MF_TTL = timedelta(days=30)
 _ROSTER_TTL = timedelta(days=30)
 _REG_NORMS_TTL = timedelta(days=30)
+_ROSTER_SCHEMA = 2                            # bump to invalidate cached rosters on shape change
 
 # Forms whose SGML header enumerates ALL of a registrant's series at once.
 _ROSTER_FORMS = ("N-CEN", "485BPOS", "485APOS", "497")
@@ -138,9 +139,9 @@ def series_roster(registrant_cik, force=False):
     cik = int(registrant_cik)
     ck = f"{_ROSTER_KEY}{cik}"
     cached = db.load_json(ck, default=None)
-    # "complete" gates the schema version — entries cached before the completeness
-    # check are refetched once so the misleading-subset guard actually applies.
-    if (cached and not force and "complete" in cached
+    # schema gate — entries cached under an older shape are refetched once so the new
+    # aggregation/completeness logic actually applies.
+    if (cached and not force and cached.get("schema") == _ROSTER_SCHEMA
             and not sf._is_stale(cached.get("_fetched_at"), _ROSTER_TTL)):
         return cached
     try:
@@ -150,38 +151,57 @@ def series_roster(registrant_cik, force=False):
     registrant = sub.get("name")
     rec = sub.get("filings", {}).get("recent", {})
     forms, accs = rec.get("form", []), rec.get("accessionNumber", [])
-    funds, source = [], None
-    for want in _ROSTER_FORMS:
-        acc = next((a for f, a in zip(forms, accs) if f == want), None)
-        if not acc:
-            continue
+    expected = len((_mf_index().get(cik) or {}).get("series", []))
+
+    def _hdr_series(acc):
         accn = acc.replace("-", "")
         try:
             hdr = sf._get(f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn}/{acc}.hdr.sgml", timeout=25)
         except Exception:
-            continue
-        if hdr.status_code != 200:
-            continue
-        parsed = _parse_series_blocks(hdr.text)
-        if parsed:
-            funds, source = parsed, f"{want} {acc}"
+            return []
+        return _parse_series_blocks(hdr.text) if hdr.status_code == 200 else []
+
+    # Aggregate series NAMES across recent filings. A single header doesn't always list
+    # the whole family (a big complex's N-CEN can carry just one series), so we walk the
+    # roster-enumerating forms first — one of them often lists everyone in one shot, which
+    # is all a boutique needs — then fill any gaps from the per-series NPORT-P filings,
+    # stopping as soon as we've matched the authoritative ticker-file series count (or hit
+    # a fetch budget). Heartland completes in 1 fetch; Nuveen's 17 in ~two dozen.
+    target = expected if expected else 1
+    budget, fetched = 45, 0
+    by_name, sources = {}, []
+    ordered = ([(f, a) for f, a in zip(forms, accs) if f in _ROSTER_FORMS]
+               + [(f, a) for f, a in zip(forms, accs) if f.startswith("NPORT")])
+    for f, a in ordered:
+        if fetched >= budget or len(by_name) >= target:
             break
+        parsed = _hdr_series(a)
+        if not parsed:
+            continue
+        fetched += 1
+        added = False
+        for s in parsed:
+            k = s["name"].upper()
+            if k not in by_name:
+                by_name[k] = s
+                added = True
+            elif not by_name[k].get("classes") and s.get("classes"):
+                by_name[k] = s      # upgrade to the copy that carries class names
+        if added:
+            sources.append(f"{f} {a}")
+    funds = list(by_name.values())
     if not funds:
         return cached
-    # Completeness check. A single N-CEN/485 header does NOT always enumerate every
-    # series — for a big complex it can carry just the one series the filing pertains
-    # to (Nuveen's N-CEN listed 1 of 17). The mutual-fund ticker file is authoritative
-    # for how many series a registrant actually has, so compare against it: if we
-    # captured essentially all of them, the name list is trustworthy; if we captured a
-    # small fraction, the names are a misleading subset and callers should show the
-    # count only, not the partial roster.
-    expected = len((_mf_index().get(cik) or {}).get("series", []))
+    source = "; ".join(sources[:3]) + (f" +{len(sources) - 3} more" if len(sources) > 3 else "")
+    # complete = we captured essentially the whole roster (the ticker file is the count
+    # of record). Callers still DISPLAY partial rosters — a knowledgeable reader spots a
+    # gap — but flag them so the UI can mark "partial".
     complete = expected == 0 or len(funds) >= max(1, round(expected * 0.75))
     result = {
         "cik": cik, "registrant": registrant, "funds": funds,
         "series_count": len(funds), "class_count": sum(len(f["classes"]) for f in funds),
         "expected_series": expected, "complete": complete,
-        "source": source, "_fetched_at": _iso_now(),
+        "source": source, "schema": _ROSTER_SCHEMA, "_fetched_at": _iso_now(),
     }
     try:
         db.save_json(ck, result)
