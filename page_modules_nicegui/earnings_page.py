@@ -313,11 +313,49 @@ _CALL_OPENING_FLS_TEXT = (
 )
 
 
-def _call_opening_text(ss):
-    """Returns (operator_line, welcome_line, fls_line) — the three fixed
-    paragraphs that open every call, templated from client config (ticker/
-    company name/quarter/IR contact/exec roster) rather than hardcoded
-    per-quarter like the original demo's f-strings were."""
+_CALL_OPENING_KEY = "call_opening.json"   # per-client, per-period overrides of the opening
+
+
+def _call_opening_store(cid=None):
+    from config.client_config import get_active_client_id
+    return db.load_json(_CALL_OPENING_KEY, {}, client_id=cid or get_active_client_id()) or {}
+
+
+def _call_opening_effective(period, defaults, cid=None):
+    """(operator, welcome, fls) for `period`: this period's saved edit if any, else the MOST
+    RECENT prior period's edit carried forward ("similar to last quarter, never exact"), else the
+    templated defaults. A blank field falls back too, so a partial edit still fills the rest."""
+    store = _call_opening_store(cid)
+    src = store.get(period)
+    if not src and store:
+        src = max(store.values(), key=lambda v: v.get("_saved_at", ""))
+    src = src or {}
+    return ((src.get("operator") or "").strip() or defaults[0],
+            (src.get("welcome") or "").strip() or defaults[1],
+            (src.get("fls") or "").strip() or defaults[2])
+
+
+def _save_call_opening(period, operator, welcome, fls, cid=None):
+    from config.client_config import get_active_client_id
+    cid = cid or get_active_client_id()
+    store = db.load_json(_CALL_OPENING_KEY, {}, client_id=cid) or {}
+    store[period] = {"operator": operator, "welcome": welcome, "fls": fls,
+                     "_saved_at": datetime.now().isoformat(timespec="seconds")}
+    db.save_json(_CALL_OPENING_KEY, store, client_id=cid)
+
+
+def _clear_call_opening(period, cid=None):
+    from config.client_config import get_active_client_id
+    cid = cid or get_active_client_id()
+    store = db.load_json(_CALL_OPENING_KEY, {}, client_id=cid) or {}
+    store.pop(period, None)
+    db.save_json(_CALL_OPENING_KEY, store, client_id=cid)
+
+
+def _call_opening_defaults(ss):
+    """Returns (operator_line, welcome_line, fls_line) — the three paragraphs that open every
+    call, templated from client config (ticker/company/quarter/IR contact/exec roster). These are
+    the CARRY-OVER baseline; the client's per-quarter edits overlay them (see _call_opening_text)."""
     ticker = CT("ticker", "")
     company = CT("name", ticker) or ticker
     quarter = CE().get("current_quarter", "this quarter")
@@ -354,32 +392,54 @@ def _call_opening_text(ss):
     return operator_line, welcome_line, _CALL_OPENING_FLS_TEXT
 
 
+def _call_opening_text(ss):
+    """The EFFECTIVE Call Opening used in the assembled script and downloads: the client's saved
+    per-quarter edits (or last quarter's, carried forward) over the templated defaults."""
+    period = (CE().get("current_quarter") or "").strip()
+    return _call_opening_effective(period, _call_opening_defaults(ss))
+
+
 def _render_call_opening(ss):
-    """Locked, read-only Call Opening card — see the module-level comment
-    above _CALL_OPENING_FLS_TEXT for why this isn't an editable draft."""
-    operator_line, welcome_line, fls_line = _call_opening_text(ss)
+    """Editable Call Opening — operator intro, IR welcome, and the Reg FD / safe-harbor reading.
+    Pre-filled from last quarter (carry-over), editable, saved per quarter, and always prepended to
+    the assembled Full Script and every download. Legal-approved wording: a material change to the
+    safe-harbor paragraph needs Legal to re-sign-off — but the client owns the pivot (e.g. an IR
+    departure, handing lines to the operator)."""
+    period = (CE().get("current_quarter") or "").strip()
     ir = _contacts().get("IR", CI())   # confirmed IR speaker for this quarter, not the static registry
     with ui.card().classes("w-full").style(
-            "background:rgba(248,113,113,.06);border:2px solid #B91C1C;border-radius:8px;"
+            "background:rgba(180,83,9,.06);border:2px solid #B45309;border-radius:8px;"
             "padding:12px 14px;margin-bottom:12px;"):
-        ui.label("Call Opening — Operator & Reg FD / Safe Harbor Reading").classes("font-bold").style(
-            "color:#B91C1C;font-size:13px;")
-        ui.label("Legal-approved, reads verbatim — not an editable AI draft like the sections below. Always "
-                  "included at the very start of the assembled Full Script and every download.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
+        ui.label("Call Opening — Operator intro · Welcome · Reg FD / Safe Harbor").classes("font-bold").style(
+            "color:#B45309;font-size:13px;")
+        ui.label("Carried over from last quarter — edit or add as needed. Similar every quarter, never "
+                 "identical: a lineup change (e.g. an IR head handing lines to the operator) is a common "
+                 "pivot. Legal-approved wording — a material change to the safe-harbor paragraph should go "
+                 "back to Legal. Always included at the very start of the assembled Full Script and every "
+                 "download.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
 
-        ui.label("OPERATOR (reads verbatim, do not edit):").classes("font-bold").style(
-            "color:#FCA5A5;font-size:11px;margin-top:6px;")
-        ui.label(operator_line).style(f"color:{COLORS['text_body']};font-size:13px;")
+        @ui.refreshable
+        def _body():
+            op, wel, fls = _call_opening_effective(period, _call_opening_defaults(ss))
+            op_in = ui.textarea("Operator — opening", value=op).classes("w-full").props("outlined autogrow")
+            wel_in = ui.textarea(f"{ir.get('name', 'IR')} — Welcome & Participants", value=wel).classes(
+                "w-full").props("outlined autogrow")
+            fls_in = ui.textarea("Forward-Looking Statements / Safe Harbor (Legal-approved)", value=fls).classes(
+                "w-full").props("outlined autogrow")
 
-        ui.label(f"{ir.get('name','IR')} — Welcome & Participants:").classes("font-bold").style(
-            "color:#FCA5A5;font-size:11px;margin-top:8px;")
-        ui.label(welcome_line).style(f"color:{COLORS['text_body']};font-size:13px;")
+            def _save():
+                _save_call_opening(period, op_in.value, wel_in.value, fls_in.value)
+                ui.notify(f"Call opening saved for {period}.", type="positive")
 
-        ui.label("Forward-Looking Statements / Safe Harbor (DO NOT EDIT — Legal-approved language, "
-                  "verbatim from prior calls):").classes("font-bold").style(
-            "color:#FCA5A5;font-size:11px;margin-top:8px;")
-        ui.label(fls_line).style(f"color:{COLORS['text_body']};font-size:13px;")
+            def _reset():
+                _clear_call_opening(period)
+                _body.refresh()
+                ui.notify("Reverted to the carried-over / default wording.", type="info")
+            with ui.row().classes("gap-2").style("margin-top:4px;"):
+                ui.button("Save call opening", icon="save", on_click=_save).props("dense color=primary")
+                ui.button("Reset to carry-over", icon="restart_alt", on_click=_reset).props("flat dense").tooltip(
+                    "Clear this quarter's edits and fall back to last quarter's (or the template)")
+        _body()
     ui.markdown("---")
 
 
@@ -2818,7 +2878,10 @@ def _render_speaker_gate(period, on_done, editing=False):
     base config or a prior quarter's record."""
     from core import speakers
     from config.client_config import ROLE_PERMISSIONS
-    role_opts = list(ROLE_PERMISSIONS.keys())
+    # Speaker roles = the permission/login roles PLUS speaker-only roles that aren't app logins.
+    # Operator (reads the pre-call disclosure / opening) and Guest (a one-off, e.g. a division head)
+    # are call participants, not seats with page permissions — so they live here, not in ROLE_PERMISSIONS.
+    role_opts = list(ROLE_PERMISSIONS.keys()) + ["Operator", "Guest"]
     rows = speakers.get_confirmed(period)["speakers"] if editing else speakers.default_lineup()
     rows = [dict(r) for r in rows] or [{"role": role_opts[0], "name": "", "title": "", "speaking": True}]
 
