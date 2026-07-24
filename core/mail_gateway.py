@@ -120,6 +120,34 @@ def _route_message(match, subject, body, attachments, client_id, save_attachment
     return category, extracted, saved_filenames
 
 
+# Free / consumer mail providers are never a firm's domain — an associate sends from
+# the firm's domain, but a personal gmail/outlook must NOT be attributed to a firm.
+_FREE_EMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com", "hotmail.com",
+    "live.com", "aol.com", "icloud.com", "me.com", "mac.com", "proton.me", "protonmail.com",
+    "msn.com", "gmx.com", "mail.com",
+}
+
+
+def _build_domain_lookup(contact_lookup):
+    """Firm-level fallback so an ASSOCIATE at a covering firm (not just the named analyst)
+    is recognized: map each analyst firm's email DOMAIN -> its firm. Skips free providers
+    (gmail/outlook/...) and any domain shared by 2+ firms, so we never mis-attribute a
+    personal or ambiguous address."""
+    by_domain = {}
+    for addr, info in contact_lookup.items():
+        if info.get("kind") != "analyst" or not info.get("firm") or "@" not in addr:
+            continue
+        dom = addr.rsplit("@", 1)[-1]
+        if not dom or dom in _FREE_EMAIL_DOMAINS:
+            continue
+        if dom not in by_domain:
+            by_domain[dom] = {"name": f"{info['firm']} (desk)", "firm": info["firm"], "kind": "analyst"}
+        elif by_domain[dom]["firm"] != info["firm"]:
+            by_domain[dom] = None                    # domain used by 2+ firms -> ambiguous, drop
+    return {d: v for d, v in by_domain.items() if v}
+
+
 def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachment", client_id=None):
     host, port, user, password = get_imap_config()
     if not host:
@@ -138,6 +166,7 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
         if status != "OK":
             return {"ok": False, "reason": "search_failed", "message": "IMAP search returned a non-OK status."}
 
+        domain_lookup = _build_domain_lookup(contact_lookup)
         results = []
         for num in data[0].split():
             status, msg_data = conn.fetch(num, "(RFC822)")
@@ -145,7 +174,11 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
                 continue
             msg = email.message_from_bytes(msg_data[0][1])
             from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
+            # exact address first (names the individual); else the firm domain (catches an
+            # associate sending on the analyst's behalf).
             match = contact_lookup.get(from_addr)
+            if not match and "@" in from_addr:
+                match = domain_lookup.get(from_addr.rsplit("@", 1)[-1])
             if not match:
                 continue
 
