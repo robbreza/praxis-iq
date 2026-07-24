@@ -1775,18 +1775,9 @@ def _open_account_profile(rec):
             ui.label(label).style(f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;")
             ui.label(str(value)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
 
-    # NDR-pipeline scan — is this name already shortlisted / met on any trip?
-    pipe = []
-    for t in _load_json("ndr_trips.json", []):
-        tn = t.get("name") or "NDR"
-        for s in t.get("shortlist", []):
-            if s.get("institution") == name:
-                pipe.append(f"{tn}: {s.get('status', 'shortlisted')}")
-        for m in t.get("meetings", []):
-            if m.get("institution") == name:
-                pipe.append(f"{tn}: met (day {m.get('day', '?')})")
-
+    from core import interactions, accounts
     acct_cik = rec.get("cik")
+    acct_key = accounts.resolve(name, cik=acct_cik, register=False)   # read-only resolve
     note = rn.get(name, acct_cik)
 
     with ui.dialog() as dlg, ui.card().style("min-width:min(680px,95vw);max-width:95vw;"):
@@ -1828,29 +1819,55 @@ def _open_account_profile(rec):
             ui.label(" · ".join(names[:8]) + (f"  (+{len(names) - 8} more)" if len(names) > 8 else "")).style(
                 f"color:{COLORS['text_secondary']};font-size:12px;")
 
-        # ── Pipeline (auto) ────────────────────────────────────────
-        _section("NDR pipeline")
-        ui.label(" · ".join(pipe) if pipe else "Not on any NDR yet.").style(
-            f"color:{COLORS['text_secondary']};font-size:12px;")
+        # ── Interactions (derived — touches & last contact are computed, not typed) ──
+        _section("Interactions")
 
-        # ── Relationship (human — editable, persists to the house book) ──
-        # (What this is / that notes are shared across clients belongs in onboarding,
-        # not as a permanent subtitle on every card — it read as distracting jargon.)
+        @ui.refreshable
+        def _interactions():
+            summ = interactions.summary(acct_key)
+            with ui.row().classes("items-baseline gap-4"):
+                ui.label(f"{summ['touches']} touch{'es' if summ['touches'] != 1 else ''}").style(
+                    f"color:{COLORS['text_heading']};font-weight:700;font-size:13px;")
+                ui.label(f"Last contact: {summ['last_contact'] or '—'}").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+            for e in summ["events"][:6]:
+                src = " · NDR" if e.get("source") == "ndr" else ""
+                with ui.row().classes("w-full items-baseline gap-2").style("padding:1px 0;"):
+                    ui.label(e.get("date") or "—").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;min-width:88px;")
+                    ui.label(f"{interactions.TYPES.get(e.get('type'), e.get('type'))} — "
+                             f"{e.get('summary') or ''}{src}").style(
+                        f"color:{COLORS['text_secondary']};font-size:12px;")
+            if not summ["events"]:
+                ui.label("No interactions logged yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+        _interactions()
+        # log an event → appends (never overwrites); touches/last-contact recompute
+        with ui.row().classes("w-full items-end gap-2").style("margin-top:6px;"):
+            it_type = ui.select({k: v for k, v in interactions.TYPES.items()}, value="meeting",
+                                label="Type").props("dense outlined").style("min-width:120px;")
+            it_date = ui.input("Date", value=datetime.now().strftime("%Y-%m-%d")).props("dense outlined").style("min-width:130px;")
+            it_sum = ui.input("What happened").props("dense outlined").style("flex:1;min-width:150px;")
+
+            def _log_it():
+                key = accounts.resolve(name, cik=acct_cik, register=True)   # ensure account exists
+                interactions.log(key, type=it_type.value, date=(it_date.value or "").strip() or None,
+                                 summary=(it_sum.value or "").strip() or None, source="manual")
+                it_sum.value = ""
+                ui.notify(f"Logged {interactions.TYPES.get(it_type.value, 'event').lower()} for {disp}.",
+                          type="positive")
+                _interactions.refresh()
+            ui.button("Log", icon="add", on_click=_log_it).props("dense color=primary")
+
+        # ── Relationship (human opinion — quality + free note; global to the firm) ──
         _section("Relationship — your notes")
-        with ui.row().classes("w-full items-end gap-2"):
-            q_opts = {"": "— quality —", **rn.QUALITY}
-            q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
-                "dense outlined").style("min-width:180px;")
-            last = ui.input("Last real contact", value=note.get("last_contact") or "").props(
-                "dense outlined").style("min-width:150px;")
-            touches = ui.number("Touches", value=note.get("touches"), format="%d").props(
-                "dense outlined").style("min-width:100px;")
+        q_opts = {"": "— quality —", **rn.QUALITY}
+        q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
+            "dense outlined").style("min-width:200px;")
         note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2")
 
         def _save_note():
             rn.save(name, cik=acct_cik, quality=(q_sel.value or None),
-                    last_contact=(last.value or "").strip() or None,
-                    touches=int(touches.value) if touches.value not in (None, "") else None,
                     note=(note_box.value or "").strip() or None)
             ui.notify(f"Saved relationship note for {disp}.", type="positive")
             dlg.close()
