@@ -226,6 +226,11 @@ def search_contacts(q=None, filters=None, limit=2000, offset=0):
     if filters.get("market_cap"):
         where.append(f"market_cap_focus {op} {ph}")
         params.append(f"%{filters['market_cap']}%")
+    hp = filters.get("has_phone")
+    if hp == "yes":
+        where.append("(phone IS NOT NULL AND phone <> '')")
+    elif hp == "no":
+        where.append("(phone IS NULL OR phone = '')")
     wsql = (" WHERE " + " AND ".join(where)) if where else ""
     try:
         cur = conn.cursor()

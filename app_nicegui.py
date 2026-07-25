@@ -776,11 +776,15 @@ def house_contacts_page():
                     mk("Country", "country")
                     mk("Validation", "validation_status")
                     mk("13F currency", "firm_currency", _CURRENCY_LABELS)
+                    _ph = ui.select({None: "All", "yes": "Has phone", "no": "No phone"},
+                                    value=None, label="Phone").props("outlined dense").style("min-width:130px;")
+                    _ph.on_value_change(lambda _, s=_ph: (state.update({"has_phone": s.value}), results.refresh()))
 
             @ui.refreshable
             def results():
-                filters = {k: state[k] for k in ("primary_role", "seniority", "firm_type",
-                                                 "country", "validation_status", "market_cap") if state.get(k)}
+                filters = {k: state[k] for k in ("primary_role", "seniority", "firm_type", "country",
+                                                 "validation_status", "firm_currency", "market_cap",
+                                                 "has_phone") if state.get(k)}
                 res = C.search_contacts(q=state.get("q") or None, filters=filters, limit=2000)
                 ui.label(f"{res['total']} matching" + (" · showing first 2000" if res["total"] > 2000 else "")) \
                     .style(f"color:{COLORS['text_muted']};font-size:12px;")
@@ -794,6 +798,7 @@ def house_contacts_page():
                     "seniority": _SEN_LABELS.get(r.get("seniority"), r.get("seniority") or "—"),
                     "firm_type": _FIRM_LABELS.get(r.get("firm_type"), r.get("firm_type") or "—"),
                     "country": r.get("country") or "—", "email": r.get("email") or "—",
+                    "phone": r.get("phone") or "—",
                     "validation": r.get("validation_status") or "—",
                     "currency": _CURRENCY_LABELS.get(r.get("firm_currency"), r.get("firm_currency") or "—"),
                     "conf": r.get("confidence") if r.get("confidence") is not None else "",
@@ -806,6 +811,7 @@ def house_contacts_page():
                     {"name": "firm_type", "label": "Firm type", "field": "firm_type", "sortable": True, "align": "left"},
                     {"name": "country", "label": "Country", "field": "country", "sortable": True, "align": "left"},
                     {"name": "email", "label": "Email", "field": "email", "align": "left"},
+                    {"name": "phone", "label": "Phone", "field": "phone", "align": "left"},
                     {"name": "validation", "label": "Validation", "field": "validation", "sortable": True, "align": "left"},
                     {"name": "currency", "label": "13F currency", "field": "currency", "sortable": True, "align": "left"},
                     {"name": "conf", "label": "Conf", "field": "conf", "sortable": True, "align": "right"},
