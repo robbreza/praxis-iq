@@ -141,7 +141,8 @@ def set_email_result(contact_id, email, status, source="anymailfinder"):
 # Phase-1 classification/validation columns (see core.db._CONTACT_EXTRA_COLS). A
 # fixed whitelist so update_classification() can never write an arbitrary column.
 _CLASS_COLS = {"roles", "primary_role", "seniority", "firm_type", "country", "region",
-               "city", "market_cap_focus", "validation_status", "confidence", "provenance"}
+               "city", "market_cap_focus", "validation_status", "confidence", "provenance",
+               "firm_cik", "firm_currency"}
 
 
 def update_classification(contact_id, **fields):
