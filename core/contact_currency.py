@@ -141,6 +141,106 @@ def batch_currency(where="source='bulk_upload'", throttle=0.12, limit_firms=None
             "by_firm_currency": dict(sorted(hist.items(), key=lambda x: -x[1]))}
 
 
+# ── Phase-2b v2: person-level currency via the CURRENT 13F signatory ─────────
+def current_signatory(cik):
+    """The firm's CURRENT 13F signing officer (name/title/phone) from its latest 13F-HR."""
+    fils = sf.filer_13f_filings(cik, limit=1)
+    if not fils or not fils[0].get("accession"):
+        return None
+    from core import contacts as _contacts
+    sig = _contacts.signatory_from_13f(cik, fils[0]["accession"])
+    if not sig or not sig.get("name"):
+        return None
+    return {**sig, "accession": fils[0]["accession"], "date": fils[0].get("date")}
+
+
+def _name_tokens(n):
+    return frozenset(t for t in re.sub(r"[^a-z ]", " ", (n or "").lower()).split() if len(t) > 1)
+
+
+# full contacts-table column order for a bulk upsert of a signatory contact
+_SIG_COLS = ["contact_id", "cik", "firm", "firm_key", "name", "title", "phone", "email",
+             "email_status", "email_source", "email_checked_at", "domain", "source", "source_ref",
+             "created_at", "updated_at", "roles", "primary_role", "seniority", "firm_type",
+             "country", "region", "city", "market_cap_focus", "validation_status", "confidence",
+             "provenance", "firm_cik", "firm_currency"]
+
+
+def batch_signatory(where="source='bulk_upload'", throttle=0.15, limit=None):
+    """For every firm we resolved to a CIK, pull the CURRENT 13F signatory: (1) VERIFY any
+    existing contact whose name matches the signatory (they ARE the current signing officer),
+    and (2) UPSERT the signatory as a fresh, guaranteed-current contact. Returns a summary."""
+    from datetime import datetime
+    from core import contacts as _contacts, contact_classifier as _cc
+
+    conn = db.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT DISTINCT firm, firm_cik, firm_currency FROM contacts WHERE {where} "
+                    f"AND firm_cik IS NOT NULL AND firm_currency IN ('active_filer','inactive_filer')")
+        firm_ciks = [(f, int(c), cy) for f, c, cy in cur.fetchall() if c]
+        cur.execute(f"SELECT contact_id, firm, name FROM contacts WHERE {where} AND firm IS NOT NULL")
+        existing = cur.fetchall()
+    finally:
+        conn.close()
+    if limit:
+        firm_ciks = firm_ciks[:limit]
+
+    by_firm = {}
+    for cid, firm, name in existing:
+        by_firm.setdefault(firm, []).append((cid, _name_tokens(name)))
+
+    verify, sig_rows = set(), {}
+    now = datetime.now()
+    for firm, cik, currency in firm_ciks:
+        sig = current_signatory(cik)
+        time.sleep(throttle * 2)
+        if not sig:
+            continue
+        st = _name_tokens(sig["name"])
+        for cid, toks in by_firm.get(firm, []):
+            if toks and toks == st:
+                verify.add(cid)
+        ncid = _contacts.contact_id_for(cik, sig["name"], firm)
+        roles, primary = _cc.classify_roles(sig.get("title"), side="buy")
+        sig_rows[ncid] = (
+            ncid, str(cik), firm, _contacts._norm(firm), sig["name"], sig.get("title"), sig.get("phone"),
+            None, "unknown", None, None, None, "edgar_13f_current", sig["accession"], now, now,
+            ",".join(roles) or None, primary, _cc.seniority_for(roles), _cc.firm_type_for(firm),
+            None, None, None, None, "verified", 95,
+            f"EDGAR 13F signatory as of {sig.get('date')}", str(cik), currency)
+
+    _write_signatory(list(verify), list(sig_rows.values()))
+    return {"firms_checked": len(firm_ciks), "signatories_found": len(sig_rows),
+            "existing_verified": len(verify), "signatory_contacts_upserted": len(sig_rows)}
+
+
+def _write_signatory(verify_cids, sig_rows):
+    from core.security import get_database_url
+    dsn = get_database_url()
+    if not dsn:
+        return   # signatory batch is Postgres-only (EDGAR seed job)
+    import psycopg2
+    from psycopg2.extras import execute_values
+    conn = psycopg2.connect(dsn)
+    try:
+        cur = conn.cursor()
+        if verify_cids:
+            execute_values(
+                cur,
+                "UPDATE contacts AS c SET validation_status='verified', confidence=GREATEST(COALESCE(confidence,0),90), "
+                "updated_at=now() FROM (VALUES %s) AS v(cid) WHERE c.contact_id = v.cid",
+                [(x,) for x in verify_cids], page_size=500)
+        if sig_rows:
+            upd = [c for c in _SIG_COLS if c not in ("contact_id", "created_at", "email")]
+            setc = ", ".join(f"{c} = EXCLUDED.{c}" for c in upd) + ", email = COALESCE(EXCLUDED.email, contacts.email)"
+            execute_values(cur, f"INSERT INTO contacts ({', '.join(_SIG_COLS)}) VALUES %s "
+                                f"ON CONFLICT (contact_id) DO UPDATE SET {setc}", sig_rows, page_size=400)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _write(updates):
     from core.security import get_database_url
     dsn = get_database_url()
