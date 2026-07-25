@@ -59,8 +59,9 @@ def _map_token(t, side):
         return ROLE_ASSOC_PM
     if has("portfolio manager") or t == "pm" or t == "pm/analyst":
         return ROLE_SECTOR_PM if has("sector") else ROLE_PM
-    if has("chief executive", "ceo", "president", "chairman", "chair", "founder",
-           "founding", "managing partner", "principal", "owner"):
+    if (has("chief executive", "ceo", "chairman", "founder", "founding", "managing partner",
+            "managing member", "owner", "principal")
+            or (has("president") and not has("vice president"))):
         return ROLE_PRINCIPAL
     if has("corporate access", "corp access", "sales"):
         return ROLE_SS_SALES
@@ -91,13 +92,14 @@ def _map_token(t, side):
     return None
 
 
-# roles that are the natural "primary" if present, in priority order — so a
-# "Portfolio Manager, Analyst" row leads with PM, and "CIO, PM, CEO" leads with CIO.
-_PRIMARY_PRIORITY = [ROLE_CIO, ROLE_PRINCIPAL, ROLE_DOR, ROLE_SECTOR_PM, ROLE_PM,
-                     ROLE_ASSOC_PM, ROLE_ALLOCATOR, ROLE_STRATEGIST, ROLE_ESG,
-                     ROLE_SS_SALES, ROLE_BS_SECTOR_ANALYST, ROLE_SS_SECTOR_ANALYST,
-                     ROLE_BS_GENERALIST, ROLE_BS_ANALYST, ROLE_SS_ANALYST, ROLE_TRADER,
-                     ROLE_SS_ASSOC, ROLE_BANKER, ROLE_MEDIA, ROLE_OTHER]
+# The FUNCTIONAL investment role wins the primary — "Portfolio Manager, Principal" is a PM,
+# "Executive VP, Portfolio Manager" is a PM. CIO stays top (it's the investment lead); bare
+# ownership/board rank (Principal/CEO/Chairman) is primary only when no function is stated.
+_PRIMARY_PRIORITY = [ROLE_CIO, ROLE_DOR, ROLE_SECTOR_PM, ROLE_PM, ROLE_ASSOC_PM,
+                     ROLE_ALLOCATOR, ROLE_STRATEGIST, ROLE_ESG, ROLE_SS_SALES,
+                     ROLE_BS_SECTOR_ANALYST, ROLE_SS_SECTOR_ANALYST, ROLE_BS_GENERALIST,
+                     ROLE_BS_ANALYST, ROLE_SS_ANALYST, ROLE_TRADER, ROLE_SS_ASSOC,
+                     ROLE_BANKER, ROLE_PRINCIPAL, ROLE_MEDIA, ROLE_OTHER]
 
 
 def classify_roles(job_function, side="buy"):
