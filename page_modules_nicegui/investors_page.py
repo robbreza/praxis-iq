@@ -116,7 +116,7 @@ from urllib.parse import quote
 import pandas as pd
 from nicegui import ui
 
-from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id, ndr_defaults
+from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id, ndr_defaults, set_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
 from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, nobo_engine, prospecting, risk_scorecard, sec_filings
 from core.investor_scoring import (
@@ -4726,6 +4726,12 @@ def _render_ndr_debrief_tab():
 # Meeting Hub tab
 # ─────────────────────────────────────────────────────────────────────────
 def _render_meeting_hub_tab():
+    # The active tenant is bound per RENDER (app_nicegui._bind_active_client);
+    # a later on_click callback runs in a fresh async context where that
+    # ContextVar is NOT re-bound and get_active_client_id() would fall back to
+    # DEFAULT_CLIENT_ID. Capture it here (correct at render) and re-bind at the
+    # top of each write callback so mail sync / model confirm act on THIS tenant.
+    _hub_cid = get_active_client_id()
     scheduled = _load_json("scheduled_meetings.json", [])
     notes = _load_json("post_meeting_notes.json", [])
     today = datetime.now().date()
@@ -4802,6 +4808,7 @@ def _render_meeting_hub_tab():
             render_hub_cards()
 
             def sync_inbox():
+                set_active_client_id(_hub_cid)  # re-bind tenant in this callback's context
                 # "kind" tells mail_gateway who's who — sell-side analysts
                 # (CA()) get their models/notes/NDR asks routed for review;
                 # buy-side/institutional contacts are classified too (e.g.
@@ -4814,7 +4821,7 @@ def _render_meeting_hub_tab():
                 for a in CA():
                     if a.get("email"):
                         contact_lookup[a["email"].lower()] = {"name": a["name"], "firm": a.get("firm"), "kind": "analyst"}
-                result = mail_gateway.sync_inbox(contact_lookup)
+                result = mail_gateway.sync_inbox(contact_lookup, client_id=_hub_cid)
                 if not result["ok"]:
                     ui.notify(f"{result['message']}", type="warning")
                 else:
@@ -5051,6 +5058,10 @@ def _render_pending_inbox_items():
                               old ad hoc IMAP-scan-with-password-prompt button
                               (see core/email_classifier.py's docstring)
     Every card also has Dismiss, for anything that turns out mis-tagged."""
+    # Same per-render tenant binding as _render_meeting_hub_tab: capture the
+    # active tenant now (correct at render) and re-bind it inside each confirm/
+    # dismiss callback, which otherwise runs in a context defaulted to usio.
+    _inbox_cid = get_active_client_id()
     pending = inbox_queue.list_pending_items()
     if not pending:
         return
@@ -5084,6 +5095,7 @@ def _render_pending_inbox_items():
                         f"color:{COLORS['accent_light']};font-size:11px;")
 
                 def dismiss(item_id=item["id"]):
+                    set_active_client_id(_inbox_cid)  # re-bind tenant in this callback's context
                     inbox_queue.dismiss_item(item_id)
                     ui.notify("Dismissed.")
                     _refresh()
@@ -5108,6 +5120,7 @@ def _render_pending_inbox_items():
 
                     def confirm(item_id=item["id"], firm=item["firm"], r_period=r_period, r_rating=r_rating,
                                 r_pt=r_pt, r_eps=r_eps, r_rev=r_rev, r_ebd=r_ebd):
+                        set_active_client_id(_inbox_cid)  # re-bind tenant in this callback's context
                         ok = consensus.confirm_model_review(
                             item_id, period=r_period.value, firm=firm, rating=r_rating.value,
                             price_target=r_pt.value or None, eps_est=r_eps.value if r_eps.value else None,
