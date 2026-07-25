@@ -355,7 +355,7 @@ def login_page():
         return
     with _auth_card("IRconnect", "Sign in"):
         email = ui.input("Email").props("outlined dense autofocus").classes("w-full")
-        pw = ui.input("Password", password=True).props("outlined dense").classes("w-full")
+        pw = ui.input("Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
         msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
 
         def do_login():
@@ -387,8 +387,8 @@ def change_password_page():
         ui.navigate.to("/login")
         return
     with _auth_card("Set a new password", f"{user['user_id']} — first sign-in"):
-        p1 = ui.input("New password", password=True).props("outlined dense autofocus").classes("w-full")
-        p2 = ui.input("Confirm password", password=True).props("outlined dense").classes("w-full")
+        p1 = ui.input("New password", password=True, password_toggle_button=True).props("outlined dense autofocus").classes("w-full")
+        p2 = ui.input("Confirm password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
         msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
 
         def do_change():
