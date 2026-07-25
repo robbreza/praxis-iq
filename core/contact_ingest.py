@@ -24,12 +24,21 @@ def _clean(v):
     return s or None
 
 
+# Call-list placeholders that live in a "contact name" column but are not people —
+# "DNC" (do-not-call), "TBD", etc. Ingesting them creates junk contacts named "DNC".
+_NAME_MARKERS = {"dnc", "tbd", "tba", "n/a", "na", "dnk", "do not call", "do not contact",
+                 "unknown", "none", "-", "--", "?"}
+
+
 def _full_name(row):
-    if _clean(row.get("name")):
-        return _clean(row["name"])
-    fn = _clean(row.get("first_name")) or ""
-    ln = _clean(row.get("last_name")) or ""
-    return (fn + " " + ln).strip() or None
+    nm = _clean(row.get("name"))
+    if not nm:
+        fn = _clean(row.get("first_name")) or ""
+        ln = _clean(row.get("last_name")) or ""
+        nm = (fn + " " + ln).strip() or None
+    if nm and nm.strip().lower() in _NAME_MARKERS:
+        return None                      # a marker, not a person -> caller skips the row
+    return nm
 
 
 def _domain(email):
