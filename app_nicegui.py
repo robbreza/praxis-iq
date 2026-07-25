@@ -75,6 +75,41 @@ def _bind_active_client():
     set_active_client_id(cid)
     return cid
 
+
+def _install_event_tenant_hook():
+    """Re-assert the tenant binding for EVERY NiceGUI event handler.
+
+    _bind_active_client() runs per RENDER, but a later on_click/on_change/etc.
+    callback runs in a fresh async context where those bindings are gone: the
+    active-tenant ContextVar (config.client_config) falls back to
+    DEFAULT_CLIENT_ID and the read-only flag (core.db) resets to writable. The
+    effect: a write callback in a NON-default tenant acted on the wrong client
+    (e.g. an emailed model for a non-usio tenant never matched its analysts),
+    and a read-only client_user could in principle write via a callback.
+
+    nicegui.element._handle_event sets storage.request_contextvar BEFORE it
+    calls events.handle_event, so app.storage.user / _current_user() resolve
+    inside the handler context — we wrap handle_event to re-run the exact same
+    binding _bind_active_client() does at render, once per event (an event is
+    a user gesture, not the CT()/CE() hot path, so the extra work is cheap).
+    element.py reads events.handle_event as a module attribute at call time, so
+    this monkeypatch is picked up for handlers registered before or after."""
+    from nicegui import events as _events
+    orig = _events.handle_event
+    if getattr(orig, "_tenant_rebound", False):
+        return
+    def handle_event(handler, arguments):
+        try:
+            _bind_active_client()
+        except Exception:
+            pass
+        return orig(handler, arguments)
+    handle_event._tenant_rebound = True
+    _events.handle_event = handle_event
+
+
+_install_event_tenant_hook()
+
 # Nav icons are Material Symbols names (rendered via ui.icon), not emoji — a
 # consistent monochrome line set reads more professional and inherits the
 # nav's text color (graphite inactive, navy active) instead of fixed emoji.
