@@ -138,6 +138,36 @@ def set_email_result(contact_id, email, status, source="anymailfinder"):
         conn.close()
 
 
+# Phase-1 classification/validation columns (see core.db._CONTACT_EXTRA_COLS). A
+# fixed whitelist so update_classification() can never write an arbitrary column.
+_CLASS_COLS = {"roles", "primary_role", "seniority", "firm_type", "country", "region",
+               "city", "market_cap_focus", "validation_status", "confidence", "provenance"}
+
+
+def update_classification(contact_id, **fields):
+    """Write the classification/validation layer for an already-upserted contact.
+    Only whitelisted columns, only the ones actually supplied (None values are
+    skipped so a re-classify never blanks a field). Returns rows updated."""
+    fields = {k: v for k, v in fields.items() if k in _CLASS_COLS and v is not None}
+    if not fields or not contact_id:
+        return 0
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        ph = "%s" if pg else "?"
+        now = datetime.now()
+        now_v = now if pg else now.isoformat()
+        sets = [f"{k} = {ph}" for k in fields] + [f"updated_at = {ph}"]
+        vals = list(fields.values()) + [now_v, contact_id]
+        cur.execute(f"UPDATE contacts SET {', '.join(sets)} WHERE contact_id = {ph}", vals)
+        conn.commit()
+        _MAP_MEMO.update({"at": None, "val": None})
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 def list_contacts(firm=None, cik=None, limit=None):
     """Contacts, optionally filtered by firm (normalized match) or CIK."""
     conn = db.get_connection()

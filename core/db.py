@@ -301,6 +301,41 @@ CREATE INDEX IF NOT EXISTS idx_contacts_cik ON contacts (cik);
 """
 
 
+# Phase-1 classification / validation columns layered onto the base `contacts`
+# identity table (see core.contact_ingest + core.contact_classifier). The base
+# table is created by the schema above; these EXTEND it without a migration
+# framework — Postgres has ADD COLUMN IF NOT EXISTS, SQLite doesn't, so
+# _ensure_contact_columns() checks pragma table_info first for SQLite. Names are
+# a fixed literal list — never interpolate untrusted input here.
+_CONTACT_EXTRA_COLS = (
+    ("roles", "TEXT"),             # comma-joined canonical role tokens (multi-valued)
+    ("primary_role", "TEXT"),      # the one marked primary
+    ("seniority", "TEXT"),         # principal | decision_maker | influencer | junior | unknown
+    ("firm_type", "TEXT"),         # asset_manager | asset_owner | ria | family_office | ...
+    ("country", "TEXT"),           # drives which registration validators apply
+    ("region", "TEXT"),            # state / province
+    ("city", "TEXT"),
+    ("market_cap_focus", "TEXT"),  # e.g. "micro,small" — routing signal for size-matched targeting
+    ("validation_status", "TEXT"), # unknown | probable | verified | stale | invalid (Phase 2 scrub)
+    ("confidence", "INTEGER"),     # 0-100 validation confidence (Phase 2)
+    ("provenance", "TEXT"),        # human-readable source context (e.g. "Ipreo holder search: IBG, ...")
+)
+
+
+def _ensure_contact_columns(cur, pg):
+    """Idempotently add _CONTACT_EXTRA_COLS to the contacts table. Runs at
+    connection/schema setup; safe to call on every init."""
+    if pg:
+        for c, t in _CONTACT_EXTRA_COLS:
+            cur.execute(f"ALTER TABLE contacts ADD COLUMN IF NOT EXISTS {c} {t}")
+    else:
+        cur.execute("PRAGMA table_info(contacts)")
+        have = {r[1] for r in cur.fetchall()}
+        for c, t in _CONTACT_EXTRA_COLS:
+            if c not in have:
+                cur.execute(f"ALTER TABLE contacts ADD COLUMN {c} {t}")
+
+
 # Cached, once-per-process reachability check (see _pg_reachable below) —
 # a misconfigured or momentarily-unreachable Neon endpoint must never crash
 # every page in the app (every page calls load_json/save_json somewhere).
@@ -458,6 +493,7 @@ def _get_pooled_pg_connection():
     real = psycopg2.connect(get_database_url())
     with real.cursor() as cur:
         cur.execute(_POSTGRES_SCHEMA)
+        _ensure_contact_columns(cur, pg=True)
     real.commit()
     _pg_conn_holder["conn"] = real
     return real
@@ -487,6 +523,9 @@ def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.executescript(_SQLITE_SCHEMA)
+    _cur = conn.cursor()
+    _ensure_contact_columns(_cur, pg=False)
+    conn.commit()
     return conn
 
 
