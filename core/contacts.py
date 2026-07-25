@@ -197,7 +197,7 @@ def list_contacts(firm=None, cik=None, limit=None):
 # ── house-contacts browse (search + facets) ─────────────────────────────────
 # Exact-match filter columns (whitelist — never interpolate a user value as a column).
 _FILTERABLE = ("primary_role", "seniority", "firm_type", "country", "validation_status",
-               "source", "email_status")
+               "firm_currency", "source", "email_status")
 
 
 def _all_read_cols():

@@ -700,6 +700,8 @@ _SEN_LABELS = {"principal": "Principal", "decision_maker": "Decision-maker",
 _FIRM_LABELS = {"asset_manager": "Asset manager", "ria": "RIA", "broker_dealer": "Broker-dealer",
                 "asset_owner": "Asset owner", "family_office": "Family office",
                 "consultant": "Consultant", "ocio": "OCIO", "bank": "Bank", "insurance": "Insurance"}
+_CURRENCY_LABELS = {"active_filer": "Active 13F filer", "inactive_filer": "Inactive filer",
+                    "no_13f": "No 13F (small/RIA)", "unresolved": "Unresolved", "ambiguous": "Ambiguous"}
 
 
 @ui.page("/contacts")
@@ -773,6 +775,7 @@ def house_contacts_page():
                     mk("Firm type", "firm_type", _FIRM_LABELS)
                     mk("Country", "country")
                     mk("Validation", "validation_status")
+                    mk("13F currency", "firm_currency", _CURRENCY_LABELS)
 
             @ui.refreshable
             def results():
@@ -792,6 +795,7 @@ def house_contacts_page():
                     "firm_type": _FIRM_LABELS.get(r.get("firm_type"), r.get("firm_type") or "—"),
                     "country": r.get("country") or "—", "email": r.get("email") or "—",
                     "validation": r.get("validation_status") or "—",
+                    "currency": _CURRENCY_LABELS.get(r.get("firm_currency"), r.get("firm_currency") or "—"),
                     "conf": r.get("confidence") if r.get("confidence") is not None else "",
                 } for r in res["rows"]]
                 columns = [
@@ -803,6 +807,7 @@ def house_contacts_page():
                     {"name": "country", "label": "Country", "field": "country", "sortable": True, "align": "left"},
                     {"name": "email", "label": "Email", "field": "email", "align": "left"},
                     {"name": "validation", "label": "Validation", "field": "validation", "sortable": True, "align": "left"},
+                    {"name": "currency", "label": "13F currency", "field": "currency", "sortable": True, "align": "left"},
                     {"name": "conf", "label": "Conf", "field": "conf", "sortable": True, "align": "right"},
                 ]
                 ui.table(columns=columns, rows=rows, row_key="id", pagination=25).classes("w-full") \
