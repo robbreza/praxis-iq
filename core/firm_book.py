@@ -17,6 +17,41 @@ from core import db, contacts, sec_filings as sf
 _KEY = "crm_firms"
 _SCOPE = "_global"
 
+# EDGAR <stateOrCountry> uses these codes for Canadian provinces + foreign countries
+# (US states are already 2-letter). Verified against the business city in our data.
+_STATE_MAP = {
+    "A0": "Alberta", "A1": "British Columbia", "A2": "Manitoba", "A3": "New Brunswick",
+    "A4": "Newfoundland", "A5": "Nova Scotia", "A6": "Ontario", "A7": "Prince Edward Island",
+    "A8": "Quebec", "A9": "Saskatchewan", "B0": "Yukon", "Z4": "Ontario",
+    "X0": "United Kingdom", "M0": "Japan", "I0": "France", "V8": "Switzerland", "2M": "Germany",
+    "Q8": "Norway", "Y9": "Jersey", "K3": "Hong Kong", "G7": "Denmark", "V7": "Sweden",
+    "C9": "Belgium", "U0": "Singapore", "C3": "Australia", "P7": "Netherlands",
+    "N2": "Liechtenstein", "C0": "United Arab Emirates", "R9": "Poland",
+}
+
+
+def _state_name(code):
+    return _STATE_MAP.get((code or "").strip().upper(), code)
+
+
+def _clean_city(c):
+    """First comma-segment, minus postal-code noise. 'London, Ec4N 8Af' -> 'London'."""
+    import re
+    if not c:
+        return c
+    first = c.split(",")[0].strip()
+    first = re.sub(r"^\d{4,}\s*", "", first)                 # leading '82049 Pullach'
+    first = re.sub(r"\s+[A-Za-z]?\d[\dA-Za-z ]*$", "", first)  # trailing postal token
+    return (first or c.split(",")[0]).strip().title()
+
+
+def _norm_aum(aum, positions):
+    """13F filers manage >=$100M by rule, so any total value parsed under $100M was filed in
+    THOUSANDS (older/foreign format) -> scale to dollars. Leaves dollar filings untouched."""
+    if aum and positions and aum < 100_000_000:
+        return aum * 1000
+    return aum
+
 
 def load_firms():
     return db.load_json(_KEY, {}, client_id=_SCOPE) or {}
@@ -61,8 +96,10 @@ def enrich(throttle=0.15, limit=None, currencies=("active_filer",)):
                 continue
             firms[str(cik)] = {
                 "cik": str(cik), "manager": info.get("manager") or our_name, "our_name": our_name,
-                "city": (info.get("city") or "").title() or None,
-                "state": info.get("state"), "aum": info.get("aum"), "positions": info.get("positions"),
+                "city": _clean_city(info.get("city")),
+                "state": _state_name(info.get("state")), "state_code": info.get("state"),
+                "aum": _norm_aum(info.get("aum"), info.get("positions")),
+                "positions": info.get("positions"),
                 "currency": currency, "contacts": int(cnt), "last_13f": fils[0].get("date"),
                 "signatory": (info.get("signatory") or {}).get("name"),
                 "updated_at": datetime.now().isoformat(),
@@ -74,6 +111,19 @@ def enrich(throttle=0.15, limit=None, currencies=("active_filer",)):
             failed += 1
     save_firms(firms)
     return {"firms_enriched": done, "failed": failed, "total_in_book": len(firms)}
+
+
+def reclean():
+    """Apply the state-code, city, and AUM-units fixes to the already-stored firm book with no
+    EDGAR refetch. Idempotent (_norm_aum won't re-scale a value already >= $100M)."""
+    firms = load_firms()
+    for f in firms.values():
+        raw = f.get("state_code") or f.get("state")
+        f["state_code"], f["state"] = raw, _state_name(raw)
+        f["city"] = _clean_city(f.get("city"))
+        f["aum"] = _norm_aum(f.get("aum"), f.get("positions"))
+    save_firms(firms)
+    return {"recleaned": len(firms)}
 
 
 def top_firms(n=25, by="aum"):
