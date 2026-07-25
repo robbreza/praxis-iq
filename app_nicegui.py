@@ -77,9 +77,9 @@ def _bind_active_client():
 
 
 def _install_event_tenant_hook():
-    """Re-assert the tenant binding for EVERY NiceGUI event handler.
+    """Re-assert the tenant binding for every USER-EVENT handler.
 
-    _bind_active_client() runs per RENDER, but a later on_click/on_change/etc.
+    _bind_active_client() runs per RENDER, but a later on_click/on_change
     callback runs in a fresh async context where those bindings are gone: the
     active-tenant ContextVar (config.client_config) falls back to
     DEFAULT_CLIENT_ID and the read-only flag (core.db) resets to writable. The
@@ -87,25 +87,37 @@ def _install_event_tenant_hook():
     (e.g. an emailed model for a non-usio tenant never matched its analysts),
     and a read-only client_user could in principle write via a callback.
 
-    nicegui.element._handle_event sets storage.request_contextvar BEFORE it
-    calls events.handle_event, so app.storage.user / _current_user() resolve
-    inside the handler context — we wrap handle_event to re-run the exact same
-    binding _bind_active_client() does at render, once per event (an event is
-    a user gesture, not the CT()/CE() hot path, so the extra work is cheap).
-    element.py reads events.handle_event as a module attribute at call time, so
-    this monkeypatch is picked up for handlers registered before or after."""
-    from nicegui import events as _events
-    orig = _events.handle_event
+    We wrap nicegui.element.Element._handle_event — the entry point for
+    BROWSER-ORIGINATED events ONLY. Reactive/observable propagation does NOT go
+    through it (it dispatches via events.handle_event directly), so this stays
+    off the CT()/CE() hot path and fires just once per user gesture. The
+    original sets storage.request_contextvar first so app.storage.user /
+    _current_user() resolve; we set it too (idempotent) and re-run
+    _bind_active_client() before delegating to the original dispatch, so the
+    tenant + read-only clamp are correct for whatever the handler writes.
+
+    NOTE: depends on NiceGUI internals (Element._handle_event, its listener/
+    request_contextvar shape). Re-verify on a NiceGUI upgrade — see the
+    callback-tenant-context memory note. Wrapped in try/except so a shape change
+    degrades to the old (default-tenant) behavior rather than crashing."""
+    from nicegui.element import Element
+    from nicegui import storage as _storage
+    orig = Element._handle_event
     if getattr(orig, "_tenant_rebound", False):
         return
-    def handle_event(handler, arguments):
+
+    def _handle_event(self, msg):
         try:
-            _bind_active_client()
+            listener = self._event_listeners.get(msg.get("listener_id"))
+            if listener is not None:
+                _storage.request_contextvar.set(listener.request)
+                _bind_active_client()
         except Exception:
             pass
-        return orig(handler, arguments)
-    handle_event._tenant_rebound = True
-    _events.handle_event = handle_event
+        return orig(self, msg)
+
+    _handle_event._tenant_rebound = True
+    Element._handle_event = _handle_event
 
 
 _install_event_tenant_hook()
