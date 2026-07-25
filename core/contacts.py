@@ -194,6 +194,68 @@ def list_contacts(firm=None, cik=None, limit=None):
         conn.close()
 
 
+# ── house-contacts browse (search + facets) ─────────────────────────────────
+# Exact-match filter columns (whitelist — never interpolate a user value as a column).
+_FILTERABLE = ("primary_role", "seniority", "firm_type", "country", "validation_status",
+               "source", "email_status")
+
+
+def _all_read_cols():
+    return list(_COLS) + [c for c, _ in db._CONTACT_EXTRA_COLS]
+
+
+def search_contacts(q=None, filters=None, limit=2000, offset=0):
+    """Filtered house-contact search for the browse UI. `filters` is a dict of
+    column->value drawn from _FILTERABLE (+ 'market_cap' as a LIKE). Returns
+    {total, rows[dict]}. Values are parameterized; only whitelisted columns filter."""
+    cols = _all_read_cols()
+    filters = filters or {}
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
+    op = "ILIKE" if pg else "LIKE"
+    where, params = [], []
+    if q:
+        where.append(f"(name {op} {ph} OR firm {op} {ph} OR COALESCE(email,'') {op} {ph})")
+        like = f"%{q}%"
+        params += [like, like, like]
+    for col, val in filters.items():
+        if val and col in _FILTERABLE:
+            where.append(f"{col} = {ph}")
+            params.append(val)
+    if filters.get("market_cap"):
+        where.append(f"market_cap_focus {op} {ph}")
+        params.append(f"%{filters['market_cap']}%")
+    wsql = (" WHERE " + " AND ".join(where)) if where else ""
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM contacts{wsql}", params)
+        total = cur.fetchone()[0]
+        cur.execute(f"SELECT {', '.join(cols)} FROM contacts{wsql} "
+                    f"ORDER BY firm, name LIMIT {int(limit)} OFFSET {int(offset)}", params)
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        return {"total": total, "rows": rows}
+    finally:
+        conn.close()
+
+
+def contact_facets():
+    """Distinct values + counts per filter column, for the browse dropdowns."""
+    conn = db.get_connection()
+    try:
+        cur = conn.cursor()
+        out = {}
+        for col in _FILTERABLE:
+            cur.execute(f"SELECT {col}, COUNT(*) FROM contacts WHERE {col} IS NOT NULL "
+                        f"GROUP BY 1 ORDER BY 2 DESC")
+            out[col] = [(v, n) for v, n in cur.fetchall()]
+        cur.execute("SELECT COUNT(*) FROM contacts")
+        out["_total"] = cur.fetchone()[0]
+        return out
+    finally:
+        conn.close()
+
+
 def get_contact(contact_id):
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)

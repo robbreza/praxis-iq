@@ -604,6 +604,9 @@ def render_console_home(user):
                 ui.button("Calendar", icon="calendar_month",
                           on_click=lambda: ui.navigate.to("/console/calendar")).props("flat dense") \
                     .style(f"color:{COLORS['text_muted']};")
+                ui.button("House Contacts", icon="contacts",
+                          on_click=lambda: ui.navigate.to("/contacts")).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
                 ui.button("Add client", icon="add", on_click=_open_add_client_dialog) \
                     .props("dense").style("margin-left:4px;")
                 ui.button("User Admin", icon="manage_accounts",

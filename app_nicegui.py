@@ -683,6 +683,133 @@ def console_page_route():
     console_page.render_console_home(user)
 
 
+# Pretty labels for the canonical classifier tokens (core.contact_classifier).
+_ROLE_LABELS = {
+    "buy_side_pm": "Buy-side PM", "buy_side_sector_pm": "BS sector PM",
+    "bs_sector_analyst": "BS sector analyst", "bs_generalist": "BS generalist",
+    "bs_analyst": "BS analyst", "bs_unspecified": "Buy-side (role n/s)", "cio": "CIO",
+    "director_of_research": "Dir. of Research", "associate_pm": "Associate PM",
+    "ss_analyst": "Sell-side analyst", "ss_sector_analyst": "SS sector analyst",
+    "ss_associate": "SS associate", "ss_sales": "SS sales", "ss_unspecified": "Sell-side (role n/s)",
+    "trader": "Trader", "strategist_macro": "Strategist", "asset_allocator": "Asset allocator",
+    "esg_governance": "ESG / Governance", "principal_csuite": "Principal / C-suite",
+    "ria_advisor": "RIA advisor", "family_office": "Family office", "consultant": "Consultant",
+    "banker": "Banker", "media": "Media", "ir_other": "IR / other"}
+_SEN_LABELS = {"principal": "Principal", "decision_maker": "Decision-maker",
+               "influencer": "Influencer", "junior": "Junior", "unknown": "—"}
+_FIRM_LABELS = {"asset_manager": "Asset manager", "ria": "RIA", "broker_dealer": "Broker-dealer",
+                "asset_owner": "Asset owner", "family_office": "Family office",
+                "consultant": "Consultant", "ocio": "OCIO", "bank": "Bank", "insurance": "Insurance"}
+
+
+@ui.page("/contacts")
+def house_contacts_page():
+    """Staff-only browse of the GLOBAL house-contact universe (core.contacts) — filter by role,
+    seniority, firm type, country, validation status; scan the classified + scrubbed seed."""
+    from core import auth, contacts as C
+    apply_theme()
+    user = _current_user()
+    if not user:
+        ui.navigate.to("/login"); return
+    if user["must_change_password"]:
+        ui.navigate.to("/change-password"); return
+    if not auth.is_staff(user):
+        ui.navigate.to("/"); return
+
+    val_color = {"verified": COLORS.get("positive", "#1B7F45"), "probable": COLORS.get("accent", "#1D3E70"),
+                 "stale": COLORS.get("warning", "#9A6410"), "invalid": "#B0242C",
+                 "unknown": COLORS.get("text_muted", "#6A7789")}
+    facets = C.contact_facets()
+    state = {"q": "", "primary_role": None, "seniority": None, "firm_type": None,
+             "country": None, "validation_status": None, "market_cap": None}
+
+    def opts(col, labels=None):
+        o = {None: "All"}
+        for v, n in facets.get(col, []):
+            o[v] = f"{(labels.get(v, v) if labels else v)} ({n})"
+        return o
+
+    with ui.column().classes("w-full items-center"):
+        wrap = ui.column().style("width:min(1240px,97vw);margin-top:18px;gap:14px;")
+        with wrap:
+            with ui.row().classes("w-full items-center"):
+                ui.label("House Contacts").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+                ui.label(f"Praxis Point CRM · {facets['_total']} contacts").style(
+                    f"color:{COLORS['text_muted']};font-size:13px;margin-left:8px;")
+                ui.space()
+                ui.button("Console", icon="arrow_back", on_click=lambda: ui.navigate.to("/console")) \
+                    .props("flat dense").style(f"color:{COLORS['text_muted']};")
+
+                def _logout():
+                    app.storage.user.pop("user_id", None)
+                    app.storage.user.pop("active_client_id", None)
+                    ui.navigate.to("/login")
+                ui.button("Sign out", icon="logout", on_click=_logout).props("flat dense") \
+                    .style(f"color:{COLORS['text_muted']};")
+
+            with ui.row().classes("items-center").style("gap:8px;flex-wrap:wrap;"):
+                for v, n in facets.get("validation_status", []):
+                    with ui.row().classes("items-center").style(
+                            f"gap:6px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "border-radius:999px;padding:3px 11px;"):
+                        ui.element("span").style(
+                            f"width:8px;height:8px;border-radius:50%;background:{val_color.get(v, COLORS['text_muted'])};")
+                        ui.label(f"{v} · {n}").style(f"color:{COLORS['text_secondary']};font-size:12px;")
+
+            with ui.card().classes("w-full").style(
+                    f"padding:12px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"):
+                with ui.row().classes("w-full items-end").style("gap:10px;flex-wrap:wrap;"):
+                    q_in = ui.input("Search name / firm / email").props("outlined dense clearable") \
+                        .style("min-width:240px;flex:1;")
+                    q_in.on("keydown.enter", lambda _: (state.update(q=q_in.value or ""), results.refresh()))
+                    q_in.on("blur", lambda _: (state.update(q=q_in.value or ""), results.refresh()))
+
+                    def mk(label, col, labels=None):
+                        sel = ui.select(opts(col, labels), value=None, label=label) \
+                            .props("outlined dense options-dense").style("min-width:150px;")
+                        sel.on_value_change(lambda _, c=col, s=sel: (state.update({c: s.value}), results.refresh()))
+                    mk("Role", "primary_role", _ROLE_LABELS)
+                    mk("Seniority", "seniority", _SEN_LABELS)
+                    mk("Firm type", "firm_type", _FIRM_LABELS)
+                    mk("Country", "country")
+                    mk("Validation", "validation_status")
+
+            @ui.refreshable
+            def results():
+                filters = {k: state[k] for k in ("primary_role", "seniority", "firm_type",
+                                                 "country", "validation_status", "market_cap") if state.get(k)}
+                res = C.search_contacts(q=state.get("q") or None, filters=filters, limit=2000)
+                ui.label(f"{res['total']} matching" + (" · showing first 2000" if res["total"] > 2000 else "")) \
+                    .style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+                def role_disp(r):
+                    prim = _ROLE_LABELS.get(r.get("primary_role"), r.get("primary_role") or "—")
+                    n = len([x for x in (r.get("roles") or "").split(",") if x])
+                    return prim + (f"  +{n-1}" if n > 1 else "")
+                rows = [{
+                    "id": r["contact_id"], "name": r["name"], "firm": r["firm"], "role": role_disp(r),
+                    "seniority": _SEN_LABELS.get(r.get("seniority"), r.get("seniority") or "—"),
+                    "firm_type": _FIRM_LABELS.get(r.get("firm_type"), r.get("firm_type") or "—"),
+                    "country": r.get("country") or "—", "email": r.get("email") or "—",
+                    "validation": r.get("validation_status") or "—",
+                    "conf": r.get("confidence") if r.get("confidence") is not None else "",
+                } for r in res["rows"]]
+                columns = [
+                    {"name": "name", "label": "Name", "field": "name", "sortable": True, "align": "left"},
+                    {"name": "firm", "label": "Firm", "field": "firm", "sortable": True, "align": "left"},
+                    {"name": "role", "label": "Role", "field": "role", "sortable": True, "align": "left"},
+                    {"name": "seniority", "label": "Seniority", "field": "seniority", "sortable": True, "align": "left"},
+                    {"name": "firm_type", "label": "Firm type", "field": "firm_type", "sortable": True, "align": "left"},
+                    {"name": "country", "label": "Country", "field": "country", "sortable": True, "align": "left"},
+                    {"name": "email", "label": "Email", "field": "email", "align": "left"},
+                    {"name": "validation", "label": "Validation", "field": "validation", "sortable": True, "align": "left"},
+                    {"name": "conf", "label": "Conf", "field": "conf", "sortable": True, "align": "right"},
+                ]
+                ui.table(columns=columns, rows=rows, row_key="id", pagination=25).classes("w-full") \
+                    .style(f"background:{COLORS['surface_bg']};")
+            results()
+
+
 @ui.page("/console/calendar")
 def console_calendar_route():
     """Cross-client operator calendar (staff-only) — the whole book's schedule at a glance."""
