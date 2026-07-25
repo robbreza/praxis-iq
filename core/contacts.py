@@ -364,6 +364,52 @@ def signatory_from_13f(cik, accession, timeout=20):
     return {"name": name, "title": _tag(blk, "title"), "phone": _tag(blk, "phone")}
 
 
+def cover_info_from_13f(cik, accession, timeout=20):
+    """Everything the 13F cover page (primary_doc.xml) gives us in ONE fetch: the filing
+    manager's name + business CITY/STATE, the portfolio's total value (AUM) and position
+    count, and the signing officer. Firm-level enrichment for the house book — active filers
+    report in dollars (post-2023 rule), so tableValueTotal is comparable across them.
+    Returns a dict or None."""
+    from core import sec_filings
+    try:
+        cik_i = str(int(cik))
+    except Exception:
+        return None
+    acc = str(accession or "").replace("-", "")
+    if not acc:
+        return None
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik_i}/{acc}/primary_doc.xml"
+    try:
+        xml = sec_filings._get(url, timeout=timeout).content.decode("utf-8", "ignore")
+    except Exception:
+        return None
+
+    import html
+
+    def xt(blk, tag):
+        m = re.search(rf"<(?:\w+:)?{tag}\b[^>]*>(.*?)</(?:\w+:)?{tag}>", blk or "", re.S | re.I)
+        return html.unescape(m.group(1).strip()) if m else None
+
+    def num(s):
+        digits = re.sub(r"[^0-9]", "", s or "")
+        return int(digits) if digits else None
+
+    fm = re.search(r"<(?:\w+:)?filingManager\b[^>]*>(.*?)</(?:\w+:)?filingManager>", xml, re.S | re.I)
+    fmblk = fm.group(1) if fm else ""
+    manager = xt(fmblk, "name")
+    city = xt(fmblk, "city")
+    state = xt(fmblk, "stateOrCountry")
+    sig = None
+    m = _SIG_RE.search(xml)
+    if m:
+        nm = _clean_name(_tag(m.group(1), "name"))
+        if nm:
+            sig = {"name": nm, "title": _tag(m.group(1), "title"), "phone": _tag(m.group(1), "phone")}
+    return {"manager": manager, "city": city, "state": state,
+            "aum": num(xt(xml, "tableValueTotal")), "positions": num(xt(xml, "tableEntryTotal")),
+            "signatory": sig}
+
+
 def refresh_from_13f(client_id=None, ticker=None, throttle=0.15, limit=None):
     """Walk the cached 13F holders for a client's ticker and store each filer's signing officer.
 
