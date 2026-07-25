@@ -5,6 +5,7 @@ openpyxl
 reportlab
 plotly
 requests   # core/sec_filings.py — SEC EDGAR data fetching (13D/13G, 13F)
+dnspython   # core/contact_scrub.py — MX lookup (email-domain deliverability, Phase-2 scrubbing)
 psycopg2-binary   # core/db.py — Neon Postgres backend (falls back to SQLite if unused)
 yfinance   # core/market_data.py — free market data (price/volume), 60-min-delay tolerant
 pypdf   # core/transcripts.py — extract text from uploaded earnings-call transcript PDFs
