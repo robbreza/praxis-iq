@@ -38,6 +38,10 @@ Every rejection is recorded with its reason in `verifications/`.
 4. **CIK resolution + currency** — `run_currency.py` / `run_signatory.py` bind firms to their 13F
    CIK and confirm active-filer liveness.
 5. **Dedup** — `dedup_contacts.py` (within-firm) and `email_dedup.py` (same email + surname across firms).
+6. **NDR registration** — `register_ndr_philly.py` adds verified firms to the GLOBAL curated NDR
+   house book (`core.curated_targets`, scope=`global`) so any client's roadshow in that metro gets a
+   target list, tagged "Curated" (never "holds a comp"); `all_candidates()` de-dups any that already
+   surface as a real holder/derived prospect per client.
 
 ## Regions covered (verified firms)
 
