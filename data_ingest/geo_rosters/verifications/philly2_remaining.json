@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "region": "Philadelphia metro (PA/DE) — 2nd sweep (remaining shops)",
+    "verified_by": "two web-research verification agents (city + Main Line corridor), CFA-rigor, no fabrication",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_philly2.py (union, verified only); NDR: scripts/register_ndr_philly2.py",
+    "notes": [
+      "Run after the first Philly sweep; excludes the 11 already in book and the 3 already rejected.",
+      "First launch of these two agents stalled (0-byte output); re-spawned and completed."
+    ]
+  },
+  "Copeland Capital Management": {"status": "verified", "reason": "Employee-owned dividend-growth active-equity boutique, ~$4B AUM, full cap range incl. Mid/SMid/Small/International Small Cap. Fundamental stock-picking.", "city": "Conshohocken, PA", "domain": "copelandcapital.com", "people_count": 11},
+  "Conestoga Capital Advisors": {"status": "verified", "reason": "Independent employee-owned quality-growth boutique, ~$8B, concentrated Micro/Small/SMid/Mid Cap Growth. On-profile small/mid stock-pickers; orderly PM succession 2025-26.", "city": "Wayne, PA", "domain": "conestogacapital.com", "people_count": 10},
+  "Barton Investment Management": {"status": "verified", "reason": "Boutique concentrated (10-15 name) growth-company stock-picker, ~$1B, 13F filer, in-house research. Genuine active manager, not an allocator.", "city": "West Conshohocken, PA", "domain": "bartonim.com", "people_count": 4},
+  "Radnor Capital Management": {"status": "verified", "reason": "Employee-owned manager ~$855M, active equity (Small Cap / Core / Equity Income) in individual securities with in-house research. More private-client-weighted but a true stock-picker.", "city": "Wayne, PA", "domain": "radnorcm.com", "people_count": 5},
+  "CenterSquare Investment Management": {"status": "verified", "reason": "Independent (2018 BNY spin-out) active manager of listed real-assets/REIT securities. Fundamental sector-specialist stock-picking; caveat REIT-focused, not broad small/mid.", "city": "Plymouth Meeting, PA", "domain": "centersquare.com", "people_count": 2},
+  "Xponance": {"status": "verified", "reason": "Philadelphia diverse-owned multi-strategy manager (~$24B) running in-house active global equity (founder/CIO-led) plus systematic platform. Caveat: part of the equity book is multi-manager.", "city": "Philadelphia, PA", "domain": "xponance.com", "people_count": 1},
+  "SEI Investments Management Corp (SIMC)": {"status": "reject", "reason": "Primarily manager-of-managers/multi-manager platform; direct-managed sleeves are quant/model-driven, not fundamental single-desk stock-picking. Off-profile.", "city": "Oaks, PA", "domain": "seic.com", "people_count": 0},
+  "FS Investments": {"status": "reject", "reason": "Alternative-asset manager (private/alt credit, private markets). No long-only public-equity stock-picking strategy.", "city": "Philadelphia, PA", "domain": "fsinvestments.com", "people_count": 0},
+  "PNC Capital Advisors": {"status": "reject", "reason": "Headquartered in Baltimore, MD; parent PNC in Pittsburgh. Not Philadelphia metro — out of geographic scope.", "city": "Baltimore, MD", "domain": "pnccapitaladvisors.com", "people_count": 0},
+  "Vanguard Quantitative Equity Group": {"status": "reject", "reason": "Vanguard's internal active arm is quant/model-driven inside a predominantly index giant; no fundamental small/mid desk. Off-profile.", "city": "Malvern, PA", "domain": "vanguard.com", "people_count": 0},
+  "Old Glory Asset Management": {"status": "reject", "reason": "Appears to operate as a capital allocator / manager-selection vehicle (Form ADV 'selection of other advisers'; files 13F-NT not 13F-HR; ~2 investment pros). Could not confirm a genuine in-house stock-picking product.", "city": "Malvern, PA", "domain": "oldgloryam.com", "people_count": 0},
+  "Addison Capital Co.": {"status": "reject", "reason": "Fee-only wealth-management RIA (ETF model portfolios, client allocation). No distinct institutional active-equity product.", "city": "Conshohocken, PA", "domain": "addisoncapital.com", "people_count": 0},
+  "Malvern Capital Management": {"status": "reject", "reason": "Private-client wealth-management RIA using institutional-style models; not an institutional active-equity boutique.", "city": "Malvern, PA", "domain": "malverncap.com", "people_count": 0},
+  "Mill Creek Capital Advisors": {"status": "reject", "reason": "Multi-asset OCIO / wealth advisory for HNW/foundations/endowments; not a direct single-strategy active-equity stock-picker.", "city": "Conshohocken, PA", "domain": "millcreekcap.com", "people_count": 0},
+  "Franklin Park": {"status": "reject", "reason": "Private-markets specialist (PE, private debt, venture) via fund-of-funds and co-investments. Not public equity.", "city": "Bala Cynwyd, PA", "domain": "franklinpark.com", "people_count": 0},
+  "Atairos Group": {"status": "reject", "reason": "Comcast-backed strategic/growth investment firm making long-term private/growth-equity investments. Not public-equity active management.", "city": "Bryn Mawr, PA", "domain": "atairos.com", "people_count": 0},
+  "Graham Partners": {"status": "reject", "reason": "Private equity firm (advanced-manufacturing buyouts). Not public equity.", "city": "Newtown Square, PA", "domain": "grahampartners.net", "people_count": 0}
+}

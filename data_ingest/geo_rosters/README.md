@@ -54,6 +54,7 @@ Every rejection is recorded with its reason in `verifications/`.
 | US — SF / Denver / NY | `verifications/us_sf_denver_ny.json` | 4 / 9 |
 | Philadelphia metro (PA/DE) — A | `verifications/philly_group_a.json` | 7 / 1 |
 | Philadelphia metro (PA/DE) — B | `verifications/philly_group_b.json` | 6 / 2 |
+| Philadelphia metro (PA/DE) — 2nd sweep | `verifications/philly2_remaining.json` | 6 / 11 |
 | Baltimore / Maryland | `verifications/baltimore_md.json` | 7 / 2 |
 
 Earlier geo passes (Canada bulk, TX, FL, NC, TN, GA, CO, SD, CA + supplements) were loaded via
