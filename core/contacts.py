@@ -195,6 +195,51 @@ def list_contacts(firm=None, cik=None, limit=None):
         conn.close()
 
 
+def roster_for_firm(cik=None, firm=None, limit=80):
+    """The house investment-team roster for ONE firm — named PMs / analysts / CIO we hold, ordered
+    decision-makers first. This is what turns a peer-owner ('Firm X holds your peers') into 'here
+    is the person to call'. Matches by firm CIK (firm_cik OR the cik-keyed identity), else the
+    normalized firm name. Returns lightweight dicts for rendering."""
+    if cik:
+        k = norm_cik(cik)
+        where, params = "(firm_cik = {ph} OR cik = {ph})", [k, k]
+    elif firm:
+        where, params = "firm_key = {ph}", [_norm(firm)]
+    else:
+        return []
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        ph = "%s" if pg else "?"
+        rank = ("CASE seniority WHEN 'principal' THEN 0 WHEN 'decision_maker' THEN 1 "
+                "WHEN 'influencer' THEN 2 WHEN 'junior' THEN 3 ELSE 4 END")
+        cols = ["name", "title", "primary_role", "roles", "seniority", "email", "phone",
+                "validation_status", "source"]
+        cur.execute(f"SELECT {', '.join(cols)} FROM contacts WHERE {where.format(ph=ph)} "
+                    f"ORDER BY {rank}, name LIMIT {int(limit)}", params)
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def firm_roster_counts():
+    """{firm_cik: N} — count of INVESTMENT-team contacts (PM/analyst/CIO/DoR/trader) we hold per
+    firm, in ONE query, for the 'team: N' cue on peer-owner cards. Excludes the lone 13F signatory
+    so the badge means real roster depth, not just an ops officer."""
+    conn = db.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT firm_cik, count(*) FROM contacts "
+            "WHERE firm_cik IS NOT NULL AND firm_cik <> '' AND primary_role IN "
+            "('buy_side_pm','buy_side_sector_pm','cio','director_of_research','associate_pm',"
+            "'bs_analyst','bs_sector_analyst','bs_generalist','trader') GROUP BY firm_cik")
+        return {r[0]: r[1] for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+
 # ── house-contacts browse (search + facets) ─────────────────────────────────
 # Exact-match filter columns (whitelist — never interpolate a user value as a column).
 _FILTERABLE = ("primary_role", "seniority", "firm_type", "country", "validation_status",

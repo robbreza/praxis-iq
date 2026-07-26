@@ -1547,6 +1547,8 @@ def _render_peer_prospects_tab(client_id):
                 f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
             return
 
+        from core import contacts as _cmod
+        _rcounts = _cmod.firm_roster_counts()   # firm_cik -> named investment contacts we hold
         for r in cands:
             promoted = r.get("promoted")
             border = "#15803D" if promoted else COLORS["border"]
@@ -1594,6 +1596,11 @@ def _render_peer_prospects_tab(client_id):
 
                         ui.button("Promote", on_click=_promote).props("dense size=sm color=primary")
                         ui.button("Dismiss", on_click=_dismiss).props("flat dense size=sm")
+                    _tn = _rcounts.get(_cmod.norm_cik(r.get("cik"))) if r.get("cik") else None
+                    if _tn:
+                        ui.button(f"Team ({_tn})", icon="groups",
+                                  on_click=lambda r=r: _open_account_profile(r)) \
+                            .props("flat dense size=sm").style(f"color:{COLORS['accent']};font-weight:600;")
 
         # Show-all control — every qualified peer-owner is listable, not just the top 40.
         _total = c["candidates"]
@@ -1861,6 +1868,51 @@ def _open_account_profile(rec):
             names = [f["name"] for f in lu["funds"]]
             ui.label(" · ".join(names[:8]) + (f"  (+{len(names) - 8} more)" if len(names) > 8 else "")).style(
                 f"color:{COLORS['text_secondary']};font-size:12px;")
+
+        # ── Investment team — the named people to actually call ────
+        # THE value-add: a peer-owner ("Firm X holds your peers") resolves to the real PMs/
+        # analysts we hold on the house roster, decision-makers first, each with a one-click
+        # pre-filled outreach draft. Turns "who owns this" into "who do I email".
+        from core import contacts as _cmod
+        _team = _cmod.roster_for_firm(cik=acct_cik, firm=name)
+        if _team:
+            _rlbl = {"buy_side_pm": "PM", "buy_side_sector_pm": "Sector PM", "cio": "CIO",
+                     "director_of_research": "Dir. Research", "associate_pm": "Assoc. PM",
+                     "bs_analyst": "Analyst", "bs_sector_analyst": "Sector Analyst",
+                     "bs_generalist": "Generalist", "principal_csuite": "Principal", "trader": "Trader"}
+            _rtkr, _rcname, _rir = CT("ticker"), CT("name"), CI()
+
+            def _draft_to(to, fname):
+                subj = f"{_rtkr} — meeting request"
+                body = (f"Hi {fname or 'there'},\n\nWe'd value 30 minutes with your team. {disp} holds "
+                        f"{peers or 'names in our space'}, so {_rtkr}'s story should be directly relevant.\n\n"
+                        f"Would a short meeting work?\n\n{_rir.get('name', '')}\n"
+                        f"{_rir.get('title', 'Investor Relations')} · {_rcname} (NASDAQ: {_rtkr})")
+                ui.run_javascript("window.location.href = " + json.dumps(
+                    "mailto:" + to + "?subject=" + quote(subj) + "&body=" + quote(body)))
+
+            _withemail = sum(1 for p in _team if p.get("email"))
+            _section(f"Investment team — {len(_team)} on file · {_withemail} reachable")
+            ui.label("The named PMs / analysts we hold at this firm — decision-makers first.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;")
+            with ui.column().classes("w-full gap-0").style("max-height:236px;overflow-y:auto;margin-top:2px;"):
+                for p in _team:
+                    with ui.row().classes("w-full items-center gap-2").style(
+                            f"padding:3px 0;border-bottom:1px solid {COLORS['border']};"):
+                        ui.label(pretty_name(p["name"])).style(
+                            f"color:{COLORS['text_heading']};font-size:12px;font-weight:600;min-width:150px;")
+                        ui.label(_rlbl.get(p.get("primary_role"), "—")).style(
+                            f"color:{COLORS['accent_light']};font-size:11px;font-weight:600;min-width:82px;")
+                        ui.label((p.get("title") or "")[:38]).style(
+                            f"color:{COLORS['text_muted']};font-size:11px;flex:1;min-width:0;")
+                        if p.get("phone"):
+                            ui.label(p["phone"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
+                        if p.get("email"):
+                            ui.button(icon="mail", on_click=lambda _=None, e=p["email"],
+                                      f=pretty_name(p["name"]).split()[0]: _draft_to(e, f)) \
+                                .props("flat dense round size=sm").tooltip(f"Draft to {p['email']}")
+                        else:
+                            ui.label("no email").style(f"color:{COLORS['text_muted']};font-size:10px;")
 
         # ── Contact & outreach ─────────────────────────────────────
         # The metro → fund flow ended at "who is this" with no way to reach them. This closes
