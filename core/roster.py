@@ -13,7 +13,7 @@ from core import contacts, contact_classifier as cc
 
 def add_people(firm, firm_cik=None, city=None, domain=None, people=None,
                source="firm_site", source_note="Firm website team page", firm_currency=None,
-               side="buy"):
+               side="buy", country=None):
     """people = [{'name':..., 'title':...}, ...]. Lands each as a classified contact under `firm`.
     DEDUPES against the firm's existing contacts: someone already in the book (e.g. from Rob's
     2021 lists) is ENRICHED in place (correct role from the current title + firm CIK link), not
@@ -42,7 +42,7 @@ def add_people(firm, firm_cik=None, city=None, domain=None, people=None,
             cid, roles=",".join(roles) or None, primary_role=primary, seniority=cc.seniority_for(roles),
             firm_type=cc.firm_type_for(firm, domain), market_cap_focus="micro,small",
             validation_status="probable", confidence=70, firm_cik=fcik, firm_currency=firm_currency,
-            provenance=source_note)
+            city=city, country=country, provenance=source_note)
         return primary
 
     added = merged = skipped = 0
