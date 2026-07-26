@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "region": "Jackson Hole / Teton County, WY",
+    "verified_by": "web-research verification agent (CFA-rigor, no fabrication)",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_jackson.py (verified public-equity managers only); NDR registered inline (global scope)",
+    "notes": [
+      "Prompted by a user recollection of an annual-visit Jackson Hole manager (likely Friess).",
+      "Only genuine public-equity stock-pickers with named people were ingested; family offices, PE, private credit, bank trust, and wealth RIAs were excluded as non-NDR-targets.",
+      "Friess's Renae Leonard was already in the CRM (merged, not new).",
+      "Excluded name-traps NOT in Teton County: Jackson Hole Capital Partners (Tulsa OK), Snake River Investment Counsel (Idaho Falls ID)."
+    ]
+  },
+  "Friess Associates": {"status": "verified", "reason": "Foster Friess's growth-equity shop (Brandywine/Brandywine Blue), relocated to Jackson WY. Still an active 13F filer (~$240M, down from ~$15.7B peak). CIK 820289.", "city": "Jackson, WY", "domain": null, "cik": "820289", "people_count": 1},
+  "Flat Footed LLC": {"status": "verified", "reason": "Activist/short-biased hedge fund (Brookdale Senior Living campaign), Wilson WY. Files 13F (CRD 291593).", "city": "Wilson, WY", "domain": null, "people_count": 2},
+  "Gervais Capital Management": {"status": "verified", "reason": "Value-equity boutique (~$116-156M), Wilson WY; founder Donald Gervais was a US Value Equity PM/MD at Goldman Sachs and JPMorgan. SEC-registered 2024 (CRD 299347).", "city": "Wilson, WY", "domain": null, "people_count": 1},
+  "HRTG GPE, LLC": {"status": "reject", "reason": "Large private-fund FAMILY OFFICE (~$27B RAUM), Wilson WY. Files 13F but no external clients / not an NDR-style stock-picker.", "city": "Wilson, WY", "domain": null, "people_count": 0},
+  "Teton Capital Advisers / Ancient Art": {"status": "reject", "reason": "Long/short equity founded in Jackson (Quincy Lee); principal appears to have relocated the active book to Austin, TX as 'Ancient Art'. Not ingested under Jackson WY given the uncertain current location.", "city": "Jackson, WY / Austin, TX", "domain": null, "people_count": 0},
+  "Bank of Jackson Hole Trust": {"status": "reject", "reason": "Bank trust department filing 13F-HR on trust-held equities. Not an active stock-picking NDR target.", "city": "Jackson, WY", "domain": null, "people_count": 0},
+  "Flat Rock Global, LLC": {"status": "reject", "reason": "Alternative CREDIT manager (middle-market BDC/private debt), not public equities.", "city": "Jackson, WY", "domain": "flatrockglobal.com", "people_count": 0},
+  "Greybull Stewardship": {"status": "reject", "reason": "Lower-middle-market PRIVATE EQUITY (sub-$5M EBITDA businesses). Not public equity.", "city": "Jackson, WY", "domain": null, "people_count": 0},
+  "Grand Teton Group": {"status": "reject", "reason": "Private investment / holdings company (PE/VC LP stakes, direct private, real estate). Not a public-equity manager.", "city": "Jackson, WY", "domain": null, "people_count": 0},
+  "Corax Asset Management": {"status": "reject", "reason": "Small-cap value boutique (~$20M) below the $100M 13F threshold; no named investment person confirmable. Too small / thin to ingest now.", "city": "Wilson, WY", "domain": "coraxam.com", "people_count": 0},
+  "Green Tuatara Asset Management": {"status": "reject", "reason": "Fee-based wealth RIA (~$41M) using funds/ETFs. Not an institutional stock-picker.", "city": "Jackson, WY", "domain": null, "people_count": 0},
+  "Wind River Capital Management": {"status": "reject", "reason": "Wealth advisory / impact investing RIA. Not an institutional active-equity NDR target.", "city": "Jackson, WY", "domain": null, "people_count": 0}
+}

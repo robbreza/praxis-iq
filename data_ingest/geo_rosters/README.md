@@ -60,6 +60,7 @@ Every rejection is recorded with its reason in `verifications/`.
 | Milwaukee / Wisconsin (+ Artisan distributed teams) | `verifications/milwaukee_artisan.json` | 7 / 1 |
 | Salt Lake City / Utah | `verifications/salt_lake.json` | 6 / 3 |
 | Bill Miller franchise (Sarasota FL + Baltimore MD) | `verifications/miller_franchise.json` | 2 / 0 |
+| Jackson Hole / Teton County, WY | `verifications/jackson_hole.json` | 3 / 9 |
 
 Earlier geo passes (Canada bulk, TX, FL, NC, TN, GA, CO, SD, CA + supplements) were loaded via
 `ingest_geo.py` / `ingest_ca.py` and the fund-complex / hedge-fund rosters via
