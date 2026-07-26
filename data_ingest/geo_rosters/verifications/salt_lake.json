@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "region": "Salt Lake City / Utah",
+    "verified_by": "web-research verification agent (CFA-rigor, no fabrication)",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_metros.py (verified only); NDR: scripts/register_ndr_metros.py",
+    "notes": [
+      "Deepened thin prior coverage: Wasatch (had ~5 -> full 30-person roster) and Grandeur Peak (had 1 -> 22).",
+      "Data-integrity: Mark Madsen & Stuart Rigby moved Grandeur Peak -> Wasatch; rostered under Wasatch only (aggregators still show them at Grandeur Peak).",
+      "Summit Global is quant low-vol (in CRM, not registered as NDR target)."
+    ]
+  },
+  "Wasatch Global Investors": {"status": "verified", "reason": "SLC small/micro-cap growth specialist (Wasatch Advisors, est. 1975, employee-owned, ~$29B). Classic fundamental active stock-picker. Prime NDR target.", "city": "Salt Lake City, UT", "domain": "wasatchglobal.com", "people_count": 30},
+  "Grandeur Peak Global Advisors": {"status": "verified", "reason": "SLC micro/small-cap global boutique (2011 Wasatch spinoff, ~$6B). Disciplined bottom-up. Prime NDR target.", "city": "Salt Lake City, UT", "domain": "grandeurpeakglobal.com", "people_count": 22},
+  "Seven Canyons Advisors": {"status": "verified", "reason": "DISCOVERED. SLC global small/micro-cap growth boutique (est. 2017; Sam Stewart's post-Wasatch firm). Pure fundamental active stock-picker with limited AUM. Strong small-cap NDR target.", "city": "Salt Lake City, UT", "domain": "sevencanyonsadvisors.com", "people_count": 5},
+  "Alta Capital Management": {"status": "verified", "reason": "DISCOVERED. SLC equity manager (est. 1981, ~$1.8B, files 13F). Bottom-up quality-growth, concentrated portfolios (Large/All/SMID). Large-cap tilt vs the small-cap shops.", "city": "Salt Lake City, UT", "domain": "altacapital.com", "people_count": 7},
+  "Summit Global Investments": {"status": "verified", "reason": "DISCOVERED. Bountiful, UT active low-volatility equity (est. 2010; active funds/ETFs). Quant/factor-driven -> weak fundamental-NDR fit; in CRM, not an NDR target.", "city": "Bountiful, UT", "domain": "sgiam.com", "people_count": 1},
+  "Albion Financial Group": {"status": "verified", "reason": "SLC RIA (est. 1982, ~$2B). Primarily wealth management but runs genuine in-house bottom-up individual-stock selection (CIO/Head of Research-led). Lower-priority NDR target.", "city": "Salt Lake City, UT", "domain": "albionfinancial.com", "people_count": 4},
+  "Ensign Peak Advisors": {"status": "reject", "reason": "Asset owner / allocator, not a stock-picker. LDS Church's ~$100B reserve fund; ~1,700 holdings, ~7% turnover, index-like (NVDA/AAPL/MSFT/AMZN/GOOGL). No external clients. Would not behave as an NDR target.", "city": "Salt Lake City, UT", "domain": "ensignpeak.org", "people_count": 0},
+  "Bridge Investment Group": {"status": "reject", "reason": "Not public equity — vertically-integrated real estate PE and private credit (~$32B). Acquired by Apollo (all-stock, closed 2025) and folded into its real-assets/credit platform.", "city": "Salt Lake City, UT", "domain": "bridgeig.com", "people_count": 0},
+  "Kanos Capital Management": {"status": "reject", "reason": "Wrong city and type — Houston, TX wealth-management RIA (not Utah, not an institutional stock-picker).", "city": "Houston, TX", "domain": "kanoscapital.com", "people_count": 0}
+}

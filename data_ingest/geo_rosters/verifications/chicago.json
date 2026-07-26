@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "region": "Chicago metro (IL)",
+    "verified_by": "web-research verification agent (CFA-rigor, no fabrication)",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_metros.py (verified only); NDR: scripts/register_ndr_metros.py",
+    "notes": [
+      "Already had (not re-rostered here): William Blair (deep), Nuveen, Driehaus, Calamos, Northern Trust, Marquette, First Trust.",
+      "Ariel: John Miller (Small/Mid PM) departed May 1 2026 and Micky Jagirdar exiting — excluded from roster.",
+      "Harris/Oakmark: roster reflects 6/30/2026 update (Fitch to Co-CIO US; Bierig Deputy Chairman succeeding Herro).",
+      "Quant shops (LSV, Ativo, Zacks) ingested to CRM but NOT registered as NDR targets (weak management-access fit)."
+    ]
+  },
+  "Ariel Investments": {"status": "verified", "reason": "Operating Chicago value shop (John Rogers), fundamental bottom-up with dedicated small-cap and SMID value. Strong NDR fit.", "city": "Chicago, IL", "domain": "arielinvestments.com", "people_count": 4},
+  "Harris Associates": {"status": "verified", "reason": "Adviser to Oakmark Funds (founded 1976); classic fundamental value stock-pickers across US/international/global. Premier NDR target.", "city": "Chicago, IL", "domain": "harrisassoc.com", "people_count": 12},
+  "LSV Asset Management": {"status": "verified", "reason": "Quantitative deep-value equity (~$106B); genuinely active behavioral-finance selection, not index. Model-driven quant -> lower NDR fit.", "city": "Chicago, IL", "domain": "lsvasset.com", "people_count": 7},
+  "Great Lakes Advisors": {"status": "verified", "reason": "Wintrust-affiliated active equity with a Fundamental Equity team (Large Cap Value, Small Cap) plus a systematic team. Fundamental small-cap is the NDR fit.", "city": "Chicago, IL", "domain": "greatlakesadvisors.com", "people_count": 4},
+  "Advisory Research": {"status": "verified", "reason": "100% employee-owned high-conviction fundamental equity (US value/growth, global/intl core) via SMAs and private funds.", "city": "Chicago, IL", "domain": "advisoryresearch.com", "people_count": 8},
+  "Segall Bryant & Hamill": {"status": "verified", "reason": "Active manager with genuine institutional small-cap/SMID strategies (fundamental research). Caveat: now Corient/Mubadala-owned, funds re-branded 'CI SBH'. Small-cap team tagged Denver (already partly in CRM).", "city": "Chicago, IL (small-cap team Denver, CO)", "domain": "sbhic.com", "people_count": 3},
+  "Ativo Capital Management": {"status": "verified", "reason": "Active quantitative equity (international focus, ~$1B). Model-driven -> lower NDR fit. Correct legal name is Ativo Capital Management, LLC.", "city": "Chicago, IL", "domain": "ativocapital.com", "people_count": 4},
+  "Zacks Investment Management": {"status": "verified", "reason": "Active manager ~$23B across ~40 quantitative equity SMA strategies; quant/retail-wealth oriented -> weaker NDR fit.", "city": "Chicago, IL", "domain": "zacksim.com", "people_count": 1},
+  "Chicago Equity Partners": {"status": "reject", "reason": "Defunct — announced May 2020 wind-down and return of capital. No longer operating.", "city": "Chicago, IL", "domain": null, "people_count": 0},
+  "Cresset Asset Management": {"status": "reject", "reason": "Multi-family office / wealth-management RIA (~$79B) built on asset allocation and third-party manager selection. Not a fundamental single-stock shop.", "city": "Chicago, IL", "domain": "cressetcapital.com", "people_count": 0},
+  "NuWave": {"status": "reject", "reason": "New Jersey quantitative/systematic managed-futures (CTA) firm. Wrong geography and strategy type.", "city": "Morristown, NJ", "domain": null, "people_count": 0},
+  "Vue Capital": {"status": "reject", "reason": "Unverifiable — no Chicago fundamental active public-equity manager confirmable under this name.", "city": null, "domain": null, "people_count": 0}
+}

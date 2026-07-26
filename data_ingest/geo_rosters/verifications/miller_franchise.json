@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "region": "Bill Miller franchise (Sarasota FL + Baltimore MD)",
+    "verified_by": "web-research verification agent (CFA-rigor, no fabrication)",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_miller.py (both firms; CIKs bound directly)",
+    "notes": [
+      "Prompted by a user recollection of 'Bill Miller in Milwaukee' — corrected: neither firm is in Milwaukee.",
+      "Miller Value Partners MOVED from Maryland to Sarasota, FL. Patient Capital is the Baltimore firm.",
+      "Bill Miller III is retired/passive (~20%) at Miller Value; serves as Senior Advisor at Patient Capital."
+    ]
+  },
+  "Miller Value Partners": {"status": "verified", "reason": "RIA founded 1999 by Bill Miller III; Bill Miller IV acquired 80% in 2023 and is CIO/PM. HQ Sarasota, FL (moved from MD; NOT Milwaukee), ~$418M. Deep-value + income strategies. Files 13F (SEC filer 1135778).", "city": "Sarasota, FL", "domain": "millervalue.com", "cik": "1135778", "people_count": 3},
+  "Patient Capital Management": {"status": "verified", "reason": "RIA founded 2020 by Samantha McLemore (20-yr co-PM to Bill Miller III); active-equity successor to the former Miller Opportunity Trust (now Patient Opportunity Trust). HQ Baltimore, MD, ~$2.5B. Files 13F (CIK 1854794). Bill Miller III is Senior Advisor.", "city": "Baltimore, MD", "domain": "patientcapitalmanagement.com", "cik": "1854794", "people_count": 6}
+}

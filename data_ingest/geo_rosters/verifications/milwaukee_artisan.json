@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "region": "Milwaukee / Wisconsin (incl. Artisan Partners distributed teams)",
+    "verified_by": "web-research verification agent (CFA-rigor, no fabrication)",
+    "date": "2026-07-25",
+    "ingested_via": "scripts/ingest_metros.py (verified only); NDR: scripts/register_ndr_metros.py",
+    "notes": [
+      "Already had: Heartland Advisors.",
+      "Artisan Partners is HQ Milwaukee but investment TEAMS are distributed — ingested each PM at the team's real office city: Growth->Milwaukee, U.S. Value->Atlanta, Global Value->Chicago, International Value->Boston, Global Equity+Developing World->San Francisco, Sustainable EM->New York, Antero Peak->Denver.",
+      "Mason Street is a captive Northwestern Mutual adviser (in CRM, not registered as NDR target).",
+      "Broadview and Mason Street rosters flagged to re-verify before outreach."
+    ]
+  },
+  "Artisan Partners": {"status": "verified", "reason": "Publicly traded (NYSE: APAM) fundamental active-equity manager, HQ Milwaukee, teams distributed across offices. Equity teams only (fixed-income teams excluded).", "city": "Milwaukee, WI (HQ; teams in SF/Atlanta/Boston/Chicago/NY/Denver)", "domain": "artisanpartners.com", "people_count": 18},
+  "Fiduciary Management, Inc. (FMI)": {"status": "verified", "reason": "Independent Milwaukee value manager (est. 1980, ~$9.1B). Focused fundamental value (Large/All Cap, International). Prime NDR target.", "city": "Milwaukee, WI", "domain": "fmimgt.com", "people_count": 7},
+  "Baird Equity Asset Management": {"status": "verified", "reason": "Active-equity arm of Robert W. Baird (HQ Milwaukee). U.S. Growth team runs Mid Cap and Small/Mid Cap Growth. (Baird Advisors fixed-income excluded.)", "city": "Milwaukee, WI", "domain": "bairdassetmanagement.com", "people_count": 7},
+  "Nicholas Company, Inc.": {"status": "verified", "reason": "Milwaukee family-founded active-equity manager (Albert Nicholas heritage; now David O. Nicholas). Nicholas family of funds. Distinct from San Diego's 'Nicholas Investment Partners'.", "city": "Milwaukee, WI", "domain": "nicholasfunds.com", "people_count": 7},
+  "Mason Street Advisors": {"status": "verified", "reason": "Wholly-owned Northwestern Mutual adviser running active equity sleeves for proprietary funds. CAPTIVE in-house adviser -> weak NDR fit; in CRM but not an NDR target. Roster to re-verify.", "city": "Milwaukee, WI", "domain": "northwesternmutual.com", "people_count": 2},
+  "Madison Investments": {"status": "verified", "reason": "Employee-owned active manager (Madison, WI) running bottom-up 'moat'-style equity (Large/Mid Cap). Advises the Madison Funds.", "city": "Madison, WI", "domain": "madisoninvestments.com", "people_count": 3},
+  "Broadview Advisors, LLC": {"status": "verified", "reason": "Milwaukee small/mid-cap value manager (est. 2001, ~$400M). Former Broadview Opportunity Fund folded into Madison 2019; SMA equity manager continues. Roster from aggregator — re-verify.", "city": "Milwaukee, WI", "domain": "broadviewadv.com", "people_count": 3},
+  "Cortina Asset Management": {"status": "reject", "reason": "Former Milwaukee small-cap growth shop acquired by Silvercrest Asset Management in 2019 — merged/renamed, no longer independent.", "city": "Milwaukee, WI", "domain": null, "people_count": 0}
+}

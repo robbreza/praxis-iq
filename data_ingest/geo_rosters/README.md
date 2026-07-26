@@ -56,6 +56,10 @@ Every rejection is recorded with its reason in `verifications/`.
 | Philadelphia metro (PA/DE) — B | `verifications/philly_group_b.json` | 6 / 2 |
 | Philadelphia metro (PA/DE) — 2nd sweep | `verifications/philly2_remaining.json` | 6 / 11 |
 | Baltimore / Maryland | `verifications/baltimore_md.json` | 7 / 2 |
+| Chicago (IL) | `verifications/chicago.json` | 8 / 4 |
+| Milwaukee / Wisconsin (+ Artisan distributed teams) | `verifications/milwaukee_artisan.json` | 7 / 1 |
+| Salt Lake City / Utah | `verifications/salt_lake.json` | 6 / 3 |
+| Bill Miller franchise (Sarasota FL + Baltimore MD) | `verifications/miller_franchise.json` | 2 / 0 |
 
 Earlier geo passes (Canada bulk, TX, FL, NC, TN, GA, CO, SD, CA + supplements) were loaded via
 `ingest_geo.py` / `ingest_ca.py` and the fund-complex / hedge-fund rosters via
