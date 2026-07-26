@@ -36,7 +36,10 @@ Every rejection is recorded with its reason in `verifications/`.
 3. **Email-find** — `run_emailfind.py` (Anymailfinder; only `valid` charges a credit; misses free;
    repeats within 30 days free).
 4. **CIK resolution + currency** — `run_currency.py` / `run_signatory.py` bind firms to their 13F
-   CIK and confirm active-filer liveness.
+   CIK and confirm active-filer liveness. `fix_cik_bindings.py` corrects four firms the exact-name
+   matcher got wrong (T. Rowe / Macquarie / D.F. Dent onto their real 13F-filer CIKs, verified via
+   EDGAR; abrdn's "Investment Director" people reclassified as buy_side_pm) so peer-owner "Team (N)"
+   badges resolve — badge (firm_roster_counts) then equals panel (roster_for_firm) for all four.
 5. **Dedup** — `dedup_contacts.py` (within-firm) and `email_dedup.py` (same email + surname across firms).
 6. **NDR registration** — `register_ndr_philly.py` adds verified firms to the GLOBAL curated NDR
    house book (`core.curated_targets`, scope=`global`) so any client's roadshow in that metro gets a
