@@ -195,6 +195,14 @@ def list_contacts(firm=None, cik=None, limit=None):
         conn.close()
 
 
+# The "investment team" role set — used by BOTH roster_for_firm (Account 360 panel) and
+# firm_roster_counts (peer-owner card badge), so the two always agree. Excludes ops/unclassified;
+# keeps founders/CEOs (principal_csuite), who ARE targets.
+_TEAM_ROLES = ("cio", "director_of_research", "buy_side_pm", "buy_side_sector_pm", "associate_pm",
+               "bs_analyst", "bs_sector_analyst", "bs_generalist", "trader", "principal_csuite")
+_TEAM_ROLES_IN = "(" + ", ".join(f"'{r}'" for r in _TEAM_ROLES) + ")"
+
+
 def roster_for_firm(cik=None, firm=None, limit=80):
     """The house investment-team roster for ONE firm — named PMs / analysts / CIO we hold, ordered
     decision-makers first. This is what turns a peer-owner ('Firm X holds your peers') into 'here
@@ -216,7 +224,8 @@ def roster_for_firm(cik=None, firm=None, limit=80):
                 "WHEN 'influencer' THEN 2 WHEN 'junior' THEN 3 ELSE 4 END")
         cols = ["name", "title", "primary_role", "roles", "seniority", "email", "phone",
                 "validation_status", "source"]
-        cur.execute(f"SELECT {', '.join(cols)} FROM contacts WHERE {where.format(ph=ph)} "
+        cur.execute(f"SELECT {', '.join(cols)} FROM contacts "
+                    f"WHERE {where.format(ph=ph)} AND primary_role IN {_TEAM_ROLES_IN} "
                     f"ORDER BY {rank}, name LIMIT {int(limit)}", params)
         return [dict(zip(cols, r)) for r in cur.fetchall()]
     finally:
@@ -232,9 +241,8 @@ def firm_roster_counts():
         cur = conn.cursor()
         cur.execute(
             "SELECT firm_cik, count(*) FROM contacts "
-            "WHERE firm_cik IS NOT NULL AND firm_cik <> '' AND primary_role IN "
-            "('buy_side_pm','buy_side_sector_pm','cio','director_of_research','associate_pm',"
-            "'bs_analyst','bs_sector_analyst','bs_generalist','trader') GROUP BY firm_cik")
+            f"WHERE firm_cik IS NOT NULL AND firm_cik <> '' AND primary_role IN {_TEAM_ROLES_IN} "
+            "GROUP BY firm_cik")
         return {r[0]: r[1] for r in cur.fetchall()}
     finally:
         conn.close()
@@ -378,9 +386,9 @@ def _tag(block, tag):
 
 
 def _clean_name(name):
-    """Some filers type the electronic-signature marker into the name field (BlackRock files
-    '/s/ Spencer Fleming'). Strip it so the person's name — and the derived contact_id — are clean."""
-    n = re.sub(r"^\s*/s/\s*", "", name or "", flags=re.I).strip()
+    """Some filers type the electronic-signature marker into the name field ('/s/ Spencer Fleming'
+    or '(s) Mathieu Sirois'). Strip it so the person's name — and the derived contact_id — are clean."""
+    n = re.sub(r"^\s*(?:/s/|\(s\))\s*", "", name or "", flags=re.I).strip()
     return re.sub(r"\s+", " ", n).strip(" .,")
 
 
