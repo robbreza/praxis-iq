@@ -70,3 +70,10 @@ net-new)**, title-classified, LinkedIn URL kept in source_ref/provenance, 58 per
 after: 4,897 contacts / 90% email / 1,472 phone.
 NOTE: firm_type sell-side heuristic flagged 0 — most independent-research boutiques don't match the
 broker/securities keywords; the research titles are captured but firm_type may need a manual pass.
+
+## Doubly-engaged tagging (2026-07-27)
+`tag_doubly_engaged.py` — recovers the cross-campaign signal lost to the provenance-overwrite:
+tags the **434 emails / 440 contacts** that opened BOTH Lytham 1x1 invites (ProStar ∩ IBI) as
+`DOUBLY-ENGAGED` (queryable via `provenance LIKE '%DOUBLY-ENGAGED%'`), `validation_status=engaged`,
+`confidence>=90`. These are the highest-intent small-cap meeting-takers. NOTE: the full send lists
+(~2,600 non-openers/campaign) are unavailable — only the opener/click exports exist.
