@@ -32,3 +32,14 @@ hot-prospect list derived from who actually clicked through to the fireside-chat
 - Contacts are global (house CRM); the demo tenant's *view* of them is the client-scoped curated
   book plus normal CRM search. Per the user, the engaged base also accretes into the house book.
 - A demo login user is NOT created here — add separately if the demo needs an interactive login.
+
+## Second campaign — IBI Group (IBG), Jan 2022 (house book, not the demo tenant)
+`ingest_ibi_campaign.py` — a second Lytham 1x1 campaign (IBI Group, a Toronto engineering/tech
+small-cap, since acquired by Arcadis). Same micro/small-cap universe as ProStar → heavy overlap:
+841 openers, **511 already in the CRM, 330 net-new**; 16 sell-side flagged, 172 hot clickers.
+Tagged `micro,small`, `source=lytham_ibi_campaign`; goes to the **house book**, not the demo tenant
+(IBI is a different issuer). House CRM after: 3,841 contacts / 88% email.
+
+KNOWN LIMITATION: `update_classification` OVERWRITES `provenance`, so contacts that engaged BOTH
+campaigns show only the latest (IBI) event — the "doubly-engaged" cross-campaign signal is not
+preserved per-contact. Future campaign ingests should APPEND engagement events, not overwrite.
