@@ -59,3 +59,14 @@ mid-run** (re-run `ingest_oldlists.py` when the file is available). House CRM af
 OUTBOUND-EMAIL CAUTION (recorded per the user's question): these are old lists — re-validate before
 any send; respect CASL (Canada) / GDPR (UK) / CAN-SPAM (US); route through a proper IR platform with
 unsubscribe, not a cold blast. Phone-first outreach avoids the consent issue and the phones age better.
+
+## Wiza LinkedIn equity-research export (2022, house book)
+`ingest_wiza.py` — Wiza LinkedIn export of "Global Equity Research" professionals (analysts /
+research boutiques — a segment distinct from the investor book). Two files; WIZA_B (490) is a
+superset of WIZA_A (431), so only B loaded. Rich schema: Wiza-VERIFIED email + type + title +
+company + location + LinkedIn + company_country. **490 ingested (only 10 overlapped the CRM — ~480
+net-new)**, title-classified, LinkedIn URL kept in source_ref/provenance, 58 personal emails flagged.
+`validation_status=probable` (Wiza-verified, but 2022 — re-validate before outbound). House CRM
+after: 4,897 contacts / 90% email / 1,472 phone.
+NOTE: firm_type sell-side heuristic flagged 0 — most independent-research boutiques don't match the
+broker/securities keywords; the research titles are captured but firm_type may need a manual pass.
