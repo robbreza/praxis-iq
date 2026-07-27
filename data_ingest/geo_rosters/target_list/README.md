@@ -42,8 +42,10 @@ funds had wound down or become family offices. Representative REJECTS with reaso
   out): Madera, Anchor Bolt, Carnegie, Copia, Heitman, Nationwide, Parkwest, Sheffield, Shine,
   Brookside/Bain Public Equity, John Hancock, LMCG, Pangaea, Putnam, AGF, Barometer, IGM, Polar,
   1838, Afton, abrdn(dup), CI Global(dup), 1832(dup), TD(dup). Re-run for rosters.
-- **Unconfirmed (search budget exhausted, not confirmed dead):** Acrospire, Blue Rock, Brazos,
-  Cloverdale, Continental, IronBridge. Re-verify before writing off.
+- **Unconfirmed boutiques — RESOLVED (re-verify pass, Jul 2026):** Continental → **Continental
+  Advisors LLC** (Park City UT, active 13F filer, CIK 1277779) — verified + rostered. The other five
+  confirmed dead with EDGAR evidence: Acrospire (wound down '17), Brazos (defunct '10), Cloverdale
+  (wound down '20), IronBridge (acquired by RMB/Curi RMB '17), Blue Rock (not a public-equity manager).
 
 ## Coverage note
 `compare_targetlist.py` matching is fuzzy/normalized — a few big names may be present under a
