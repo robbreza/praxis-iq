@@ -35,9 +35,11 @@ funds had wound down or become family offices. Representative REJECTS with reaso
   (PE) · Constitution (PE/credit) · Fosun (conglomerate) · Jafra (cosmetics) · Ozumo (restaurant).
 
 ## Open items (NOT yet resolved — for a follow-up pass)
-- **Whalerock (Boston)** — user knows it personally (ex-MFS/Fidelity boutique) but no such Boston
-  firm could be verified (only "Whalerock Point Partners", a West Palm Beach FL wealth RIA). Needs
-  the correct firm name from the user.
+- **Whalerock — RESOLVED:** it is **Whale Rock Capital Management** (two words), Boston, ~$12-13B
+  TMT/growth hedge fund (Alex Sacerdote, ex-Fidelity; CIK 1387322, active). Rostered (+3). The earlier
+  one-word "Whalerock" search only surfaced the unrelated FL wealth RIA "Whalerock Point Partners".
+- **Camelot / Park West — CONFIRMED kept:** user confirmed both are real and operating — Camelot
+  Capital Partners (William Barker, Laguna Beach) and Park West Asset Management (Peter Park, Mill Valley).
 - **Verified but no roster** (firm confirmed operating, people not sourced before search budget ran
   out): Madera, Anchor Bolt, Carnegie, Copia, Heitman, Nationwide, Parkwest, Sheffield, Shine,
   Brookside/Bain Public Equity, John Hancock, LMCG, Pangaea, Putnam, AGF, Barometer, IGM, Polar,
