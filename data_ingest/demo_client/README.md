@@ -52,9 +52,9 @@ emails across the three, low cross-file dup (LPVIC∩TAAL 24, TAAL∩Northland 1
 ~909 net-new. Kept fund/email/phone (+title/city); sell-side flagged; `validation_status=stale`,
 `email_status` left UNKNOWN (2021-22 — can't vouch for current deliverability). Tagged micro,small.
 
-RESULT: LPVIC +61, TAAL +1,052 ingested; **Northland NOT ingested — its E:\ file went missing
-mid-run** (re-run `ingest_oldlists.py` when the file is available). House CRM after: 4,415 contacts
-/ 89% email / 1,472 phone.
+RESULT: LPVIC +61, TAAL +1,052 ingested. **Northland +202 ingested 2026-07-27** once the drive was
+reconnected (initial run missed it — the E:\ drive had been pulled). House CRM after all three: ~5,041
+contacts / 91% email / 1,472 phone.
 
 OUTBOUND-EMAIL CAUTION (recorded per the user's question): these are old lists — re-validate before
 any send; respect CASL (Canada) / GDPR (UK) / CAN-SPAM (US); route through a proper IR platform with
