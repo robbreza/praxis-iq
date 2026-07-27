@@ -43,3 +43,19 @@ Tagged `micro,small`, `source=lytham_ibi_campaign`; goes to the **house book**, 
 KNOWN LIMITATION: `update_classification` OVERWRITES `provenance`, so contacts that engaged BOTH
 campaigns show only the latest (IBI) event — the "doubly-engaged" cross-campaign signal is not
 preserved per-contact. Future campaign ingests should APPEND engagement events, not overwrite.
+
+## Old contact lists — LPVIC / TAAL / Northland (Jul 2026, house book)
+`ingest_oldlists.py` — three OLD (2021-22) lists: **LPVIC** (Lytham VIC ACT list, Sep 2022 —
+Company/Contact/Email/Phone/Title), **TAAL** (Lytham 1x1 campaign opens, Jan 2021), **Northland**
+(Northland Capital Markets call list — Company/Name/Email/City/Quality). Scan first: 1,679 distinct
+emails across the three, low cross-file dup (LPVIC∩TAAL 24, TAAL∩Northland 15), 770 already in CRM,
+~909 net-new. Kept fund/email/phone (+title/city); sell-side flagged; `validation_status=stale`,
+`email_status` left UNKNOWN (2021-22 — can't vouch for current deliverability). Tagged micro,small.
+
+RESULT: LPVIC +61, TAAL +1,052 ingested; **Northland NOT ingested — its E:\ file went missing
+mid-run** (re-run `ingest_oldlists.py` when the file is available). House CRM after: 4,415 contacts
+/ 89% email / 1,472 phone.
+
+OUTBOUND-EMAIL CAUTION (recorded per the user's question): these are old lists — re-validate before
+any send; respect CASL (Canada) / GDPR (UK) / CAN-SPAM (US); route through a proper IR platform with
+unsubscribe, not a cold blast. Phone-first outreach avoids the consent issue and the phones age better.
