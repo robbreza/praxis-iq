@@ -33,8 +33,13 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
 - [x] **App view** (`page_modules_nicegui/lighthouse_page.py`) — CEO one-pager cards in the NiceGUI
   shell (nav + RBAC wired; ~2.5s render, shared DB conn).
 
-**Phase 1 V0.1 essentially complete.** Next: Shadow Mode (Gate 1 -> paying pilot), then Phase 3 flow/
-private-intel lenses by customer pull.
+- [x] **Shadow Mode ENTERED** (`shadow.py`) — daily live run logs the latest session's verdict to
+  lh_verdict for IR review, NO automated executive alerts (Spec Stage 3). Track record seeded; a
+  status banner shows on the Lighthouse page. Schedule `python -m lighthouse.shadow` as a post-close
+  daily cron on Render.
+
+**Phase 1 V0.1 complete + in Shadow Mode.** Gate 1 next: run the record, get a CEO to say "I'd pay";
+then Phase 3 flow / holder-forced-seller (13F/CRM moat) + private-company intel, by customer pull.
 See `docs/lighthouse/phased_build_plan.md`.
 
 ## The invariant

@@ -30,6 +30,19 @@ def render_lighthouse_page():
     ui.label(f"Why is {ticker} moving? — evidence-based attribution, point-in-time, no invented causes.") \
         .style(f"color:{COLORS['text_muted']};margin-bottom:8px;")
 
+    if ticker == "USIO":
+        try:
+            from lighthouse import shadow as _shadow
+            st = _shadow.shadow_status("usio", "USIO")
+            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:11px;"
+                    "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
+                ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
+                         f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
+                         f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
+
     if ticker != "USIO":
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
             ui.label(f"Lighthouse is wired for USIO in this MVP.").classes("font-bold")
