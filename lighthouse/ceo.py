@@ -17,7 +17,7 @@ import json
 import psycopg2
 from core.security import get_database_url
 from lighthouse.replay import AsOf
-from lighthouse import events
+from lighthouse import events, technician
 
 _CONF_NUM = {"HIGH": 0.85, "MODERATE": 0.6, "LOW": 0.3, "ROUTINE": 0.15}
 _MATERIAL = ("10-Q", "10-K", "8-K")
@@ -71,11 +71,17 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10) -> dict:
         not_found.append(f"No 8-K / 10-Q / 10-K / insider (Form 4) filing in the {lookback_days}-day window (checked EDGAR).")
     not_found.append("Non-SEC news, options/flow, and short/borrow lenses are not yet wired (Phase 3).")
 
+    # Technician lens (Spec 3): how the move was expressed/amplified — never the cause.
+    tech = technician.compute_technicals(ticker, day, benchmark="IWM", as_of=as_of)
+    for s in tech.get("signals", []):
+        drivers.append(dict(cls=s["role"], label=s["label"], detail="technical structure", link=None))
+
     unexplained_pct = abs(resid) / abs(move) if move else 0.0
     return dict(client_id=client_id, ticker=ticker, day=day, as_of=as_of.as_of,
                 actual=move, expected=exp, expected_lo=model_row["expected_lo"], expected_hi=model_row["expected_hi"],
                 residual=resid, rarity=rarity, mp_share=mp_share, unexplained_pct=unexplained_pct,
-                abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found)
+                abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found,
+                technical=tech.get("summary"))
 
 
 def render_ceo(v: dict) -> str:
@@ -96,6 +102,8 @@ def render_ceo(v: dict) -> str:
     if v["found"]:
         L.append("\n**Found (in window)**")
         L += [f"- {f}" for f in v["found"]]
+    if v.get("technical"):
+        L.append(f"\n**Technical expression** (how, not why)\n- {v['technical']}")
     L.append("\n**Checked but not found**")
     L += [f"- {n}" for n in v["not_found"]]
     return "\n".join(L)

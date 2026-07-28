@@ -25,7 +25,11 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
   contributing/diffusing/unexplained), found vs checked-but-not-found, deep-linked evidence;
   persists to lh_verdict as draft (Spec 12.4 lifecycle).
 
-Remaining Phase 1: technician subset, continuous historical validation, then Shadow Mode.
+- [x] **Technician's Model** (`technician.py`) — trend/support-resistance/RVOL/ATR/rel-strength/gap,
+  every signal tagged amplifier|contributor (never trigger); folded into the CEO note as the "how".
+
+**All four analytical lenses live and fused.** Remaining Phase 1: continuous historical validation,
+CEO/IR/Research app views, then Shadow Mode.
 See `docs/lighthouse/phased_build_plan.md`.
 
 ## The invariant
