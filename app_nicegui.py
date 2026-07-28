@@ -130,6 +130,7 @@ NAV_GROUPS = [
         ("Today",     "space_dashboard", "Today", "Morning brief · Alerts · Actions due"),
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
+        ("Lighthouse", "lightbulb", "Lighthouse\nWhy is the stock moving?", "Expected vs actual · Residual · Events · Technicals · CEO read"),
     ]),
     ("CORE WORKFLOWS", [
         ("Investors", "groups", "Investor Targeting\nCRM, NDR, Peer Prospects", "Accounts CRM · NDR planner · Peer prospects · Buy-side intel · Meeting hub · Target database"),
@@ -181,6 +182,7 @@ PORTED = {
     "Calendar": "page_modules_nicegui.calendar_page",
     "Reports": "page_modules_nicegui.reports_page",
     "Settings": "page_modules_nicegui.settings_page",
+    "Lighthouse": "page_modules_nicegui.lighthouse_page",
 }
 
 

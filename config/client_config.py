@@ -319,7 +319,7 @@ DEFAULT_CLIENT_ID = "usio"
 # dict omits a role simply doesn't offer that role in the selector — nothing
 # else changes. Access level per page is one of: "full", "read", "none".
 PAGES = ["Today", "Calendar", "Markets", "Investors",
-         "Outreach", "Earnings", "Reports", "Settings"]
+         "Outreach", "Earnings", "Reports", "Settings", "Lighthouse"]
 
 ROLE_PERMISSIONS = {
     "IR": {
@@ -342,7 +342,7 @@ ROLE_PERMISSIONS = {
         "label": "CEO",
         "pages": {"Today": "full", "Earnings": "full", "Calendar": "full",
                   "Markets": "read", "Reports": "read", "Investors": "none",
-                  "Outreach": "none", "Settings": "none"},
+                  "Outreach": "none", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
         "can_send_email": False,
     },
@@ -352,7 +352,7 @@ ROLE_PERMISSIONS = {
         # outreach but NOT send — send is IR-only per client policy.
         "pages": {"Investors": "full", "Outreach": "full", "Calendar": "full",
                   "Markets": "full", "Earnings": "full", "Reports": "read",
-                  "Today": "read", "Settings": "none"},
+                  "Today": "read", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
         "can_send_email": False,
     },

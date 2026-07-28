@@ -26,12 +26,14 @@ _MATERIAL = ("10-Q", "10-K", "8-K")
 def _conn(): return psycopg2.connect(get_database_url())
 
 
-def build_verdict(client_id, ticker, day, model_row, lookback_days=10) -> dict:
+def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None) -> dict:
+    own = conn is None
+    conn = conn or _conn()
     as_of = AsOf(datetime.combine(day, time(21, 0), tzinfo=timezone.utc))
     move = model_row["actual_ret"]; exp = model_row["expected_ret"]
     resid = model_row["residual"]; rarity = model_row.get("residual_pctile")
 
-    win = events.window_for_day(ticker, day, lookback_days=lookback_days, as_of=as_of)
+    win = events.window_for_day(ticker, day, lookback_days=lookback_days, as_of=as_of, conn=conn)
     candidates = [e for e in win if "candidate" in e["timing"]]
     prior = [e for e in win if "prior-window" in e["timing"]]
     rolled = [e for e in win if "rolls to next" in e["timing"]]
@@ -72,10 +74,12 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10) -> dict:
     not_found.append("Non-SEC news, options/flow, and short/borrow lenses are not yet wired (Phase 3).")
 
     # Technician lens (Spec 3): how the move was expressed/amplified — never the cause.
-    tech = technician.compute_technicals(ticker, day, benchmark="IWM", as_of=as_of)
+    tech = technician.compute_technicals(ticker, day, benchmark="IWM", as_of=as_of, conn=conn)
     for s in tech.get("signals", []):
         drivers.append(dict(cls=s["role"], label=s["label"], detail="technical structure", link=None))
 
+    if own:
+        conn.close()
     unexplained_pct = abs(resid) / abs(move) if move else 0.0
     return dict(client_id=client_id, ticker=ticker, day=day, as_of=as_of.as_of,
                 actual=move, expected=exp, expected_lo=model_row["expected_lo"], expected_hi=model_row["expected_hi"],

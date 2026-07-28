@@ -321,6 +321,7 @@ _CONTACT_EXTRA_COLS = (
     ("provenance", "TEXT"),        # human-readable source context (e.g. "Ipreo holder search: IBG, ...")
     ("firm_cik", "TEXT"),          # SEC CIK the firm resolved to (Phase 2b currency)
     ("firm_currency", "TEXT"),     # active_filer | inactive_filer | no_13f | unresolved (Phase 2b)
+    ("dominant_style", "TEXT"),    # Growth | Value | GARP | Index | Deep Value | Alternative | ... (firm style; durable targeting filter)
 )
 
 
