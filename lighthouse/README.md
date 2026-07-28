@@ -20,7 +20,12 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
   acceptanceDateTime), Spec-12 timing test (candidate cause / rolls-to-next-session / prior-window
   diffusion / checked-but-not-found). Matches USIO earnings (10-Q) reactions incl. the T-1 lag.
 
-Remaining Phase 1: technician subset -> evidence fusion v0 -> CEO one-pager -> continuous validation.
+- [x] **Evidence Fusion v0 + CEO one-pager** (`ceo.py`) — fuses attribution + events into a
+  conclusion-first CEO note: separates abnormality vs explanation confidence, drivers (primary/
+  contributing/diffusing/unexplained), found vs checked-but-not-found, deep-linked evidence;
+  persists to lh_verdict as draft (Spec 12.4 lifecycle).
+
+Remaining Phase 1: technician subset, continuous historical validation, then Shadow Mode.
 See `docs/lighthouse/phased_build_plan.md`.
 
 ## The invariant
