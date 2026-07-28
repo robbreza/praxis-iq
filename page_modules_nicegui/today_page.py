@@ -279,10 +279,17 @@ def _render_weekly_context_mirror():
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid #B4530955;border-left:3px solid #B45309;"
             f"border-radius:12px;margin-top:4px;"):
+        def _open_lighthouse():
+            try:
+                from lighthouse import telemetry as _tel
+                _tel.record_view(get_active_client_id(), "USIO", "today_mirror_click")
+            except Exception:
+                pass
+            nav.go_to("Lighthouse")
+
         with ui.row().classes("w-full justify-between items-center"):
             ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").classes("t-eyebrow").style("color:#B45309;")
-            ui.button("Full band on Lighthouse →", on_click=lambda: nav.go_to("Lighthouse")) \
-                .props("flat dense size=sm")
+            ui.button("Full band on Lighthouse →", on_click=_open_lighthouse).props("flat dense size=sm")
         # the punchline — the number with its comparison, never alone
         ui.label(f"USIO {wk['context_read']}").style(
             f"color:{COLORS['text_heading']};font-size:15px;font-weight:600;line-height:1.5;")

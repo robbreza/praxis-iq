@@ -20,6 +20,8 @@ reached in the original app.py.
 """
 
 import os
+import base64
+from fastapi import Request
 
 # Load .env into os.environ BEFORE anything reads it eagerly. ui.run() reads
 # IRCONNECT_STORAGE_SECRET straight from os.environ at module-load time (bottom of
@@ -1390,6 +1392,43 @@ app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
 app.on_startup(_kick_off_cache_warm)
 app.on_startup(_kick_off_lighthouse_shadow)
+
+
+# ── Lighthouse digest engagement tracking (email opens + click-throughs) ──────────────────────────
+# Public, unauthenticated endpoints an email client / browser hits: a 1x1 pixel logs an OPEN, and the
+# digest CTA routes through the click endpoint (which logs then redirects to the app). Tokens are
+# HMAC-signed so they can't be forged. Everything is best-effort — a tracking failure returns the
+# pixel / redirect anyway and never surfaces to the reader.
+_LH_PIXEL = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")  # 1x1 transparent GIF
+
+
+@app.get("/lh/o/{token}")
+def _lh_track_open(token: str, request: Request):
+    from fastapi.responses import Response
+    try:
+        from lighthouse import telemetry
+        did = telemetry.parse_token(token)
+        if did is not None:
+            telemetry.record_open(did, user_agent=request.headers.get("user-agent"))
+    except Exception:
+        pass
+    return Response(content=_LH_PIXEL, media_type="image/gif",
+                    headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                             "Pragma": "no-cache"})
+
+
+@app.get("/lh/c/{token}")
+def _lh_track_click(token: str, request: Request):
+    from fastapi.responses import RedirectResponse
+    dest = (os.environ.get("LIGHTHOUSE_APP_URL", "") or "").rstrip("/") or "/"   # fixed dest — no open redirect
+    try:
+        from lighthouse import telemetry
+        did = telemetry.parse_token(token)
+        if did is not None:
+            telemetry.record_click(did, user_agent=request.headers.get("user-agent"))
+    except Exception:
+        pass
+    return RedirectResponse(url=dest)
 
 # storage_secret is REQUIRED for app.storage.user (the per-browser tenant
 # selection). Set IRCONNECT_STORAGE_SECRET in the environment for any real

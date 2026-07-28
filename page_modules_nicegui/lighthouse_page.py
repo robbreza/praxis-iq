@@ -97,6 +97,11 @@ def render_lighthouse_page():
         .style(f"color:{COLORS['text_muted']};margin-bottom:8px;")
 
     if ticker == "USIO":
+        try:                                            # this render is itself a usage signal — log it
+            from lighthouse import telemetry as _tel
+            _tel.record_view(client_id, "USIO", "lighthouse_page")
+        except Exception:
+            pass
         try:
             from lighthouse import shadow as _shadow
             st = _shadow.shadow_status("usio", "USIO")
@@ -106,6 +111,22 @@ def render_lighthouse_page():
                 ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
                          f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
                          f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
+        try:                                            # used-vs-ignored readout (measure, don't hope)
+            from lighthouse import telemetry as _tel
+            eng = _tel.summary(client_id, "USIO", days=30)
+            if eng["app_views"] or eng["emails_sent"]:
+                bits = [f"{eng['app_views']} page view(s)"]
+                if eng["emails_sent"]:
+                    orate = f" ({eng['open_rate']*100:.0f}% open)" if eng["open_rate"] is not None else ""
+                    bits.append(f"{eng['emails_opened']}/{eng['emails_sent']} digest(s) opened{orate}")
+                if eng["clicks"]:
+                    bits.append(f"{eng['clicks']} click-through(s)")
+                if eng["last_engaged"]:
+                    bits.append(f"last engaged {eng['last_engaged']}")
+                ui.label("Engagement (30d): " + " · ".join(bits)) \
+                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
         except Exception:
             pass
 

@@ -126,11 +126,12 @@ def render_text(v: dict, pr: dict | None = None, app_url: str = "") -> str:
     return "\n".join(L)
 
 
-def render_html(v: dict, pr: dict | None = None, app_url: str = "") -> str:
+def render_html(v: dict, pr: dict | None = None, app_url: str = "", cta_url: str = "", pixel_url: str = "") -> str:
     pr = pr or priority(v)
     color = _TIER_COLOR[pr["tier"]]
     up = v["actual"] >= 0
     move_c = "#15803d" if up else "#b91c1c"
+    cta_href = cta_url or app_url                       # tracked click endpoint when provided
     rows = ""
     for d in v.get("drivers", []):
         link = f' &nbsp;<a href="{d["link"]}" style="color:#2563eb;">evidence</a>' if d.get("link") else ""
@@ -139,9 +140,10 @@ def render_html(v: dict, pr: dict | None = None, app_url: str = "") -> str:
                  f'letter-spacing:.04em;">{d["cls"]}</span><br>'
                  f'<b>{d["label"]}</b> — <span style="color:#444;">{d.get("detail","")}</span>{link}</td></tr>')
     nf = "".join(f"<li>{n}</li>" for n in v.get("not_found", []))
-    cta = (f'<a href="{app_url}" style="display:inline-block;margin-top:16px;padding:10px 18px;'
+    cta = (f'<a href="{cta_href}" style="display:inline-block;margin-top:16px;padding:10px 18px;'
            f'background:{color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">'
-           f'Open the full read →</a>') if app_url else ""
+           f'Open the full read →</a>') if cta_href else ""
+    pixel = f'<img src="{pixel_url}" width="1" height="1" alt="" style="display:none;">' if pixel_url else ""
     tech = (f'<p style="margin:14px 0 0;font-size:13px;color:#555;"><b>Technical</b> (how, not why): '
             f'{v["technical"]}</p>') if v.get("technical") else ""
     return f"""\
@@ -164,7 +166,7 @@ def render_html(v: dict, pr: dict | None = None, app_url: str = "") -> str:
     {cta}
     <p style="margin:18px 0 0;font-size:11px;color:#aaa;">Point-in-time attribution. Abnormality ≠ cause;
       the unexplained portion is labelled honestly, not guessed.</p>
-  </div>
+  </div>{pixel}
 </div>"""
 
 
@@ -227,9 +229,17 @@ def dispatch(v: dict, dry_run: bool | None = None) -> dict:
             report["reason"] = "preview" if not c["enabled"] else "dry_run"
             return report
         if dig["rank"] >= c["email_floor"] and c["email_to"]:
-            report["email"] = send_email(dig["subject"], dig["html"], dig["text"], c["email_to"], c)
+            html = dig["html"]
+            did = _record_send("usio", v["ticker"], "daily", v["day"], "email", c["email_to"])
+            if did and c["app_url"]:                    # embed open-pixel + tracked CTA
+                from lighthouse import telemetry
+                html = render_html(v, priority(v), c["app_url"],
+                                   cta_url=telemetry.click_url(c["app_url"], did),
+                                   pixel_url=telemetry.pixel_url(c["app_url"], did))
+            report["email"] = send_email(dig["subject"], html, dig["text"], c["email_to"], c)
         if dig["rank"] >= c["sms_floor"] and c["sms_to"]:
             report["sms"] = send_sms(dig["sms"], c["sms_to"], c)
+            _record_send("usio", v["ticker"], "daily", v["day"], "sms", c["sms_to"])
         report["sent"] = bool((report["email"] or {}).get("ok") or (report["sms"] or {}).get("ok"))
         return report
     except Exception:
@@ -237,10 +247,21 @@ def dispatch(v: dict, dry_run: bool | None = None) -> dict:
         return {"sent": False, "reason": "dispatch_error"}
 
 
+def _record_send(client_id, ticker, kind, ref, channel, recipients):
+    """Log a send (the open-rate denominator). Best-effort — never breaks a dispatch."""
+    try:
+        from lighthouse import telemetry
+        return telemetry.record_send(client_id, ticker, kind, ref, channel, ",".join(recipients))
+    except Exception:
+        return None
+
+
 # ── weekly digest (Friday) — the "what's happening lately" read, with its market yardstick ─────────
-def render_weekly_html(w: dict, app_url: str = "") -> str:
+def render_weekly_html(w: dict, app_url: str = "", cta_url: str = "", pixel_url: str = "") -> str:
     if w.get("empty"):
         return "<p>No trading data for the week.</p>"
+    cta_href = cta_url or app_url
+    pixel = f'<img src="{pixel_url}" width="1" height="1" alt="" style="display:none;">' if pixel_url else ""
     drift_c = "#b91c1c" if w["resid_sum"] < 0 else "#15803d"
     rows = ""
     def _row(label, ret, rel, issuer=False, comp=False):
@@ -259,9 +280,9 @@ def render_weekly_html(w: dict, app_url: str = "") -> str:
     rows += _row("USIO", w["car_actual"], None, issuer=True)
     for c in w.get("context", []):
         rows += _row(c["label"], c["ret"], c["rel"], comp=c["relevant"])
-    cta = (f'<a href="{app_url}" style="display:inline-block;margin-top:14px;padding:10px 18px;'
+    cta = (f'<a href="{cta_href}" style="display:inline-block;margin-top:14px;padding:10px 18px;'
            f'background:#B45309;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">'
-           f'Open the weekly read →</a>') if app_url else ""
+           f'Open the weekly read →</a>') if cta_href else ""
     hold = ""
     if w.get("holders") and w["holders"].get("lines"):
         hold = (f'<p style="margin:12px 0 0;font-size:12px;color:#555;"><b>Holder lens</b> '
@@ -284,7 +305,7 @@ def render_weekly_html(w: dict, app_url: str = "") -> str:
     {hold}{cta}
     <p style="margin:16px 0 0;font-size:11px;color:#aaa;">Point-in-time. The drift is what remains after
       the market &amp; peer basket are stripped out — its yardstick is the table above.</p>
-  </div>
+  </div>{pixel}
 </div>"""
 
 
@@ -318,6 +339,12 @@ def weekly_dispatch(w: dict, dry_run: bool | None = None) -> dict:
             report["reason"] = "preview" if not c["enabled"] else "dry_run"
             return report
         if c["email_to"]:
+            did = _record_send("usio", w["ticker"], "weekly", w["week"], "email", c["email_to"])
+            if did and c["app_url"]:
+                from lighthouse import telemetry
+                html = render_weekly_html(w, app_url=c["app_url"],
+                                          cta_url=telemetry.click_url(c["app_url"], did),
+                                          pixel_url=telemetry.pixel_url(c["app_url"], did))
             report["email"] = send_email(subject, html, text, c["email_to"], c)
             report["sent"] = bool((report["email"] or {}).get("ok"))
         return report

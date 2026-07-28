@@ -30,9 +30,14 @@ Exit code is non-zero if any page fails, so it can gate a commit or a deploy.
 """
 import argparse
 import importlib
+import os
 import sys
 import traceback
 from pathlib import Path
+
+# Rendering pages here would otherwise log spurious Lighthouse "views" into the real engagement
+# telemetry — suppress those writes so the used-vs-ignored numbers stay clean.
+os.environ.setdefault("LIGHTHOUSE_TELEMETRY_OFF", "1")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
