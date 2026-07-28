@@ -44,6 +44,18 @@ def _run_once():
     from lighthouse import shadow
     got = shadow.run_shadow(days_back=1)
     print(f"[lighthouse-scheduler] shadow run: logged {len(got)} new verdict(s)")
+    # Push the freshly-logged verdict(s) to configured channels. Fail-closed + disabled by default:
+    # no recipients / not enabled => dispatch() renders and returns without sending. A digest failure
+    # must never affect the log run, so it's fully isolated.
+    try:
+        from lighthouse import digest
+        if got and digest.is_enabled():
+            for v in got:
+                rep = digest.dispatch(v)
+                print(f"[lighthouse-scheduler] digest {v['ticker']} {v['day']}: "
+                      f"tier={rep.get('tier')} sent={rep.get('sent')}")
+    except Exception:
+        traceback.print_exc()
     return got
 
 
