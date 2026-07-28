@@ -1,0 +1,25 @@
+# Render Blueprint — Lighthouse Shadow Mode daily cron.
+#
+# The IRconnect WEB SERVICE is managed separately in the Render dashboard; this file adds only the
+# post-close daily Lighthouse Shadow run (logs the latest session's verdict to lh_verdict for IR
+# review — no automated executive alerts). Two ways to use it:
+#   A) Blueprint: Render Dashboard -> New -> Blueprint -> pick this repo (creates the cron below).
+#   B) Manual:    Render Dashboard -> New -> Cron Job -> connect this repo, then set
+#                 Schedule = "0 22 * * 1-5"  and  Command = "python -m lighthouse.shadow".
+# Either way, give it the SAME environment as the web service (at minimum DATABASE_URL, plus the
+# SEC EDGAR user-agent / any secrets core/ needs).
+services:
+  - type: cron
+    name: lighthouse-shadow
+    runtime: python
+    plan: starter
+    schedule: "0 22 * * 1-5"          # 22:00 UTC ~ after the US market close (covers EST/EDT), weekdays
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m lighthouse.shadow
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL             # the same Neon Postgres the web service uses
+        sync: false
+      - key: PYTHONPATH
+        value: .
+      # Add the web service's other secrets here (SEC user-agent, etc.) as `sync: false` keys.
