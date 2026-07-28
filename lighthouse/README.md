@@ -28,8 +28,13 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
 - [x] **Technician's Model** (`technician.py`) — trend/support-resistance/RVOL/ATR/rel-strength/gap,
   every signal tagged amplifier|contributor (never trigger); folded into the CEO note as the "how".
 
-**All four analytical lenses live and fused.** Remaining Phase 1: continuous historical validation,
-CEO/IR/Research app views, then Shadow Mode.
+- [x] **Continuous historical validation** (`validation.py`) — 624 days: alert burden ~32/yr,
+  event lens fires 2.1x post-filing, 52% of big moves SEC-explained (rest -> Phase 3 flow/news lenses).
+- [x] **App view** (`page_modules_nicegui/lighthouse_page.py`) — CEO one-pager cards in the NiceGUI
+  shell (nav + RBAC wired; ~2.5s render, shared DB conn).
+
+**Phase 1 V0.1 essentially complete.** Next: Shadow Mode (Gate 1 -> paying pilot), then Phase 3 flow/
+private-intel lenses by customer pull.
 See `docs/lighthouse/phased_build_plan.md`.
 
 ## The invariant
