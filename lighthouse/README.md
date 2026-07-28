@@ -16,8 +16,11 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
 - [x] **first expected/actual/residual** — rolling market+peer OLS (`attribution.py`), 624 USIO days
 
 ## Next (Phase 1 — V0.1 Historical Intelligence Engine)
-Expected/actual/residual (champion/challenger) → residual/anomaly → event-window overlay (Spec 12
-lag) → technician subset → evidence fusion v0 → CEO one-pager → continuous historical validation.
+- [x] **Event Intelligence overlay** (`events.py`) — SEC submissions -> lh_event (knowledge_ts =
+  acceptanceDateTime), Spec-12 timing test (candidate cause / rolls-to-next-session / prior-window
+  diffusion / checked-but-not-found). Matches USIO earnings (10-Q) reactions incl. the T-1 lag.
+
+Remaining Phase 1: technician subset -> evidence fusion v0 -> CEO one-pager -> continuous validation.
 See `docs/lighthouse/phased_build_plan.md`.
 
 ## The invariant
