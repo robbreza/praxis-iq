@@ -54,6 +54,11 @@ def _run_once():
                 rep = digest.dispatch(v)
                 print(f"[lighthouse-scheduler] digest {v['ticker']} {v['day']}: "
                       f"tier={rep.get('tier')} sent={rep.get('sent')}")
+            # Fridays: also send the weekly context digest (the drift + its market yardstick).
+            if datetime.now(timezone.utc).weekday() == 4:
+                w = digest.compute_latest_weekly()
+                wrep = digest.weekly_dispatch(w)
+                print(f"[lighthouse-scheduler] weekly digest: sent={wrep.get('sent')} {wrep.get('reason','')}")
     except Exception:
         traceback.print_exc()
     return got

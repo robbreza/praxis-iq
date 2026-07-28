@@ -23,6 +23,72 @@ def _conf_badge(label, value):
         ui.label(value).style(f"color:{color};font-weight:700;font-size:11px;")
 
 
+def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=None):
+    """One diverging bar (zero-centered) on a shared scale, so every benchmark is read against the
+    same axis and USIO's position among them is visible at a glance."""
+    green, red = "#15803D", "#B91C1C"
+    color = green if value >= 0 else red
+    half = 108
+    blen = min(half, abs(value) / scale * half) if scale else 0
+    left = half if value >= 0 else half - blen
+    lab_color = COLORS["text_heading"] if is_issuer else COLORS["text_body"] if is_comp else COLORS["text_muted"]
+    weight = "800" if is_issuer else "600"
+    with ui.row().classes("items-center w-full").style("gap:10px;margin:1px 0;"):
+        with ui.row().classes("items-center justify-end").style("width:150px;gap:6px;flex:none;"):
+            ui.element("div").style(f"width:7px;height:7px;border-radius:999px;flex:none;"
+                                    f"background:{'#0F172A' if is_issuer else '#1D4ED8' if is_comp else '#CBD5E1'};")
+            ui.label(label).style(f"color:{lab_color};font-weight:{weight};font-size:12px;text-align:right;")
+        # bar track with a centre zero line
+        with ui.element("div").style(f"position:relative;width:{half*2}px;height:16px;flex:none;"
+                                     f"background:{COLORS.get('surface_alt', '#F1F5F9')};border-radius:4px;"):
+            ui.element("div").style(f"position:absolute;left:{half}px;top:0;width:1px;height:16px;background:#94A3B8;")
+            ui.element("div").style(f"position:absolute;left:{left}px;top:3px;width:{blen}px;height:10px;"
+                                    f"background:{color};border-radius:3px;opacity:{'1' if (is_issuer or is_comp) else '0.55'};")
+        val = f"{value*100:+.1f}%"
+        rel_txt = ""
+        if rel is not None:
+            rc = red if rel < 0 else green
+            rel_txt = f"  ·  USIO {rel*100:+.1f} pts"
+        with ui.row().classes("items-baseline").style("width:150px;gap:0;flex:none;"):
+            ui.label(val).style(f"color:{color};font-weight:{weight};font-size:12px;")
+            if rel is not None:
+                ui.label(rel_txt).style(f"color:{(red if rel < 0 else green)};font-size:11px;")
+    if note:
+        pass
+
+
+def _render_week_in_context(wk, _weekly):
+    drift_color = "#B91C1C" if wk["resid_sum"] < 0 else "#15803D"
+    ctx = wk.get("context") or []
+    scale = max([abs(wk["car_actual"])] + [abs(c["ret"]) for c in ctx] + [0.005])
+    with ui.card().classes("w-full").style("border:1px solid #B4530955;background:#FFFDF7;margin-bottom:12px;padding:14px 16px;"):
+        with ui.row().classes("items-center w-full justify-between"):
+            ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").style("color:#B45309;font-weight:800;font-size:11px;letter-spacing:.04em;")
+            ui.label(f"{_weekly.ordinal(wk['weekly_rarity']*100)}-percentile week") \
+                .style(f"color:{COLORS['text_muted']};font-size:11px;")
+        # punchline sentence — the number never appears without its comparison
+        if wk.get("context_read"):
+            ui.label(f"USIO {wk['context_read']}").style(f"color:{COLORS['text_heading']};font-size:14px;font-weight:600;margin:6px 0 2px;")
+        # the shared-axis comparison
+        with ui.column().classes("w-full").style("gap:0;margin:8px 0 4px;"):
+            _bar_row("USIO", "", wk["car_actual"], scale, is_issuer=True)
+            for c in ctx:
+                _bar_row(c["label"], c["note"], c["ret"], scale, is_comp=c["relevant"], rel=c["rel"])
+        ui.label("● comp = the peer basket & size index the attribution model uses · lighter bars are broad-market reference") \
+            .style(f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
+        # the drift + honest read
+        ui.element("div").style("height:1px;background:#E2E8F0;margin:8px 0;")
+        with ui.row().classes("items-baseline gap-2"):
+            ui.label("After stripping market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"{wk['resid_sum']*100:+.1f}% unexplained drift").style(f"color:{drift_color};font-size:15px;font-weight:800;")
+            ui.label(f"· {wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:2px;")
+        if wk.get("holders") and wk["holders"].get("lines"):
+            ui.label("Holder lens (" + str(wk["holders"]["quarter"]) + "): " +
+                     "; ".join(wk["holders"]["lines"][:3]) + " — " + wk["holders"]["note"] + ".") \
+                .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+
+
 def render_lighthouse_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
@@ -68,23 +134,11 @@ def render_lighthouse_page():
         ui.label(f"Lighthouse engine error: {e}").style("color:#B91C1C;")
         return
 
-    # Weekly digest — the "what's happening lately" read (cumulative unexplained drift).
+    # ── THIS WEEK IN CONTEXT — the headline band. A drift number in isolation is uninterpretable, so
+    # it never travels alone here: the issuer's weekly move sits beside the peer basket, its size
+    # index, and the broad-market indices, each with USIO's relative performance in points.
     if wk and not wk.get("empty"):
-        drift_color = "#B91C1C" if wk["resid_sum"] < 0 else "#15803D"
-        with ui.card().classes("w-full").style("border:1px solid #B4530955;background:#B4530908;margin-bottom:10px;"):
-            ui.label(f"THIS WEEK · {wk['week']}").style("color:#B45309;font-weight:800;font-size:11px;")
-            with ui.row().classes("items-baseline gap-3"):
-                ui.label(f"{wk['car_actual']*100:+.1f}%").style(f"color:{drift_color};font-size:22px;font-weight:800;")
-                ui.label(f"on the week vs expected {wk['car_expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"Cumulative unexplained drift {wk['resid_sum']*100:+.1f}%  ·  "
-                     f"{_weekly.ordinal(wk['weekly_rarity']*100)}-pctile week  ·  "
-                     f"{wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}") \
-                .style(f"color:{COLORS['text_body']};font-size:13px;")
-            ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:2px;")
-            if wk.get("holders") and wk["holders"].get("lines"):
-                ui.label("Holder lens (" + str(wk["holders"]["quarter"]) + "): " +
-                         "; ".join(wk["holders"]["lines"][:3]) + " — " + wk["holders"]["note"] + ".") \
-                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+        _render_week_in_context(wk, _weekly)
 
     ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
     for v in verdicts:

@@ -13,8 +13,11 @@ from core.security import get_database_url
 from lighthouse import data, events, ceo
 from lighthouse.attribution import market_peer_model
 from lighthouse.config.usio import USIO
+from lighthouse.weekly import BENCHMARK_TICKERS
 
-SHADOW_TICKERS = ["USIO", "IWM"] + USIO["business_peers"]
+# Issuer + peers drive attribution; the extra broad-market indices (SPY/QQQ/DIA) are kept fresh here
+# only so the weekly context strip always has a yardstick to compare the drift against.
+SHADOW_TICKERS = ["USIO"] + BENCHMARK_TICKERS + USIO["business_peers"]
 
 
 def _conn(): return psycopg2.connect(get_database_url())

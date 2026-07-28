@@ -237,6 +237,95 @@ def dispatch(v: dict, dry_run: bool | None = None) -> dict:
         return {"sent": False, "reason": "dispatch_error"}
 
 
+# ── weekly digest (Friday) — the "what's happening lately" read, with its market yardstick ─────────
+def render_weekly_html(w: dict, app_url: str = "") -> str:
+    if w.get("empty"):
+        return "<p>No trading data for the week.</p>"
+    drift_c = "#b91c1c" if w["resid_sum"] < 0 else "#15803d"
+    rows = ""
+    def _row(label, ret, rel, issuer=False, comp=False):
+        c = "#15803d" if ret >= 0 else "#b91c1c"
+        w_ = "800" if issuer else "600"
+        dot = "#0f172a" if issuer else ("#1d4ed8" if comp else "#cbd5e1")
+        rel_html = "" if rel is None else (
+            f'<td style="text-align:right;font-size:12px;color:{"#b91c1c" if rel < 0 else "#15803d"};">'
+            f'USIO {rel*100:+.1f} pts</td>')
+        rel_pad = "" if rel is not None else "<td></td>"
+        return (f'<tr><td style="padding:3px 0;"><span style="display:inline-block;width:7px;height:7px;'
+                f'border-radius:9px;background:{dot};margin-right:6px;"></span>'
+                f'<span style="font-weight:{w_};color:#111;font-size:13px;">{label}</span></td>'
+                f'<td style="text-align:right;font-weight:{w_};color:{c};font-size:13px;padding-right:14px;">'
+                f'{ret*100:+.1f}%</td>{rel_html}{rel_pad}</tr>')
+    rows += _row("USIO", w["car_actual"], None, issuer=True)
+    for c in w.get("context", []):
+        rows += _row(c["label"], c["ret"], c["rel"], comp=c["relevant"])
+    cta = (f'<a href="{app_url}" style="display:inline-block;margin-top:14px;padding:10px 18px;'
+           f'background:#B45309;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">'
+           f'Open the weekly read →</a>') if app_url else ""
+    hold = ""
+    if w.get("holders") and w["holders"].get("lines"):
+        hold = (f'<p style="margin:12px 0 0;font-size:12px;color:#555;"><b>Holder lens</b> '
+                f'({w["holders"]["quarter"]}): {"; ".join(w["holders"]["lines"][:3])} — {w["holders"]["note"]}.</p>')
+    return f"""\
+<div style="max-width:520px;margin:0 auto;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
+  <div style="background:#B45309;color:#fff;padding:10px 16px;border-radius:10px 10px 0 0;font-weight:700;
+              font-size:12px;letter-spacing:.04em;text-transform:uppercase;">Weekly · Lighthouse · {w['week']}</div>
+  <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:18px 16px;">
+    <p style="margin:0 0 10px;font-size:15px;font-weight:600;">USIO {w.get('context_read') or ''}</p>
+    <table style="width:100%;border-collapse:collapse;">{rows}</table>
+    <p style="margin:6px 0 0;font-size:10px;color:#999;">● comp = peer basket &amp; size index the model uses;
+      lighter dots are broad-market reference.</p>
+    <div style="height:1px;background:#e2e8f0;margin:12px 0;"></div>
+    <p style="margin:0;font-size:14px;">After stripping market &amp; peer moves:
+      <b style="color:{drift_c};font-size:16px;">{w['resid_sum']*100:+.1f}% unexplained drift</b>
+      &nbsp;·&nbsp; {w['abnormal_days']} abnormal day(s) of {w['trading_days']}
+      &nbsp;·&nbsp; {_ord(w['weekly_rarity']*100)}-percentile week</p>
+    <p style="margin:8px 0 0;font-size:13px;color:#444;font-style:italic;">Read: {w['driver']}.</p>
+    {hold}{cta}
+    <p style="margin:16px 0 0;font-size:11px;color:#aaa;">Point-in-time. The drift is what remains after
+      the market &amp; peer basket are stripped out — its yardstick is the table above.</p>
+  </div>
+</div>"""
+
+
+def compute_latest_weekly(client_id="usio", cfg=None, conn=None) -> dict:
+    from lighthouse import data, weekly
+    from lighthouse.attribution import market_peer_model
+    from lighthouse.shadow import SHADOW_TICKERS
+    if cfg is None:
+        from lighthouse.config.usio import USIO
+        cfg = USIO
+    rets = data.returns_frame(SHADOW_TICKERS, conn=conn)
+    model = market_peer_model(rets, issuer=cfg["ticker"], market="IWM",
+                              peers=cfg["business_peers"], window=126)
+    return weekly.weekly_digest(model, cfg["ticker"], conn=conn)
+
+
+def weekly_dispatch(w: dict, dry_run: bool | None = None) -> dict:
+    """Email the weekly digest. Unlike the daily alert this is a scheduled summary, so it isn't
+    tier-gated — if enabled with recipients, it goes (email only; a table doesn't belong in an SMS)."""
+    try:
+        if w.get("empty"):
+            return {"sent": False, "reason": "no_week_data"}
+        c = config()
+        subject = f"[WEEKLY] {w['ticker']} {w['car_actual']*100:+.1f}% — week of {w['week']}"
+        from lighthouse.weekly import render_weekly
+        text = render_weekly(w)
+        html = render_weekly_html(w, app_url=c["app_url"])
+        report = {"subject": subject, "email": None, "sent": False}
+        will_send = (dry_run is False) or (dry_run is None and c["enabled"])
+        if not will_send:
+            report["reason"] = "preview" if not c["enabled"] else "dry_run"
+            return report
+        if c["email_to"]:
+            report["email"] = send_email(subject, html, text, c["email_to"], c)
+            report["sent"] = bool((report["email"] or {}).get("ok"))
+        return report
+    except Exception:
+        traceback.print_exc()
+        return {"sent": False, "reason": "weekly_dispatch_error"}
+
+
 # ── standalone compute (for the CLI preview + a manual re-send) ────────────────────────────────────
 def compute_latest_verdict(client_id="usio", cfg=None, conn=None) -> dict:
     """Rebuild (without persisting) the most-recent session's verdict, mirroring shadow's model path."""
@@ -256,18 +345,33 @@ def compute_latest_verdict(client_id="usio", cfg=None, conn=None) -> dict:
 if __name__ == "__main__":
     import sys
     send = "--send" in sys.argv                       # default is PREVIEW (never sends)
-    v = compute_latest_verdict()
+    weekly_mode = "--weekly" in sys.argv
     c = config()
-    dig = build_digest(v, app_url=c["app_url"])
-    print("=" * 72)
-    print("SUBJECT:", dig["subject"])
-    print("-" * 72)
-    print(dig["text"])
-    print("-" * 72)
-    print("SMS:", dig["sms"], f"({len(dig['sms'])} chars)")
-    print("=" * 72)
-    if send:
-        print("[digest] sending…", dispatch(v, dry_run=False))
+    if weekly_mode:
+        from lighthouse.weekly import render_weekly
+        w = compute_latest_weekly()
+        print("=" * 72)
+        print(f"SUBJECT: [WEEKLY] {w['ticker']} {w['car_actual']*100:+.1f}% — week of {w['week']}")
+        print("-" * 72)
+        print(render_weekly(w))
+        print("=" * 72)
+        if send:
+            print("[weekly] sending…", weekly_dispatch(w, dry_run=False))
+        else:
+            print(f"[weekly] preview only. enabled={c['enabled']} email_to={c['email_to'] or '—'}. "
+                  f"Re-run with --weekly --send to deliver.")
     else:
-        print(f"[digest] preview only. enabled={c['enabled']} email_to={c['email_to'] or '—'} "
-              f"sms_to={c['sms_to'] or '—'}. Re-run with --send to deliver.")
+        v = compute_latest_verdict()
+        dig = build_digest(v, app_url=c["app_url"])
+        print("=" * 72)
+        print("SUBJECT:", dig["subject"])
+        print("-" * 72)
+        print(dig["text"])
+        print("-" * 72)
+        print("SMS:", dig["sms"], f"({len(dig['sms'])} chars)")
+        print("=" * 72)
+        if send:
+            print("[digest] sending…", dispatch(v, dry_run=False))
+        else:
+            print(f"[digest] preview only. enabled={c['enabled']} email_to={c['email_to'] or '—'} "
+                  f"sms_to={c['sms_to'] or '—'}. Re-run with --send to deliver.")
