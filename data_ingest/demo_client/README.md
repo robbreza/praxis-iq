@@ -85,3 +85,11 @@ boutiques defaulted to `asset_manager`. Re-derived firm_type from Wiza's `compan
 broker_dealer · 60 bank · 29 independent_research (new label) · 29 ria · 21 other · 5 PE · rest**.
 ~182 sell-side/research/vendor contacts are no longer mislabeled buy-side, so the asset_manager
 (buy-side target) set is clean.
+
+## Mislabeled-RIA fix (2026-07-27)
+`reclassify_mislabeled_ria.py` — `firm_type_for()` returns `ria` for any name containing
+"Advisors/Advisory", so 7 institutional funds/hedge funds were mislabeled (Rosalind, Apis Capital,
+Long Cast, Kopp, Columbia Pacific, Yorkville, Conestoga Capital Advisors — the last had 12 records
+from the Philly sweep). Reclassified **23 contacts -> asset_manager**. Doubly-engaged buy-side cut:
+395 -> 402; RIA cut 32 -> 25 (genuine wealth firms). Lesson: the "advisors" name-rule over-fires;
+a real institutional vs wealth split needs more than the name (industry/AUM/strategy).
