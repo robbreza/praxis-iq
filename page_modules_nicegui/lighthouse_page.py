@@ -61,11 +61,28 @@ def render_lighthouse_page():
         rows = list(model.iterrows())[-4:][::-1]
         conn = psycopg2.connect(get_database_url())          # one shared connection for all cards
         verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
+        from lighthouse import weekly as _weekly
+        wk = _weekly.weekly_digest(model, ticker, conn=conn)
         conn.close()
     except Exception as e:
         ui.label(f"Lighthouse engine error: {e}").style("color:#B91C1C;")
         return
 
+    # Weekly digest — the "what's happening lately" read (cumulative unexplained drift).
+    if wk and not wk.get("empty"):
+        drift_color = "#B91C1C" if wk["resid_sum"] < 0 else "#15803D"
+        with ui.card().classes("w-full").style("border:1px solid #B4530955;background:#B4530908;margin-bottom:10px;"):
+            ui.label(f"THIS WEEK · {wk['week']}").style("color:#B45309;font-weight:800;font-size:11px;")
+            with ui.row().classes("items-baseline gap-3"):
+                ui.label(f"{wk['car_actual']*100:+.1f}%").style(f"color:{drift_color};font-size:22px;font-weight:800;")
+                ui.label(f"on the week vs expected {wk['car_expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Cumulative unexplained drift {wk['resid_sum']*100:+.1f}%  ·  "
+                     f"{_weekly.ordinal(wk['weekly_rarity']*100)}-pctile week  ·  "
+                     f"{wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}") \
+                .style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:2px;")
+
+    ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
     for v in verdicts:
         day = v["day"]
         up = v["actual"] >= 0

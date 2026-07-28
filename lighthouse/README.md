@@ -38,6 +38,11 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
   status banner shows on the Lighthouse page. Schedule `python -m lighthouse.shadow` as a post-close
   daily cron on Render.
 
+- [x] **Weekly Digest** (`weekly.py`) — rolls the daily attribution up to the week; headline metric
+  is CUMULATIVE UNEXPLAINED DRIFT + a weekly rarity percentile (a week can be 90th-pctile abnormal on
+  the sum of small daily moves with no dramatic day). Surfaces sustained multi-week drift the daily
+  view fragments. Weekly card shows atop the Lighthouse page.
+
 **Phase 1 V0.1 complete + in Shadow Mode.** Gate 1 next: run the record, get a CEO to say "I'd pay";
 then Phase 3 flow / holder-forced-seller (13F/CRM moat) + private-company intel, by customer pull.
 See `docs/lighthouse/phased_build_plan.md`.
