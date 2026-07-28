@@ -198,3 +198,28 @@ def render_weekly(w: dict) -> str:
         f"- Holder lens ({w['holders']['quarter']}): " + "; ".join(w["holders"]["lines"][:3]),
         f"  → {w['holders']['note']}. {w['holders']['caveat']}",
     ] if w.get("holders") and w["holders"].get("lines") else []))
+
+
+# ── Context cache — lets the Today landing page mirror the weekly context WITHOUT the heavy live
+# compute on every render. Refreshed post-close by the scheduler and on any Lighthouse-page visit.
+_CTX_CACHE_KEY = "lighthouse_weekly_context.json"
+_CTX_FIELDS = ("week", "car_actual", "car_expected", "resid_sum", "weekly_rarity", "abnormal_days",
+               "trading_days", "driver", "driver_kind", "context", "context_read")
+
+
+def save_context_cache(client_id, ticker, wk) -> None:
+    if not wk or wk.get("empty"):
+        return
+    try:
+        from core import db
+        db.save_json(_CTX_CACHE_KEY, {k: wk.get(k) for k in _CTX_FIELDS}, client_id=client_id)
+    except Exception:
+        pass
+
+
+def load_context_cache(client_id, ticker):
+    try:
+        from core import db
+        return db.load_json(_CTX_CACHE_KEY, None, client_id=client_id)
+    except Exception:
+        return None

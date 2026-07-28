@@ -251,6 +251,59 @@ def _talking_points(state, overdue, readiness_pct):
     return points
 
 
+def _render_weekly_context_mirror():
+    """Compact mirror of Lighthouse's 'This Week in Context' band on the landing page: the weekly
+    drift never shown without its yardstick. Reads a cached context (refreshed by the scheduler
+    post-close and on any Lighthouse visit), so Today stays fast — no live attribution compute here.
+    Wired for USIO in the MVP; other tenants simply skip it."""
+    if CT("ticker") != "USIO":
+        return
+    from config.client_config import get_active_client_id
+    try:
+        from lighthouse import weekly as _weekly
+        wk = _weekly.load_context_cache(get_active_client_id(), "USIO")
+    except Exception:
+        wk = None
+    if not wk or not wk.get("context") or not wk.get("context_read"):
+        return
+
+    comps = [c for c in wk["context"] if c.get("relevant")]
+    drift = wk.get("resid_sum") or 0
+    drift_clr = COLORS["danger"] if drift < 0 else COLORS["success"]
+    try:
+        from lighthouse.weekly import ordinal
+        rarity_txt = f"{ordinal((wk.get('weekly_rarity') or 0) * 100)}-percentile week"
+    except Exception:
+        rarity_txt = ""
+
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid #B4530955;border-left:3px solid #B45309;"
+            f"border-radius:12px;margin-top:4px;"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").classes("t-eyebrow").style("color:#B45309;")
+            ui.button("Full band on Lighthouse →", on_click=lambda: nav.go_to("Lighthouse")) \
+                .props("flat dense size=sm")
+        # the punchline — the number with its comparison, never alone
+        ui.label(f"USIO {wk['context_read']}").style(
+            f"color:{COLORS['text_heading']};font-size:15px;font-weight:600;line-height:1.5;")
+        # the two comps the model actually uses, as compact inline chips
+        with ui.row().classes("items-center gap-2").style("flex-wrap:wrap;margin-top:2px;"):
+            for c in comps:
+                rel = c.get("rel") or 0
+                rc = COLORS["danger"] if rel < 0 else COLORS["success"]
+                with ui.row().classes("items-baseline gap-1").style(
+                        f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:3px 10px;"):
+                    ui.label(f"{c['label']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{c['ret']*100:+.1f}%").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                    ui.label(f"· USIO {rel*100:+.1f} pts").style(f"color:{rc};font-size:12px;")
+        # the drift, stated only after the yardstick
+        with ui.row().classes("items-baseline gap-2").style("margin-top:2px;"):
+            ui.label("After market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"{drift*100:+.1f}% unexplained drift").style(f"color:{drift_clr};font-size:14px;font-weight:800;")
+            if rarity_txt:
+                ui.label(f"· {rarity_txt}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+
 def render_today_page():
     state = _load_state()
     today_d = datetime.now().date()
@@ -362,6 +415,8 @@ def render_today_page():
             if snap and snap.get("last_price") is not None:
                 ui.label(f"* Delayed quote · {_as_of_short(snap)}").classes("t-fine").style(
                     "margin-top:10px;")
+
+    _render_weekly_context_mirror()
 
     _render_top_story()
 

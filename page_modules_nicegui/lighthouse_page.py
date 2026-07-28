@@ -129,6 +129,7 @@ def render_lighthouse_page():
         verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
         from lighthouse import weekly as _weekly
         wk = _weekly.weekly_digest(model, ticker, conn=conn)
+        _weekly.save_context_cache(client_id, ticker, wk)   # keep the Today-page mirror fresh
         conn.close()
     except Exception as e:
         ui.label(f"Lighthouse engine error: {e}").style("color:#B91C1C;")
