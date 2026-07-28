@@ -10,9 +10,10 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
       (draft→revised→settled lifecycle), evidence lineage — all `knowledge_ts`-stamped, `client_id`-scoped
 - [x] `config/usio.py` — first client config (ticker-agnostic, configuration-driven)
 - [x] `tests/test_lighthouse_replay.py` — CI gate on no-look-ahead
-- [ ] wire historical USIO + benchmark OHLCV into `lh_ohlcv` (from Praxis `market_data`)
-- [ ] build business + dynamic market-cap peer dataset into `lh_peer`
-- [ ] feature store population (`lh_feature`)
+- [x] historical OHLCV wired into `lh_ohlcv` via yfinance (`data.py`) — 751d x 10 tickers
+- [x] business peer set into `lh_peer` (`data.build_peers`); dynamic mktcap/liquidity peers next
+- [x] point-in-time returns frame (`data.returns_frame`); full feature store next
+- [x] **first expected/actual/residual** — rolling market+peer OLS (`attribution.py`), 624 USIO days
 
 ## Next (Phase 1 — V0.1 Historical Intelligence Engine)
 Expected/actual/residual (champion/challenger) → residual/anomaly → event-window overlay (Spec 12
