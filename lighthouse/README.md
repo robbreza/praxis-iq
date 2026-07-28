@@ -35,8 +35,9 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
 
 - [x] **Shadow Mode ENTERED** (`shadow.py`) — daily live run logs the latest session's verdict to
   lh_verdict for IR review, NO automated executive alerts (Spec Stage 3). Track record seeded; a
-  status banner shows on the Lighthouse page. Schedule `python -m lighthouse.shadow` as a post-close
-  daily cron on Render.
+  status banner shows on the Lighthouse page. Runs automatically via the in-process
+  scheduler (`scheduler.py`, wired into app.on_startup) — daily post-close, no external cron needed;
+  `python -m lighthouse.shadow` also works as a standalone cron if you ever want the isolation.
 
 - [x] **Weekly Digest** (`weekly.py`) — rolls the daily attribution up to the week; headline metric
   is CUMULATIVE UNEXPLAINED DRIFT + a weekly rarity percentile (a week can be 90th-pctile abnormal on

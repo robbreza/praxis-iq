@@ -1373,12 +1373,23 @@ def _seed_auth():
         print(f"[startup] Auth seeding failed (non-fatal): {e}")
 
 
+def _kick_off_lighthouse_shadow():
+    """Daily post-close Lighthouse Shadow run, in-process (no external cron). Idempotent; wrapped so
+    a failure here can never affect app startup."""
+    try:
+        from lighthouse.scheduler import start as _lh_start
+        _lh_start()
+    except Exception as e:
+        print(f"[startup] Lighthouse shadow scheduler failed to start (non-fatal): {e}")
+
+
 app.on_startup(_reload_registry)
 app.on_startup(_seed_auth)
 app.on_startup(_kick_off_sec_refresh)
 app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
 app.on_startup(_kick_off_cache_warm)
+app.on_startup(_kick_off_lighthouse_shadow)
 
 # storage_secret is REQUIRED for app.storage.user (the per-browser tenant
 # selection). Set IRCONNECT_STORAGE_SECRET in the environment for any real
