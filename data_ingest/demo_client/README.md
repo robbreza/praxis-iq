@@ -77,3 +77,11 @@ tags the **434 emails / 440 contacts** that opened BOTH Lytham 1x1 invites (ProS
 `DOUBLY-ENGAGED` (queryable via `provenance LIKE '%DOUBLY-ENGAGED%'`), `validation_status=engaged`,
 `confidence>=90`. These are the highest-intent small-cap meeting-takers. NOTE: the full send lists
 (~2,600 non-openers/campaign) are unavailable — only the opener/click exports exist.
+
+## Wiza firm_type pass (2026-07-27)
+`wiza_firmtype_pass.py` — the Wiza ingest classified firm_type from the NAME only, so research
+boutiques defaulted to `asset_manager`. Re-derived firm_type from Wiza's `company_industry` /
+`subindustry` / `description` (by email, scoped to the Wiza cohort): **247 asset_manager · 93
+broker_dealer · 60 bank · 29 independent_research (new label) · 29 ria · 21 other · 5 PE · rest**.
+~182 sell-side/research/vendor contacts are no longer mislabeled buy-side, so the asset_manager
+(buy-side target) set is clean.
