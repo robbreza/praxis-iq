@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IRconnect — offline</title>
+  <style>
+    html,body{height:100%;margin:0}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0F172A;color:#E2E8F0;
+         display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+    .card{max-width:340px}
+    img{width:76px;height:76px;border-radius:18px;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+    h1{font-size:20px;margin:18px 0 6px;color:#fff}
+    p{font-size:14px;line-height:1.6;color:#94A3B8;margin:0}
+    button{margin-top:20px;background:#1E40AF;color:#fff;border:0;border-radius:8px;
+           padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/pwa/icon-192.png" alt="IRconnect">
+    <h1>You're offline</h1>
+    <p>IRconnect needs a connection for live market data and intelligence. Reconnect and it'll pick up right where you left off.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

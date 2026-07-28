@@ -1430,6 +1430,67 @@ def _lh_track_click(token: str, request: Request):
         pass
     return RedirectResponse(url=dest)
 
+
+# ── PWA — installable home-screen app (manifest + icons + service worker) ──────────────────────────
+# Makes IRconnect installable on a phone/desktop home screen. Conservative by design: the service
+# worker never caches the live NiceGUI app (only our /pwa/ art + an offline page), so an install can't
+# serve a stale UI. See scripts/make_pwa_icons.py for the branded lighthouse/IRconnect icons.
+_PWA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "pwa")
+app.add_static_files("/pwa", _PWA_DIR)
+
+
+@app.get("/sw.js")
+def _pwa_service_worker():
+    from fastapi.responses import Response
+    try:
+        js = open(os.path.join(_PWA_DIR, "sw.js"), encoding="utf-8").read()
+    except Exception:
+        js = ""
+    # served at root so its scope is "/" (covers the whole app)
+    return Response(js, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.get("/manifest.webmanifest")
+def _pwa_manifest():
+    from fastapi.responses import Response
+    try:
+        data = open(os.path.join(_PWA_DIR, "manifest.webmanifest"), encoding="utf-8").read()
+    except Exception:
+        data = "{}"
+    return Response(data, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+
+
+# Head: manifest + theme color + iOS home-screen tags (iOS has no manifest install, uses these).
+ui.add_head_html(
+    '<link rel="manifest" href="/manifest.webmanifest">'
+    '<meta name="theme-color" content="#1E40AF">'
+    '<meta name="mobile-web-app-capable" content="yes">'
+    '<meta name="apple-mobile-web-app-capable" content="yes">'
+    '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
+    '<meta name="apple-mobile-web-app-title" content="IRconnect">'
+    '<link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">'
+    '<link rel="icon" type="image/png" sizes="192x192" href="/pwa/icon-192.png">',
+    shared=True)
+
+# Body: register the SW, and show an "Install IRconnect" button when the browser offers the install
+# (Android / desktop Chrome & Edge fire beforeinstallprompt; iOS installs via Share → Add to Home Screen).
+ui.add_body_html(
+    '<div id="pwa-install" style="display:none;position:fixed;right:16px;bottom:16px;z-index:9999;">'
+    '<button id="pwa-install-btn" style="display:flex;align-items:center;gap:8px;background:#1E40AF;'
+    'color:#fff;border:0;border-radius:10px;padding:10px 16px;font:600 13px -apple-system,Segoe UI,'
+    'Roboto,sans-serif;box-shadow:0 6px 20px rgba(30,64,175,.35);cursor:pointer;">'
+    '<img src="/pwa/icon-192.png" width="20" height="20" style="border-radius:5px;">Install IRconnect</button></div>'
+    '<script>(function(){'
+    "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}"
+    "var d=null,w=document.getElementById('pwa-install'),b=document.getElementById('pwa-install-btn');"
+    "window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();d=e;if(w)w.style.display='block';});"
+    "if(b)b.addEventListener('click',async function(){if(!d)return;d.prompt();await d.userChoice;d=null;if(w)w.style.display='none';});"
+    "window.addEventListener('appinstalled',function(){if(w)w.style.display='none';});"
+    '})();</script>',
+    shared=True)
+
+
 # storage_secret is REQUIRED for app.storage.user (the per-browser tenant
 # selection). Set IRCONNECT_STORAGE_SECRET in the environment for any real
 # deployment; the fallback is a dev-only default and is deliberately named so an
