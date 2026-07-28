@@ -75,12 +75,23 @@ def weekly_digest(model, ticker, week_ending=None, conn=None) -> dict:
     else:
         driver = "unexplained by current lenses"; driver_kind = "unexplained"
 
+    # When the week's move is unexplained by market/peers/events, bring the holder lens (the Praxis
+    # moat): is a large holder reducing? Only surfaced for drift/unexplained weeks — that's when
+    # "who's selling?" is the question.
+    hctx = None
+    if driver_kind in ("drift", "unexplained") and resid_sum < 0:
+        try:
+            from lighthouse import holders as _h
+            hctx = _h.holder_context(ticker)
+        except Exception:
+            hctx = None
+
     return dict(ticker=ticker, week=f"{wstart} .. {wend}", trading_days=len(days),
                 car_actual=car_actual, car_expected=car_expected, resid_sum=resid_sum,
                 weekly_rarity=weekly_rarity, abnormal_days=abnormal_days,
                 biggest_day=str(big_day), biggest_residual=big_resid,
                 events=[f"{h[:60]} [{d}]" for d, h in wk_events],
-                driver=driver, driver_kind=driver_kind)
+                driver=driver, driver_kind=driver_kind, holders=hctx)
 
 
 def render_weekly(w: dict) -> str:
@@ -99,4 +110,7 @@ def render_weekly(w: dict) -> str:
         f"\n- Abnormal days this week: {w['abnormal_days']} of {w['trading_days']}",
         f"- Biggest single day: {w['biggest_day']} ({w['biggest_residual']*100:+.1f}% unexplained)",
         ("- Filings in-week: " + "; ".join(w["events"])) if w["events"] else "- No 10-Q/10-K/8-K filed in-week",
-    ])
+    ] + ([
+        f"- Holder lens ({w['holders']['quarter']}): " + "; ".join(w["holders"]["lines"][:3]),
+        f"  → {w['holders']['note']}. {w['holders']['caveat']}",
+    ] if w.get("holders") and w["holders"].get("lines") else []))

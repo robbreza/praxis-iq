@@ -43,7 +43,12 @@ multi-tenant `client_id` isolation. Governing specs and the phased plan live in 
   the sum of small daily moves with no dramatic day). Surfaces sustained multi-week drift the daily
   view fragments. Weekly card shows atop the Lighthouse page.
 
-**Phase 1 V0.1 complete + in Shadow Mode.** Gate 1 next: run the record, get a CEO to say "I'd pay";
+- [x] **Holder / forced-seller lens** (`holders.py`) — the Praxis moat: cross-references the move
+  against the issuer's own 13F holder base (reused from the platform) to name reducers/exiters,
+  splitting fundamental vs mechanical (quant/passive/MM); surfaced in the weekly digest on
+  unexplained-drift weeks with the 13F-lag caveat. A standalone tool structurally can't do this.
+
+**Phase 1 V0.1 complete + in Shadow Mode (all four lenses + holder moat + weekly digest).** Gate 1 next: run the record, get a CEO to say "I'd pay";
 then Phase 3 flow / holder-forced-seller (13F/CRM moat) + private-company intel, by customer pull.
 See `docs/lighthouse/phased_build_plan.md`.
 

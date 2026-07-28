@@ -81,6 +81,10 @@ def render_lighthouse_page():
                      f"{wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}") \
                 .style(f"color:{COLORS['text_body']};font-size:13px;")
             ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:2px;")
+            if wk.get("holders") and wk["holders"].get("lines"):
+                ui.label("Holder lens (" + str(wk["holders"]["quarter"]) + "): " +
+                         "; ".join(wk["holders"]["lines"][:3]) + " — " + wk["holders"]["note"] + ".") \
+                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
 
     ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
     for v in verdicts:
