@@ -179,6 +179,27 @@ def render_lighthouse_page():
                             .style(f"color:{COLORS['text_muted']};font-size:11px;")
         except Exception:
             pass
+        try:                                            # market-revealed peers via co-ownership (cached)
+            from lighthouse import coownership as _co
+            co = _co.load_cache(client_id)
+            if co and not co.get("error"):
+                with ui.expansion("Market-revealed peers — who owns USIO also owns…", icon="hub") \
+                        .classes("w-full").style("margin-bottom:8px;"):
+                    ui.label(f"{co['n_holders']} holders · {co['n_focused']} focused/fundamental · "
+                             f"{co['n_mechanical']} quant/passive ({co.get('quarter','')})") \
+                        .style(f"color:{COLORS['text_body']};font-size:12px;")
+                    if not co.get("peers"):
+                        ui.label("No concentrated active holders with clear co-holdings — owned via broad/"
+                                 "quant/wealth vehicles, i.e. USIO trades on small-cap FLOW, not a peer complex.") \
+                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    else:
+                        ui.label("Co-held by USIO's concentrated active managers — note these are NOT the "
+                                 "payments peers we defined:").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        for p in co["peers"][:8]:
+                            ui.label(f"{p['issuer']} · held by {p['holders']} · avg wt {p['avg_weight']*100:.1f}%") \
+                                .style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
 
     if ticker != "USIO":
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
