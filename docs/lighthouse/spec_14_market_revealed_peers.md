@@ -14,12 +14,19 @@ divergence — a genuinely useful, non-obvious IR message ("you trade on small-c
 
 Three revealed-peer lenses, each a different definition of "peer":
 
-## (a) Co-movement — the statistical peer
-Over a BROAD candidate universe (payments + fintech + card networks + merchant acquirers + the small-cap
-complex, not just the 6 we picked), find the names USIO actually tracks via rank-correlation / a sparse
-regression (elastic-net) that lets the DATA select the handful of names that explain USIO. Where the
-revealed set diverges from our set, that's the finding; the winners can feed the attribution factor set
-as a challenger.
+## (a) Co-movement — the statistical peer — BUILT (lighthouse/comovement.py)
+Over a BROAD ~45-name candidate universe (networks, processors, fintech, small/micro payments,
+data/credit, small-cap complex), rank-correlation + a greedy forward-stepwise sparse selection (pure
+numpy — no sklearn) let the DATA pick the names that JOINTLY explain USIO. Stepwise (not univariate)
+because payments names are collinear. Reported against our peer-basket R². Structural discovery over
+history; winners can feed the point-in-time factor model as a challenger.
+
+**First result (USIO, 749d): the sharpest confirmation yet.** Top 4 co-movers are ALL small-cap indices
+(IWO/IWM/IJR/IWN +0.22–0.24); our named payments peers don't crack the top 10. The sparse model selects
+**IWO (small-growth index) + PAGS** — it won't even select our peers. Revealed R² **0.062** vs our
+peer-basket **0.024** (2.6× better, still ~6%). Fintech ETFs (ARKF/FINX) and fintech names (UPST/SOFI)
+correlate MORE than the payments processors — so USIO's faint tilt is **small-cap fintech, not
+payments-processor.** Triangulates with co-ownership + factor loadings + the raw correlations.
 
 ## (b) Co-ownership — the capital-allocation peer — BUILT (lighthouse/coownership.py)
 

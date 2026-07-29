@@ -200,6 +200,26 @@ def render_lighthouse_page():
                                 .style(f"color:{COLORS['text_muted']};font-size:11px;")
         except Exception:
             pass
+        try:                                            # market-revealed peers via co-movement (cached)
+            from lighthouse import comovement as _cm
+            cm = _cm.load_cache(client_id)
+            if cm and not cm.get("error"):
+                with ui.expansion("Market-revealed peers — who USIO actually co-moves with", icon="insights") \
+                        .classes("w-full").style("margin-bottom:8px;"):
+                    ui.label("Top daily-return co-movers (broad universe):") \
+                        .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    for t in cm.get("top_correlates", [])[:6]:
+                        tag = " · our peer" if t["defined_peer"] else ""
+                        ui.label(f"{t['ticker']} {t['corr']:+.2f} · {t['category']}{tag}") \
+                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(f"Data-selected explainers: {', '.join(p['name'] for p in cm.get('sparse', [])) or '—'} · "
+                             f"revealed R² {cm.get('sparse_r2', 0):.2f} vs our-peers R² {(cm.get('defined_basket_r2') or 0):.2f}") \
+                        .style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                    ui.label("Read: USIO co-moves with the small-cap complex / fintech, not the payments "
+                             "peers we defined — it trades as small-cap flow.") \
+                        .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+        except Exception:
+            pass
 
     if ticker != "USIO":
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
