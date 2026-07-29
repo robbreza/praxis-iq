@@ -153,13 +153,16 @@ NAV_GROUPS = [
 # grouping doesn't matter (e.g. looking up which module renders a section).
 NAV_SECTIONS = [page for _group, items in NAV_GROUPS for page, *_ in items]
 
-# Mobile bottom tab bar — the thumb-reachable on-the-road surfaces (section, icon, short label). Shown
-# only on phones (CSS); the heavy authoring tools stay behind the header ☰ drawer.
+# Mobile bottom tab bar — the thumb-reachable on-the-road surfaces (section, icon, short label, deep-link
+# sub-tab or None). Shown only on phones (CSS); the heavy authoring tools stay behind the header ☰ drawer.
+# NDR deep-links into Investor Targeting's NDR Planner — the one on-the-road piece of that otherwise-heavy
+# page worth a one-tap.
 _MOBILE_TABS = [
-    ("Home", "home", "Home"),
-    ("Lighthouse", "lightbulb", "Lighthouse"),
-    ("Calendar", "calendar_month", "Calendar"),
-    ("Markets", "trending_up", "Markets"),
+    ("Home", "home", "Home", None),
+    ("Lighthouse", "lightbulb", "Lighthouse", None),
+    ("Calendar", "calendar_month", "Calendar", None),
+    ("Investors", "route", "NDR", "NDR Planner"),
+    ("Markets", "trending_up", "Markets", None),
 ]
 
 # Sub-items surfaced under each content-heavy page in the sidebar — the page's
@@ -1207,7 +1210,7 @@ def main_page(request: Request = None):
         _bottom.clear()
         with _bottom:
             with ui.row().classes("w-full items-stretch justify-around").style("gap:0;"):
-                for section, icon, label in _MOBILE_TABS:
+                for section, icon, label, sub in _MOBILE_TABS:
                     if not role_can_view(state["role"], section):
                         continue
                     active = state["page"] == section
@@ -1216,7 +1219,7 @@ def main_page(request: Request = None):
                         "flex:1;gap:1px;padding:6px 0 8px;cursor:pointer;"
                         + (f"border-top:2px solid #1D4ED8;background:#1D4ED80D;"
                            if active else "border-top:2px solid transparent;")
-                    ).on("click", lambda s=section: go_to(s)):
+                    ).on("click", lambda s=section, t=sub: go_to(s, t)):
                         ui.icon(icon).style(f"color:{clr};font-size:22px;")
                         ui.label(label).style(f"color:{clr};font-size:10px;font-weight:{'700' if active else '500'};")
 
