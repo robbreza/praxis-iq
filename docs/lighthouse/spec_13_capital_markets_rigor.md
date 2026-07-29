@@ -56,11 +56,18 @@ the residual by its **conditional vol** (EWMA / GARCH(1,1)) → a regime-aware *
 residual is a 3σ event in a calm tape and noise in an earnings-season high-vol tape. Abnormality then
 reads off the standardized magnitude, not a static distribution. *(First cut — EWMA — ships with #1.)*
 
-### 3. Significance + estimation error
-Betas are estimated with error (brutal on an illiquid nano-cap). Report the residual with a **t-stat /
-confidence band**, widen the band when factor loadings are uncertain, and control **multiple testing**
-(scanning many days inflates tail false-positives — apply an FDR/Benjamini-Hochberg gate to daily
-alerts).
+### 3. Significance + estimation error — BUILT
+Betas are estimated with error (brutal on an illiquid nano-cap). The factor model reports the residual
+with a **prediction-interval t-stat** (`resid / se_pred`) so significance accounts for beta estimation
+error, and the expected range widens with the out-of-sample leverage. **Multiple testing** is
+controlled by `lighthouse/fdr.py`: each day's two-sided p-value (`p = 1 − rarity`) is run through
+**Benjamini-Hochberg** over a trailing window (default 252d, q=10%), point-in-time, to hold the False
+Discovery Rate among flagged days. The gate does not change the descriptive abnormality label — it
+decides whether a day is a genuine **discovery** worth a phone alert vs. an expected tail event, and
+`push.maybe_push_verdict` will not buzz a phone on an FDR-gated day. Benjamini-Yekutieli available for
+arbitrary dependence. *Measured on USIO: raw ≥1.6σ days ~22/yr → survive FDR ~4/yr (≈80% fewer phone
+alerts, keeping only genuine discoveries).* Remaining sub-item: a formal GARCH conditional vol (2) can
+replace the EWMA seed.
 
 ### 4. Peer-set integrity
 The hand-picked basket (RPAY, PSFE, PAY, CASS, GDOT, EVTC) has stale/suspect names (observed PAY/PSFE

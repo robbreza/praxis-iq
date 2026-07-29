@@ -211,8 +211,12 @@ def render_lighthouse_page():
             ui.label(f"Unexplained residual {v['residual']*100:+.1f}%  ·  {int((v['rarity'] or 0)*100)}th-pctile rare  ·  best read: {best}") \
                 .style(f"color:{COLORS['text_body']};font-size:13px;margin-top:2px;")
             if v.get("z") is not None:
+                _fdr = ""
+                if v.get("fdr_significant") is not None:
+                    _fdr = ("  ·  FDR: PASSES (genuine discovery)" if v["fdr_significant"]
+                            else f"  ·  FDR: gated (q={int((v.get('fdr_q') or 0.1)*100)}% — expected tail-noise, no phone alert)")
                 ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
-                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), vol-regime-adjusted") \
+                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), vol-regime-adjusted{_fdr}") \
                     .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
             with ui.column().classes("gap-1").style("margin-top:6px;"):
                 for d in v["drivers"]:

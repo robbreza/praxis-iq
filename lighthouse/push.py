@@ -183,6 +183,11 @@ def maybe_push_verdict(v: dict, client_id="usio") -> dict:
     floor = _TIER_RANK.get((os.environ.get("LIGHTHOUSE_DIGEST_PUSH_TIER", "important") or "").lower(), 2)
     if pr["rank"] < floor:
         return {"sent": 0, "reason": "below_floor", "tier": pr["tier"]}
+    # Multiple-testing gate (Spec 13.3): the phone is the loudest channel — never buzz it for a day
+    # that doesn't survive FDR control (an expected tail event from scanning every session). Only
+    # suppress on an explicit False so verdicts predating the gate still push.
+    if v.get("fdr_significant") is False:
+        return {"sent": 0, "reason": "fdr_gated", "tier": pr["tier"]}
     c = config()
     title = f"{v['ticker']} {v['actual']*100:+.1f}% — {pr['tier'].upper()}"
     rep = send_to_client(client_id, title, pr["action"], url=(c["app_url"] or "/"))

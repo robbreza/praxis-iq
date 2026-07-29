@@ -45,6 +45,10 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     # significance t-stat and the model's in-window R². rarity is the normal-tail mass within ±|z|.
     z = model_row.get("z"); t_stat = model_row.get("t_stat")
     r2 = model_row.get("r2"); n_factors = model_row.get("n_factors")
+    # Multiple-testing gate (Spec 13.3): does this day survive FDR control over the trailing window,
+    # or is it an expected tail event given how many days we scan? Gates the loud (phone) channels.
+    p_value = model_row.get("p_value"); fdr_significant = model_row.get("fdr_significant")
+    fdr_q = model_row.get("fdr_q")
 
     # abnormality confidence from rarity (now z-calibrated: 0.90 ≈ 1.6σ, 0.75 ≈ 1.15σ)
     abn = "HIGH" if (rarity or 0) >= 0.90 else "MODERATE" if (rarity or 0) >= 0.75 else "ROUTINE"
@@ -90,6 +94,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
                 actual=move, expected=exp, expected_lo=model_row["expected_lo"], expected_hi=model_row["expected_hi"],
                 residual=resid, rarity=rarity, mp_share=mp_share, unexplained_pct=unexplained_pct,
                 z=z, t_stat=t_stat, r2=r2, n_factors=n_factors,
+                p_value=p_value, fdr_significant=fdr_significant, fdr_q=fdr_q,
                 abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found,
                 technical=tech.get("summary"))
 
@@ -108,6 +113,14 @@ def render_ceo(v: dict) -> str:
         L.append(f"\n_Model:_ {int(v.get('n_factors') or 0)}-factor risk model, R² {(v.get('r2') or 0)*100:.0f}%; "
                  f"the residual is **{v['z']:+.1f}σ** (t {v.get('t_stat') or 0:+.1f}) — "
                  f"volatility-regime-adjusted, so abnormality reflects today's tape, not a static history.")
+    if v.get("fdr_significant") is not None:
+        _q = int((v.get("fdr_q") or 0.10) * 100)
+        if v["fdr_significant"]:
+            L.append(f"\n_Multiple-testing:_ **PASSES** the FDR gate (q={_q}%) — a genuine discovery, not "
+                     f"one of the tail days we'd expect by chance from scanning every session.")
+        else:
+            L.append(f"\n_Multiple-testing:_ does **not** clear the FDR gate (q={_q}%) — within the tail-noise "
+                     f"expected from daily scanning, so it is not escalated to a phone alert.")
     L.append(f"\n_Best read:_ {verdict}.")
     L.append("\n**Drivers**")
     for d in v["drivers"]:

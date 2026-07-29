@@ -29,10 +29,16 @@ def _phi(z: float) -> float:
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
-def attribution(rets: pd.DataFrame, issuer: str = "USIO", window: int = 126) -> pd.DataFrame:
-    """The live attribution entry point: build the default factor set from `rets` and run the rolling
-    multi-factor model. Single call site for shadow, the Lighthouse page, and the digest."""
-    return factor_model(rets, issuer, build_factors(rets), window=window)
+def attribution(rets: pd.DataFrame, issuer: str = "USIO", window: int = 126,
+                fdr_q: float = 0.10, fdr_window: int = 252) -> pd.DataFrame:
+    """The live attribution entry point: build the default factor set from `rets`, run the rolling
+    multi-factor model, then apply the multiple-testing (FDR) gate (Spec 13.3) so downstream callers
+    get `p_value` / `fdr_significant` for free. Single call site for shadow, the page, and the digest."""
+    m = factor_model(rets, issuer, build_factors(rets), window=window)
+    if m.empty:
+        return m
+    from lighthouse.fdr import apply_gate
+    return apply_gate(m, q=fdr_q, window=fdr_window)
 
 
 def factor_model(rets: pd.DataFrame, issuer: str, factor_frame: pd.DataFrame | None = None,
