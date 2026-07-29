@@ -1253,6 +1253,45 @@ def _render_onboarding_checklist():
              "caught it from an 8-K, not a feed.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
 
+    # ── Market-revealed peer discovery (Spec 14 peer_install) ──────────────────────────────────────
+    ui.label("Discover the market's peer view").classes("section-head").style("margin-top:12px;")
+    ui.label("Runs the fundamental screen (10-K + SIC + proxy) plus the three revealed lenses — "
+             "co-ownership (13F), sell-side coverage, and return co-movement — then synthesizes them. "
+             "Surfaces trading vs narrative vs fundamental peers and flags comps the market uses that "
+             "you haven't defined. ~1–2 minutes (SEC + market pulls).").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+    _peer_result = ui.column().classes("w-full").style("margin-top:4px;")
+
+    async def _run_peer_install():
+        import asyncio
+        from config.client_config import get_active_client_id
+        from lighthouse import peer_install
+        ui.notify("Running peer discovery — fundamental screen + 13F + coverage + co-movement… ~1–2 min.",
+                  type="ongoing")
+        try:
+            rep = await asyncio.to_thread(peer_install.install, get_active_client_id(), CT("ticker"))
+        except Exception as exc:
+            ui.notify(f"Peer discovery failed: {exc}", type="negative")
+            return
+        _peer_result.clear()
+        with _peer_result:
+            steps = " · ".join(f"{k} {'✓' if v.get('ok') else '✗'}" for k, v in rep.get("steps", {}).items())
+            ui.label(f"Complete — {steps}").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+            syn = rep.get("synthesis") or {}
+            if syn and not syn.get("error"):
+                ui.label(syn.get("headline", "")).style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;")
+                for t in syn.get("tiers", []):
+                    ui.label(f"{t['label']} ({t['subtitle']}): {', '.join(t['members']) or '—'}").style(
+                        f"color:{COLORS['text_body']};font-size:12px;")
+                for i in syn.get("insights", []):
+                    ui.label("• " + i).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label("Full detail (per-lens breakdown) lives on the Lighthouse page.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.notify("Peer discovery complete.", type="positive")
+
+    ui.button("Discover market-revealed peers", icon="hub", on_click=_run_peer_install).props(
+        "color=primary dense outline").style("margin-top:6px;")
+
     def _dl_cl():
         try:
             ui.download(report_pdf.onboarding_checklist_pdf(),
