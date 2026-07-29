@@ -9,6 +9,7 @@ dnspython   # core/contact_scrub.py — MX lookup (email-domain deliverability, 
 psycopg2-binary   # core/db.py — Neon Postgres backend (falls back to SQLite if unused)
 yfinance   # core/market_data.py — free market data (price/volume), 60-min-delay tolerant
 pypdf   # core/transcripts.py — extract text from uploaded earnings-call transcript PDFs
+pywebpush   # lighthouse/push.py — Web Push (VAPID) for Lighthouse phone alerts
 python-pptx   # core/board_slides.py — PT Drift Tracker board-slide export (replaces app.py's
               # broken Node.js subprocess approach — generate_pt_slide.js was never actually
               # included in the project, so that button never worked even in the original demo)

@@ -4,7 +4,7 @@
  * an offline fallback, serves navigations network-first, and falls back to /pwa/offline.html when the
  * network is unreachable. That's enough to make the app installable without risking staleness.
  */
-const CACHE = 'irconnect-shell-v1';
+const CACHE = 'irconnect-shell-v2';
 const OFFLINE = '/pwa/offline.html';
 const PRECACHE = [OFFLINE, '/pwa/icon-192.png'];
 
@@ -36,4 +36,30 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
   }
+});
+
+// Web Push: render the incoming payload as a notification.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
+  const title = data.title || 'IRconnect';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: '/pwa/icon-192.png',
+    badge: '/pwa/icon-192.png',
+    tag: data.tag || 'lighthouse',
+    renotify: true,
+    data: { url: data.url || '/' },
+  }));
+});
+
+// Tapping a notification focuses an open IRconnect tab or opens one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil((async () => {
+    const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) { if (w.url.startsWith(self.location.origin) && 'focus' in w) return w.focus(); }
+    if (clients.openWindow) return clients.openWindow(target);
+  })());
 });

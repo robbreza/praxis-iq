@@ -1491,6 +1491,69 @@ ui.add_body_html(
     shared=True)
 
 
+# ── Web Push (VAPID) — Lighthouse phone alerts ────────────────────────────────────────────────────
+@app.get("/push/vapid-public-key")
+def _push_vapid_key():
+    from fastapi.responses import PlainTextResponse
+    try:
+        from lighthouse import push
+        return PlainTextResponse(push.public_key())
+    except Exception:
+        return PlainTextResponse("", status_code=503)
+
+
+@app.post("/push/subscribe")
+async def _push_subscribe(request: Request):
+    from fastapi.responses import JSONResponse
+    try:
+        body = await request.json()
+        from lighthouse import push
+        ok = push.save_subscription(body.get("client_id") or "usio",
+                                    body.get("subscription") or body,
+                                    user_agent=request.headers.get("user-agent"))
+        return JSONResponse({"ok": bool(ok)})
+    except Exception:
+        return JSONResponse({"ok": False}, status_code=400)
+
+
+@app.post("/push/unsubscribe")
+async def _push_unsubscribe(request: Request):
+    from fastapi.responses import JSONResponse
+    try:
+        body = await request.json()
+        sub = body.get("subscription") or body
+        ep = sub.get("endpoint") if isinstance(sub, dict) else None
+        if ep:
+            from lighthouse import push
+            push.delete_subscription(ep)
+        return JSONResponse({"ok": True})
+    except Exception:
+        return JSONResponse({"ok": False}, status_code=400)
+
+
+# Client-side subscribe helper. Exposed as window.irconnectSubscribePush(clientId); the Lighthouse
+# page's "Enable phone alerts" button calls it from a real click (so Notification.requestPermission
+# runs inside a user gesture, which browsers require).
+ui.add_body_html(
+    '<script>'
+    'function _irB64ToU8(b){var p="=".repeat((4-b.length%4)%4);var s=(b+p).replace(/-/g,"+").replace(/_/g,"/");'
+    'var r=atob(s),a=new Uint8Array(r.length);for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}'
+    'window.irconnectSubscribePush=async function(clientId){try{'
+    "if(!('serviceWorker' in navigator)||!('PushManager' in window)){"
+    "alert('To get alerts on iPhone, first install IRconnect to your Home Screen (Share -> Add to Home Screen), then open it and enable alerts.');return;}"
+    'var perm=await Notification.requestPermission();if(perm!=="granted"){alert("Alerts are blocked. Enable notifications for this site in your browser settings.");return;}'
+    'var reg=await navigator.serviceWorker.ready;'
+    "var key=await fetch('/push/vapid-public-key').then(function(r){return r.text();});if(!key){return;}"
+    'var sub=await reg.pushManager.getSubscription();'
+    'if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_irB64ToU8(key)});}'
+    "await fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},"
+    "body:JSON.stringify({client_id:clientId||'usio',subscription:sub.toJSON()})});"
+    "alert('Phone alerts enabled on this device.');"
+    '}catch(e){console.warn("push subscribe failed",e);alert("Could not enable alerts: "+e.message);}};'
+    '</script>',
+    shared=True)
+
+
 # storage_secret is REQUIRED for app.storage.user (the per-browser tenant
 # selection). Set IRCONNECT_STORAGE_SECRET in the environment for any real
 # deployment; the fallback is a dev-only default and is deliberately named so an

@@ -113,6 +113,13 @@ def render_lighthouse_page():
                          f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:11px;")
         except Exception:
             pass
+        # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
+        # inside a real click; on iOS this works only in the installed PWA.
+        ui.html('<button onclick="window.irconnectSubscribePush(\'usio\')" '
+                'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
+                'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
+                'sans-serif;cursor:pointer;margin-bottom:8px;">🔔 Enable phone alerts</button>')
+
         try:                                            # used-vs-ignored readout (measure, don't hope)
             from lighthouse import telemetry as _tel
             eng = _tel.summary(client_id, "USIO", days=30)

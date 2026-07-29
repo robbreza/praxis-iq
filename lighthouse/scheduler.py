@@ -56,6 +56,17 @@ def _run_once():
                       f"tier={rep.get('tier')} sent={rep.get('sent')}")
     except Exception:
         traceback.print_exc()
+    # Web-push phone alerts. Independent of the email digest gate — a push subscription IS the consent —
+    # and tier-gated inside maybe_push_verdict. Best-effort; only fires if devices are subscribed.
+    try:
+        from lighthouse import push
+        for v in got or []:
+            prep = push.maybe_push_verdict(v)
+            if prep.get("sent"):
+                print(f"[lighthouse-scheduler] push {v['ticker']} {v['day']}: "
+                      f"tier={prep.get('tier')} sent={prep.get('sent')}/{prep.get('total')}")
+    except Exception:
+        traceback.print_exc()
     # Weekly context: compute + cache every run (keeps the Today-page mirror fresh daily); email the
     # weekly digest only on Fridays and only if delivery is enabled.
     try:
