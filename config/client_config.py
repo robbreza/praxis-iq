@@ -207,6 +207,13 @@ _CODE_SEED = {
         "peers": [
             {"ticker": "RPAY", "name": "Repay Holdings", "ev_rev": 2.8, "tier": "primary",
              "segment": "Integrated card + ACH + billing/output", "closest_analog": True},
+            # PRTH added 2026-07-29 from the Spec-14 coverage-overlap lens: Ladenburg's payments
+            # specialist (Hickman) brackets USIO with it, and it's a tight PayFac/SMB operating comp.
+            # Verified LIVE (Yahoo ev_rev ~1.56, EV ~$1.5B) — the fallback below is the real value, not a
+            # curated guess. Its narrative sibling FPAY (FlexShopper) was NOT added: it's delisted with no
+            # live quote, and a dead curated row next to live peers is exactly what the FI removal rejected.
+            {"ticker": "PRTH", "name": "Priority Technology", "ev_rev": 1.6, "tier": "primary",
+             "segment": "PayFac / SMB payments"},
             {"ticker": "FOUR", "name": "Shift4 Payments", "ev_rev": 4.2, "tier": "primary",
              "segment": "Card acceptance / PayFac"},
             {"ticker": "PSFE", "name": "Paysafe", "ev_rev": 1.5, "tier": "primary",
