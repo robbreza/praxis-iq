@@ -188,6 +188,10 @@ def maybe_push_verdict(v: dict, client_id="usio") -> dict:
     # suppress on an explicit False so verdicts predating the gate still push.
     if v.get("fdr_significant") is False:
         return {"sent": 0, "reason": "fdr_gated", "tier": pr["tier"]}
+    # Liquidity gate (Spec 13.5): a big move on a thin tape is likely microstructure, not information —
+    # don't buzz a phone for it (it's still shown in-app with the liquidity caveat).
+    if v.get("thin_tape") is True:
+        return {"sent": 0, "reason": "thin_tape", "tier": pr["tier"]}
     c = config()
     title = f"{v['ticker']} {v['actual']*100:+.1f}% — {pr['tier'].upper()}"
     rep = send_to_client(client_id, title, pr["action"], url=(c["app_url"] or "/"))

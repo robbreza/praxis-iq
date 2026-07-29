@@ -86,10 +86,20 @@ GDOT STALE (remove), CASS NO-GP, and PAY/PRTH/PSFE/FOUR OVERSIZED → reference 
 we'd just added as ~29× too big to drive the median.* (Correlation/market-cap WEIGHTING of the basket
 is the remaining sub-item; the factor model already reduced reliance on the basket.)
 
-### 5. Liquidity / microstructure normalization
-A −6% move on 0.3× ADV is microstructure noise; on 5× ADV with a tight spread it is information. Fold
-**$-volume, Amihud illiquidity, turnover, VWAP deviation** into the residual's weight (not just RVOL as
-a side signal), so thin-tape prints don't masquerade as abnormal information.
+### 5. Liquidity / microstructure normalization — BUILT
+`lighthouse/liquidity.py` adds a microstructure CONVICTION layer: per day, **RVOL** ($-volume vs the
+trailing-20d baseline, point-in-time), **$-ADV**, and **Amihud** (|ret|/$-vol). `conviction(rvol)` ∈
+[0.35,1] and a `thin_tape` flag (< 0.5× volume). The raw statistical abnormality is left UNTOUCHED —
+liquidity is a THIRD independent gate: a phone alert now requires the move to be (1) statistically
+abnormal (GARCH z), (2) a genuine discovery (FDR), AND (3) on real volume. `push.maybe_push_verdict`
+suppresses a thin-tape move; the CEO read + card carry the liquidity line. (VWAP-deviation is out of
+scope — daily bars only.) *USIO: 27% of days are thin-tape; 3 of 48 HIGH-abnormality days were thin
+(now gated from the phone as likely microstructure).*
+
+**Spec 13 COMPLETE:** ✅1 multi-factor · ✅2 GARCH · ✅3 significance+FDR · ✅4 peer-health · ✅5
+liquidity · ✅6 calibration. The residual is now a factor-risk-adjusted, GARCH-regime-standardized,
+significance- and multiple-testing-tested, liquidity-vetted abnormal return, monitored for calibration.
+Coverage items 7–11 remain pilot-gated (paid feeds).
 
 ### 6. Live calibration monitoring — BUILT
 `lighthouse/calibration.py` scores the LIVE engine (multi-factor + FDR) over all history as a standing

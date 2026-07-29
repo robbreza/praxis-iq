@@ -46,6 +46,9 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     z = model_row.get("z"); t_stat = model_row.get("t_stat")
     r2 = model_row.get("r2"); n_factors = model_row.get("n_factors")
     cond_vol_model = model_row.get("cond_vol_model"); garch_persistence = model_row.get("garch_persistence")
+    # liquidity / microstructure conviction (Spec 13.5): could the tape carry this move?
+    rvol = model_row.get("rvol"); conviction = model_row.get("conviction")
+    thin_tape = bool(model_row.get("thin_tape")); liq_rarity = model_row.get("liq_rarity")
     # Multiple-testing gate (Spec 13.3): does this day survive FDR control over the trailing window,
     # or is it an expected tail event given how many days we scan? Gates the loud (phone) channels.
     p_value = model_row.get("p_value"); fdr_significant = model_row.get("fdr_significant")
@@ -96,6 +99,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
                 residual=resid, rarity=rarity, mp_share=mp_share, unexplained_pct=unexplained_pct,
                 z=z, t_stat=t_stat, r2=r2, n_factors=n_factors,
                 cond_vol_model=cond_vol_model, garch_persistence=garch_persistence,
+                rvol=rvol, conviction=conviction, thin_tape=thin_tape, liq_rarity=liq_rarity,
                 p_value=p_value, fdr_significant=fdr_significant, fdr_q=fdr_q,
                 abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found,
                 technical=tech.get("summary"))
@@ -118,6 +122,12 @@ def render_ceo(v: dict) -> str:
         L.append(f"\n_Model:_ {int(v.get('n_factors') or 0)}-factor risk model, R² {(v.get('r2') or 0)*100:.0f}%; "
                  f"the residual is **{v['z']:+.1f}σ** (t {v.get('t_stat') or 0:+.1f}), standardized by {_vol} "
                  f"— so abnormality reflects today's tape, not a static history.")
+    if v.get("rvol") is not None:
+        if v.get("thin_tape"):
+            L.append(f"\n_Liquidity:_ this move happened on **{v['rvol']:.1f}× 20-day average volume — thin**. "
+                     f"Treat as possible microstructure, not information; it is NOT escalated to a phone alert.")
+        else:
+            L.append(f"\n_Liquidity:_ on {v['rvol']:.1f}× 20-day average volume — the tape supports the move.")
     if v.get("fdr_significant") is not None:
         _q = int((v.get("fdr_q") or 0.10) * 100)
         if v["fdr_significant"]:

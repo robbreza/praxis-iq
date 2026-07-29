@@ -328,9 +328,15 @@ def render_lighthouse_page():
                 if v.get("fdr_significant") is not None:
                     _fdr = ("  ·  FDR: PASSES (genuine discovery)" if v["fdr_significant"]
                             else f"  ·  FDR: gated (q={int((v.get('fdr_q') or 0.1)*100)}% — expected tail-noise, no phone alert)")
+                _vol = "GARCH(1,1)" if v.get("cond_vol_model") == "garch" else "EWMA"
                 ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
-                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), vol-regime-adjusted{_fdr}") \
+                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), {_vol} vol-adjusted{_fdr}") \
                     .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
+                if v.get("rvol") is not None:
+                    _liq = (f"⚠ on {v['rvol']:.1f}× 20-day volume — thin; possible microstructure, no phone alert"
+                            if v.get("thin_tape") else f"on {v['rvol']:.1f}× 20-day volume — tape supports the move")
+                    ui.label(f"Liquidity: {_liq}").style(
+                        f"color:{'#B45309' if v.get('thin_tape') else COLORS['text_muted']};font-size:11px;")
             with ui.column().classes("gap-1").style("margin-top:6px;"):
                 for d in v["drivers"]:
                     c = _ROLE_COLOR.get(d["cls"], "#64748B")

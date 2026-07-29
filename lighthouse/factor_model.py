@@ -38,7 +38,20 @@ def attribution(rets: pd.DataFrame, issuer: str = "USIO", window: int = 126,
     if m.empty:
         return m
     from lighthouse.fdr import apply_gate
-    return apply_gate(m, q=fdr_q, window=fdr_window)
+    m = apply_gate(m, q=fdr_q, window=fdr_window)
+    # Liquidity / microstructure layer (Spec 13.5): a third conviction gate — the raw abnormality is
+    # left untouched; `conviction`/`thin_tape` say whether the tape could carry the move.
+    try:
+        from lighthouse import liquidity
+        lf = liquidity.liquidity_frame(issuer)
+        if not lf.empty:
+            m = m.join(lf[["rvol", "conviction", "thin_tape", "amihud"]], how="left")
+            m["conviction"] = m["conviction"].fillna(1.0)
+            m["thin_tape"] = m["thin_tape"].fillna(False)
+            m["liq_rarity"] = (m["residual_pctile"] * m["conviction"]).clip(0.0, 1.0)
+    except Exception:
+        pass
+    return m
 
 
 def factor_model(rets: pd.DataFrame, issuer: str, factor_frame: pd.DataFrame | None = None,
