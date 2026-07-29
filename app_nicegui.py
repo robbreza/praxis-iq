@@ -888,7 +888,7 @@ def main_page():
     # every line of body text uncomfortably long to read. 1050px keeps
     # rows/cards at a scannable width; margin:0 auto centers the column in
     # the remaining space so it doesn't hug the drawer on the left.
-    content = ui.column().classes("w-full").style(
+    content = ui.column().classes("w-full app-content").style(
         "padding: 24px 48px 24px 24px; max-width: 1050px; margin: 0 auto; gap: 12px;"
     )
 
@@ -980,18 +980,15 @@ def main_page():
     from page_modules_nicegui import nav
     nav.register(go_to, on_tab_change)
 
-    # value=True forces the drawer open on load — without it, NiceGUI/Quasar
-    # can default a drawer to closed depending on screen width, which is
-    # almost certainly why the sidebar wasn't showing up at all.
-    # breakpoint=0 stops Quasar's QDrawer from switching into its "mobile"
-    # overlay mode (a dark backdrop over the dimmed page content, like a
-    # modal) below a width threshold — without it, the drawer's own two-line
-    # nav labels can make the effective layout narrow enough to trigger that
-    # mode, which is why the sidebar was rendering as a translucent overlay
-    # on top of a grayed-out page instead of docking beside it.
-    drawer = ui.left_drawer(value=True).style(
+    # RESPONSIVE DRAWER: leave value at its default (None). NiceGUI then sets show-if-above and asks
+    # the client to open/close the drawer by layout width — so on desktop (>=1024px) it docks beside
+    # the content, and on a phone it becomes an off-canvas overlay toggled by the header ☰, leaving the
+    # content full-width. (The old `value=True` + `breakpoint=0` FORCED it permanently docked at every
+    # width, which is why the sidebar ate half a phone screen and squished the content to one word per
+    # line. Verified at 1280px and 390px.)
+    drawer = ui.left_drawer().style(
         f"background:{COLORS['sidebar_bg']}; border-right:1px solid {COLORS['border']};"
-    ).props("width=280 bordered breakpoint=0")
+    ).props("width=280 bordered")
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
         ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round")
@@ -1471,6 +1468,13 @@ ui.add_head_html(
     '<meta name="apple-mobile-web-app-title" content="IRconnect">'
     '<link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">'
     '<link rel="icon" type="image/png" sizes="192x192" href="/pwa/icon-192.png">',
+    shared=True)
+
+# Responsive tweak: the content column's generous desktop padding (48px right) wastes a phone's
+# narrow width, so tighten it below 640px. Drawer responsiveness is handled by NiceGUI (see the
+# left_drawer above); this only reclaims horizontal space for the content on small screens.
+ui.add_head_html(
+    "<style>@media (max-width:640px){.app-content{padding:12px 14px !important;}}</style>",
     shared=True)
 
 # Body: register the SW, and show an "Install IRconnect" button when the browser offers the install

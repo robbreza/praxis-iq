@@ -365,15 +365,17 @@ def render_today_page():
     # now flows straight into Today's Story.
 
     # ── Today's Story + Key Metrics ──
-    with ui.row().classes("w-full gap-4 items-stretch"):
-        with ui.card().classes("flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;"):
+    # flex-col on phones so the two cards STACK (side-by-side at ~180px each made the story wrap one
+    # word per line); md:flex-row restores the 7/3 split on desktop.
+    with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
+        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;"):
             ui.label("Today's story").classes("section-head")
             ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:15px;line-height:1.7;")
             ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
             for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
                 ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
 
-        with ui.card().classes("flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"):
+        with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"):
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label("Key market metrics").classes("section-head")
                 ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm")
@@ -434,11 +436,11 @@ def render_today_page():
     # anchors the left column with analyst coverage below; the three shorter
     # sections stack on the right. `items-start` + this grouping keeps the
     # trailing whitespace minimal.
-    with ui.row().classes("w-full gap-5 items-start").style("margin-top:4px;"):
-        with ui.column().classes("flex-1 gap-4"):
+    with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
+        with ui.column().classes("w-full md:flex-1 gap-4"):
             _render_risk_signals(state, days, snap, pt_avg)
             _render_earnings_readiness(days)
-        with ui.column().classes("flex-1 gap-4"):
+        with ui.column().classes("w-full md:flex-1 gap-4"):
             _render_investor_pipeline()
             _render_analyst_coverage()
             _render_insider_activity()
