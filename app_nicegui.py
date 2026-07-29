@@ -1569,32 +1569,42 @@ async def _push_unsubscribe(request: Request):
         return JSONResponse({"ok": False}, status_code=400)
 
 
-# Client-side subscribe helper. Exposed as window.irconnectSubscribePush(clientId); the Lighthouse
-# page's "Enable phone alerts" button calls it from a real click (so Notification.requestPermission
-# runs inside a user gesture, which browsers require).
-ui.add_body_html(
-    '<script>'
-    'function _irB64ToU8(b){var p="=".repeat((4-b.length%4)%4);var s=(b+p).replace(/-/g,"+").replace(/_/g,"/");'
-    'var r=atob(s),a=new Uint8Array(r.length);for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}'
-    'window.irconnectSubscribePush=async function(clientId){try{'
-    'var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);'
-    "var standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;"
-    "if(!('serviceWorker' in navigator)||!('PushManager' in window)){"
-    "if(isIOS&&!standalone){alert('Almost there! On iPhone, alerts only work from the INSTALLED app.\\n\\n1) Tap the Share button (box with an up-arrow)\\n2) Add to Home Screen\\n3) Open IRconnect from the new lighthouse icon\\n4) Then tap Enable phone alerts again.');}"
-    "else{alert('This browser does not support phone alerts. Install IRconnect to your Home Screen and open it from there.');}return;}"
-    'var perm=await Notification.requestPermission();'
-    "if(perm!=='granted'){alert('Notifications are turned off for IRconnect. Turn them on in iPhone Settings > Notifications > IRconnect, then tap Enable phone alerts again.');return;}"
-    'var reg=await navigator.serviceWorker.ready;'
-    "var key=await fetch('/push/vapid-public-key').then(function(r){return r.text();});"
-    "if(!key){alert('Could not reach the alert service. Wait a moment and try again.');return;}"
-    'var sub=await reg.pushManager.getSubscription();'
-    'if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_irB64ToU8(key)});}'
-    "var res=await fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},"
-    "body:JSON.stringify({client_id:clientId||'usio',subscription:sub.toJSON()})});"
-    "alert(res&&res.ok?'\\u2705 Phone alerts are ON for this device. Use \\u0022Send test push\\u0022 to try it.':'Saved on your phone, but the server did not confirm \\u2014 tap Send test push to check.');"
-    '}catch(e){alert("Could not enable alerts: "+((e&&e.message)?e.message:e));}};'
-    '</script>',
-    shared=True)
+# Client-side subscribe helper. Exposed as window.irconnectSubscribePush(clientId); the Home page's
+# "Enable phone alerts" button calls it from a real click (so Notification.requestPermission runs
+# inside a user gesture, which browsers require). Feedback uses a DOM banner (_irToast), NOT alert() —
+# iOS silently swallows alert()/confirm()/prompt() inside an installed home-screen PWA, so every status
+# message would otherwise be invisible ("the button flickers but nothing happens").
+ui.add_body_html('''<script>
+function _irB64ToU8(b){var p="=".repeat((4-b.length%4)%4);var s=(b+p).replace(/-/g,"+").replace(/_/g,"/");var r=atob(s),a=new Uint8Array(r.length);for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}
+function _irToast(msg,ok){var t=document.getElementById("ir-toast");if(!t){t=document.createElement("div");t.id="ir-toast";t.style.cssText="position:fixed;left:14px;right:14px;bottom:22px;z-index:100000;padding:14px 16px;border-radius:12px;color:#fff;font:600 15px -apple-system,Segoe UI,Roboto,sans-serif;line-height:1.45;text-align:center;box-shadow:0 10px 34px rgba(0,0,0,.32);";document.body.appendChild(t);}t.style.background=ok?"#15803D":"#B45309";t.textContent=msg;t.style.display="block";clearTimeout(window._irTT);window._irTT=setTimeout(function(){t.style.display="none";},9000);}
+window.irconnectSubscribePush=async function(clientId){
+  try{
+    var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    var standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true;
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){
+      _irToast(isIOS&&!standalone?"Open IRconnect from its Home Screen icon (not Safari), then tap Enable again.":"This browser can not do phone alerts. Add IRconnect to your Home Screen.",false);
+      return;
+    }
+    if(typeof Notification!=="undefined"&&Notification.permission==="denied"){
+      _irToast("Notifications are OFF for IRconnect. Open iPhone Settings > Notifications > IRconnect, turn Allow Notifications ON, then tap Enable again.",false);
+      return;
+    }
+    _irToast("Setting up phone alerts...",true);
+    var perm=await Notification.requestPermission();
+    if(perm!=="granted"){
+      _irToast("Permission was not granted. Open Settings > Notifications > IRconnect, turn Allow Notifications ON, then tap Enable again.",false);
+      return;
+    }
+    var reg=await navigator.serviceWorker.ready;
+    var key=await fetch("/push/vapid-public-key").then(function(r){return r.text();});
+    if(!key){_irToast("Could not reach the alert service. Try again in a moment.",false);return;}
+    var sub=await reg.pushManager.getSubscription();
+    if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_irB64ToU8(key)});}
+    var res=await fetch("/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_id:clientId||"usio",subscription:sub.toJSON()})});
+    _irToast(res&&res.ok?"Phone alerts are ON for this device. Now tap Send test push.":"Saved on your phone, but the server did not confirm. Tap Send test push to check.",res&&res.ok);
+  }catch(e){_irToast("Could not enable alerts: "+((e&&e.message)?e.message:e),false);}
+};
+</script>''', shared=True)
 
 
 # storage_secret is REQUIRED for app.storage.user (the per-browser tenant
