@@ -89,6 +89,31 @@ def _render_week_in_context(wk, _weekly):
                 .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
 
 
+def _render_peer_synthesis(s):
+    """The Spec-14 capstone card: trading vs narrative vs fundamental peers, side by side."""
+    if not s or s.get("error"):
+        return
+    tier_color = {"trading": "#0EA5E9", "narrative": "#7C3AED", "fundamental": "#B45309"}
+    with ui.card().classes("w-full").style("border:1px solid #CBD5E1;margin-bottom:12px;padding:14px 16px;"):
+        ui.label("PEER INTELLIGENCE — three definitions of “peer”") \
+            .style("color:#0F172A;font-weight:800;font-size:12px;letter-spacing:.04em;")
+        ui.label(s.get("headline", "")).style(f"color:{COLORS['text_body']};font-size:13px;font-style:italic;margin-bottom:6px;")
+        with ui.row().classes("w-full").style("gap:12px;flex-wrap:wrap;"):
+            for t in s["tiers"]:
+                c = tier_color.get(t["key"], "#64748B")
+                with ui.column().style(f"flex:1;min-width:200px;border-top:3px solid {c};padding-top:6px;gap:2px;"):
+                    ui.label(t["label"]).style(f"color:{c};font-weight:800;font-size:12px;")
+                    ui.label(t["subtitle"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    with ui.row().style("flex-wrap:wrap;gap:4px;margin:4px 0;"):
+                        for m in t["members"]:
+                            ui.label(m).style(f"background:{c}18;color:{c};border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;")
+                        if not t["members"]:
+                            ui.label("—").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(t["note"]).style(f"color:{COLORS['text_muted']};font-size:11px;line-height:1.4;")
+        for i in s["insights"]:
+            ui.label("• " + i).style(f"color:{COLORS['text_body']};font-size:11px;margin-top:2px;")
+
+
 def render_lighthouse_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
@@ -177,6 +202,11 @@ def render_lighthouse_page():
                         ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
                         ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
                             .style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
+        try:                                            # Spec-14 capstone: the three-peer synthesis card
+            from lighthouse import peer_synthesis as _ps
+            _render_peer_synthesis(_ps.load_and_synthesize(client_id))
         except Exception:
             pass
         try:                                            # market-revealed peers via co-ownership (cached)
