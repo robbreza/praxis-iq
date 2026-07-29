@@ -29,10 +29,11 @@ def install(client_id="usio", issuer="USIO") -> dict:
             report["steps"][name] = {"ok": False, "error": repr(e)}
             return None
 
-    from lighthouse import coverage, coownership, comovement, peer_synthesis
+    from lighthouse import coverage, coownership, comovement, peer_synthesis, peer_health
     _step("coverage", lambda: coverage.refresh_cache(client_id, issuer))       # cheap (internal data)
     _step("coownership", lambda: coownership.refresh_cache(client_id, issuer))  # heavy (EDGAR 13F)
     _step("comovement", lambda: comovement.refresh_cache(client_id, issuer))    # heavy (SIC + yfinance)
+    _step("health", lambda: peer_health.refresh_cache(client_id, issuer))       # comp-set integrity
     syn = _step("synthesis", lambda: peer_synthesis.load_and_synthesize(client_id))
     report["synthesis"] = syn
     report["ok"] = all(s.get("ok") for s in report["steps"].values())

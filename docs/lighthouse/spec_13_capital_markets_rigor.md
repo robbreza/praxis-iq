@@ -69,12 +69,18 @@ arbitrary dependence. *Measured on USIO: raw ≥1.6σ days ~22/yr → survive FD
 alerts, keeping only genuine discoveries).* Remaining sub-item: a formal GARCH conditional vol (2) can
 replace the EWMA seed.
 
-### 4. Peer-set integrity
-The hand-picked basket (RPAY, PSFE, PAY, CASS, GDOT, EVTC) has stale/suspect names (observed PAY/PSFE
-data oddities — reverse splits, near-delisting). Validate peers are **live and liquid**, weight by
-correlation/market-cap (not equal-weight), and re-derive periodically. The factor model's `SEC` factor
-(IPAY) reduces reliance on the fragile basket; the basket stays in the event/holder lenses with a
-health check.
+### 4. Peer-set integrity — BUILT
+`lighthouse/peer_health.py` checks the live comp set on the dimensions the onboarding criteria (c) miss:
+**LIVE** (delisted/acquired → remove), **SIZE** (EV ≫ issuer → reference, not a median driver),
+**LIQUIDITY** ($-ADV too thin to calibrate a multiple), plus surfacing the (c) no-gross-profit-line
+verdict. Crucially it **TIERS rather than pass/fails** — an analyst's real comp sheet carries category
+names they track but don't model (covering MSFT/ORCL, keeping SAP on the sheet), so a merely-oversized
+name is legitimate REFERENCE, not an error; only no-live-data is a true remove. Reuses
+`peer_discovery.enrich` + `market_data`. Pure `verdict` unit-tested; cached, run by `peer_install`, and
+surfaced as a table in the onboarding checklist. *First run on USIO (issuer EV ~$52M): flagged CSGS +
+GDOT STALE (remove), CASS NO-GP, and PAY/PRTH/PSFE/FOUR OVERSIZED → reference — it even caught the PRTH
+we'd just added as ~29× too big to drive the median.* (Correlation/market-cap WEIGHTING of the basket
+is the remaining sub-item; the factor model already reduced reliance on the basket.)
 
 ### 5. Liquidity / microstructure normalization
 A −6% move on 0.3× ADV is microstructure noise; on 5× ADV with a tight spread it is information. Fold

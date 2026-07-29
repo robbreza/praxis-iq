@@ -1253,6 +1253,34 @@ def _render_onboarding_checklist():
              "caught it from an 8-K, not a feed.").style(
         f"color:{COLORS['text_muted']};font-size:11px;")
 
+    # ── Comp-set health (Spec 13.4): live / size / liquidity, beyond criterion (c) ─────────────────
+    try:
+        from config.client_config import get_active_client_id
+        from lighthouse import peer_health
+        h = peer_health.load_cache(get_active_client_id())
+        if h and not h.get("error"):
+            ui.label("Comp-set health — live, size & liquidity").classes("section-head").style("margin-top:10px;")
+            _sum = " · ".join(f"{k}: {v}" for k, v in h.get("summary", {}).items())
+            ui.label(f"Issuer EV ~${(h.get('issuer_ev_m') or 0):.0f}M · {_sum}. A name that's only too big "
+                     "isn't wrong — it's REFERENCE (kept for context, out of the median); only a name with "
+                     "no live data is a true remove.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.table(
+                columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
+                         {"name": "v", "label": "Health", "field": "v", "align": "left"},
+                         {"name": "s", "label": "EV $M", "field": "s", "align": "left"},
+                         {"name": "n", "label": "Detail", "field": "n", "align": "left"}],
+                rows=[{"t": r["ticker"], "v": r["verdict"],
+                       "s": (f"{r['ev_m']:.0f}" if r.get("ev_m") else "—"), "n": r["note"]}
+                      for r in h.get("peers", [])]).classes("w-full dense-table").props("flat dense wrap-cells")
+            if h.get("remove"):
+                ui.label(f"Recommend REMOVE (no live data): {', '.join(h['remove'])}").style(
+                    "color:#B91C1C;font-size:11px;font-weight:600;")
+            if h.get("retier"):
+                ui.label(f"Recommend → REFERENCE (oversized vs the issuer): {', '.join(h['retier'])}").style(
+                    "color:#B45309;font-size:11px;")
+    except Exception:
+        pass
+
     # ── Market-revealed peer discovery (Spec 14 peer_install) ──────────────────────────────────────
     ui.label("Discover the market's peer view").classes("section-head").style("margin-top:12px;")
     ui.label("Runs the fundamental screen (10-K + SIC + proxy) plus the three revealed lenses — "
