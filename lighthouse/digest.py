@@ -311,14 +311,13 @@ def render_weekly_html(w: dict, app_url: str = "", cta_url: str = "", pixel_url:
 
 def compute_latest_weekly(client_id="usio", cfg=None, conn=None) -> dict:
     from lighthouse import data, weekly
-    from lighthouse.attribution import market_peer_model
+    from lighthouse.factor_model import attribution
     from lighthouse.shadow import SHADOW_TICKERS
     if cfg is None:
         from lighthouse.config.usio import USIO
         cfg = USIO
     rets = data.returns_frame(SHADOW_TICKERS, conn=conn)
-    model = market_peer_model(rets, issuer=cfg["ticker"], market="IWM",
-                              peers=cfg["business_peers"], window=126)
+    model = attribution(rets, issuer=cfg["ticker"], window=126)
     return weekly.weekly_digest(model, cfg["ticker"], conn=conn)
 
 
@@ -357,14 +356,13 @@ def weekly_dispatch(w: dict, dry_run: bool | None = None) -> dict:
 def compute_latest_verdict(client_id="usio", cfg=None, conn=None) -> dict:
     """Rebuild (without persisting) the most-recent session's verdict, mirroring shadow's model path."""
     from lighthouse import data, ceo
-    from lighthouse.attribution import market_peer_model
+    from lighthouse.factor_model import attribution
     from lighthouse.shadow import SHADOW_TICKERS
     if cfg is None:
         from lighthouse.config.usio import USIO
         cfg = USIO
     rets = data.returns_frame(SHADOW_TICKERS, conn=conn)
-    model = market_peer_model(rets, issuer=cfg["ticker"], market="IWM",
-                              peers=cfg["business_peers"], window=126)
+    model = attribution(rets, issuer=cfg["ticker"], window=126)
     day = list(model.index)[-1]
     return ceo.build_verdict(client_id, cfg["ticker"], day, model.loc[day], conn=conn)
 

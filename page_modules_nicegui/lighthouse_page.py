@@ -170,12 +170,12 @@ def render_lighthouse_page():
 
     try:
         from lighthouse import data, ceo
-        from lighthouse.attribution import market_peer_model
-        from lighthouse.config.usio import USIO
+        from lighthouse.factor_model import attribution
+        from lighthouse.shadow import SHADOW_TICKERS
         import psycopg2
         from core.security import get_database_url
-        rets = data.returns_frame(["USIO", "IWM"] + USIO["business_peers"])
-        model = market_peer_model(rets, issuer="USIO", market="IWM", peers=USIO["business_peers"], window=126)
+        rets = data.returns_frame(SHADOW_TICKERS)
+        model = attribution(rets, issuer="USIO", window=126)
         rows = list(model.iterrows())[-4:][::-1]
         conn = psycopg2.connect(get_database_url())          # one shared connection for all cards
         verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
@@ -210,6 +210,10 @@ def render_lighthouse_page():
             best = v["drivers"][0]["label"] if v["explanation_conf"] != "LOW" else "No confirmed cause identified"
             ui.label(f"Unexplained residual {v['residual']*100:+.1f}%  ·  {int((v['rarity'] or 0)*100)}th-pctile rare  ·  best read: {best}") \
                 .style(f"color:{COLORS['text_body']};font-size:13px;margin-top:2px;")
+            if v.get("z") is not None:
+                ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
+                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), vol-regime-adjusted") \
+                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
             with ui.column().classes("gap-1").style("margin-top:6px;"):
                 for d in v["drivers"]:
                     c = _ROLE_COLOR.get(d["cls"], "#64748B")

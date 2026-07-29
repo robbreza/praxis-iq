@@ -41,7 +41,12 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     # market/peer directional share of the move
     mp_share = max(0.0, min(1.0, (exp / move))) if move and (exp * move) > 0 else 0.0
 
-    # abnormality confidence from rarity
+    # multi-factor rigor (Spec 13.1): the residual is standardized by conditional vol → z, with a
+    # significance t-stat and the model's in-window R². rarity is the normal-tail mass within ±|z|.
+    z = model_row.get("z"); t_stat = model_row.get("t_stat")
+    r2 = model_row.get("r2"); n_factors = model_row.get("n_factors")
+
+    # abnormality confidence from rarity (now z-calibrated: 0.90 ≈ 1.6σ, 0.75 ≈ 1.15σ)
     abn = "HIGH" if (rarity or 0) >= 0.90 else "MODERATE" if (rarity or 0) >= 0.75 else "ROUTINE"
 
     drivers, found, not_found = [], [], []
@@ -59,8 +64,8 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
         found += [f"{e['headline'][:80]} [{e['published_at'].date()}]" for e in prior]
     elif mp_share >= 0.6 and (rarity or 0) < 0.75:
         expl = "MODERATE"
-        drivers.append(dict(cls="primary", label="Market & payments-peer factors",
-                            detail=f"~{mp_share*100:.0f}% of the move moved with the sector", link=None))
+        drivers.append(dict(cls="primary", label="Common risk factors (market/size/value/momentum/sector/rate)",
+                            detail=f"~{mp_share*100:.0f}% of the move is explained by common factors", link=None))
     else:
         expl = "LOW"
         drivers.append(dict(cls="unexplained", label="Unexplained by current lenses",
@@ -84,6 +89,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     return dict(client_id=client_id, ticker=ticker, day=day, as_of=as_of.as_of,
                 actual=move, expected=exp, expected_lo=model_row["expected_lo"], expected_hi=model_row["expected_hi"],
                 residual=resid, rarity=rarity, mp_share=mp_share, unexplained_pct=unexplained_pct,
+                z=z, t_stat=t_stat, r2=r2, n_factors=n_factors,
                 abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found,
                 technical=tech.get("summary"))
 
@@ -98,6 +104,10 @@ def render_ceo(v: dict) -> str:
              f"Unexplained residual **{v['residual']*100:+.1f}%** "
              f"(~{v['unexplained_pct']*100:.0f}% of the move), {int((v['rarity'] or 0)*100)}th-percentile rare.")
     L.append(f"\n**Abnormality confidence: {v['abnormality_conf']}  ·  Explanation confidence: {v['explanation_conf']}**")
+    if v.get("z") is not None:
+        L.append(f"\n_Model:_ {int(v.get('n_factors') or 0)}-factor risk model, R² {(v.get('r2') or 0)*100:.0f}%; "
+                 f"the residual is **{v['z']:+.1f}σ** (t {v.get('t_stat') or 0:+.1f}) — "
+                 f"volatility-regime-adjusted, so abnormality reflects today's tape, not a static history.")
     L.append(f"\n_Best read:_ {verdict}.")
     L.append("\n**Drivers**")
     for d in v["drivers"]:

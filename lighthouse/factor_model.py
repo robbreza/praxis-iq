@@ -29,6 +29,12 @@ def _phi(z: float) -> float:
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
+def attribution(rets: pd.DataFrame, issuer: str = "USIO", window: int = 126) -> pd.DataFrame:
+    """The live attribution entry point: build the default factor set from `rets` and run the rolling
+    multi-factor model. Single call site for shadow, the Lighthouse page, and the digest."""
+    return factor_model(rets, issuer, build_factors(rets), window=window)
+
+
 def factor_model(rets: pd.DataFrame, issuer: str, factor_frame: pd.DataFrame | None = None,
                  window: int = 126, ewma_lambda: float = 0.94) -> pd.DataFrame:
     """rets: date x ticker daily-return frame. `factor_frame` (date x factor) is built from `rets` if

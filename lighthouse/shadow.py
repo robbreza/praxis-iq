@@ -11,13 +11,15 @@ from __future__ import annotations
 import psycopg2
 from core.security import get_database_url
 from lighthouse import data, events, ceo
-from lighthouse.attribution import market_peer_model
+from lighthouse.factor_model import attribution
+from lighthouse.factors import FACTOR_ETFS
 from lighthouse.config.usio import USIO
 from lighthouse.weekly import BENCHMARK_TICKERS
 
-# Issuer + peers drive attribution; the extra broad-market indices (SPY/QQQ/DIA) are kept fresh here
-# only so the weekly context strip always has a yardstick to compare the drift against.
-SHADOW_TICKERS = ["USIO"] + BENCHMARK_TICKERS + USIO["business_peers"]
+# Issuer + the factor ETFs (which drive the multi-factor attribution, Spec 13.1) + the broad-market
+# indices (weekly context strip) + peers (weekly peer basket, holder lens). Deduped.
+_MARKET_ETFS = sorted(set(BENCHMARK_TICKERS) | set(FACTOR_ETFS))
+SHADOW_TICKERS = ["USIO"] + _MARKET_ETFS + USIO["business_peers"]
 
 
 def _conn(): return psycopg2.connect(get_database_url())
@@ -39,8 +41,7 @@ def run_shadow(client_id="usio", cfg=USIO, days_back=1, refresh=True, conn=None)
         except Exception as e:
             print(f"[shadow] refresh warning: {e!r}")
     rets = data.returns_frame(SHADOW_TICKERS, conn=conn)
-    model = market_peer_model(rets, issuer=cfg["ticker"], market="IWM",
-                              peers=cfg["business_peers"], window=126)
+    model = attribution(rets, issuer=cfg["ticker"], window=126)
     days = list(model.index)[-days_back:]
     logged = []
     for d in days:
