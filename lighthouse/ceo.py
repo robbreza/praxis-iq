@@ -45,6 +45,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     # significance t-stat and the model's in-window R². rarity is the normal-tail mass within ±|z|.
     z = model_row.get("z"); t_stat = model_row.get("t_stat")
     r2 = model_row.get("r2"); n_factors = model_row.get("n_factors")
+    cond_vol_model = model_row.get("cond_vol_model"); garch_persistence = model_row.get("garch_persistence")
     # Multiple-testing gate (Spec 13.3): does this day survive FDR control over the trailing window,
     # or is it an expected tail event given how many days we scan? Gates the loud (phone) channels.
     p_value = model_row.get("p_value"); fdr_significant = model_row.get("fdr_significant")
@@ -94,6 +95,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
                 actual=move, expected=exp, expected_lo=model_row["expected_lo"], expected_hi=model_row["expected_hi"],
                 residual=resid, rarity=rarity, mp_share=mp_share, unexplained_pct=unexplained_pct,
                 z=z, t_stat=t_stat, r2=r2, n_factors=n_factors,
+                cond_vol_model=cond_vol_model, garch_persistence=garch_persistence,
                 p_value=p_value, fdr_significant=fdr_significant, fdr_q=fdr_q,
                 abnormality_conf=abn, explanation_conf=expl, drivers=drivers, found=found, not_found=not_found,
                 technical=tech.get("summary"))
@@ -110,9 +112,12 @@ def render_ceo(v: dict) -> str:
              f"(~{v['unexplained_pct']*100:.0f}% of the move), {int((v['rarity'] or 0)*100)}th-percentile rare.")
     L.append(f"\n**Abnormality confidence: {v['abnormality_conf']}  ·  Explanation confidence: {v['explanation_conf']}**")
     if v.get("z") is not None:
+        _vol = (f"GARCH(1,1) conditional vol (persistence {v['garch_persistence']:.2f})"
+                if v.get("cond_vol_model") == "garch" and v.get("garch_persistence") is not None
+                else "EWMA conditional vol")
         L.append(f"\n_Model:_ {int(v.get('n_factors') or 0)}-factor risk model, R² {(v.get('r2') or 0)*100:.0f}%; "
-                 f"the residual is **{v['z']:+.1f}σ** (t {v.get('t_stat') or 0:+.1f}) — "
-                 f"volatility-regime-adjusted, so abnormality reflects today's tape, not a static history.")
+                 f"the residual is **{v['z']:+.1f}σ** (t {v.get('t_stat') or 0:+.1f}), standardized by {_vol} "
+                 f"— so abnormality reflects today's tape, not a static history.")
     if v.get("fdr_significant") is not None:
         _q = int((v.get("fdr_q") or 0.10) * 100)
         if v["fdr_significant"]:

@@ -50,11 +50,15 @@ multi-factor OLS with loadings, in-window R², residual, residual standard error
 against the 2-factor champion on USIO: how much *more* of each move is attributed to common factors
 (higher R²), and which residuals shrink to noise vs. survive as real.
 
-### 2. Conditional-volatility standardization
-Abnormality is currently a static historical residual percentile. Volatility clusters, so standardize
-the residual by its **conditional vol** (EWMA / GARCH(1,1)) → a regime-aware **z-score**: a −3%
-residual is a 3σ event in a calm tape and noise in an earnings-season high-vol tape. Abnormality then
-reads off the standardized magnitude, not a static distribution. *(First cut — EWMA — ships with #1.)*
+### 2. Conditional-volatility standardization — BUILT (formal GARCH)
+The residual is standardized by its **conditional vol** → a regime-aware **z-score** (a −3% residual is
+a 3σ event in a calm tape, noise in a high-vol tape). First cut was an EWMA (λ=0.94 = IGARCH, persistence
+pinned to 1). Now `lighthouse/garch.py` fits a proper **GARCH(1,1)** by maximum likelihood — variance
+targeting + a coarse-to-fine grid over (α,β), no scipy — so persistence and vol mean-reversion come from
+the data. Point-in-time (σ²_t uses ε_{t-1}); `factor_model` swaps the EWMA z for GARCH when it converges
+AND beats the fixed-λ EWMA on log-likelihood, else falls back. *USIO: α=0.14, β=0.81, persistence 0.954
+(mean-reverting, not the EWMA's implicit 1.0), loglik 1246 vs 1224 — HIGH-abnormality days 8.8%→7.7% and
+FDR alerts ~3.6→~2.8/yr at 57% precision. Named in the CEO read.*
 
 ### 3. Significance + estimation error — BUILT
 Betas are estimated with error (brutal on an illiquid nano-cap). The factor model reports the residual

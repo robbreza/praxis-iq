@@ -98,6 +98,25 @@ def factor_model(rets: pd.DataFrame, issuer: str, factor_frame: pd.DataFrame | N
             r2=float(r2), n_factors=len(fac_names),
             loadings={fac_names[i]: float(beta[i + 1]) for i in range(len(fac_names))},
             pct_explained=float(max(0.0, min(1.0, r2))),
+            cond_vol_model="ewma", garch_persistence=None,
         ))
         ewma_var = ewma_lambda * ewma_var + (1.0 - ewma_lambda) * res * res   # update for next day
+
+    # Formal GARCH(1,1) (Spec 13.2): replace the EWMA z with a maximum-likelihood conditional vol when
+    # it converges and beats the fixed-λ EWMA on log-likelihood. Point-in-time (σ²_t uses ε_{t-1}); the
+    # params are a structural estimate on the residual history, as the EWMA λ was a structural constant.
+    try:
+        from lighthouse import garch
+        res_arr = np.array([o["residual"] for o in out], float)
+        g = garch.fit_garch11(res_arr)
+        if g.get("converged") and g.get("beats_ewma"):
+            sig = garch.cond_vol(res_arr, g)
+            for i, o in enumerate(out):
+                zz = float(res_arr[i] / sig[i]) if sig[i] > 0 else 0.0
+                o["z"] = zz
+                o["residual_pctile"] = float(max(0.0, min(1.0, 2.0 * _phi(abs(zz)) - 1.0)))
+                o["cond_vol_model"] = "garch"
+                o["garch_persistence"] = g["persistence"]
+    except Exception:
+        pass
     return pd.DataFrame(out).set_index("d")
