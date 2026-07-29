@@ -160,6 +160,25 @@ def render_lighthouse_page():
                     .style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
         except Exception:
             pass
+        try:                                            # live calibration (cached; scheduler-refreshed)
+            from lighthouse import calibration as _cal
+            cc = _cal.load_cache(client_id)
+            if cc and not cc.get("error"):
+                with ui.expansion("Model calibration — is 'abnormal' actually informative?", icon="verified") \
+                        .classes("w-full").style("margin-bottom:8px;"):
+                    ui.label(f"{cc['days']} sessions · FDR alerts ~{cc.get('fdr_per_year', 0):.0f}/yr, "
+                             f"{(cc.get('fdr_precision') or 0)*100:.0f}% with an identifiable catalyst · "
+                             f"top-decile move recall {(cc.get('big_move_recall') or 0)*100:.0f}%") \
+                        .style(f"color:{COLORS['text_body']};font-size:12px;")
+                    for t in cc.get("reliability", []):
+                        if not t.get("n"):
+                            continue
+                        er = f"{t['event_rate']*100:.0f}% w/ catalyst" if t.get("event_rate") is not None else "—"
+                        ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
+                        ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
+                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
 
     if ticker != "USIO":
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):

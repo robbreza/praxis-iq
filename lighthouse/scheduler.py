@@ -78,6 +78,14 @@ def _run_once():
             print(f"[lighthouse-scheduler] weekly digest: sent={wrep.get('sent')} {wrep.get('reason','')}")
     except Exception:
         traceback.print_exc()
+    # Live calibration (Spec 13.6): refresh the cached reliability/precision readout the page shows.
+    try:
+        from lighthouse import calibration
+        cc = calibration.refresh_cache("usio", "USIO")
+        print(f"[lighthouse-scheduler] calibration: fdr~{cc.get('fdr_per_year', 0):.0f}/yr "
+              f"precision={ (cc.get('fdr_precision') or 0)*100:.0f}%")
+    except Exception:
+        traceback.print_exc()
     return got
 
 

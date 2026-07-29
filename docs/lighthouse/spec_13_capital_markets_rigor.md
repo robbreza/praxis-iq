@@ -81,11 +81,18 @@ A −6% move on 0.3× ADV is microstructure noise; on 5× ADV with a tight sprea
 **$-volume, Amihud illiquidity, turnover, VWAP deviation** into the residual's weight (not just RVOL as
 a side signal), so thin-tape prints don't masquerade as abnormal information.
 
-### 6. Live calibration monitoring
-Validation ran once (624 days). Make it a **standing control**: does "90th-percentile abnormal" map to
-a real catalyst ~90% of the time? Track the **settle rate** (how often "unexplained" is later explained
-by a lagged catalyst — Spec 12 revisable verdicts) and publish a reliability diagram. A miscalibrated
-engine is a known, monitored state — not a silent one.
+### 6. Live calibration monitoring — BUILT
+`lighthouse/calibration.py` scores the LIVE engine (multi-factor + FDR) over all history as a standing
+control, cached and refreshed by the scheduler, surfaced on the Lighthouse page. Three readouts:
+**reliability** (abnormality bin → catalyst rate / forward move / persistence, with a monotonicity
+check), **alert precision** (of FDR-passing days, % with an identifiable catalyst), and **information
+vs noise** (do abnormal days diffuse or revert). The pure scorer (`reliability`) is separated from the
+DB fetch and unit-tested. *Honest first read on USIO (623d): catalyst-rate is NOT monotonic in
+abnormality (SEC-only coverage is thin — most abnormal moves aren't filing-driven), FDR alerts ~4/yr
+at 45% precision, top-decile recall ~17%, persistence ~50% — i.e. USIO is flow-driven, not
+information-driven. A truthful, unflattering diagnostic — exactly the point — and the empirical case
+for the paid-feed coverage items (7–9).* Note: calibration is an ex-post evaluation that legitimately
+uses forward returns to label past days; the live verdict stays strictly point-in-time.
 
 ---
 
