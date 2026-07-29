@@ -1189,6 +1189,22 @@ def main_page(request: Request = None):
     render_nav()
     render_page()
 
+    # On a phone, land on the curated Home (the on-the-road assistant) instead of Today. There is no
+    # server-side viewport width, so this is detected client-side once the socket connects, and only
+    # redirects when the user is still on the default page (never overrides a deep link or later nav).
+    from nicegui import context as _context
+    _client = _context.client
+
+    async def _mobile_landing():
+        try:
+            w = await _client.run_javascript("window.innerWidth", timeout=3.0)
+            if isinstance(w, (int, float)) and w < 640 and state["page"] == "Today":
+                go_to("Home")
+        except Exception:
+            pass
+
+    _client.on_connect(_mobile_landing)
+
 
 async def _kick_off_sec_refresh():
     """Startup hook: refreshes 13D/13G ownership-stake filings (SEC EDGAR)
