@@ -216,11 +216,11 @@ def render_home_page():
             ui.label("Alerts").classes("section-head")
             ui.label("Get a phone notification when the stock makes an abnormal move.").style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
-            # Raw <button> with inline onclick so Notification.requestPermission() runs INSIDE the tap
-            # gesture (iOS/Safari require that; a NiceGUI on_click round-trips to the server first and
-            # would lose the gesture). The -webkit-user-select/touch-callout=none is the fix for the iOS
-            # bug where a tap on a selectable button only offers "Copy" instead of firing the click.
-            ui.html('<button onclick="window.irconnectSubscribePush(\'usio\')" '
+            # No inline onclick — NiceGUI/Vue strips it from ui.html, leaving the button dead. Instead a
+            # document-level delegated listener (in app_nicegui's body script) fires on [data-ir-enable],
+            # which keeps the handler INSIDE the tap gesture that Notification.requestPermission needs.
+            # user-select/touch-callout=none stops iOS from treating a tap as "select text → Copy".
+            ui.html('<button data-ir-enable="usio" '
                     'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
                     'border:0;border-radius:8px;padding:11px 16px;font:600 14px -apple-system,Segoe UI,Roboto,'
                     'sans-serif;cursor:pointer;margin-top:6px;-webkit-user-select:none;user-select:none;'

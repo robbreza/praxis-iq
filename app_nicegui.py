@@ -1604,6 +1604,10 @@ window.irconnectSubscribePush=async function(clientId){
     _irToast(res&&res.ok?"Phone alerts are ON for this device. Now tap Send test push.":"Saved on your phone, but the server did not confirm. Tap Send test push to check.",res&&res.ok);
   }catch(e){_irToast("Could not enable alerts: "+((e&&e.message)?e.message:e),false);}
 };
+// NiceGUI/Vue STRIPS inline onclick from ui.html content, so the Enable button carries no handler of
+// its own. Delegate the click from document: this fires synchronously inside the real tap (preserving
+// the user-gesture that Notification.requestPermission requires) and works for dynamically-added buttons.
+document.addEventListener("click",function(e){var b=(e.target&&e.target.closest)?e.target.closest("[data-ir-enable]"):null;if(b){e.preventDefault();window.irconnectSubscribePush(b.getAttribute("data-ir-enable")||"usio");}},false);
 </script>''', shared=True)
 
 
