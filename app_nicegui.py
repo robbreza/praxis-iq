@@ -843,8 +843,19 @@ def console_calendar_route():
     console_page.render_console_calendar(user)
 
 
+def _is_mobile_ua(request) -> bool:
+    """Heuristic: is this a phone? Used only to choose the initial landing page (Home on a phone,
+    Today on desktop) — the drawer's actual responsiveness is width-based. iPad is intentionally not
+    matched (modern iPadOS reports a desktop UA, and Today is fine on a tablet)."""
+    try:
+        ua = (request.headers.get("user-agent", "") if request else "").lower()
+    except Exception:
+        return False
+    return any(k in ua for k in ("mobi", "android", "iphone", "ipod"))
+
+
 @ui.page("/")
-def main_page():
+def main_page(request: Request = None):
     apply_theme()
     from core import auth
     # AUTH GATE: no valid session -> login; unchanged bootstrap password -> forced change.
@@ -876,7 +887,10 @@ def main_page():
     # the sub-item to highlight, kept in sync both ways: set on sidebar
     # navigation and updated by nav.tab_changed when the user switches a tab
     # inside a page.
-    state = {"page": "Today", "role": DEFAULT_ROLE_KEY, "expanded": None, "active_tab": None}
+    # Phones land on the curated Home (the on-the-road assistant); desktop lands on Today. Flash-free:
+    # decided from the User-Agent at first render, no client round-trip.
+    _landing = "Home" if _is_mobile_ua(request) else "Today"
+    state = {"page": _landing, "role": DEFAULT_ROLE_KEY, "expanded": None, "active_tab": None}
     nav_buttons = {}
     # section → tooltip text, for re-labelling nav buttons as access changes.
     desc_by_section = {section: desc
