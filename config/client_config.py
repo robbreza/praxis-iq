@@ -204,28 +204,26 @@ _CODE_SEED = {
         # large-caps set the industry growth/margin bar but are excluded from the
         # median (you don't apply a $100B processor's multiple to a micro-cap).
         # closest_analog flags the single tightest operating comp.
+        # Peer-health check applied 2026-07-29 (lighthouse/peer_health.py). CSGS and GDOT REMOVED — no
+        # live market data (GDOT: CommerceOne merger approved; CSGS: delisted), the same defect as the
+        # FI removal below. PRTH/FOUR/PSFE/PAY moved to REFERENCE — all 29×–186× USIO's ~$52M EV, too
+        # big to drive a nano-cap median (kept for context, out of the median). Live primary comps left:
+        # RPAY + CASS here; the active peer_universe store adds MQ/PMTS/PAYS. CASS flags criterion (c)
+        # (no gross-profit line) but is a live, real comp — kept for human review, not auto-dropped.
         "peers": [
             {"ticker": "RPAY", "name": "Repay Holdings", "ev_rev": 2.8, "tier": "primary",
              "segment": "Integrated card + ACH + billing/output", "closest_analog": True},
-            # PRTH added 2026-07-29 from the Spec-14 coverage-overlap lens: Ladenburg's payments
-            # specialist (Hickman) brackets USIO with it, and it's a tight PayFac/SMB operating comp.
-            # Verified LIVE (Yahoo ev_rev ~1.56, EV ~$1.5B) — the fallback below is the real value, not a
-            # curated guess. Its narrative sibling FPAY (FlexShopper) was NOT added: it's delisted with no
-            # live quote, and a dead curated row next to live peers is exactly what the FI removal rejected.
-            {"ticker": "PRTH", "name": "Priority Technology", "ev_rev": 1.6, "tier": "primary",
-             "segment": "PayFac / SMB payments"},
-            {"ticker": "FOUR", "name": "Shift4 Payments", "ev_rev": 4.2, "tier": "primary",
-             "segment": "Card acceptance / PayFac"},
-            {"ticker": "PSFE", "name": "Paysafe", "ev_rev": 1.5, "tier": "primary",
-             "segment": "Integrated payments"},
-            {"ticker": "CSGS", "name": "CSG Systems", "ev_rev": 2.2, "tier": "primary",
-             "segment": "Billing / customer comms (output)"},
-            {"ticker": "PAY", "name": "Paymentus Holdings", "ev_rev": 2.5, "tier": "primary",
-             "segment": "Bill presentment / EBPP (output)"},
             {"ticker": "CASS", "name": "Cass Information Systems", "ev_rev": 2.2, "tier": "primary",
              "segment": "Payment information / billing"},
-            {"ticker": "GDOT", "name": "Green Dot", "ev_rev": 1.2, "tier": "primary",
-             "segment": "Prepaid / card issuing"},
+            # Reference (out of the median) — oversized vs USIO per the peer-health check.
+            {"ticker": "PRTH", "name": "Priority Technology", "ev_rev": 1.6, "tier": "reference",
+             "segment": "PayFac / SMB payments — sell-side coverage comp (~29× USIO EV)"},
+            {"ticker": "PAY", "name": "Paymentus Holdings", "ev_rev": 2.5, "tier": "reference",
+             "segment": "Bill presentment / EBPP (~81× USIO EV)"},
+            {"ticker": "PSFE", "name": "Paysafe", "ev_rev": 1.5, "tier": "reference",
+             "segment": "Integrated payments (~52× USIO EV)"},
+            {"ticker": "FOUR", "name": "Shift4 Payments", "ev_rev": 4.2, "tier": "reference",
+             "segment": "Card acceptance / PayFac (~186× USIO EV)"},
             # Fiserv (FI) removed 2026-07-16 — too big to inform a micro-cap comp, and it
             # carried no live data on either side: Yahoo has no quote for the post-rebrand
             # ticker, and SEC still indexes it under the pre-2023 FISV. Its whole row was

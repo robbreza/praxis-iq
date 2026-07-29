@@ -17,7 +17,8 @@ USIO = {
     },
 
     # Business peers (from USIO's own competition set; dynamic mktcap/liquidity peers derived later).
-    "business_peers": ["RPAY", "PSFE", "PAY", "CASS", "GDOT", "EVTC"],
+    # GDOT removed 2026-07-29 (peer-health): delisted — CommerceOne merger approved, no live data.
+    "business_peers": ["RPAY", "PSFE", "PAY", "CASS", "EVTC"],
 
     # Standard trading-day lookback conventions (Spec 1).
     "lookbacks_days": [21, 63, 126, 252],
