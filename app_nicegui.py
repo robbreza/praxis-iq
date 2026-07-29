@@ -1577,17 +1577,22 @@ ui.add_body_html(
     'function _irB64ToU8(b){var p="=".repeat((4-b.length%4)%4);var s=(b+p).replace(/-/g,"+").replace(/_/g,"/");'
     'var r=atob(s),a=new Uint8Array(r.length);for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;}'
     'window.irconnectSubscribePush=async function(clientId){try{'
+    'var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);'
+    "var standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;"
     "if(!('serviceWorker' in navigator)||!('PushManager' in window)){"
-    "alert('To get alerts on iPhone, first install IRconnect to your Home Screen (Share -> Add to Home Screen), then open it and enable alerts.');return;}"
-    'var perm=await Notification.requestPermission();if(perm!=="granted"){alert("Alerts are blocked. Enable notifications for this site in your browser settings.");return;}'
+    "if(isIOS&&!standalone){alert('Almost there! On iPhone, alerts only work from the INSTALLED app.\\n\\n1) Tap the Share button (box with an up-arrow)\\n2) Add to Home Screen\\n3) Open IRconnect from the new lighthouse icon\\n4) Then tap Enable phone alerts again.');}"
+    "else{alert('This browser does not support phone alerts. Install IRconnect to your Home Screen and open it from there.');}return;}"
+    'var perm=await Notification.requestPermission();'
+    "if(perm!=='granted'){alert('Notifications are turned off for IRconnect. Turn them on in iPhone Settings > Notifications > IRconnect, then tap Enable phone alerts again.');return;}"
     'var reg=await navigator.serviceWorker.ready;'
-    "var key=await fetch('/push/vapid-public-key').then(function(r){return r.text();});if(!key){return;}"
+    "var key=await fetch('/push/vapid-public-key').then(function(r){return r.text();});"
+    "if(!key){alert('Could not reach the alert service. Wait a moment and try again.');return;}"
     'var sub=await reg.pushManager.getSubscription();'
     'if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_irB64ToU8(key)});}'
-    "await fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},"
+    "var res=await fetch('/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},"
     "body:JSON.stringify({client_id:clientId||'usio',subscription:sub.toJSON()})});"
-    "alert('Phone alerts enabled on this device.');"
-    '}catch(e){console.warn("push subscribe failed",e);alert("Could not enable alerts: "+e.message);}};'
+    "alert(res&&res.ok?'\\u2705 Phone alerts are ON for this device. Use \\u0022Send test push\\u0022 to try it.':'Saved on your phone, but the server did not confirm \\u2014 tap Send test push to check.');"
+    '}catch(e){alert("Could not enable alerts: "+((e&&e.message)?e.message:e));}};'
     '</script>',
     shared=True)
 
