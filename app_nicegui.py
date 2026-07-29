@@ -153,6 +153,15 @@ NAV_GROUPS = [
 # grouping doesn't matter (e.g. looking up which module renders a section).
 NAV_SECTIONS = [page for _group, items in NAV_GROUPS for page, *_ in items]
 
+# Mobile bottom tab bar — the thumb-reachable on-the-road surfaces (section, icon, short label). Shown
+# only on phones (CSS); the heavy authoring tools stay behind the header ☰ drawer.
+_MOBILE_TABS = [
+    ("Home", "home", "Home"),
+    ("Lighthouse", "lightbulb", "Lighthouse"),
+    ("Calendar", "calendar_month", "Calendar"),
+    ("Markets", "trending_up", "Markets"),
+]
+
 # Sub-items surfaced under each content-heavy page in the sidebar — the page's
 # own primary (top-level) tabs, so every real destination is visible in the nav
 # and one click deep instead of hidden until you open the page. Labels MUST match
@@ -970,6 +979,7 @@ def main_page(request: Request = None):
         nav.set_target_tab(tab)
         render_nav()
         render_page()
+        render_bottom_nav()
 
     def on_tab_change(tab_name):
         # Page → sidebar sync: user switched a tab inside the current page, so
@@ -992,6 +1002,7 @@ def main_page(request: Request = None):
         state["active_tab"] = _subs[0] if _subs else None
         render_nav()
         render_page()
+        render_bottom_nav()
 
     from page_modules_nicegui import nav
     nav.register(go_to, on_tab_change)
@@ -1186,8 +1197,32 @@ def main_page(request: Request = None):
                     ui.html('<div class="mobile-only nav-desktop-hint">CRM build-out, earnings scripts &amp; '
                             'reports are on desktop.</div>')
 
+    # Mobile bottom tab bar — thumb-reachable quick nav to the core on-the-road surfaces. Hidden on
+    # desktop via CSS (.mobile-tabbar); the header ☰ still opens the full drawer for everything else.
+    # Rebuilt (like render_nav) on each navigation so the active-tab highlight stays in sync.
+    _bottom = ui.footer(fixed=True).classes("mobile-tabbar").style(
+        f"background:{COLORS['surface_bg']};border-top:1px solid {COLORS['border']};padding:0;")
+
+    def render_bottom_nav():
+        _bottom.clear()
+        with _bottom:
+            with ui.row().classes("w-full items-stretch justify-around").style("gap:0;"):
+                for section, icon, label in _MOBILE_TABS:
+                    if not role_can_view(state["role"], section):
+                        continue
+                    active = state["page"] == section
+                    clr = "#1D4ED8" if active else COLORS["text_muted"]
+                    with ui.column().classes("items-center").style(
+                        "flex:1;gap:1px;padding:6px 0 8px;cursor:pointer;"
+                        + (f"border-top:2px solid #1D4ED8;background:#1D4ED80D;"
+                           if active else "border-top:2px solid transparent;")
+                    ).on("click", lambda s=section: go_to(s)):
+                        ui.icon(icon).style(f"color:{clr};font-size:22px;")
+                        ui.label(label).style(f"color:{clr};font-size:10px;font-weight:{'700' if active else '500'};")
+
     render_nav()
     render_page()
+    render_bottom_nav()
 
     # On a phone, land on the curated Home (the on-the-road assistant) instead of Today. There is no
     # server-side viewport width, so this is detected client-side once the socket connects, and only
@@ -1518,11 +1553,13 @@ ui.add_head_html(
 ui.add_head_html(
     "<style>"
     ".mobile-only{display:none;}"
+    ".mobile-tabbar{display:none;}"                       # bottom tab bar — phones only (shown below)
     ".nav-desktop-hint{padding:10px 12px 4px;color:#94A3B8;font-size:11px;line-height:1.4;}"
     "@media (max-width:640px){"
-    ".app-content{padding:12px 14px !important;}"        # reclaim phone width
+    ".app-content{padding:12px 14px 84px !important;}"   # reclaim phone width + clear the fixed tab bar
     ".nav-group--desktop-only{display:none !important;}"  # hide heavy authoring groups on phones
     ".mobile-only{display:block !important;}"
+    ".mobile-tabbar{display:block !important;}"
     "}"
     "</style>",
     shared=True)
