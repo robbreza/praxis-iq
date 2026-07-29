@@ -16,15 +16,18 @@ def test_build_factors_spreads_and_graceful_skip():
     n = 50
     d = _dates(n)
     r = pd.DataFrame({t: np.random.normal(0, 0.01, n) for t in
-                      ["SPY", "IWM", "IWB", "IWD", "IWF", "MTUM", "IPAY", "IEF"]}, index=d)
+                      ["SPY", "IWM", "IWB", "IWD", "IWF", "MTUM", "IPAY", "FINX", "IEF"]}, index=d)
     f = build_factors(r)
-    assert list(f.columns) == ["MKT", "SMB", "HML", "MOM", "SEC", "RATE"]
-    # SMB is the small-minus-large spread, not a raw leg
+    assert list(f.columns) == ["MKT", "SMB", "HML", "MOM", "SEC", "FIN", "RATE"]   # FIN (fintech) leg
+    # SMB is the small-minus-large spread, not a raw leg; FIN is fintech-minus-market
     assert np.allclose(f["SMB"].values, (r["IWM"] - r["IWB"]).values)
+    assert np.allclose(f["FIN"].values, (r["FINX"] - r["SPY"]).values)
     assert np.allclose(f["MKT"].values, r["SPY"].values)          # MKT is a raw return
-    # a missing short leg drops that spread factor rather than mislabeling a raw leg
-    f2 = build_factors(r.drop(columns=["IWB"]))
-    assert "SMB" not in f2.columns and "MKT" in f2.columns
+    # a configurable sector leg
+    assert np.allclose(build_factors(r, sector_etf="IPAY")["SEC"].values, (r["IPAY"] - r["SPY"]).values)
+    # missing legs drop the factor rather than mislabeling a raw leg (SMB needs IWB; FIN needs FINX)
+    f2 = build_factors(r.drop(columns=["IWB", "FINX"]))
+    assert "SMB" not in f2.columns and "FIN" not in f2.columns and "MKT" in f2.columns
 
 
 def test_factor_model_recovers_known_loadings():

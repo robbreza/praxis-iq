@@ -21,23 +21,35 @@ from __future__ import annotations
 import pandas as pd
 
 # ETFs the factor set is built from — loaded alongside the issuer so the frame is always populated.
-FACTOR_ETFS = ["SPY", "IWM", "IWB", "IWD", "IWF", "MTUM", "IPAY", "IEF"]
+# IPAY (payments) + FINX/ARKF (fintech) are all kept fresh so the sector leg can be chosen empirically
+# per issuer (Spec 14a found USIO co-moves with small-cap FINTECH, not the payments sector).
+FACTOR_ETFS = ["SPY", "IWM", "IWB", "IWD", "IWF", "MTUM", "IPAY", "FINX", "ARKF", "IEF"]
 
-# (factor name, long leg, short leg or None). Spread = long - short; None short => the raw return.
-_FACTOR_DEFS = [
-    ("MKT",  "SPY",  None),
-    ("SMB",  "IWM",  "IWB"),
-    ("HML",  "IWD",  "IWF"),
-    ("MOM",  "MTUM", "SPY"),
-    ("SEC",  "IPAY", "SPY"),
-    ("RATE", "IEF",  None),
-]
+# Default sector leg. USIO's is overridden to a fintech proxy (see config) on the co-movement evidence.
+DEFAULT_SECTOR_ETF = "IPAY"
 
 
-def build_factors(rets: pd.DataFrame, defs=None) -> pd.DataFrame:
+def _factor_defs(sector_etf: str):
+    # (factor name, long leg, short leg or None). Spread = long - short; None short => the raw return.
+    # FIN (fintech) is a SEPARATE leg from SEC (payments): Spec 14a showed USIO co-moves with small-cap
+    # fintech distinctly from the payments sector, and the head-to-head confirmed adding FIN alongside
+    # SEC raises R² (mean +0.5pt, latest +1.1pt) where swapping the sector leg was only a wash.
+    return [
+        ("MKT",  "SPY",       None),
+        ("SMB",  "IWM",       "IWB"),
+        ("HML",  "IWD",       "IWF"),
+        ("MOM",  "MTUM",      "SPY"),
+        ("SEC",  sector_etf,  "SPY"),
+        ("FIN",  "FINX",      "SPY"),
+        ("RATE", "IEF",       None),
+    ]
+
+
+def build_factors(rets: pd.DataFrame, sector_etf: str = DEFAULT_SECTOR_ETF, defs=None) -> pd.DataFrame:
     """rets: date x ticker daily-return frame (from data.returns_frame). Returns date x factor frame.
-    Skips any factor whose leg(s) are absent so partial ETF coverage still yields a usable model."""
-    defs = defs or _FACTOR_DEFS
+    `sector_etf` sets the SEC leg (SEC = sector_etf - SPY). Skips any factor whose leg(s) are absent so
+    partial ETF coverage still yields a usable model."""
+    defs = defs or _factor_defs(sector_etf)
     cols = {}
     for name, lo, sh in defs:
         if lo not in rets.columns:
