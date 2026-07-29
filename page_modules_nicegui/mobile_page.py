@@ -216,7 +216,34 @@ def render_home_page():
             ui.label("Alerts").classes("section-head")
             ui.label("Get a phone notification when the stock makes an abnormal move.").style(
                 f"color:{COLORS['text_muted']};font-size:12px;")
+            # Raw <button> with inline onclick so Notification.requestPermission() runs INSIDE the tap
+            # gesture (iOS/Safari require that; a NiceGUI on_click round-trips to the server first and
+            # would lose the gesture). The -webkit-user-select/touch-callout=none is the fix for the iOS
+            # bug where a tap on a selectable button only offers "Copy" instead of firing the click.
             ui.html('<button onclick="window.irconnectSubscribePush(\'usio\')" '
                     'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
-                    'border:0;border-radius:8px;padding:8px 14px;font:600 13px -apple-system,Segoe UI,Roboto,'
-                    'sans-serif;cursor:pointer;margin-top:6px;">🔔 Enable phone alerts</button>')
+                    'border:0;border-radius:8px;padding:11px 16px;font:600 14px -apple-system,Segoe UI,Roboto,'
+                    'sans-serif;cursor:pointer;margin-top:6px;-webkit-user-select:none;user-select:none;'
+                    '-webkit-touch-callout:none;touch-action:manipulation;'
+                    '-webkit-tap-highlight-color:rgba(255,255,255,.25);">🔔 Enable phone alerts</button>')
+
+            def _test_push():
+                try:
+                    import os as _os
+                    from lighthouse import push
+                    rep = push.send_to_client("usio", "IRconnect test alert",
+                                              "If you can read this, phone alerts are working. 🎉",
+                                              url=(_os.environ.get("LIGHTHOUSE_APP_URL") or "/"))
+                    if rep.get("sent"):
+                        ui.notify(f"Test push sent to {rep['sent']} device(s).", type="positive")
+                    elif rep.get("total") == 0:
+                        ui.notify("No phone subscribed yet — tap “Enable phone alerts” from the installed "
+                                  "app first, then try again.", type="warning")
+                    else:
+                        ui.notify("Couldn't deliver — the subscription looks stale; re-enable alerts.",
+                                  type="warning")
+                except Exception:
+                    ui.notify("Test push failed — see server logs.", type="negative")
+
+            ui.button("Send test push", on_click=_test_push).props("flat dense size=sm") \
+                .style("margin-top:4px;")
