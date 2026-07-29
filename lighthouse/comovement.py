@@ -34,6 +34,58 @@ CANDIDATE_UNIVERSE = {
     "SPY": "broad market", "KRE": "regional banks",
 }
 
+# The factor/size/sector ETFs & indices — always in the universe as the market context, whatever the
+# client. Everything else is discovered per-client (below).
+_ANCHOR_CATS = ("payments ETF", "fintech ETF", "small-cap idx", "small growth", "small value",
+                "broad market", "regional banks")
+_MARKET_ANCHORS = {t: c for t, c in CANDIDATE_UNIVERSE.items() if c in _ANCHOR_CATS}
+_UNIVERSE_CACHE_KEY = "lighthouse_comovement_universe.json"
+
+
+def candidate_universe(issuer, client_id=None, defined_peers=None, max_sic=60) -> dict:
+    """Assemble the co-movement candidate universe for ANY client by TRIANGULATING sources — so the
+    lens isn't hardcoded per issuer (the bridge to onboarding). Union of: the SIC screen
+    (core.peer_discovery), the client's defined + valuation comps, the coverage-lens tickers, and the
+    fixed market anchors. Falls back to the built-in universe when discovery is too thin (e.g. USIO's
+    SIC 6099 yields ~3 names). Cached."""
+    uni = dict(_MARKET_ANCHORS)
+    try:                                              # (1) SIC screen — auto, per client
+        from core import peer_discovery
+        d = peer_discovery.discover(issuer)
+        label = (d.get("sic_desc") or "SIC peer")[:22]
+        for tk in (d.get("sic_tickers") or [])[:max_sic]:
+            if tk and tk != issuer:
+                uni.setdefault(tk, label)
+    except Exception:
+        pass
+    for tk in (defined_peers or []):                  # (2) the client's own defined peers
+        if tk and tk != issuer:
+            uni.setdefault(tk, "defined peer")
+    try:                                              # (2b) valuation comps (peer_universe store)
+        from core import db
+        for p in (db.load_json("peer_universe.csv", default=None, client_id=client_id) or []):
+            tk = p.get("ticker")
+            if tk and tk != issuer:
+                uni.setdefault(tk, "valuation comp")
+    except Exception:
+        pass
+    try:                                              # (3) tickers the coverage lens surfaced
+        from lighthouse import coverage as _cov
+        for p in ((_cov.load_cache(client_id) or {}).get("coverage_peers") or []):
+            tk = p.get("ticker")
+            if tk and tk != issuer:
+                uni.setdefault(tk, "coverage peer")
+    except Exception:
+        pass
+    if sum(1 for t in uni if uni[t] not in _ANCHOR_CATS) < 4:   # too few real companies -> built-in
+        return dict(CANDIDATE_UNIVERSE)
+    try:
+        from core import db
+        db.save_json(_UNIVERSE_CACHE_KEY, uni, client_id=client_id)
+    except Exception:
+        pass
+    return uni
+
 
 def _ols_r2(y: np.ndarray, X: np.ndarray):
     """Return (beta, r2) for y ~ [1, X]. X is 2-D (n × k)."""
@@ -65,11 +117,13 @@ def forward_select(y: np.ndarray, Xdf: pd.DataFrame, max_select=6, min_gain=0.00
     return path, prev_r2
 
 
-def discover(issuer: str, rets: pd.DataFrame, defined_peers: list[str],
+def discover(issuer: str, rets: pd.DataFrame, defined_peers: list[str], universe: dict | None = None,
              top_corr=15, max_select=6) -> dict:
-    """Rank-correlation + sparse selection of the candidate universe against the issuer, plus the
-    defined-peer basket R² for comparison. `rets` = date×ticker return frame."""
-    cand = [c for c in CANDIDATE_UNIVERSE if c in rets.columns and c != issuer]
+    """Rank-correlation + sparse selection of the candidate `universe` against the issuer, plus the
+    defined-peer basket R² for comparison. `rets` = date×ticker return frame; `universe` = ticker→
+    category (defaults to the built-in set)."""
+    universe = universe or CANDIDATE_UNIVERSE
+    cand = [c for c in universe if c in rets.columns and c != issuer]
     if issuer not in rets.columns or len(cand) < 3:
         return {"error": "insufficient candidate coverage"}
     df = rets[[issuer] + cand].dropna()
@@ -79,12 +133,12 @@ def discover(issuer: str, rets: pd.DataFrame, defined_peers: list[str],
 
     corrs = sorted(((c, float(np.corrcoef(df[issuer], df[c])[0, 1])) for c in cand),
                    key=lambda t: -abs(t[1]))
-    top = [dict(ticker=c, corr=r, category=CANDIDATE_UNIVERSE.get(c, "?"),
+    top = [dict(ticker=c, corr=r, category=universe.get(c, "?"),
                 defined_peer=(c in defined_peers)) for c, r in corrs[:top_corr]]
 
     path, sparse_r2 = forward_select(y, df[cand], max_select=max_select)
     for p in path:
-        p["category"] = CANDIDATE_UNIVERSE.get(p["name"], "?")
+        p["category"] = universe.get(p["name"], "?")
         p["defined_peer"] = p["name"] in defined_peers
 
     peers_in = [p for p in defined_peers if p in df.columns]
@@ -100,22 +154,26 @@ def discover(issuer: str, rets: pd.DataFrame, defined_peers: list[str],
 
 
 # ── data + cache ────────────────────────────────────────────────────────────────────────────────
-def ensure_universe_loaded(period="3y"):
-    """One-time/refresh load of the candidate universe into lh_ohlcv (yfinance)."""
+def ensure_universe_loaded(universe=None, period="3y"):
+    """Load the candidate universe into lh_ohlcv (yfinance). `universe` = a ticker→category dict or a
+    ticker list; defaults to the built-in set."""
     from lighthouse import data
-    return data.load_ohlcv(list(CANDIDATE_UNIVERSE), period=period)
+    tickers = list(universe) if universe else list(CANDIDATE_UNIVERSE)
+    return data.load_ohlcv(tickers, period=period)
 
 
-def compute(issuer="USIO") -> dict:
+def compute(issuer="USIO", client_id="usio", universe=None) -> dict:
     try:
         import psycopg2
         from core.security import get_database_url
         from lighthouse import data
         from lighthouse.config.usio import USIO
+        defined = USIO["business_peers"]                          # per-client defined peers (USIO MVP)
+        uni = universe or candidate_universe(issuer, client_id=client_id, defined_peers=defined)
         conn = psycopg2.connect(get_database_url())
-        rets = data.returns_frame([issuer] + list(CANDIDATE_UNIVERSE) + USIO["business_peers"], conn=conn)
+        rets = data.returns_frame([issuer] + list(uni) + defined, conn=conn)
         conn.close()
-        return discover(issuer, rets, USIO["business_peers"])
+        return discover(issuer, rets, defined, universe=uni)
     except Exception as e:
         return {"error": repr(e)}
 
@@ -124,7 +182,10 @@ _CACHE_KEY = "lighthouse_comovement.json"
 
 
 def refresh_cache(client_id="usio", issuer="USIO") -> dict:
-    c = compute(issuer)
+    from lighthouse.config.usio import USIO
+    uni = candidate_universe(issuer, client_id=client_id, defined_peers=USIO["business_peers"])
+    ensure_universe_loaded(uni)                       # load any newly-discovered names' bars
+    c = compute(issuer, client_id=client_id, universe=uni)
     try:
         from core import db
         if not c.get("error"):

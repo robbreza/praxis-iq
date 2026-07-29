@@ -75,6 +75,17 @@ all.** Cross-lens check: INUV appears in BOTH co-ownership (co-held) and coverag
 revealed peer. The NARRATIVE peer group (coverage) ≠ the TRADING peer group (co-movement/ownership) ≠
 our DEFINED set — three distinct peer concepts, overlapping only on RPAY.
 
+## Onboarding — the bridge (BUILT)
+The revealed lenses are now client-agnostic. `comovement.candidate_universe(issuer, client_id)`
+TRIANGULATES the candidate universe per client — the SIC screen (`core.peer_discovery`, the same engine
+that caught Howmet for SARO) ∪ the client's defined + valuation comps ∪ the coverage-lens tickers ∪ the
+fixed market anchors — with a fallback to the built-in set when discovery is thin. (USIO's SIC 6099 is a
+banking-services grab-bag that yields only ~3 names, which is exactly why SIC-only isn't enough and the
+union matters — it still surfaced LSAK/Lesaka, a real payments peer the hardcoded set missed, and the
+sparse model now selects it.) `lighthouse/peer_install.install(client_id, issuer)` is the one-call
+onboarding step: run the fundamental discovery + all three revealed lenses + the synthesis, each cached.
+So everything built for USIO is a repeatable peer install for client #3+.
+
 ## Payoff
 Surface the divergence: *"Your defined peers: […]. The market trades you with: the small-cap complex +
 [co-held names]. Overlap: low."* Feeds both IR strategy (what actually moves the stock, who to target)
