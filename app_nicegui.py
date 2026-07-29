@@ -129,6 +129,7 @@ _install_event_tenant_hook()
 # nav's text color (graphite inactive, navy active) instead of fixed emoji.
 NAV_GROUPS = [
     ("OVERVIEW", [
+        ("Home",      "smartphone", "Home\nOn the road", "Your on-the-road assistant — pulse, schedule, meeting prep & notes"),
         ("Today",     "space_dashboard", "Today", "Morning brief · Alerts · Actions due"),
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
@@ -176,6 +177,7 @@ NAV_SUBITEMS = {
 # page_modules_nicegui/<name>.py lands (see task list — ported incrementally,
 # smallest/lowest-risk pages first).
 PORTED = {
+    "Home": "page_modules_nicegui.mobile_page",
     "Today": "page_modules_nicegui.today_page",
     "Investors": "page_modules_nicegui.investors_page",
     "Earnings": "page_modules_nicegui.earnings_page",
@@ -1124,41 +1126,51 @@ def main_page():
         nav_buttons.clear()
         with nav_list:
             for group_label, items in NAV_GROUPS:
-                ui.html(f'<div class="nav-section">{group_label}</div>')
-                for section, icon, label, desc in items:
-                    subs = NAV_SUBITEMS.get(section)
-                    access = role_access_level(state["role"], section)
-                    is_active = section == state["page"]
-                    is_open = state["expanded"] == section
-                    lines = label.split("\n")
-                    line1, line2 = lines[0], (lines[1] if len(lines) > 1 else "")
-                    cls = "nav-btn w-full" + (" active" if is_active else "")
-                    with ui.button(on_click=lambda s=section: go_to(s)).props("flat align=left no-caps").classes(cls) as btn:
-                        with ui.row().classes("items-center no-wrap w-full").style("gap:12px;"):
-                            ui.icon(icon).classes("nav-icon")
-                            with ui.column().classes("gap-0").style("align-items:flex-start;flex:1;min-width:0;"):
-                                ui.label(line1).classes("nav-btn-line1")
-                                if line2:
-                                    ui.label(line2).classes("nav-btn-line2")
-                            if subs:
-                                ui.icon("expand_more" if is_open else "chevron_right").classes("nav-chevron")
-                    nav_buttons[section] = btn
-                    # Role gating: lock pages this role can't view.
-                    if access == "none":
-                        btn.disable()
-                        btn.tooltip(f"Locked — the {state['role']} role has no access to {section}")
-                    else:
-                        btn.enable()
-                        btn.tooltip(desc + (" · view-only for this role" if access == "read" else ""))
-                    # Accordion: only the expanded, accessible section shows its
-                    # sub-items — each deep-links straight to that tab.
-                    if subs and is_open and access != "none":
-                        with ui.column().classes("nav-subwrap w-full gap-0"):
-                            for sub in subs:
-                                sub_cls = "nav-sub w-full" + (
-                                    " active" if (is_active and sub == state["active_tab"]) else "")
-                                ui.button(sub, on_click=lambda s=section, t=sub: go_to(s, t)).props(
-                                    "flat align=left no-caps dense").classes(sub_cls)
+                # Heavy authoring groups (CRM/NDR build-out, earnings scripts, reports, settings) are
+                # desktop work — hide them on phones so the mobile nav stays the on-the-road set.
+                heavy = group_label in ("CORE WORKFLOWS", "REPORTS & SETTINGS")
+                group_box = ui.column().classes(
+                    "w-full gap-0 nav-group" + (" nav-group--desktop-only" if heavy else ""))
+                with group_box:
+                    ui.html(f'<div class="nav-section">{group_label}</div>')
+                    for section, icon, label, desc in items:
+                        subs = NAV_SUBITEMS.get(section)
+                        access = role_access_level(state["role"], section)
+                        is_active = section == state["page"]
+                        is_open = state["expanded"] == section
+                        lines = label.split("\n")
+                        line1, line2 = lines[0], (lines[1] if len(lines) > 1 else "")
+                        cls = "nav-btn w-full" + (" active" if is_active else "")
+                        with ui.button(on_click=lambda s=section: go_to(s)).props("flat align=left no-caps").classes(cls) as btn:
+                            with ui.row().classes("items-center no-wrap w-full").style("gap:12px;"):
+                                ui.icon(icon).classes("nav-icon")
+                                with ui.column().classes("gap-0").style("align-items:flex-start;flex:1;min-width:0;"):
+                                    ui.label(line1).classes("nav-btn-line1")
+                                    if line2:
+                                        ui.label(line2).classes("nav-btn-line2")
+                                if subs:
+                                    ui.icon("expand_more" if is_open else "chevron_right").classes("nav-chevron")
+                        nav_buttons[section] = btn
+                        # Role gating: lock pages this role can't view.
+                        if access == "none":
+                            btn.disable()
+                            btn.tooltip(f"Locked — the {state['role']} role has no access to {section}")
+                        else:
+                            btn.enable()
+                            btn.tooltip(desc + (" · view-only for this role" if access == "read" else ""))
+                        # Accordion: only the expanded, accessible section shows its
+                        # sub-items — each deep-links straight to that tab.
+                        if subs and is_open and access != "none":
+                            with ui.column().classes("nav-subwrap w-full gap-0"):
+                                for sub in subs:
+                                    sub_cls = "nav-sub w-full" + (
+                                        " active" if (is_active and sub == state["active_tab"]) else "")
+                                    ui.button(sub, on_click=lambda s=section, t=sub: go_to(s, t)).props(
+                                        "flat align=left no-caps dense").classes(sub_cls)
+                # A one-line hint (mobile only) that the heavy tools live on desktop.
+                if heavy and group_label == "REPORTS & SETTINGS":
+                    ui.html('<div class="mobile-only nav-desktop-hint">CRM build-out, earnings scripts &amp; '
+                            'reports are on desktop.</div>')
 
     render_nav()
     render_page()
@@ -1474,7 +1486,15 @@ ui.add_head_html(
 # narrow width, so tighten it below 640px. Drawer responsiveness is handled by NiceGUI (see the
 # left_drawer above); this only reclaims horizontal space for the content on small screens.
 ui.add_head_html(
-    "<style>@media (max-width:640px){.app-content{padding:12px 14px !important;}}</style>",
+    "<style>"
+    ".mobile-only{display:none;}"
+    ".nav-desktop-hint{padding:10px 12px 4px;color:#94A3B8;font-size:11px;line-height:1.4;}"
+    "@media (max-width:640px){"
+    ".app-content{padding:12px 14px !important;}"        # reclaim phone width
+    ".nav-group--desktop-only{display:none !important;}"  # hide heavy authoring groups on phones
+    ".mobile-only{display:block !important;}"
+    "}"
+    "</style>",
     shared=True)
 
 # Body: register the SW, and show an "Install IRconnect" button when the browser offers the install
