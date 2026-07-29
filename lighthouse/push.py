@@ -129,12 +129,20 @@ def list_subscriptions(client_id) -> list:
 
 
 # ── sending ───────────────────────────────────────────────────────────────────────────────────────
+def _vapid_key(vapid: dict):
+    """pywebpush's vapid_private_key wants a Vapid object or a base64url DER — NOT a PEM string (it
+    would try to b64url-decode the PEM and fail with an ASN.1 error). Build the object from our PEM."""
+    from py_vapid import Vapid01
+    return Vapid01.from_pem(vapid["private_pem"].encode())
+
+
 def _send_one(sub: dict, payload: dict, vapid: dict) -> str:
     """Return 'ok' | 'gone' | 'error'. 'gone' means the subscription is dead and should be pruned."""
     from pywebpush import webpush, WebPushException
     try:
+        pk = vapid.get("_obj") or _vapid_key(vapid)
         webpush(subscription_info=sub, data=json.dumps(payload),
-                vapid_private_key=vapid["private_pem"], vapid_claims={"sub": vapid["subject"]}, ttl=3600)
+                vapid_private_key=pk, vapid_claims={"sub": vapid["subject"]}, ttl=3600)
         return "ok"
     except WebPushException as e:
         code = getattr(getattr(e, "response", None), "status_code", None)
@@ -150,6 +158,10 @@ def send_to_client(client_id, title, body, url="/", tag="lighthouse") -> dict:
         if not subs:
             return {"sent": 0, "total": 0, "pruned": 0}
         vapid = get_vapid()
+        try:
+            vapid["_obj"] = _vapid_key(vapid)          # build the key object once for the whole fan-out
+        except Exception:
+            pass
         payload = {"title": title, "body": body, "url": url, "tag": tag}
         sent = pruned = 0
         for s in subs:
