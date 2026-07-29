@@ -59,9 +59,21 @@ daily), surfaced on the Lighthouse page. Output: the revealed peer list ("co-hel
 concentrated active managers"), or the honest null result ("few concentrated active holders — owned via
 broad/quant vehicles, consistent with trading on small-cap flow, not a fundamental peer complex").
 
-## (c) Coverage overlap — the sell-side peer
-Analysts covering USIO also cover ___ — the Street's revealed peer set, from the analyst rosters we
-already track.
+## (c) Coverage overlap — the sell-side peer — BUILT (lighthouse/coverage.py)
+Analysts covering USIO also cover ___ — the Street's NARRATIVE peer set (whose upgrade lands in the same
+inboxes), from the analyst-coverage network we already track (core.analyst_coverage). Splits covering
+analysts into payments/fintech SPECIALISTS vs GENERALISTS, aggregates their other coverage, and diffs
+against our defined peers. Internal data → cheap live compute (no paid feed). Pure `aggregate` core
+unit-tested; cached + Lighthouse expandable.
+
+**First result (USIO):** 2 covering analysts — **Jon Hickman (Ladenburg) is a payments specialist**
+(covers USIO + RPAY + PRTH), **Scott Buck (H.C. Wainwright) a micro-cap-tech generalist** (USIO + FPAY
++ WidePoint/Inuvo/AudioEye/Veritone/Knightscope/Draganfly/GCT). The Street's payments bracket for USIO
+is **RPAY, PRTH, FPAY** — of which **PRTH (Priority Tech, PayFac) and FPAY we DIDN'T define** (real
+misses), while **5 of our 6 defined peers (PSFE/PAY/CASS/GDOT/EVTC) aren't covered by USIO's analysts at
+all.** Cross-lens check: INUV appears in BOTH co-ownership (co-held) and coverage (Buck) — a doubly-
+revealed peer. The NARRATIVE peer group (coverage) ≠ the TRADING peer group (co-movement/ownership) ≠
+our DEFINED set — three distinct peer concepts, overlapping only on RPAY.
 
 ## Payoff
 Surface the divergence: *"Your defined peers: […]. The market trades you with: the small-cap complex +

@@ -220,6 +220,29 @@ def render_lighthouse_page():
                         .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
         except Exception:
             pass
+        try:                                            # sell-side coverage-overlap peers (cached)
+            from lighthouse import coverage as _cov
+            cvg = _cov.load_cache(client_id)
+            if cvg and not cvg.get("error"):
+                with ui.expansion("Market-revealed peers — who the sell-side brackets USIO with", icon="menu_book") \
+                        .classes("w-full").style("margin-bottom:8px;"):
+                    ui.label(f"{cvg['n_analysts']} covering analysts · {cvg['n_specialists']} payments specialist(s). "
+                             "This is the NARRATIVE peer group (whose upgrade lands in the same inboxes), distinct "
+                             "from the trading peers above.").style(f"color:{COLORS['text_body']};font-size:12px;")
+                    for p in cvg.get("payments_coverage_peers", [])[:6]:
+                        tag = "our peer" if p["defined_peer"] else "NEW"
+                        ui.label(f"{p['ticker']} · {p['name']} · {p['sector']} [{tag}]") \
+                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    if cvg.get("new_payments_peers"):
+                        ui.label(f"Payments peers the sell-side brackets that we DIDN'T define: "
+                                 f"{', '.join(cvg['new_payments_peers'])}") \
+                            .style(f"color:{COLORS['text_body']};font-size:11px;margin-top:3px;")
+                    if cvg.get("defined_not_covered"):
+                        ui.label(f"Our defined peers USIO's analysts don't cover: "
+                                 f"{', '.join(cvg['defined_not_covered'])}") \
+                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+        except Exception:
+            pass
 
     if ticker != "USIO":
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
