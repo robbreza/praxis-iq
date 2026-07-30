@@ -217,6 +217,20 @@ def send_sms(text, to_list, c) -> dict:
     return {"ok": bool(sent), "sent_to": sent, "errors": errs or None}
 
 
+def smtp_check(c: dict | None = None) -> dict:
+    """Connect + LOGIN to the SMTP server (no send) so setup can be verified. The single fastest way to
+    tell a wrong password / wrong host from a delivery/spam issue."""
+    c = c or config()
+    if not (c["smtp_user"] and c["smtp_password"]):
+        return {"ok": False, "reason": "smtp_user or smtp_password not set"}
+    try:
+        with smtplib.SMTP_SSL(c["smtp_host"], c["smtp_port"], timeout=20) as s:
+            s.login(c["smtp_user"], c["smtp_password"])
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "reason": f"{e!r}"}
+
+
 def dispatch(v: dict, dry_run: bool | None = None, force: bool = False) -> dict:
     """Build + deliver one verdict to every channel whose tier floor it clears. Safe to call from the
     scheduler: gated (disabled by default), tier-filtered, and fully wrapped — it can never raise.
@@ -374,6 +388,19 @@ if __name__ == "__main__":
     send = "--send" in sys.argv                       # default is PREVIEW (never sends)
     weekly_mode = "--weekly" in sys.argv
     c = config()
+    if "--check" in sys.argv:                          # config + live SMTP-login diagnostic
+        print("=" * 60)
+        print("LIGHTHOUSE DIGEST — config check")
+        print("  enabled       :", c["enabled"])
+        print("  email_to      :", c["email_to"] or "— (MISSING)")
+        print("  smtp_host     :", f"{c['smtp_host']}:{c['smtp_port']}")
+        print("  smtp_user     :", c["smtp_user"] or "— (MISSING)")
+        print("  from_email    :", c["from_email"] or "— (MISSING)")
+        print("  smtp_password :", (f"set ({len(c['smtp_password'])} chars)") if c["smtp_password"] else "— (MISSING)")
+        print("  app_url       :", c["app_url"] or "—")
+        print("  SMTP login    :", smtp_check(c))
+        print("=" * 60)
+        sys.exit(0)
     if weekly_mode:
         from lighthouse.weekly import render_weekly
         w = compute_latest_weekly()
