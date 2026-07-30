@@ -217,9 +217,11 @@ def send_sms(text, to_list, c) -> dict:
     return {"ok": bool(sent), "sent_to": sent, "errors": errs or None}
 
 
-def dispatch(v: dict, dry_run: bool | None = None) -> dict:
+def dispatch(v: dict, dry_run: bool | None = None, force: bool = False) -> dict:
     """Build + deliver one verdict to every channel whose tier floor it clears. Safe to call from the
-    scheduler: gated (disabled by default), tier-filtered, and fully wrapped — it can never raise."""
+    scheduler: gated (disabled by default), tier-filtered, and fully wrapped — it can never raise.
+    `force=True` bypasses the tier floor (a manual/test send should deliver even on a quiet day); the
+    scheduler never sets it, so routine days stay silent in production."""
     try:
         c = config()
         dig = build_digest(v, app_url=c["app_url"])
@@ -228,7 +230,7 @@ def dispatch(v: dict, dry_run: bool | None = None) -> dict:
         if not will_send:
             report["reason"] = "preview" if not c["enabled"] else "dry_run"
             return report
-        if dig["rank"] >= c["email_floor"] and c["email_to"]:
+        if (force or dig["rank"] >= c["email_floor"]) and c["email_to"]:
             html = dig["html"]
             did = _record_send("usio", v["ticker"], "daily", v["day"], "email", c["email_to"])
             if did and c["app_url"]:                    # embed open-pixel + tracked CTA
@@ -237,7 +239,7 @@ def dispatch(v: dict, dry_run: bool | None = None) -> dict:
                                    cta_url=telemetry.click_url(c["app_url"], did),
                                    pixel_url=telemetry.pixel_url(c["app_url"], did))
             report["email"] = send_email(dig["subject"], html, dig["text"], c["email_to"], c)
-        if dig["rank"] >= c["sms_floor"] and c["sms_to"]:
+        if (force or dig["rank"] >= c["sms_floor"]) and c["sms_to"]:
             report["sms"] = send_sms(dig["sms"], c["sms_to"], c)
             _record_send("usio", v["ticker"], "daily", v["day"], "sms", c["sms_to"])
         report["sent"] = bool((report["email"] or {}).get("ok") or (report["sms"] or {}).get("ok"))
@@ -396,7 +398,7 @@ if __name__ == "__main__":
         print("SMS:", dig["sms"], f"({len(dig['sms'])} chars)")
         print("=" * 72)
         if send:
-            print("[digest] sending…", dispatch(v, dry_run=False))
+            print("[digest] sending…", dispatch(v, dry_run=False, force=True))   # manual send delivers even on a quiet day
         else:
             print(f"[digest] preview only. enabled={c['enabled']} email_to={c['email_to'] or '—'} "
                   f"sms_to={c['sms_to'] or '—'}. Re-run with --send to deliver.")
