@@ -138,6 +138,37 @@ def render_lighthouse_page():
                          f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:11px;")
         except Exception:
             pass
+
+        # In-app "send test digest" — verifies the email setup from the BROWSER (no Shell/terminal, no
+        # paste), showing the delivery result or the exact SMTP error on screen. Forces a send (bypasses
+        # the enabled/tier gates) since it's an explicit operator test.
+        def _send_test_digest():
+            try:
+                from lighthouse import digest as _dg
+                c = _dg.config()
+                if not c["email_to"]:
+                    ui.notify("No recipient set — add LIGHTHOUSE_DIGEST_TO in Render → Environment, then save.",
+                              type="warning", timeout=15000)
+                    return
+                rep = _dg.dispatch(_dg.compute_latest_verdict(), dry_run=False, force=True)
+                em = rep.get("email") or {}
+                if em.get("ok"):
+                    ui.notify("✅ Digest emailed to " + ", ".join(em.get("sent_to") or c["email_to"]),
+                              type="positive", timeout=12000)
+                elif str(em.get("reason", "")).startswith("email_not_configured"):
+                    ui.notify("Email not configured — set the LIGHTHOUSE_SMTP_USER / _PASSWORD (and _HOST) "
+                              "vars in Render → Environment, save, and try again.", type="warning", timeout=18000)
+                else:
+                    ui.notify("❌ Send failed — " + str(em.get("reason") or "no email attempted"),
+                              type="negative", timeout=25000)
+            except Exception as e:
+                ui.notify(f"Error: {e}", type="negative", timeout=15000)
+
+        with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+            ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
+                .props("outline size=sm color=primary")
+            ui.label("sends the daily digest to your configured address and shows the result here — "
+                     "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:11px;")
         # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
         # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
         # it sends a real notification on demand — so delivery can be proven without waiting for a
