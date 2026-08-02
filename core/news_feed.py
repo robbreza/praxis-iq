@@ -79,7 +79,6 @@ def refresh(cid=None):
     # mismatched real-company stories, so skip them — the same short-circuit the SEC
     # and price paths already use. (Nothing here fabricates news.)
     parked = db.load_json("sec_cik_fallback.json", {}, client_id=cid) or {}
-    tracked = set(_tickers())
 
     for t in _tickers():
         if parked.get(t, "x") is None:
@@ -99,9 +98,7 @@ def refresh(cid=None):
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=_WINDOW_DAYS)
     kept = [i for i in by_id.values()
-            if i.get("ticker") in tracked
-            and parked.get(i.get("ticker"), "x") is not None
-            and (_pub_dt(i.get("pub")) is None or _pub_dt(i.get("pub")) >= cutoff)]
+            if (_pub_dt(i.get("pub")) is None or _pub_dt(i.get("pub")) >= cutoff)]
     kept.sort(key=lambda i: i.get("pub") or "", reverse=True)
     db.save_json(_STORE_KEY, kept, client_id=cid)
     return kept

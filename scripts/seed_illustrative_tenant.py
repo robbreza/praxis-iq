@@ -102,7 +102,7 @@ RECORD = {
     "peers": [
         {"ticker": "PYRA", "name": "Pyramid Pay Holdings", "ev_rev": 2.9, "tier": "core"},
         {"ticker": "CLRT", "name": "Clarity Payment Systems", "ev_rev": 2.2, "tier": "core"},
-        {"ticker": "RPAY", "name": "Repay Holdings", "ev_rev": 1.8, "tier": "close"},
+        {"ticker": "VNTG", "name": "Vantage Processing Group", "ev_rev": 1.8, "tier": "close"},
     ],
     "earnings": {
         "current_quarter": "Q2 2026",
@@ -174,24 +174,24 @@ PEER_OWNERS = [
     ("Ridgeline Park Capital",       "NEW YORK",      "NY", "PYRA",  8_100_000,   740_000_000, 96),
     ("Ansonia Wealth Partners",      "WHITE PLAINS",  "NY", "CLRT",  5_400_000,   410_000_000, 71),
     ("Bellhaven Capital Group",      "RYE",           "NY", "PYRA",  4_950_000,   295_000_000, 44),
-    ("Coldwater Bay Advisors",       "BOSTON",        "MA", "RPAY",  6_200_000,   880_000_000, 128),
+    ("Coldwater Bay Advisors",       "BOSTON",        "MA", "VNTG",  6_200_000,   880_000_000, 128),
     ("Wellsbrook Investment Mgmt",   "WELLESLEY",     "MA", "PYRA",  3_700_000,   190_000_000, 33),
     ("Lakeshore Meridian Partners",  "CHICAGO",       "IL", "CLRT",  7_450_000, 1_250_000_000, 174),
     ("Oak Brook Equity Advisors",    "OAK BROOK",     "IL", "PYRA",  2_900_000,   165_000_000, 27),
-    ("Sturgis Lake Capital",         "ST. PAUL",      "MN", "RPAY",  3_100_000,   118_000_000, 21),
+    ("Sturgis Lake Capital",         "ST. PAUL",      "MN", "VNTG",  3_100_000,   118_000_000, 21),
     ("Bryn Tarran Capital",          "PLYMOUTH",      "MN", "PYRA",  2_450_000,    92_000_000, 19),
     ("Presidio Gate Advisors",       "SAN FRANCISCO", "CA", "CLRT",  9_200_000, 2_400_000_000, 305),
     ("Alder Creek Capital",          "PALO ALTO",     "CA", "PYRA",  4_100_000,   340_000_000, 62),
-    ("Verdugo Hills Partners",       "SANTA MONICA",  "CA", "RPAY",  3_350_000,   210_000_000, 41),
+    ("Verdugo Hills Partners",       "SANTA MONICA",  "CA", "VNTG",  3_350_000,   210_000_000, 41),
     ("Trinity Fork Capital",         "DALLAS",        "TX", "PYRA",  5_800_000,   620_000_000, 89),
     ("Bayou Bend Investors",         "HOUSTON",       "TX", "CLRT",  4_600_000,   455_000_000, 77),
     ("Schuylkill Row Advisors",      "PHILADELPHIA",  "PA", "PYRA",  3_900_000,   285_000_000, 54),
-    ("Allegheny Point Capital",      "PITTSBURGH",    "PA", "RPAY",  2_750_000,   160_000_000, 30),
+    ("Allegheny Point Capital",      "PITTSBURGH",    "PA", "VNTG",  2_750_000,   160_000_000, 30),
     ("Menomonee Valley Capital",     "MILWAUKEE",     "WI", "CLRT",  2_300_000,   135_000_000, 25),
     ("Cascadia Union Partners",      "SEATTLE",       "WA", "PYRA",  4_450_000,   510_000_000, 83),
     ("Kingsway Bay Capital",         "TORONTO",       "A6", "CLRT",  5_100_000,   980_000_000, 142),
     ("Thames Meridian Asset Mgmt",   "LONDON",        "X0", "PYRA",  6_700_000, 1_900_000_000, 268),
-    ("Lac Leman Investment Partners","GENEVA",        "V8", "RPAY",  3_050_000,   720_000_000, 110),
+    ("Lac Leman Investment Partners","GENEVA",        "V8", "VNTG",  3_050_000,   720_000_000, 110),
     ("Ceresio Vista Privatbank",     "LUGANO",        "V8", "PYRA",  2_150_000,   395_000_000,  66),
 ]
 
@@ -259,8 +259,8 @@ def seed():
         # Peer overlap drives the Peer Ownership pillar. Varied deliberately: the top
         # holders own most of the comp set (the strongest signal), the tail owns none —
         # an empty list is a measured zero, not missing data.
-        _overlap = [["PYRA", "CLRT", "RPAY"], ["PYRA", "CLRT"], ["PYRA", "RPAY"],
-                    ["CLRT"], ["PYRA", "CLRT", "RPAY"], ["RPAY"], [], ["PYRA"]][i % 8]
+        _overlap = [["PYRA", "CLRT", "VNTG"], ["PYRA", "CLRT"], ["PYRA", "VNTG"],
+                    ["CLRT"], ["PYRA", "CLRT", "VNTG"], ["VNTG"], [], ["PYRA"]][i % 8]
         hist[_cik_for(filer).lstrip("0")] = {
             "as_of": TODAY.isoformat(timespec="seconds"), "direction": d, "continuous": d != "new",
             "peer_overlap": _overlap, "quarters_held": 1 if d == "new" else 4,
@@ -496,7 +496,7 @@ def seed():
     prices = {TICKER: (PRICE, PREV_CLOSE, 1.80, 412_000, 355_000),
               "PYRA": (18.40, 18.62, -1.18, 1_240_000, 1_100_000),
               "CLRT": (9.15, 9.02, 1.44, 880_000, 795_000),
-              "RPAY": (5.62, 5.71, -1.58, 615_000, 560_000)}
+              "VNTG": (5.62, 5.71, -1.58, 615_000, 560_000)}
     for tk, (last, prev, pct, vol, avg) in prices.items():
         market_data._save_snapshot(tk, {
             "last_price": last, "prev_close": prev, "pct_change": pct,
@@ -505,8 +505,31 @@ def seed():
         }, client_id=CID)
     # Same reason: park the invented tickers in the CIK map so EDGAR lookups short-circuit.
     db.save_json("sec_cik_fallback.json",
-                 {tk: None for tk in [TICKER] + list(by_peer) if tk != "RPAY"}, client_id=CID)
+                 {tk: None for tk in [TICKER] + list(by_peer)}, client_id=CID)
     print(f"[demo] seeded price snapshots for {len(prices)} tickers + CIK short-circuit")
+
+    # Peer news — illustrative headlines for the fictional peers, so the demo's
+    # "top story" reads real without pulling live news for invented tickers. The
+    # news_feed refresh skips these parked tickers, so nothing overwrites them.
+    _newsdt = lambda n: (TODAY - timedelta(days=n)).isoformat() + "T13:30:00+00:00"
+    db.save_json("peer_news.json", [
+        {"id": "demo-vntg-q2", "ticker": "VNTG",
+         "title": "Vantage Processing Group posts Q2 revenue beat, reaffirms full-year outlook",
+         "provider": "Industry Wire", "url": None,
+         "summary": "The payments processor reported quarterly revenue ahead of Street expectations and held its full-year guidance.",
+         "pub": _newsdt(1)},
+        {"id": "demo-pyra-net", "ticker": "PYRA",
+         "title": "Pyramid Pay Holdings expands merchant network through regional bank partnership",
+         "provider": "Industry Wire", "url": None,
+         "summary": "The agreement adds mid-market merchant volume across the Southeast.",
+         "pub": _newsdt(2)},
+        {"id": "demo-clrt-cfo", "ticker": "CLRT",
+         "title": "Clarity Payment Systems names new CFO ahead of Q2 results",
+         "provider": "Industry Wire", "url": None,
+         "summary": "The appointment comes as the company prepares to report second-quarter earnings.",
+         "pub": _newsdt(3)},
+    ], client_id=CID)
+    print("[demo] seeded 3 illustrative peer-news headlines")
 
     # 9. Calendar — an IR year actually has things on it.
     _d = lambda n: (TODAY + timedelta(days=n)).strftime("%Y-%m-%d")
@@ -560,15 +583,6 @@ def seed():
     # saying so: earnings-call listen duration, IR website visit counts, short
     # interest, activist screening. See this module's docstring.
     print("[demo] (left unseeded on purpose: call-listen, IR web visits, short interest)")
-    # Peer news: pull a fresh window now so the demo's "top story" reflects the real
-    # peer (RPAY). Invented peers (PYRA/CLRT) are skipped by news_feed's parked guard.
-    try:
-        from core import news_feed
-        n = len(news_feed.refresh(cid=CID))
-        print(f"[demo] refreshed peer news ({n} items in window)")
-    except Exception as exc:
-        print(f"   (peer-news refresh skipped: {exc})")
-
     print("\nDone. Switch to 'Northlake Payments, Inc.' in the client picker and re-shoot.")
 
 
