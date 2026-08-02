@@ -780,7 +780,13 @@ def _metro_from_city(city, state):
                     cand = cand[: -len(_suf)].strip()
             if cand in _INTL_CITY_METRO:
                 return _INTL_CITY_METRO[cand]
-        return "International"
+        # Non-hub foreign filer: label by country/province from the EDGAR state code (the verified
+        # map in firm_book) instead of one opaque "International" blob — so a UK fund outside London
+        # reads "United Kingdom", a Swiss fund outside Zurich/Geneva reads "Switzerland", etc. Only
+        # a truly unmapped code falls through to "International".
+        from core.firm_book import _state_name
+        _cn = _state_name(st)
+        return _cn if _cn != st else "International"
     if c and st:
         return f"{c.title()}, {st}"      # normalised so St / St. / Saint variants don't split
     if c:
