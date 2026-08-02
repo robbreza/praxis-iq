@@ -398,7 +398,7 @@ def seed():
         ("Schuylkill Vale Capital","Value","Philadelphia, PA","Holds peer (13F)",72,"Owns VNTG."),
         ("Front Range Partners","Growth","Denver, CO","Conference",70,"Met on the road."),
         ("Thames Reach Capital","International small-cap","London, UK","Holds peer (13F)",78,"Owns PYRA; UK swing candidate."),
-        ("Bay Street Vale Partners","Growth","Toronto, ON","Conference",73,"Canadian swing; met at the conference."),
+        ("Bay Street Vale Partners","Growth","Toronto, Canada","Conference",73,"Canadian swing; met at the conference."),
     ]
     _prospect_rows = [
         {"fund": fn, "style": stl, "metro": mt, "source": src, "score": sc, "notes": nt}

@@ -714,31 +714,31 @@ _SEC_CITY_METRO = {
 # normalised city; province/country suffixes ("TORONTO ONTARIO", "PARIS FRANCE") are stripped first.
 # Only reached for non-US state codes, so ambiguous names (Burlington ON) can't collide with US.
 _INTL_CITY_METRO = {
-    "TORONTO": "Toronto, ON", "MISSISSAUGA": "Toronto, ON", "OAKVILLE": "Toronto, ON",
-    "MARKHAM": "Toronto, ON", "VAUGHAN": "Toronto, ON", "RICHMOND HILL": "Toronto, ON",
-    "BURLINGTON": "Toronto, ON", "WATERLOO": "Toronto, ON",
-    "MONTREAL": "Montreal, QC", "VANCOUVER": "Vancouver, BC", "CALGARY": "Calgary, AB",
+    "TORONTO": "Toronto, Canada", "MISSISSAUGA": "Toronto, Canada", "OAKVILLE": "Toronto, Canada",
+    "MARKHAM": "Toronto, Canada", "VAUGHAN": "Toronto, Canada", "RICHMOND HILL": "Toronto, Canada",
+    "BURLINGTON": "Toronto, Canada", "WATERLOO": "Toronto, Canada",
+    "MONTREAL": "Montreal, Canada", "VANCOUVER": "Vancouver, Canada", "CALGARY": "Calgary, Canada",
     "LONDON": "London, UK", "EDINBURGH": "Edinburgh, UK",
-    "PARIS": "Paris, FR", "FRANKFURT": "Frankfurt, DE", "FRANKFURT AM MAIN": "Frankfurt, DE",
-    "MUNICH": "Munich, DE", "BERLIN": "Berlin, DE",
+    "PARIS": "Paris, France", "FRANKFURT": "Frankfurt, Germany", "FRANKFURT AM MAIN": "Frankfurt, Germany",
+    "MUNICH": "Munich, Germany", "BERLIN": "Berlin, Germany",
     # Switzerland — German-Swiss hub (Zurich, incl. the Zug/Pfäffikon hedge-fund belt) vs French-
     # Swiss (Geneva). Zurich↔Geneva is ~175mi, so two stops even at a 60-mile radius.
-    "ZURICH": "Zurich, CH", "ZUG": "Zurich, CH", "BASEL": "Zurich, CH", "BERN": "Zurich, CH",
-    "PFAFFIKON": "Zurich, CH", "LUCERNE": "Zurich, CH", "WINTERTHUR": "Zurich, CH",
-    "SCHINDELLEGI": "Zurich, CH", "BAAR": "Zurich, CH", "WOLLERAU": "Zurich, CH", "FREIENBACH": "Zurich, CH",
-    "GENEVA": "Geneva, CH", "GENEVE": "Geneva, CH", "CAROUGE": "Geneva, CH", "LAUSANNE": "Geneva, CH",
-    "NYON": "Geneva, CH", "COLOGNY": "Geneva, CH", "VEVEY": "Geneva, CH",
+    "ZURICH": "Zurich, Switzerland", "ZUG": "Zurich, Switzerland", "BASEL": "Zurich, Switzerland", "BERN": "Zurich, Switzerland",
+    "PFAFFIKON": "Zurich, Switzerland", "LUCERNE": "Zurich, Switzerland", "WINTERTHUR": "Zurich, Switzerland",
+    "SCHINDELLEGI": "Zurich, Switzerland", "BAAR": "Zurich, Switzerland", "WOLLERAU": "Zurich, Switzerland", "FREIENBACH": "Zurich, Switzerland",
+    "GENEVA": "Geneva, Switzerland", "GENEVE": "Geneva, Switzerland", "CAROUGE": "Geneva, Switzerland", "LAUSANNE": "Geneva, Switzerland",
+    "NYON": "Geneva, Switzerland", "COLOGNY": "Geneva, Switzerland", "VEVEY": "Geneva, Switzerland",
     # Italian-Swiss (Ticino) private-banking centre — its own stop; ~30mi to Milan but a
     # distinct cross-border booking hub, so kept Swiss rather than folded into Milan.
-    "LUGANO": "Lugano, CH", "PARADISO": "Lugano, CH", "BELLINZONA": "Lugano, CH",
-    "MANNO": "Lugano, CH", "CHIASSO": "Lugano, CH", "MENDRISIO": "Lugano, CH",
-    "TOKYO": "Tokyo, JP", "HONG KONG": "Hong Kong", "CAUSEWAY BAY": "Hong Kong", "CENTRAL": "Hong Kong",
-    "SINGAPORE": "Singapore", "SEOUL": "Seoul, KR", "DUBAI": "Dubai, AE", "MILAN": "Milan, IT",
-    "BRUSSELS": "Brussels, BE", "LUXEMBOURG": "Luxembourg", "SENNINGERBERG": "Luxembourg",
-    "STOCKHOLM": "Stockholm, SE", "AMSTERDAM": "Amsterdam, NL", "OSLO": "Oslo, NO",
-    "COPENHAGEN": "Copenhagen, DK", "COPENHAGEN V": "Copenhagen, DK", "HELSINKI": "Helsinki, FI",
-    "SYDNEY": "Sydney, AU", "MELBOURNE": "Melbourne, AU", "SAO PAULO": "Sao Paulo, BR",
-    "WARSAW": "Warsaw, PL", "DUBLIN": "Dublin, IE",
+    "LUGANO": "Lugano, Switzerland", "PARADISO": "Lugano, Switzerland", "BELLINZONA": "Lugano, Switzerland",
+    "MANNO": "Lugano, Switzerland", "CHIASSO": "Lugano, Switzerland", "MENDRISIO": "Lugano, Switzerland",
+    "TOKYO": "Tokyo, Japan", "HONG KONG": "Hong Kong", "CAUSEWAY BAY": "Hong Kong", "CENTRAL": "Hong Kong",
+    "SINGAPORE": "Singapore", "SEOUL": "Seoul, South Korea", "DUBAI": "Dubai, UAE", "MILAN": "Milan, Italy",
+    "BRUSSELS": "Brussels, Belgium", "LUXEMBOURG": "Luxembourg", "SENNINGERBERG": "Luxembourg",
+    "STOCKHOLM": "Stockholm, Sweden", "AMSTERDAM": "Amsterdam, Netherlands", "OSLO": "Oslo, Norway",
+    "COPENHAGEN": "Copenhagen, Denmark", "COPENHAGEN V": "Copenhagen, Denmark", "HELSINKI": "Helsinki, Finland",
+    "SYDNEY": "Sydney, Australia", "MELBOURNE": "Melbourne, Australia", "SAO PAULO": "Sao Paulo, Brazil",
+    "WARSAW": "Warsaw, Poland", "DUBLIN": "Dublin, Ireland",
 }
 
 
