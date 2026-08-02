@@ -74,7 +74,16 @@ def refresh(cid=None):
     cid = cid or get_active_client_id()
     by_id = {i["id"]: i for i in (db.load_json(_STORE_KEY, [], client_id=cid) or []) if i.get("id")}
 
+    # Tickers parked in the CIK fallback with value None are invented/illustrative
+    # (see the demo seed). yfinance resolves them to unrelated real tickers and pulls
+    # mismatched real-company stories, so skip them — the same short-circuit the SEC
+    # and price paths already use. (Nothing here fabricates news.)
+    parked = db.load_json("sec_cik_fallback.json", {}, client_id=cid) or {}
+    tracked = set(_tickers())
+
     for t in _tickers():
+        if parked.get(t, "x") is None:
+            continue
         try:
             for raw in (yf.Ticker(t).news or []):
                 item = _parse_item(t, raw)
@@ -90,7 +99,9 @@ def refresh(cid=None):
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=_WINDOW_DAYS)
     kept = [i for i in by_id.values()
-            if (_pub_dt(i.get("pub")) is None or _pub_dt(i.get("pub")) >= cutoff)]
+            if i.get("ticker") in tracked
+            and parked.get(i.get("ticker"), "x") is not None
+            and (_pub_dt(i.get("pub")) is None or _pub_dt(i.get("pub")) >= cutoff)]
     kept.sort(key=lambda i: i.get("pub") or "", reverse=True)
     db.save_json(_STORE_KEY, kept, client_id=cid)
     return kept
