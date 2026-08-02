@@ -352,6 +352,9 @@ def seed():
 
     # 3e. A curated target of this client's own, so the house book isn't the only entry.
     from core import curated_targets
+    # Clear any client-scoped curated first so a reseed can't accumulate stale/imported
+    # rows on this illustrative tenant (it must stay fully illustrative — no real contacts).
+    db.save_json("curated_targets.json", [], client_id=CID)
     for nm, city, st, why in [
         ("Kestrel Ridge Capital II", "MINNEAPOLIS", "MN",
          "Sister fund to an existing holder — same PM, asked to be kept in the loop."),
