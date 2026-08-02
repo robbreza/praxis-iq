@@ -364,6 +364,49 @@ def seed():
         curated_targets.add(nm, city, st, why, scope="client", cid=CID)
     print("[demo] seeded 2 client-scoped curated targets")
 
+    # 3f. New-investor PROSPECT pipeline (prospects.json) — the platform's whole point is
+    # surfacing NEW investors, so an empty pipeline made the demo read "0% new / 100% existing
+    # — needs more prospecting", i.e. the tool looking broken. Seed a believable, NY-led book of
+    # promoted non-holders (~28 -> a healthy ~50/50 mix vs 26 holders). All illustrative, all with
+    # a real hub metro so nothing lands in a vague "International" bucket. (Call-listen & IR-web
+    # signals stay unseeded on purpose — those need live integrations we don't claim.)
+    _PROSPECTS = [
+        ("Ridge & Vale Capital","Small-cap growth","New York, NY","Holds 2 peers (13F)",88,"Owns PYRA and CLRT; no position in you — clean fit."),
+        ("Hanover Reed Partners","GARP","New York, NY","Conference",83,"Met at the Q2 micro-cap conference; requested the model."),
+        ("Ellison Park Advisors","Fundamental value","New York, NY","Holds peer (13F)",80,"Holds VNTG; rotating into payments."),
+        ("Marrow Point Capital","Small-cap core","New York, NY","Screen",77,"Style and market-cap fit; cash to deploy."),
+        ("Sutton Yard Management","Growth","New York, NY","Inbound",75,"Reached out after the earnings call."),
+        ("Delancey Vale Partners","GARP","New York, NY","Holds peer (13F)",72,"Owns CLRT; conviction-add candidate."),
+        ("Corbin Hollow Advisors","Value","New York, NY","Screen",69,"Deep-value mandate; watching the multiple."),
+        ("Weybridge Capital","Small-cap growth","New York, NY","Conference",67,"Early interest; needs a follow-up."),
+        ("Charter Oak Equity","Small-cap growth","Boston, MA","Holds 2 peers (13F)",86,"Owns PYRA and VNTG; strong overlap."),
+        ("Nashoba Ridge Capital","Fundamental","Boston, MA","Conference",81,"Met on the road; asked for a call-back."),
+        ("Winthrop Fen Partners","GARP","Boston, MA","Screen",76,"Fit on cap and sector."),
+        ("Blackstone Brook Advisors","Value","Boston, MA","Holds peer (13F)",73,"Holds CLRT."),
+        ("Merrimack Point Capital","Core","Boston, MA","Inbound",70,"Requested the deck."),
+        ("Presidio Reach Capital","Growth","San Francisco, CA","Holds peer (13F)",84,"Owns PYRA; rotating into fintech."),
+        ("Marin Vale Partners","Small-cap growth","San Francisco, CA","Screen",78,"Cap and style fit."),
+        ("Cypress Point Advisors","GARP","San Francisco, CA","Conference",74,"West-coast swing candidate."),
+        ("Sausalito Bay Capital","Core","San Francisco, CA","Screen",68,"Watching."),
+        ("Prairie State Capital","Value","Chicago, IL","Holds peer (13F)",80,"Owns CLRT."),
+        ("Lakefront Ridge Partners","GARP","Chicago, IL","Conference",75,"Midwest swing."),
+        ("Wacker Bend Advisors","Small-cap growth","Chicago, IL","Screen",70,"Cap and sector fit."),
+        ("Arroyo Reach Capital","Growth","Los Angeles, CA","Screen",76,"Style fit; cash to deploy."),
+        ("Silverlake Vale Partners","GARP","Los Angeles, CA","Conference",71,"Interest at the conference."),
+        ("Kestrel Ridge Capital II","Small-cap value","Minneapolis-St. Paul, MN","Peer relationship",74,"Sister fund to an existing holder — same PM."),
+        ("North Loop Advisors","Core","Minneapolis-St. Paul, MN","Screen",69,"Regional fit."),
+        ("Schuylkill Vale Capital","Value","Philadelphia, PA","Holds peer (13F)",72,"Owns VNTG."),
+        ("Front Range Partners","Growth","Denver, CO","Conference",70,"Met on the road."),
+        ("Thames Reach Capital","International small-cap","London, UK","Holds peer (13F)",78,"Owns PYRA; UK swing candidate."),
+        ("Bay Street Vale Partners","Growth","Toronto, ON","Conference",73,"Canadian swing; met at the conference."),
+    ]
+    _prospect_rows = [
+        {"fund": fn, "style": stl, "metro": mt, "source": src, "score": sc, "notes": nt}
+        for fn, stl, mt, src, sc, nt in _PROSPECTS
+    ]
+    db.save_json("prospects.json", _prospect_rows, client_id=CID)
+    print(f"[demo] seeded {len(_prospect_rows)} new-investor prospects (NY-led) -> healthy new/existing mix")
+
     # 4. Consensus — a WORKED book: every covering analyst's model is on file. The
     # "we don't guess" discipline still shows through the unscored call pillar and the
     # provenance notes; it does not need a permanently-broken consensus to make the point.
