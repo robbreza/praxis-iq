@@ -171,28 +171,37 @@ HOLDERS = [
 # Own a PEER but not NLKP → these are what the prospect engine surfaces, and what
 # fills the roadshow-metro map with non-holders.
 PEER_OWNERS = [
+    # New York metro — the deepest concentration (Manhattan + Fairfield County + Westchester,
+    # all inside a one-day roadshow radius, so the map unifies them into "New York, NY").
     ("Ridgeline Park Capital",       "NEW YORK",      "NY", "PYRA",  8_100_000,   740_000_000, 96),
-    ("Ansonia Wealth Partners",      "WHITE PLAINS",  "NY", "CLRT",  5_400_000,   410_000_000, 71),
-    ("Bellhaven Capital Group",      "RYE",           "NY", "PYRA",  4_950_000,   295_000_000, 44),
-    ("Coldwater Bay Advisors",       "BOSTON",        "MA", "VNTG",  6_200_000,   880_000_000, 128),
-    ("Wellsbrook Investment Mgmt",   "WELLESLEY",     "MA", "PYRA",  3_700_000,   190_000_000, 33),
+    ("Hudson Yard Advisors",         "NEW YORK",      "NY", "CLRT",  6_900_000,   620_000_000, 88),
+    ("Ansonia Wealth Partners",      "GREENWICH",     "CT", "VNTG",  5_400_000,   410_000_000, 71),
+    ("Bellhaven Capital Group",      "STAMFORD",      "CT", "PYRA",  4_950_000,   295_000_000, 44),
+    ("Gramercy Bend Management",     "WHITE PLAINS",  "NY", "CLRT",  4_300_000,   360_000_000, 58),
+    ("Half Moon Point Capital",      "PURCHASE",      "NY", "VNTG",  3_800_000,   240_000_000, 39),
+    # Boston
+    ("Coldwater Bay Advisors",       "BOSTON",        "MA", "PYRA",  6_200_000,   880_000_000, 128),
+    ("Charles Basin Partners",       "BOSTON",        "MA", "CLRT",  5_100_000,   470_000_000, 84),
+    ("Wellsbrook Investment Mgmt",   "CAMBRIDGE",     "MA", "VNTG",  3_700_000,   190_000_000, 33),
+    ("Beacon Fen Capital",           "WELLESLEY",     "MA", "PYRA",  3_050_000,   210_000_000, 41),
+    # San Francisco / Bay Area
+    ("Presidio Gate Advisors",       "SAN FRANCISCO", "CA", "CLRT",  9_200_000, 2_400_000_000, 305),
+    ("Alder Creek Capital",          "SAN FRANCISCO", "CA", "VNTG",  4_100_000,   340_000_000, 62),
+    ("Marin Reach Partners",         "SAN FRANCISCO", "CA", "PYRA",  3_400_000,   280_000_000, 47),
+    # Chicago
     ("Lakeshore Meridian Partners",  "CHICAGO",       "IL", "CLRT",  7_450_000, 1_250_000_000, 174),
     ("Oak Brook Equity Advisors",    "OAK BROOK",     "IL", "PYRA",  2_900_000,   165_000_000, 27),
-    ("Sturgis Lake Capital",         "ST. PAUL",      "MN", "VNTG",  3_100_000,   118_000_000, 21),
-    ("Bryn Tarran Capital",          "PLYMOUTH",      "MN", "PYRA",  2_450_000,    92_000_000, 19),
-    ("Presidio Gate Advisors",       "SAN FRANCISCO", "CA", "CLRT",  9_200_000, 2_400_000_000, 305),
-    ("Alder Creek Capital",          "PALO ALTO",     "CA", "PYRA",  4_100_000,   340_000_000, 62),
-    ("Verdugo Hills Partners",       "SANTA MONICA",  "CA", "VNTG",  3_350_000,   210_000_000, 41),
-    ("Trinity Fork Capital",         "DALLAS",        "TX", "PYRA",  5_800_000,   620_000_000, 89),
-    ("Bayou Bend Investors",         "HOUSTON",       "TX", "CLRT",  4_600_000,   455_000_000, 77),
-    ("Schuylkill Row Advisors",      "PHILADELPHIA",  "PA", "PYRA",  3_900_000,   285_000_000, 54),
-    ("Allegheny Point Capital",      "PITTSBURGH",    "PA", "VNTG",  2_750_000,   160_000_000, 30),
-    ("Menomonee Valley Capital",     "MILWAUKEE",     "WI", "CLRT",  2_300_000,   135_000_000, 25),
-    ("Cascadia Union Partners",      "SEATTLE",       "WA", "PYRA",  4_450_000,   510_000_000, 83),
-    ("Kingsway Bay Capital",         "TORONTO",       "A6", "CLRT",  5_100_000,   980_000_000, 142),
+    # Los Angeles
+    ("Verdugo Hills Partners",       "LOS ANGELES",   "CA", "VNTG",  3_350_000,   210_000_000, 41),
+    ("Arroyo Vista Capital",         "LOS ANGELES",   "CA", "CLRT",  2_700_000,   175_000_000, 34),
+    # Single-metro stops
+    ("Sturgis Lake Capital",         "MINNEAPOLIS",   "MN", "PYRA",  3_100_000,   118_000_000, 21),
+    ("Schuylkill Row Advisors",      "PHILADELPHIA",  "PA", "VNTG",  2_600_000,   150_000_000, 28),
+    ("Trinity Fork Capital",         "DALLAS",        "TX", "CLRT",  5_800_000,   620_000_000, 89),
+    # International hubs
     ("Thames Meridian Asset Mgmt",   "LONDON",        "X0", "PYRA",  6_700_000, 1_900_000_000, 268),
-    ("Lac Leman Investment Partners","GENEVA",        "V8", "VNTG",  3_050_000,   720_000_000, 110),
-    ("Ceresio Vista Privatbank",     "LUGANO",        "V8", "PYRA",  2_150_000,   395_000_000,  66),
+    ("Cheapside Row Capital",        "LONDON",        "X0", "CLRT",  4_500_000,   910_000_000, 140),
+    ("Kingsway Bay Capital",         "TORONTO",       "A6", "VNTG",  5_100_000,   980_000_000, 142),
 ]
 
 
