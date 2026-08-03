@@ -1568,12 +1568,22 @@ def _render_earnings_prep():
 def _render_board_ir_report():
     """Live Board IR Report — composed from the real filing, valuation, and
     ownership data, replacing the old static (and page-count-overstated) images."""
-    s = edgar_financials.financial_summary(CT("ticker"))
-    if not s or s.get("_error"):
+    # Single source of truth: compose the board package ONCE and render everything
+    # from it, so the on-screen report and the PDF can't drift. (Was: inline
+    # financial_summary + build_benchmark up here AND a second compose() lower down
+    # — the same data computed twice from two code paths.)
+    from core import board_package
+    try:
+        _pkg = board_package.compose()
+    except Exception as _e:
+        ui.label(f"Board package unavailable: {_e}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        return
+    if not _pkg or not _pkg.get("period") or not (_pkg["period"] or {}).get("summary"):
         ui.label("Financials unavailable from EDGAR right now.").style(f"color:{COLORS['text_muted']};font-size:12px;")
         return
+    s = _pkg["period"]["summary"]
     inc, bs, cf = s["income"], s["balance"], s["cashflow"]
-    bm = benchmarking_engine.build_benchmark()
+    bm = _pkg["valuation"]["bm"]
     u = bm["usio"]
 
     # Ownership & the Street (best-effort; each guarded)
@@ -1725,12 +1735,7 @@ def _render_board_ir_report():
     except Exception as exc:
         print(f"[reports_page] talking points unavailable for {CT('ticker')}: {exc}")
 
-    # ---- sections merged in from the Quarterly Board Package ----
-    try:
-        from core import board_package
-        _pkg = board_package.compose()
-    except Exception as _e:
-        _pkg = None
+    # ---- sections from the same composed package (_pkg, loaded once at the top) ----
 
     if _pkg and _pkg.get("sell_side"):
         _ss = _pkg["sell_side"]
