@@ -901,7 +901,11 @@ def main_page(request: Request = None):
     # inside a page.
     # Phones land on the curated Home (the on-the-road assistant); desktop lands on Today. Flash-free:
     # decided from the User-Agent at first render, no client round-trip.
-    _landing = "Home" if _is_mobile_ua(request) else "Today"
+    # A digest / deep link can request a specific page (e.g. the weekly read):
+    # /?page=Lighthouse. Honour it when it names a real page; otherwise land on the
+    # device default (phones -> Home, desktop -> Today).
+    _requested = (request.query_params.get("page") if request is not None else None)
+    _landing = _requested if _requested in PORTED else ("Home" if _is_mobile_ua(request) else "Today")
     state = {"page": _landing, "role": DEFAULT_ROLE_KEY, "expanded": None, "active_tab": None}
     nav_buttons = {}
     # section → tooltip text, for re-labelling nav buttons as access changes.
@@ -1497,7 +1501,10 @@ def _lh_track_open(token: str, request: Request):
 @app.get("/lh/c/{token}")
 def _lh_track_click(token: str, request: Request):
     from fastapi.responses import RedirectResponse
-    dest = (os.environ.get("LIGHTHOUSE_APP_URL", "") or "").rstrip("/") or "/"   # fixed dest — no open redirect
+    # Land the reader on the Lighthouse page (where the weekly/daily read lives), not
+    # the app root. Fixed page param -> no open-redirect risk.
+    _base = (os.environ.get("LIGHTHOUSE_APP_URL", "") or "").rstrip("/")
+    dest = (_base + "/?page=Lighthouse") if _base else "/?page=Lighthouse"
     try:
         from lighthouse import telemetry
         did = telemetry.parse_token(token)
