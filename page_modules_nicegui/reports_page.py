@@ -342,8 +342,8 @@ def _render_board_reports_tab(reviews, review_path):
     ui.label("This week's brief composes itself the moment you open the page — from what's actually on file "
              "today: price & volume, the earnings and quiet-period calendar, 13F ownership and its add/trim "
              "momentum, this week's logged IR activity, the investor pipeline, the NDR schedule, and peer "
-             "moves/filings. Readable below and downloadable as a PDF. Generate saves a dated copy to the "
-             "history beneath it.").style(f"color:{COLORS['text_muted']}")
+             "moves/filings. The full brief is shown right below this note (the “live” card) and downloads as a PDF for the board packet. "
+             "The Generate button just files a dated one-line copy to your history log.").style(f"color:{COLORS['text_muted']}")
 
     # The live brief for THIS week, composed fresh on render — the full sectioned
     # document the old one-line card never had, with a PDF for the board packet.
@@ -367,14 +367,14 @@ def _render_board_reports_tab(reviews, review_path):
         week_label = f"Week of {datetime.now().strftime('%b %d, %Y')}"
         current = _load_weekly_briefs()
         if any(b["week"] == week_label for b in current):
-            ui.notify(f"A brief for {week_label} already exists below.", type="warning")
+            ui.notify("This week’s brief is already composed — read it in full in the “live” card at the top of this section, and use Download PDF for the board copy. (The dated list is just your history log.)", type="info")
             return
         current.insert(0, {
             "week": week_label, "status": "Draft ready", "summary": _compose_weekly_brief(),
             "seeded": False, "generated_at": datetime.now().isoformat(),
         })
         _save_json("weekly_briefs.json", current)
-        ui.notify(f"{week_label} brief generated from live data. Review and send via IRConnect.", type="positive")
+        ui.notify(f"Filed a dated copy of the {week_label} brief to your history. The full, readable brief — with Download PDF — is the “live” card at the top of this section.", type="positive")
         _refresh()
 
     _wk_btn = ui.button(f"Generate Weekly Brief — Week of {datetime.now().strftime('%b %d')}", on_click=generate_weekly).props("color=primary").style("margin-top:8px;")
