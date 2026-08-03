@@ -323,10 +323,6 @@ def _render_board_reports_tab(reviews, review_path):
         _render_board_ir_report()
         _reviewed_row(reviews, review_path, "USIO_Board_IR_Report")
 
-    with ui.expansion("Earnings Prep Brief — what management needs in the room · Live",
-                      value=True).classes("w-full"):
-        _render_earnings_prep()
-
     with ui.expansion("Quarterly financial trend (QoQ) — client & peers · Live").classes("w-full"):
         _render_quarterly_trend()
 

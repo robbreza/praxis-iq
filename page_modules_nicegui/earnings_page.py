@@ -653,6 +653,17 @@ def _blank_script_state():
     }
 
 
+def _render_prep_brief_tab():
+    """Earnings Prep Brief — moved here from Board IR Reports; it's an earnings-cycle
+    document, not a board report. Shares the same live renderer in reports_page."""
+    ui.label("Earnings Prep Brief").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("What management needs in the room — composed live from the consensus file, the "
+             "CFO’s guidance decision, the risk scorecard, and the last transcript.").style(
+             f"color:{COLORS['text_muted']}")
+    from page_modules_nicegui.reports_page import _render_earnings_prep
+    _render_earnings_prep()
+
+
 def render_earnings_page():
     earnings = CE()
     ui.label(f"Script Generation · {earnings.get('current_quarter','')} · "
@@ -676,6 +687,7 @@ def render_earnings_page():
     with ui.tabs().classes("w-full") as tabs:
         t1 = ui.tab("Prior Qtr Review")
         t2 = ui.tab("Script Generation")
+        t_prep = ui.tab("Prep Brief")
         # Narrative Momentum — promoted from a section inside Script Generation →
         # Tomorrow's Setup to its own tab. Same shared renderer (narrative_engine
         # via markets_page._render_narrative_momentum); Tomorrow's Setup keeps its
@@ -700,7 +712,7 @@ def render_earnings_page():
     # A sidebar sub-item deep-links straight to a tab (nav.consume_target_tab);
     # it wins over the guidance/transcript jump logic. Map the label back to its
     # tab object so the lazy-load default and eager-render branches still work.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6)}
+    _by_name = {t.props["name"]: t for t in (t1, t2, t_prep, t3, t4, t5, t6)}
     default_tab = _by_name.get(nav.consume_target_tab()) or (
         t4 if jump_to_transcripts else (t2 if jump_to_script else t1))
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
@@ -712,6 +724,11 @@ def render_earnings_page():
         with ui.tab_panel(t2) as p2:
             if default_tab is t2:
                 _render_script_workflow_tab()
+            else:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t_prep) as p_prep:
+            if default_tab is t_prep:
+                _render_prep_brief_tab()
             else:
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t5) as p5:
@@ -754,6 +771,7 @@ def render_earnings_page():
     lazy_panels = {
         t1.props["name"]: (p1, _render_lookback_tab),
         t2.props["name"]: (p2, _render_script_workflow_tab),
+        t_prep.props["name"]: (p_prep, _render_prep_brief_tab),
         t5.props["name"]: (p5, _render_narrative_momentum_tab),
         t3.props["name"]: (p3, _render_surprise_tracker_tab),
         t4.props["name"]: (p4, _render_transcripts_tab),
