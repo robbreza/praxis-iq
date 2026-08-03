@@ -1794,6 +1794,44 @@ def _render_board_ir_report():
                        "w": r["rationale"]} for r in _pkg["appendix"]]).classes(
                 "w-full dense-table").props("flat dense wrap-cells")
 
+    # ---- Edit the narrative before export (numbers stay computed; the prose is yours) ----
+    if not ui_context.is_read_only():
+        with ui.expansion("Edit the narrative before export", icon="edit").classes("w-full").style("margin-top:8px;"):
+            ui.label("The numbers are computed live and can’t be changed here — but these written blocks "
+                     "can. Your wording is used on screen AND in the PDF, and it persists across refreshes. "
+                     "Reset restores the auto-written version.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            _raw = board_package.compose(raw=True)
+            _ov = board_package.load_overrides()
+            _edit_inputs = {}
+            for _k, _sec, _fld, _lbl in board_package.EDITABLE_FIELDS:
+                _auto = ((_raw.get(_sec) or {}).get(_fld)) or ""
+                ui.label(_lbl + ("  ·  edited" if _k in _ov else "")).style(
+                    f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:10px;")
+                _ta = ui.textarea(value=_ov.get(_k, _auto)).props("outlined autogrow dense").classes(
+                    "w-full").style("font-size:12px;")
+                _edit_inputs[_k] = (_ta, _auto)
+
+            def _save_board_edits():
+                _new = dict(board_package.load_overrides())
+                for _key, (_inp, _autoval) in _edit_inputs.items():
+                    _v = (_inp.value or "").strip()
+                    if _v and _v != (_autoval or "").strip():
+                        _new[_key] = _v
+                    else:
+                        _new.pop(_key, None)
+                board_package.save_overrides(_new)
+                ui.notify("Saved — the report and its PDF now use your wording.", type="positive")
+                _refresh()
+
+            def _reset_board_edits():
+                board_package.save_overrides({})
+                ui.notify("Reset to the auto-written narrative.", type="info")
+                _refresh()
+
+            with ui.row().style("margin-top:12px;"):
+                ui.button("Save edits", icon="save", on_click=_save_board_edits).props("color=primary dense")
+                ui.button("Reset to auto", icon="restart_alt", on_click=_reset_board_edits).props("flat dense")
+
     def _dl_board_pdf():
         try:
             ui.download(report_pdf.board_package_pdf(),

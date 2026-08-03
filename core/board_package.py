@@ -247,9 +247,43 @@ def appendix_comp_sheet(client_id=None):
     return rows
 
 
-def compose(client_id=None):
+_OVERRIDE_KEY = "board_report_overrides.json"
+
+# Narrative blocks the IR team can edit before export. The numbers stay computed;
+# only these prose fields are overridable. (override key -> section, field, label.)
+# Both render from compose() on screen AND in the PDF, so an edit shows in both.
+EDITABLE_FIELDS = [
+    ("sell_side.read", "sell_side", "read", "Sell-side coverage — the read"),
+    ("buy_side.note",  "buy_side",  "note", "Buy-side & retail — the note"),
+]
+
+
+def load_overrides(client_id=None):
+    from config.client_config import get_active_client_id
+    from core import db
+    return db.load_json(_OVERRIDE_KEY, {}, client_id=client_id or get_active_client_id()) or {}
+
+
+def save_overrides(overrides, client_id=None):
+    from config.client_config import get_active_client_id
+    from core import db
+    db.save_json(_OVERRIDE_KEY, overrides or {}, client_id=client_id or get_active_client_id())
+
+
+def _apply_overrides(d, client_id=None):
+    ov = load_overrides(client_id)
+    for key, section, field, _label in EDITABLE_FIELDS:
+        v = ov.get(key)
+        if v and isinstance(d.get(section), dict):
+            d[section][field] = v
+    return d
+
+
+def compose(client_id=None, raw=False):
+    """Compose the board package. raw=True returns the auto-written version (no
+    IR edits applied) — used by the edit UI to show the original for Reset."""
     p = _reported_period()
-    return {
+    d = {
         "ticker": CT("ticker"), "name": CT("name"),
         "as_of": datetime.now(),
         "period": p, "glance": at_a_glance(client_id, period=p),
@@ -257,3 +291,4 @@ def compose(client_id=None):
         "valuation": valuation(client_id), "open_items": open_items(client_id),
         "appendix": appendix_comp_sheet(client_id),
     }
+    return d if raw else _apply_overrides(d, client_id)
