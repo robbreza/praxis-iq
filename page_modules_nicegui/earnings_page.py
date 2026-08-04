@@ -1187,6 +1187,56 @@ def _generate_persona_draft(role, ss, context=""):
     return _fallback_draft(role, n, what_new, ticker, ops, gd), False
 
 
+def _refine_persona_draft(current_text, instruction, role, ss):
+    """Revise an EXISTING (possibly hand-edited) draft per a free-text instruction,
+    in place — the conversational-editing counterpart to _generate_persona_draft's
+    cold start. Same factual guardrails: it may reword, restructure, shorten, or
+    change tone, but must not invent or alter financial figures, and must not
+    manufacture a consensus beat when none is on file. Returns (text, was_ai).
+
+    There is deliberately NO keyword fallback: a non-AI heuristic can't follow an
+    arbitrary instruction, so when the model is unavailable we return the draft
+    unchanged with was_ai=False and let the caller tell the user refine needs AI."""
+    current_text = current_text or ""
+    if not current_text.strip() or not (instruction or "").strip():
+        return current_text, False
+
+    # Reuse the same no-fabricated-consensus guardrail generation uses.
+    _cons = market_data.consensus_rev_value()
+    if isinstance(_cons, (int, float)) and _cons:
+        cons_rule = (f"Street consensus revenue on file is ${_cons:.1f}M — reference it only if the draft "
+                     f"already does; do not newly introduce a beat/miss framing.")
+    else:
+        cons_rule = ("No published sell-side consensus is on file for this name; do NOT state or imply any "
+                     "beat, miss, or comparison versus consensus, and do not invent a consensus figure.")
+    role_label = {"IR": "IR opening", "CFO": "CFO financial review",
+                  "CRO": "business-operations section", "CEO": "CEO narrative"}.get(role, role)
+    prompt = (
+        f"You are refining the {role_label} of an earnings-call script for {CT('ticker', '')}. Below is the "
+        f"CURRENT draft. Revise it to satisfy the INSTRUCTION, changing only what the instruction asks for and "
+        f"preserving the rest.\n\n"
+        f"STRICT RULES — these OVERRIDE the instruction wherever they conflict:\n"
+        f"- Do NOT add, remove, or change any financial figure, percentage, or dollar amount already in the "
+        f"draft, and do NOT introduce new numbers that aren't already there.\n"
+        f"- Never state or imply that results beat, met, or missed analyst/Street consensus, estimates, or "
+        f"expectations — or any comparison of the actuals to a target/prior period — unless that exact framing "
+        f"is ALREADY present in the draft. {cons_rule} If the instruction asks you to add a beat/miss/exceeded/"
+        f"in-line claim, silently OMIT that part and refine the rest.\n"
+        f"- Do not fabricate figures, metrics, events, or quotes. You MAY incorporate a specific fact the "
+        f"instruction ITSELF supplies (e.g. a customer name the user tells you to mention), phrased plainly and "
+        f"not embellished beyond what the user gave. But if the instruction asks for a fact it does NOT supply, "
+        f"insert a clearly bracketed [placeholder] for the IR person to fill rather than inventing it.\n"
+        f"- Keep it professional and plain text (no markdown).\n\n"
+        f"INSTRUCTION: {instruction.strip()}\n\n"
+        f"CURRENT DRAFT:\n{current_text}\n\n"
+        f"Return ONLY the revised section text — no preamble, no commentary, no explanation of what you changed."
+    )
+    revised = _call_claude_script(prompt, 600)
+    if revised and revised.strip():
+        return revised.strip(), True
+    return current_text, False
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Guidance & Outlook Decision Engine — ported from app.py. This was flagged
 # in an earlier pass of this port as a deliberate gap ("no such stage exists
@@ -2052,6 +2102,47 @@ def _render_persona_steps(ss, role, key):
 
             box.on_value_change(save_edit)
 
+            # Refine with AI — revise the CURRENT (possibly hand-edited) draft per a
+            # free-text instruction, in place, keeping the edits. Iterative: the
+            # instruction box stays so the user can keep nudging the same draft.
+            # This is the non-destructive counterpart to "Generate with AI" (which
+            # starts over from the numbers); it reads box.value, so whatever the
+            # user has typed/edited is what gets refined.
+            with ui.row().classes("w-full items-end gap-2").style("margin-top:6px;"):
+                refine_input = ui.input(
+                    label="Refine with AI — instruction (your edits are kept)",
+                    placeholder="e.g. tighten to 4 sentences · less promotional · work in the RTP win · firmer guidance",
+                ).classes("flex-grow").props("dense")
+
+                def refine(box=box, key=key, role=role, refine_input=refine_input, pace_label=pace_label):
+                    instr = (refine_input.value or "").strip()
+                    if not instr:
+                        ui.notify("Type an instruction first — what should change?", type="warning")
+                        return
+                    if not (box.value or "").strip():
+                        ui.notify("Nothing to refine yet — generate a draft first.", type="warning")
+                        return
+                    ui.notify("Refining draft…", type="info")
+                    try:
+                        revised, was_ai = _refine_persona_draft(box.value, instr, role, ss)
+                        if not was_ai:
+                            ui.notify("Refine needs the AI (ANTHROPIC_API_KEY) — draft left unchanged.",
+                                      type="warning")
+                            return
+                        box.value = revised
+                        ss["script_text"][key] = revised
+                        _save_json("script_workflow_state.json", ss)
+                        note, clr = _pacing_estimate(revised, role)
+                        pace_label.text = note
+                        pace_label.style(f"color:{clr};font-size:11px;")
+                        ui.notify("Refined — review above; refine again or Submit.", type="positive")
+                    except Exception as exc:
+                        ui.notify(f"Refine failed: {exc}", type="negative")
+                        raise
+
+                ui.button("Refine", icon="auto_fix_high", on_click=refine).props(
+                    "color=primary dense outline")
+
             def submit_to_script(box=box, key=key, role=role):
                 ss["script_text"][key] = box.value
                 _save_json("script_workflow_state.json", ss)
@@ -2059,7 +2150,7 @@ def _render_persona_steps(ss, role, key):
 
             ui.button("Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
 
-    def generate(role=role, key=key, whats_new_input=whats_new_input, final_notes_input=final_notes_input):
+    def _do_generate(role=role, key=key, whats_new_input=whats_new_input, final_notes_input=final_notes_input):
         # Wrapped in try/except + an immediate "Generating…" notify — a bare
         # click that produces neither a draft nor an error is exactly what a
         # silent server-side exception looks like from the browser (NiceGUI
@@ -2079,6 +2170,29 @@ def _render_persona_steps(ss, role, key):
         except Exception as exc:
             ui.notify(f"Draft generation failed: {exc}", type="negative")
             raise
+
+    def generate(key=key):
+        # "Generate with AI" starts OVER from the numbers + notes and replaces the
+        # draft box wholesale. If a draft already exists (a prior generate, a manual
+        # edit, or a refine), confirm first so a stray click can't wipe that work —
+        # the non-destructive path is "Refine" on the draft itself.
+        if (ss["script_text"].get(key) or "").strip():
+            with ui.dialog() as _dlg, ui.card():
+                ui.label("Regenerate from scratch?").classes("font-bold").style(
+                    f"color:{COLORS['text_heading']};")
+                ui.label("This replaces the current draft — including your edits — with a fresh AI draft built "
+                         "from the numbers and notes. To keep your text and adjust it instead, use “Refine” on "
+                         "the draft below.").style(f"color:{COLORS['text_muted']};font-size:12px;max-width:420px;")
+                with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
+                    ui.button("Cancel", on_click=_dlg.close).props("flat dense")
+
+                    def _go():
+                        _dlg.close()
+                        _do_generate()
+                    ui.button("Regenerate", icon="refresh", on_click=_go).props("color=primary dense")
+            _dlg.open()
+        else:
+            _do_generate()
 
     ui.button("Generate with AI", on_click=generate).props("color=primary dense").style("margin-top:6px;")
 
