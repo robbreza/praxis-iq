@@ -134,7 +134,12 @@ Classify this email into exactly one category:
   risks flagged that management should be ready to address, and the overall sentiment. Never invent a rating, PT, or
   method that isn't actually stated or clearly implied in the text.
 - "ndr_request": an analyst asking to arrange a management meeting/roadshow stop in a specific city for their clients.
-- "conference_invite": an invitation to present at, attend, or confirm attendance at a conference/event.
+- "conference_invite": an invitation for THIS company's management to present at, attend, or confirm attendance
+  at a specific investor/industry conference — the kind a sell-side bank's corporate-access desk or a conference
+  organizer sends, naming the event, its date(s), and usually an RSVP. It is NOT a marketing newsletter, a
+  promotional "join us live"/webinar blast, a media- or data-vendor event announcement, or a mass invitation to
+  watch someone else speak — those are "general", even if they mention a "conference", "event", or "fireside chat".
+  A real conference_invite asks the RECIPIENT's own management to attend/present, not to tune in to a broadcast.
 - "speak_to_management": a request for a call or meeting with company management (not tied to a roadshow or conference).
 - "meeting_confirmation": confirms, schedules, or reschedules a meeting/call that's already been arranged (e.g.
   "confirming our call for Tuesday at 2pm", a calendar invite reply, "looking forward to the 1x1 next week") —
