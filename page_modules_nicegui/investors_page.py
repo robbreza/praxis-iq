@@ -1386,19 +1386,33 @@ def _render_web_flow_tab(client_id):
              "just READ. A download is a far stronger buy-side intent signal than a page skim, so the two "
              "are scored separately.").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
-    d = web_flow.compose(client_id)
-    if not d.get("available"):
-        waiting_signal(
-            "a web-analytics export (Google Analytics · Q4 · IRWIN)",
-            detail="Upload your IR-site visitor export — visits, pages, time-on-site and asset downloads — "
-                   "and this fills in automatically. No web-analytics feed is wired yet, so nothing is shown "
-                   "rather than invented.",
-            unlocks="download-vs-read intent per visitor, the most-pulled assets, and hot prospects "
-                    "(non-holders downloading your deck or model).")
-        return
+    # Capture read-only ONCE, here, where the page role/page context is bound. A rebuild
+    # triggered from an upload or on_click callback runs with the ui_context slot unbound,
+    # so re-checking is_read_only() there would wrongly return True and hide every control
+    # (same class of bug as the tenant-context callback issue). client_id is captured too.
+    _read_only = ui_context.is_read_only()
+    _body = ui.column().classes("w-full gap-0")
 
-    ui.label(f"Source: {d['source']}.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin:2px 0 6px;")
+    def _handle_upload(e):
+        try:
+            rows = web_flow.parse_visitor_csv(e.content.read())
+        except Exception as ex:
+            ui.notify(f"Couldn't read that CSV: {ex}", type="negative")
+            return
+        if not rows:
+            ui.notify("No rows recognized — the file needs at least an Organization column.", type="warning")
+            return
+        web_flow.save_visitor_data(rows, client_id)
+        ui.notify(f"Loaded {len(rows)} visitor row(s) — web flow now runs on your data.", type="positive")
+        _build()
+
+    def _upload_control():
+        ui.upload(label="Upload web-analytics export (.csv)", auto_upload=True,
+                  on_upload=_handle_upload).props('accept=.csv flat').classes("w-full").style("max-width:440px;")
+        ui.label("Recognized columns (any subset): Organization · Category · Pages_Viewed · "
+                 "Time_On_Site_Min · Visits · Date · Downloads (comma-separated assets) · Holder. "
+                 "Works with a Google Analytics, Q4 or IRWIN export.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
 
     def _stat(val, label, sub, color=None):
         with ui.card().classes("flex-1").style(
@@ -1408,104 +1422,133 @@ def _render_web_flow_tab(client_id):
             ui.label(label).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
             ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
 
-    with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
-        _stat(d["n_visitors"], "Visitors", "orgs on the site")
-        _stat(d["n_downloaders"], "Downloaders", f"{d['download_pct']}% of visitors", "#15803D")
-        _stat(d["n_readers"], "Readers only", "browsed, no download")
-        _stat(d["total_downloads"], "Assets pulled", "total downloads")
-        _stat(len(d["hot_prospects"]), "Hot prospects", "non-holders pulling assets", "#B45309")
+    def _build():
+        _body.clear()
+        with _body:
+            d = web_flow.compose(client_id)
+            if not d.get("available"):
+                waiting_signal(
+                    "a web-analytics export (Google Analytics · Q4 · IRWIN)",
+                    detail="Upload your IR-site visitor export — visits, pages, time-on-site and asset "
+                           "downloads — and this fills in automatically. No web-analytics feed is wired "
+                           "yet, so nothing is shown rather than invented.",
+                    unlocks="download-vs-read intent per visitor, the most-pulled assets, and hot prospects "
+                            "(non-holders downloading your deck or model).")
+                if not _read_only:
+                    ui.label("Have an export? Drop it in:").style(
+                        f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:10px;")
+                    _upload_control()
+                return
 
-    # The split, spelled out — the whole point of the view.
-    _top_assets = ", ".join(a for a, _ in d["by_asset"][:2]) or "—"
-    ui.label(f"{d['download_pct']}% of site visitors downloaded material — {d['n_downloaders']} of "
-             f"{d['n_visitors']}. The rest read pages without pulling anything. Downloads skew to the "
-             f"{_top_assets}.").style(
-        f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;margin-top:10px;")
+            uploaded = d["source"] == "your uploaded web-analytics export"
+            ui.label(f"Source: {d['source']}.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin:2px 0 6px;")
 
-    if d["by_asset"]:
-        ui.label("Most-downloaded assets").classes("section-head").style("margin-top:12px;")
-        _maxc = d["by_asset"][0][1] or 1
-        for name, cnt in d["by_asset"]:
-            with ui.row().classes("w-full items-center").style("gap:10px;"):
-                ui.label(name).style(f"color:{COLORS['text_body']};font-size:12px;min-width:150px;")
-                with ui.element("div").style(
-                        f"flex:1;background:{COLORS['surface_hover_bg']};border-radius:6px;height:14px;"):
-                    ui.element("div").style(
-                        f"width:{round(100*cnt/_maxc)}%;background:{COLORS['accent']};height:14px;border-radius:6px;")
-                ui.label(f"{cnt}").style(f"color:{COLORS['text_muted']};font-size:12px;min-width:20px;")
+            with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
+                _stat(d["n_visitors"], "Visitors", "orgs on the site")
+                _stat(d["n_downloaders"], "Downloaders", f"{d['download_pct']}% of visitors", "#15803D")
+                _stat(d["n_readers"], "Readers only", "browsed, no download")
+                _stat(d["total_downloads"], "Assets pulled", "total downloads")
+                _stat(len(d["hot_prospects"]), "Hot prospects", "non-holders pulling assets", "#B45309")
 
-    if d["hot_prospects"]:
-        ui.label("Hot prospects — high intent, not yet holders").classes(
-            "section-head").style("margin-top:14px;")
-        ui.label("These orgs pulled real diligence material (deck / model / filings) but don't own you yet "
-                 "— the sharpest targets this view surfaces. Push one into the Target Database pipeline "
-                 "(the same store the Peer Prospects Promote button feeds).").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
-        _hot_box = ui.column().classes("w-full gap-0")
-        # Capture read-only ONCE, here, where the page role/page context is bound. Re-checking
-        # it inside _render_hot() would be wrong: when _render_hot runs from an on_click
-        # callback the ui_context slot isn't bound, so is_read_only() returns True and every
-        # mutating control would vanish after the first add (same class of bug as the
-        # tenant-context callback issue). client_id is likewise captured, not re-resolved.
-        _read_only = ui_context.is_read_only()
+            # The split, spelled out — the whole point of the view.
+            _top_assets = ", ".join(a for a, _ in d["by_asset"][:2]) or "—"
+            ui.label(f"{d['download_pct']}% of site visitors downloaded material — {d['n_downloaders']} of "
+                     f"{d['n_visitors']}. The rest read pages without pulling anything. Downloads skew to the "
+                     f"{_top_assets}.").style(
+                f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;margin-top:10px;")
 
-        def _render_hot():
-            _hot_box.clear()
-            queued = web_flow.target_queue_keys(client_id)
-            read_only = _read_only
-            with _hot_box:
-                unqueued = [v for v in d["hot_prospects"] if not web_flow.is_in_queue(v["org"], queued)]
-                if unqueued and not read_only:
-                    def _add_all(unqueued=unqueued):
-                        n = sum(1 for v in unqueued if web_flow.add_to_target_queue(v, client_id))
-                        ui.notify(f"Added {n} hot prospect(s) to the Target Database pipeline.", type="positive")
-                        _render_hot()
-                    ui.button(f"Add all {len(unqueued)} to target queue", icon="playlist_add",
-                              on_click=_add_all).props("color=primary dense").style("margin:6px 0;")
-                for v in d["hot_prospects"]:
-                    already = web_flow.is_in_queue(v["org"], queued)
-                    with ui.card().classes("w-full").style(
-                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-                            "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
-                        with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
-                            ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
-                            ui.label(f"intent {v['intent']}").style(
-                                "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
-                                "font-size:11px;font-weight:700;")
-                        ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
-                                 f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
-                        if already:
-                            ui.label("✓ In target pipeline").style(
-                                "color:#15803D;font-size:11px;font-weight:600;margin-top:4px;")
-                        elif not read_only:
-                            def _add_one(v=v):
-                                if web_flow.add_to_target_queue(v, client_id):
-                                    ui.notify(f"'{v['org']}' added to the Target Database pipeline.",
-                                              type="positive")
+            if d["by_asset"]:
+                ui.label("Most-downloaded assets").classes("section-head").style("margin-top:12px;")
+                _maxc = d["by_asset"][0][1] or 1
+                for name, cnt in d["by_asset"]:
+                    with ui.row().classes("w-full items-center").style("gap:10px;"):
+                        ui.label(name).style(f"color:{COLORS['text_body']};font-size:12px;min-width:150px;")
+                        with ui.element("div").style(
+                                f"flex:1;background:{COLORS['surface_hover_bg']};border-radius:6px;height:14px;"):
+                            ui.element("div").style(
+                                f"width:{round(100*cnt/_maxc)}%;background:{COLORS['accent']};height:14px;border-radius:6px;")
+                        ui.label(f"{cnt}").style(f"color:{COLORS['text_muted']};font-size:12px;min-width:20px;")
+
+            if d["hot_prospects"]:
+                ui.label("Hot prospects — high intent, not yet holders").classes(
+                    "section-head").style("margin-top:14px;")
+                ui.label("These orgs pulled real diligence material (deck / model / filings) but don't own you "
+                         "yet — the sharpest targets this view surfaces. Push one into the Target Database "
+                         "pipeline (the same store the Peer Prospects Promote button feeds).").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                _hot_box = ui.column().classes("w-full gap-0")
+
+                def _render_hot():
+                    _hot_box.clear()
+                    queued = web_flow.target_queue_keys(client_id)
+                    with _hot_box:
+                        unqueued = [v for v in d["hot_prospects"] if not web_flow.is_in_queue(v["org"], queued)]
+                        if unqueued and not _read_only:
+                            def _add_all(unqueued=unqueued):
+                                n = sum(1 for v in unqueued if web_flow.add_to_target_queue(v, client_id))
+                                ui.notify(f"Added {n} hot prospect(s) to the Target Database pipeline.", type="positive")
                                 _render_hot()
-                            ui.button("Add to target queue", icon="add", on_click=_add_one).props(
-                                "flat dense color=primary").style("margin-top:4px;")
-        _render_hot()
+                            ui.button(f"Add all {len(unqueued)} to target queue", icon="playlist_add",
+                                      on_click=_add_all).props("color=primary dense").style("margin:6px 0;")
+                        for v in d["hot_prospects"]:
+                            already = web_flow.is_in_queue(v["org"], queued)
+                            with ui.card().classes("w-full").style(
+                                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                                    "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
+                                with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
+                                    ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                                    ui.label(f"intent {v['intent']}").style(
+                                        "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
+                                        "font-size:11px;font-weight:700;")
+                                ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
+                                         f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
+                                    f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+                                if already:
+                                    ui.label("✓ In target pipeline").style(
+                                        "color:#15803D;font-size:11px;font-weight:600;margin-top:4px;")
+                                elif not _read_only:
+                                    def _add_one(v=v):
+                                        if web_flow.add_to_target_queue(v, client_id):
+                                            ui.notify(f"'{v['org']}' added to the Target Database pipeline.",
+                                                      type="positive")
+                                        _render_hot()
+                                    ui.button("Add to target queue", icon="add", on_click=_add_one).props(
+                                        "flat dense color=primary").style("margin-top:4px;")
+                _render_hot()
 
-    ui.label("All visitors — ranked by intent").classes("section-head").style("margin-top:14px;")
-    rows = [{
-        "org": v["org"],
-        "cat": v["category"] + ("  · holder" if v["is_holder"] else ""),
-        "reads": f"{v['pages']} pages · {v['minutes']} min" + (f" · {v['visits']} visits" if v["visits"] > 1 else ""),
-        "downloads": ", ".join(v["downloads"]) if v["downloads"] else "—",
-        "intent": f"{v['intent']} · {v['intent_label']}",
-    } for v in d["visitors"]]
-    responsive_table(
-        [{"name": "org", "label": "Visitor", "field": "org", "align": "left"},
-         {"name": "cat", "label": "Category", "field": "cat", "align": "left"},
-         {"name": "reads", "label": "Read", "field": "reads", "align": "left"},
-         {"name": "downloads", "label": "Downloaded", "field": "downloads", "align": "left"},
-         {"name": "intent", "label": "Intent", "field": "intent", "align": "left"}],
-        rows, table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="org")
-    ui.label("Intent = downloads (weighted by asset — a model/deck pull counts most) + capped page/time "
-             "reading. Upload a fresh analytics export any time to replace this with live numbers.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+            ui.label("All visitors — ranked by intent").classes("section-head").style("margin-top:14px;")
+            rows = [{
+                "org": v["org"],
+                "cat": v["category"] + ("  · holder" if v["is_holder"] else ""),
+                "reads": f"{v['pages']} pages · {v['minutes']} min" + (f" · {v['visits']} visits" if v["visits"] > 1 else ""),
+                "downloads": ", ".join(v["downloads"]) if v["downloads"] else "—",
+                "intent": f"{v['intent']} · {v['intent_label']}",
+            } for v in d["visitors"]]
+            responsive_table(
+                [{"name": "org", "label": "Visitor", "field": "org", "align": "left"},
+                 {"name": "cat", "label": "Category", "field": "cat", "align": "left"},
+                 {"name": "reads", "label": "Read", "field": "reads", "align": "left"},
+                 {"name": "downloads", "label": "Downloaded", "field": "downloads", "align": "left"},
+                 {"name": "intent", "label": "Intent", "field": "intent", "align": "left"}],
+                rows, table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="org")
+            ui.label("Intent = downloads (weighted by asset — a model/deck pull counts most) + capped page/time "
+                     "reading. Upload a fresh export any time to replace this with live numbers.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+
+            if not _read_only:
+                with ui.expansion("Replace or update this data (upload CSV)", icon="upload_file").classes(
+                        "w-full").style("margin-top:12px;"):
+                    _upload_control()
+                    if uploaded:
+                        def _clear():
+                            web_flow.clear_visitor_data(client_id)
+                            ui.notify("Cleared the uploaded feed.", type="info")
+                            _build()
+                        ui.button("Clear uploaded data", icon="delete", on_click=_clear).props(
+                            "flat dense").style(f"color:{COLORS['danger']};margin-top:6px;")
+
+    _build()
 
 
 def _render_nobo_tab():

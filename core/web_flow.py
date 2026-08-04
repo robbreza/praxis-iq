@@ -203,3 +203,91 @@ def add_to_target_queue(visitor, client_id=None):
     })
     db.save_json("prospects.json", plist, client_id=cid)
     return True
+
+
+# ── CSV ingest — let a real client drop in a GA4 / Q4 / IRWIN visitor export ───────
+# Header aliases so exports from different analytics tools all map to our schema. Match
+# is on a squashed header (lowercase, non-alphanumerics stripped): "Time on Site (min)"
+# -> "timeonsitemin".
+_COL_ALIASES = {
+    "org": {"visitororganization", "organization", "organisation", "company", "account",
+            "visitor", "org", "fund", "firm", "name", "institution"},
+    "category": {"category", "type", "segment", "visitortype", "audience"},
+    "pages": {"pagesviewed", "pages", "pageviews", "pageviewscount", "screenviews"},
+    "minutes": {"timeonsitemin", "minutes", "timeonsite", "durationmin", "timeminutes",
+                "avgsessionmin", "engagementtime", "engagedminutes"},
+    "visits": {"visits", "sessions", "visitcount", "sessioncount"},
+    "last_visit": {"date", "lastvisit", "lastseen", "visitdate", "lastactivity"},
+    "downloads": {"downloads", "assetsdownloaded", "documents", "files", "assets",
+                  "downloaded", "downloadedassets", "resources"},
+    "is_holder": {"holder", "isholder", "existingholder", "currentholder"},
+}
+
+
+def _squash_header(h):
+    return re.sub(r"[^a-z0-9]", "", str(h or "").strip().lower())
+
+
+def _to_int(x):
+    try:
+        return int(round(float(str(x).strip().replace(",", "") or 0)))
+    except Exception:
+        return 0
+
+
+def parse_visitor_csv(data):
+    """Parse a web-analytics CSV export into web-flow visitor rows. Recognizes a broad
+    set of column names (see _COL_ALIASES); an Organization column is the only hard
+    requirement. Downloads may be one comma/semicolon-separated column of asset names.
+    Never raises on a bad row — it's skipped. Returns a list of visitor dicts."""
+    import csv
+    import io
+    text = data.decode("utf-8-sig", "ignore") if isinstance(data, (bytes, bytearray)) else str(data)
+    reader = csv.DictReader(io.StringIO(text))
+    field_by_col = {}
+    for col in (reader.fieldnames or []):
+        sq = _squash_header(col)
+        for field, aliases in _COL_ALIASES.items():
+            if sq in aliases:
+                field_by_col[col] = field
+                break
+
+    rows = []
+    for raw in reader:
+        rec = {}
+        for col, val in raw.items():
+            f = field_by_col.get(col)
+            if f and f not in rec:      # first matching column wins
+                rec[f] = val
+        org = (rec.get("org") or "").strip()
+        if not org:
+            continue
+        downloads = [a.strip() for a in re.split(r"[,;/|]", rec.get("downloads") or "") if a.strip()]
+        h = rec.get("is_holder")
+        if h is not None and str(h).strip() != "":
+            is_holder = str(h).strip().lower() in ("1", "true", "yes", "y", "t", "holder")
+        else:
+            is_holder = "holder" in (rec.get("category") or "").lower()
+        rows.append({
+            "org": org,
+            "category": (rec.get("category") or "New — unidentified").strip() or "New — unidentified",
+            "is_holder": is_holder,
+            "pages": _to_int(rec.get("pages")),
+            "minutes": _to_int(rec.get("minutes")),
+            "visits": _to_int(rec.get("visits")) or 1,
+            "last_visit": (rec.get("last_visit") or "").strip(),
+            "downloads": downloads,
+        })
+    return rows
+
+
+def save_visitor_data(rows, client_id=None):
+    """Persist uploaded visitor rows as the tenant's web-flow feed (wins over the demo
+    seed for that client)."""
+    db.save_json(STORE_KEY, rows or [], client_id=client_id or get_active_client_id())
+
+
+def clear_visitor_data(client_id=None):
+    """Drop an uploaded feed — reverts a real tenant to the Waiting signal (and the demo
+    tenant to its illustrative seed)."""
+    db.save_json(STORE_KEY, None, client_id=client_id or get_active_client_id())
