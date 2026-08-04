@@ -96,7 +96,9 @@ _EXTRACTED_SCHEMA_BY_CATEGORY = {
     "ndr_request": '{"city": string|null, "metro": string|null (broader metro/region name if identifiable), '
                     '"reason": string|null (why they want the meeting)}',
     "conference_invite": '{"event_name": string|null, "date": string|null (YYYY-MM-DD if identifiable), '
-                          '"location": string|null, "organizer": string|null}',
+                          '"location": string|null, "organizer": string|null, '
+                          '"rsvp_deadline": string|null (YYYY-MM-DD — the date attendance must be confirmed by, '
+                          'e.g. "please confirm by November 1"; null if none stated)}',
     "speak_to_management": '{"requested_contact": string|null (e.g. "CFO", "CEO", "IR"), '
                             '"topic": string|null, "urgency": string|null}',
     "meeting_confirmation": '{"contact_or_fund": string|null (who the meeting is with, if not already clear from '

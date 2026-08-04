@@ -5452,16 +5452,20 @@ def _render_pending_inbox_items():
                     # Sidoti…), which is NOT always the sender's firm. Prefill the parsed value and
                     # fall back to the sender firm; it used to be silently overwritten with the firm.
                     c_org = ui.input("Organizer", value=extracted.get("organizer") or item["firm"] or "").classes("w-full")
+                    # RSVP / confirm-attendance-by date, parsed from the invite → the calendar's
+                    # registration-deadline field, so the "reply by" date isn't lost.
+                    c_deadline = ui.input("RSVP / confirm by (YYYY-MM-DD)",
+                                          value=extracted.get("rsvp_deadline") or "").classes("w-full")
 
                     def confirm(item_id=item["id"], firm=item["firm"], contact=item["contact"],
-                                c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org):
+                                c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org, c_deadline=c_deadline):
                         if not c_event.value:
                             ui.notify("Event name is required.", type="warning")
                             return
                         from core import conferences
                         _row, added = conferences.add_event(
                             event=c_event.value, date=c_date.value or None, location=c_loc.value or None,
-                            organizer=c_org.value or firm, source="Email invite",
+                            organizer=c_org.value or firm, deadline=c_deadline.value or None, source="Email invite",
                             notes=f"Invitation received by email from {contact} ({firm}).")
                         inbox_queue.mark_confirmed(item_id, outcome=f"Added '{c_event.value}' to Calendar")
                         ui.notify(f"'{c_event.value}' added to Calendar — confirm details there." if added
