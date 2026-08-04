@@ -1572,6 +1572,28 @@ def _lh_track_click(token: str, request: Request):
     return RedirectResponse(url=dest)
 
 
+@app.get("/calendar/{token}.ics")
+def _calendar_feed(token: str):
+    """Subscribable iCalendar feed for one tenant's IR calendar. The token is an
+    HMAC-signed client id (conferences.feed_token) so the URL can't be guessed; an
+    IR team subscribes once in Outlook/Google and every confirmed conference,
+    earnings date and roadshow appears — and auto-refreshes."""
+    from fastapi.responses import PlainTextResponse, Response
+    try:
+        from core import conferences
+        cid = conferences.parse_feed_token(token)
+        if not cid:
+            return PlainTextResponse("Invalid or expired calendar link.", status_code=404)
+        ics = conferences.events_to_ics(
+            conferences.load_events(cid), cal_name=f"IRconnect — {cid.upper()} IR Calendar")
+        return Response(content=ics, media_type="text/calendar; charset=utf-8",
+                        headers={"Content-Disposition": 'inline; filename="ir_calendar.ics"',
+                                 "Cache-Control": "public, max-age=3600"})
+    except Exception:
+        from fastapi.responses import PlainTextResponse as _PTR
+        return _PTR("Calendar unavailable.", status_code=500)
+
+
 # ── PWA — installable home-screen app (manifest + icons + service worker) ──────────────────────────
 # Makes IRconnect installable on a phone/desktop home screen. Conservative by design: the service
 # worker never caches the live NiceGUI app (only our /pwa/ art + an offline page), so an install can't

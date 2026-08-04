@@ -22,6 +22,8 @@ These can be added in a follow-up pass — the data layer and page structure
 below make that straightforward to slot in.
 """
 
+import os
+import re
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -29,7 +31,7 @@ from nicegui import ui
 
 from config.client_config import get_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
-from core import db, ui_context
+from core import conferences, db, ui_context
 from data.seed.conferences import get_seed_conferences
 
 STATUS_OPTIONS = [
@@ -215,6 +217,10 @@ def render_calendar_page():
         render_view()
         ui.notify(f"Deleted '{ev['Event']}'")
 
+    def _dl_event_ics(ev):
+        safe = re.sub(r"[^A-Za-z0-9]+", "_", ev.get("Event", "event")).strip("_")[:40] or "event"
+        ui.download(conferences.event_ics(ev).encode("utf-8"), f"{safe}.ics")
+
     def _shift_month(delta):
         m = _cal["month"]
         idx = m.month - 1 + delta
@@ -245,8 +251,11 @@ def render_calendar_page():
                 if ev.get("Notes"):
                     ui.label(ev["Notes"]).style(
                         f"color:{COLORS['text_muted']};font-size:12px;margin-top:4px;")
-                if not ui_context.is_read_only():
-                    with ui.row().classes("gap-2").style("margin-top:8px;"):
+                with ui.row().classes("gap-2").style("margin-top:8px;"):
+                    # Export is read-only-safe, so it's available to every role.
+                    ui.button("Add to my calendar (.ics)", icon="event",
+                              on_click=lambda e=ev: _dl_event_ics(e)).props("flat dense")
+                    if not ui_context.is_read_only():
                         ui.button("Edit", icon="edit",
                                   on_click=lambda e=ev: open_edit_dialog(e)).props("flat dense")
                         ui.button("Delete", icon="delete",
@@ -373,12 +382,45 @@ def render_calendar_page():
         if ui_context.is_read_only():
             _add_btn.disable()
 
+    _cid = get_active_client_id()
+
     def export_csv():
         df = pd.DataFrame(events)
-        ui.download(df.to_csv(index=False).encode(), f"conference_calendar_{datetime.now().strftime('%Y%m%d')}.csv")
+        ui.download(df.to_csv(index=False).encode(), f"conference_calendar_{datetime.now():%Y%m%d}.csv")
 
-    with ui.row().classes("w-full justify-between items-center").style("margin-top:20px;"):
-        ui.button("Export calendar as CSV", on_click=export_csv).props("flat")
+    def export_ics():
+        ui.download(conferences.events_to_ics(events, cal_name=f"IRconnect — {_cid.upper()} IR Calendar").encode("utf-8"),
+                    f"ir_calendar_{datetime.now():%Y%m%d}.ics")
+
+    with ui.row().classes("w-full items-center gap-2").style("margin-top:20px;"):
+        ui.button("Download calendar (.ics)", icon="event", on_click=export_ics).props("flat")
+        ui.button("Export as CSV", icon="download", on_click=export_csv).props("flat")
         ui.label("Saved · updates persist across restarts").style(
-            f"color:{COLORS['text_muted']};font-size:12px;"
-        )
+            f"color:{COLORS['text_muted']};font-size:12px;margin-left:auto;")
+
+    # Live subscription — the real "integration into an existing email/calendar" piece:
+    # subscribe once and every confirmed event (incl. email-parsed conference invites)
+    # appears in the IR team's own Outlook/Google and auto-refreshes. The feed URL is an
+    # HMAC-signed, per-client token, so it can't be guessed. Absolute in production
+    # (LIGHTHOUSE_APP_URL); the Copy button always copies the browser-origin absolute URL.
+    _feed_path = f"/calendar/{conferences.feed_token(_cid)}.ics"
+    _base = (os.environ.get("LIGHTHOUSE_APP_URL", "") or "").rstrip("/")
+    with ui.expansion("Subscribe in Outlook / Google / Apple Calendar", icon="sync").classes(
+            "w-full").style("margin-top:10px;"):
+        ui.label("Subscribe once and every confirmed conference, earnings date and roadshow appears in "
+                 "your own calendar — and updates automatically as the IR team adds or confirms events.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.input("Calendar feed URL", value=(_base + _feed_path) if _base else _feed_path).props(
+            "readonly outlined dense").classes("w-full").style("margin-top:6px;")
+
+        def _copy_feed():
+            ui.run_javascript(f"navigator.clipboard.writeText(location.origin + {_feed_path!r})")
+            ui.notify("Feed link copied — paste it into your calendar's 'subscribe from URL'.", type="positive")
+
+        with ui.row().classes("gap-2").style("margin-top:4px;"):
+            ui.button("Copy subscribe link", icon="content_copy", on_click=_copy_feed).props("flat dense")
+        ui.label("Google Calendar → Other calendars → From URL.   Outlook → Add calendar → Subscribe from web.   "
+                 "Apple Calendar → File → New Calendar Subscription.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+        ui.label("This link is private to this client — anyone with it can view (never edit) the calendar.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
