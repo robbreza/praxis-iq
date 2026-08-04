@@ -324,7 +324,7 @@ DEFAULT_CLIENT_ID = "usio"
 # dict omits a role simply doesn't offer that role in the selector — nothing
 # else changes. Access level per page is one of: "full", "read", "none".
 PAGES = ["Home", "Today", "Calendar", "Markets", "Investors",
-         "Outreach", "Earnings", "Reports", "Settings", "Lighthouse"]
+         "Outreach", "Earnings", "Reports", "Settings", "Lighthouse", "Inbox"]
 
 ROLE_PERMISSIONS = {
     "IR": {
@@ -345,7 +345,7 @@ ROLE_PERMISSIONS = {
     },
     "CEO": {
         "label": "CEO",
-        "pages": {"Home": "full", "Today": "full", "Earnings": "full", "Calendar": "full",
+        "pages": {"Home": "full", "Inbox": "read", "Today": "full", "Earnings": "full", "Calendar": "full",
                   "Markets": "read", "Reports": "read", "Investors": "none",
                   "Outreach": "none", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
@@ -355,7 +355,7 @@ ROLE_PERMISSIONS = {
         "label": "CRO",
         # Owns investor demand/outreach + carries a script persona. Can DRAFT
         # outreach but NOT send — send is IR-only per client policy.
-        "pages": {"Home": "full", "Investors": "full", "Outreach": "full", "Calendar": "full",
+        "pages": {"Home": "full", "Inbox": "full", "Investors": "full", "Outreach": "full", "Calendar": "full",
                   "Markets": "full", "Earnings": "full", "Reports": "read",
                   "Today": "read", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
@@ -364,7 +364,7 @@ ROLE_PERMISSIONS = {
     "Legal": {
         "label": "Legal",
         # Disclosure/sign-off focus: FLS checklist in Earnings + the Reg FD log.
-        "pages": {"Home": "read", "Earnings": "full", "Reports": "full", "Today": "read",
+        "pages": {"Home": "read", "Inbox": "read", "Earnings": "full", "Reports": "full", "Today": "read",
                   "Calendar": "read", "Investors": "none", "Outreach": "none",
                   "Markets": "none", "Settings": "none"},
         "can_change_settings": False,
