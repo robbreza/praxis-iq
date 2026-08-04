@@ -1807,7 +1807,7 @@ def _render_board_ir_report():
                 _auto = ((_raw.get(_sec) or {}).get(_fld)) or ""
                 ui.label(_lbl + ("  ·  edited" if _k in _ov else "")).style(
                     f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:10px;")
-                _ta = ui.textarea(value=_ov.get(_k, _auto)).props("outlined autogrow dense").classes(
+                _ta = ui.textarea(value=_ov.get(_k, _auto)).props('outlined autogrow input-style="min-height:120px"').classes(
                     "w-full").style("font-size:12px;")
                 _edit_inputs[_k] = (_ta, _auto)
 
