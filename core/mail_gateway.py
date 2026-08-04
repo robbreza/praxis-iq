@@ -112,8 +112,15 @@ def _route_message(match, subject, body, attachments, client_id, save_attachment
     if category != "general":
         primary = _primary_attachment_for(category, attachments)
         primary_doc_id = doc_ids[attachments.index(primary)] if primary is not None else None
+        firm = match.get("firm")
+        # A conference invite's "firm" is the host that's inviting (Baird, Denby Securities…),
+        # not the sender's email domain — which is often a personal address (a corporate-access
+        # person on gmail, or an IR contact forwarding it), so the domain resolves to no firm.
+        # Fall back to the parsed organizer so the item is attributed to the conference.
+        if not firm and category == "conference_invite" and (extracted or {}).get("organizer"):
+            firm = extracted["organizer"]
         inbox_queue.enqueue_item(
-            category=category, contact=match.get("name"), firm=match.get("firm"), subject=subject,
+            category=category, contact=match.get("name"), firm=firm, subject=subject,
             extracted=extracted, doc_id=primary_doc_id, filename=primary[0] if primary else None,
             source="email_sync", client_id=client_id,
         )
