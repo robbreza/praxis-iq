@@ -136,6 +136,7 @@ from data.seed.conferences import get_seed_conferences
 from data.seed.consensus_estimates import ALL_PERIODS
 from data.seed.institution_contacts import get_institution_contacts
 from page_modules_nicegui import nav
+from page_modules_nicegui.responsive import responsive_table
 
 # Post-Meeting Notes topic scaffolding — shared between the "click a topic to
 # add it" chip row (_render_meeting_hub_tab) and _structure_notes_with_ai's
@@ -1251,6 +1252,7 @@ def render_investors_page():
         t6 = ui.tab("NOBO Ownership")
         t7 = ui.tab("Peer Prospects")
         t8 = ui.tab("Accounts (CRM)")
+        t9 = ui.tab("Website")
 
     # Lazy tab loading — this page used to build ALL FIVE tabs' content
     # (each with its own set of database reads) on every single visit,
@@ -1268,7 +1270,7 @@ def render_investors_page():
     # A sidebar sub-item can deep-link straight to any tab; map the label back to
     # its tab object so lazy loading opens (and eager-builds) the right one. All
     # tabs are lazy now — whichever we open on is built by the eager block below.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8)}
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8, t9)}
     default_tab = _by_name.get(nav.consume_target_tab(), t1)
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
         with ui.tab_panel(t1) as p1:
@@ -1287,6 +1289,8 @@ def render_investors_page():
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t8) as p8:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t9) as p9:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
 
     # NDR Planner and Target Database read the mode-scored institutions, so
     # they pull from _mode_ctx (current mode) rather than capturing the initial
@@ -1303,6 +1307,7 @@ def render_investors_page():
         t6.props["name"]: (p6, lambda: _render_nobo_tab()),
         t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
         t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"])),
+        t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
     }
     loaded_tabs = set()
     # A mode toggle also invalidates the two mode-dependent lazy tabs so they
@@ -1366,6 +1371,106 @@ def render_investors_page():
     _dcont.clear()
     with _dcont:
         _dbuild()
+
+
+def _render_web_flow_tab(client_id):
+    """Website Engagement (web flow) — who visits the IR site and whether they DOWNLOAD
+    material or just READ. Real tenants show a Waiting signal (no web-analytics feed is
+    wired); the illustrative demo tenant is seeded so the capability is demonstrable.
+    See core/web_flow.py."""
+    from core import web_flow
+    from page_modules_nicegui.signals import waiting_signal
+
+    ui.label("Website Engagement").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("Who comes to your IR site — and whether they DOWNLOAD material (deck, model, filings) or "
+             "just READ. A download is a far stronger buy-side intent signal than a page skim, so the two "
+             "are scored separately.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    d = web_flow.compose(client_id)
+    if not d.get("available"):
+        waiting_signal(
+            "a web-analytics export (Google Analytics · Q4 · IRWIN)",
+            detail="Upload your IR-site visitor export — visits, pages, time-on-site and asset downloads — "
+                   "and this fills in automatically. No web-analytics feed is wired yet, so nothing is shown "
+                   "rather than invented.",
+            unlocks="download-vs-read intent per visitor, the most-pulled assets, and hot prospects "
+                    "(non-holders downloading your deck or model).")
+        return
+
+    ui.label(f"Source: {d['source']}.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin:2px 0 6px;")
+
+    def _stat(val, label, sub, color=None):
+        with ui.card().classes("flex-1").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                "min-width:120px;padding:10px 12px;"):
+            ui.label(str(val)).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:20px;")
+            ui.label(label).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
+        _stat(d["n_visitors"], "Visitors", "orgs on the site")
+        _stat(d["n_downloaders"], "Downloaders", f"{d['download_pct']}% of visitors", "#15803D")
+        _stat(d["n_readers"], "Readers only", "browsed, no download")
+        _stat(d["total_downloads"], "Assets pulled", "total downloads")
+        _stat(len(d["hot_prospects"]), "Hot prospects", "non-holders pulling assets", "#B45309")
+
+    # The split, spelled out — the whole point of the view.
+    _top_assets = ", ".join(a for a, _ in d["by_asset"][:2]) or "—"
+    ui.label(f"{d['download_pct']}% of site visitors downloaded material — {d['n_downloaders']} of "
+             f"{d['n_visitors']}. The rest read pages without pulling anything. Downloads skew to the "
+             f"{_top_assets}.").style(
+        f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;margin-top:10px;")
+
+    if d["by_asset"]:
+        ui.label("Most-downloaded assets").classes("section-head").style("margin-top:12px;")
+        _maxc = d["by_asset"][0][1] or 1
+        for name, cnt in d["by_asset"]:
+            with ui.row().classes("w-full items-center").style("gap:10px;"):
+                ui.label(name).style(f"color:{COLORS['text_body']};font-size:12px;min-width:150px;")
+                with ui.element("div").style(
+                        f"flex:1;background:{COLORS['surface_hover_bg']};border-radius:6px;height:14px;"):
+                    ui.element("div").style(
+                        f"width:{round(100*cnt/_maxc)}%;background:{COLORS['accent']};height:14px;border-radius:6px;")
+                ui.label(f"{cnt}").style(f"color:{COLORS['text_muted']};font-size:12px;min-width:20px;")
+
+    if d["hot_prospects"]:
+        ui.label("Hot prospects — high intent, not yet holders").classes(
+            "section-head").style("margin-top:14px;")
+        ui.label("These orgs pulled real diligence material (deck / model / filings) but don't own you yet "
+                 "— the sharpest targets this view surfaces.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        for v in d["hot_prospects"]:
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
+                with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
+                    ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                    ui.label(f"intent {v['intent']}").style(
+                        "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
+                        "font-size:11px;font-weight:700;")
+                ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
+                         f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+
+    ui.label("All visitors — ranked by intent").classes("section-head").style("margin-top:14px;")
+    rows = [{
+        "org": v["org"],
+        "cat": v["category"] + ("  · holder" if v["is_holder"] else ""),
+        "reads": f"{v['pages']} pages · {v['minutes']} min" + (f" · {v['visits']} visits" if v["visits"] > 1 else ""),
+        "downloads": ", ".join(v["downloads"]) if v["downloads"] else "—",
+        "intent": f"{v['intent']} · {v['intent_label']}",
+    } for v in d["visitors"]]
+    responsive_table(
+        [{"name": "org", "label": "Visitor", "field": "org", "align": "left"},
+         {"name": "cat", "label": "Category", "field": "cat", "align": "left"},
+         {"name": "reads", "label": "Read", "field": "reads", "align": "left"},
+         {"name": "downloads", "label": "Downloaded", "field": "downloads", "align": "left"},
+         {"name": "intent", "label": "Intent", "field": "intent", "align": "left"}],
+        rows, table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="org")
+    ui.label("Intent = downloads (weighted by asset — a model/deck pull counts most) + capped page/time "
+             "reading. Upload a fresh analytics export any time to replace this with live numbers.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
 
 
 def _render_nobo_tab():
