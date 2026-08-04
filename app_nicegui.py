@@ -1466,6 +1466,60 @@ def _kick_off_lighthouse_shadow():
         print(f"[startup] Lighthouse shadow scheduler failed to start (non-fatal): {e}")
 
 
+def _poll_ir_inbox_once():
+    """One IR-inbox sync — the timer version of the Meeting Hub 'Sync IR Inbox' button.
+    The shared inbox routes into the tenant(s) named by MAIL_INBOX_CLIENT_IDS (comma-
+    separated); with none set this is inert, so the poller never touches a tenant it
+    wasn't deliberately pointed at. Analysts (CA()) are attributed by email; anything
+    else relies on the accept-any fallback in mail_gateway."""
+    import os
+    from core import mail_gateway
+    if not mail_gateway.is_configured():
+        return
+    cids = [c.strip() for c in (os.environ.get("MAIL_INBOX_CLIENT_IDS", "") or "").split(",") if c.strip()]
+    if not cids:
+        return
+    from config.client_config import CA, set_active_client_id
+    for cid in cids:
+        try:
+            set_active_client_id(cid)
+            lookup = {a["email"].lower(): {"name": a.get("name"), "firm": a.get("firm"), "kind": "analyst"}
+                      for a in (CA() or []) if a.get("email")}
+            r = mail_gateway.sync_inbox(lookup, client_id=cid)
+            if r.get("ok"):
+                routed = sum(1 for m in (r.get("messages") or []) if m.get("category") != "general")
+                if routed:
+                    print(f"[inbox-poll] {cid}: {routed} item(s) filed for review")
+        except Exception as e:
+            print(f"[inbox-poll] {cid} failed (non-fatal): {e}")
+
+
+async def _kick_off_ir_inbox_poll():
+    """Poll the IR inbox on a timer (MAIL_INBOX_POLL_MINUTES, default 5) in a worker
+    thread, so emailed models/notes file themselves with no one clicking Sync. Dormant
+    until MAIL_IMAP_* + MAIL_INBOX_CLIENT_IDS are set."""
+    import asyncio, os
+    try:
+        minutes = max(1, int(os.environ.get("MAIL_INBOX_POLL_MINUTES", "5")))
+    except ValueError:
+        minutes = 5
+
+    async def _run():
+        await asyncio.sleep(20)  # let startup settle
+        from core import mail_gateway
+        if not (mail_gateway.is_configured() and os.environ.get("MAIL_INBOX_CLIENT_IDS")):
+            return  # nothing to poll — stay quiet
+        print(f"[startup] IR inbox poller on — every {minutes} min into: {os.environ.get('MAIL_INBOX_CLIENT_IDS')}")
+        while True:
+            try:
+                await asyncio.to_thread(_poll_ir_inbox_once)
+            except Exception as e:
+                print(f"[inbox-poll] cycle failed (non-fatal): {e}")
+            await asyncio.sleep(minutes * 60)
+
+    asyncio.create_task(_run())
+
+
 app.on_startup(_reload_registry)
 app.on_startup(_seed_auth)
 app.on_startup(_kick_off_sec_refresh)
@@ -1473,6 +1527,7 @@ app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
 app.on_startup(_kick_off_cache_warm)
 app.on_startup(_kick_off_lighthouse_shadow)
+app.on_startup(_kick_off_ir_inbox_poll)
 
 
 # ── Lighthouse digest engagement tracking (email opens + click-throughs) ──────────────────────────
