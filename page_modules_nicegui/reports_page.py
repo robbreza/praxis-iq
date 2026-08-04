@@ -338,8 +338,9 @@ def _render_quarterly_trend():
             "Margin": f"{q['gross_margin']:.1f}%" if q.get("gross_margin") is not None else "—",
             "EPS": f"${q['eps']:.2f}" if q.get("eps") is not None else "—",
         })
-    ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left" if k == "Qtr" else "right"}
-                      for k in rows[0].keys()], rows=rows, row_key="Qtr").classes("w-full").props("dense flat")
+    responsive_table([{"name": k, "label": k, "field": k, "align": "left" if k == "Qtr" else "right"}
+                      for k in rows[0].keys()], rows, row_key="Qtr",
+                     table_classes="w-full", table_props="dense flat", primary="Qtr")
 
     peers = [p.get("ticker") for p in (CP() or []) if p.get("ticker")]
 
@@ -368,9 +369,9 @@ def _render_quarterly_trend():
         })
     if len(prows) > 1:
         ui.label("Peers — latest quarter-over-quarter revenue").classes("font-bold").style("margin-top:10px;")
-        ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left" if k == "Ticker" else "right"}
-                          for k in prows[0].keys()], rows=prows, row_key="Ticker").classes(
-            "w-full").props("dense flat")
+        responsive_table([{"name": k, "label": k, "field": k, "align": "left" if k == "Ticker" else "right"}
+                          for k in prows[0].keys()], prows, row_key="Ticker",
+                         table_classes="w-full", table_props="dense flat", primary="Ticker")
         note = ("QoQ is sequential (this quarter vs last), from each company's own XBRL filings — the "
                 "like-for-like read 13F-style snapshots can't give.")
         if flagged:

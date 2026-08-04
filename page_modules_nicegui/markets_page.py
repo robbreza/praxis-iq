@@ -733,8 +733,8 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                         "Revenue ($M)": f"${g['Revenue Est ($M)']:.1f}", "EBITDA ($M)": f"${g['EBITDA Est ($M)']:.1f}",
                         "Last Updated": "Mgmt disclosed"})
 
-            ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
-                      rows=rows, row_key="Firm").classes("w-full")
+            responsive_table([{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
+                             rows, row_key="Firm", table_classes="w-full", table_props="", primary="Firm")
 
             ui.markdown("---")
             deep_linked = bool(highlighted_analyst and highlighted_analyst in firms)
@@ -1041,8 +1041,8 @@ def _render_pt_drift(seed):
                     "PT": f"${pt:.2f}",
                     "Upside vs last": f"{upside:+.1f}%" if upside is not None else "—",
                 })
-            ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
-                     rows=rows, row_key="Firm").classes("w-full")
+            responsive_table([{"name": k, "label": k, "field": k, "align": "left"} for k in rows[0].keys()],
+                             rows, row_key="Firm", table_classes="w-full", table_props="", primary="Firm")
             pts = [a["pt"] for a in with_pt]
             ui.label(f"PT range ${min(pts):.2f}–${max(pts):.2f} · {len(with_pt)} of {len(analysts)} covering "
                      f"analysts with a PT logged vs ${last_price:.2f} last").style(
@@ -1130,8 +1130,8 @@ def _render_pt_drift_chart(seed):
 
     if drift_rows:
         ui.label("Direction of travel per desk").classes("font-bold").style("margin-top:8px;font-size:13px;")
-        ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in drift_rows[0].keys()],
-                 rows=drift_rows, row_key="Firm").classes("w-full").props("dense flat")
+        responsive_table([{"name": k, "label": k, "field": k, "align": "left"} for k in drift_rows[0].keys()],
+                         drift_rows, row_key="Firm", table_classes="w-full", table_props="dense flat", primary="Firm")
 
 
 def _render_rating_actions():
@@ -1281,8 +1281,8 @@ def _render_nobo():
                     "Conviction": h.get("Conviction") or "—",
                     "Action": _act.get(h.get("Direction"), "—"),
                 } for h in top10]
-                ui.table(columns=[{"name": k, "label": k, "field": k, "align": "left"} for k in _rows[0].keys()],
-                         rows=_rows, row_key="Holder").classes("w-full").props("dense flat")
+                responsive_table([{"name": k, "label": k, "field": k, "align": "left"} for k in _rows[0].keys()],
+                                 _rows, row_key="Holder", table_classes="w-full", table_props="dense flat", primary="Holder")
                 from core import nport_feed
                 _funds = nport_feed.recent(limit=50)
                 if _funds:
@@ -1478,8 +1478,8 @@ def _render_nobo():
                      "Location": f"{h.get('city','')}, {h.get('state','')}",
                      "Shares": f"{h['shares']:,}", "% of S/O": f"{h['shares'] / so * 100:.2f}%"}
                     for h in cur["top_holders"]]
-            ui.table(columns=[{"name": c, "label": c, "field": c, "align": "left"} for c in cols],
-                     rows=rows).classes("w-full").props("dense flat")
+            responsive_table([{"name": c, "label": c, "field": c, "align": "left"} for c in cols],
+                             rows, table_classes="w-full", table_props="dense flat", primary="Holder")
 
         # Data source + Broadridge NOBO file upload
         with ui.expansion("Load a Broadridge NOBO file (CSV)").classes("w-full").style("margin-top:10px;"):
