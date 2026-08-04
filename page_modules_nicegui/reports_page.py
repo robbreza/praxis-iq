@@ -55,6 +55,7 @@ from core import activity_log, benchmarking_engine, db, edgar_financials, market
 from core import nobo_engine, report_pdf, risk_scorecard, sec_filings
 from data.seed.report_images import SES_PAGES
 from page_modules_nicegui import nav
+from page_modules_nicegui.responsive import responsive_table
 
 EVENT_LABELS = {
     "signal_resolved": "Risk signal resolved (Markets)",
@@ -554,7 +555,7 @@ def _render_valuation_comp():
                  "gm": f"{m['gross_margin']:.1f}%" if m["gross_margin"] is not None else "—",
                  "growth": f"{m['rev_growth']:+.0f}%" if m["rev_growth"] is not None else "—",
                  "basis": ""})
-    ui.table(columns=cols, rows=rows).classes("w-full dense-table").props("flat dense")
+    responsive_table(cols, rows, table_classes="w-full dense-table", table_props="flat dense", primary="name")
     ui.label("* EV/Revenue and gross margin are NOT comparable across these rows and are shown for "
              "context only — gross-vs-net revenue treatment varies across these companies. Revenue "
              "cancels out of EV/Gross Profit, which is why the ranking and the implied value use it "
@@ -579,13 +580,13 @@ def _render_valuation_comp():
                 {"name": "a", "label": "EV/Rev today", "field": "a", "align": "right"},
                 {"name": "w", "label": "EV/Rev warranted", "field": "w", "align": "right"},
                 {"name": "v", "label": "vs warranted", "field": "v", "align": "right"}]
-        ui.table(columns=cols, rows=[{
+        responsive_table(cols, [{
             "t": ("* " if r["is_client"] else "") + r["ticker"],
             "g": f"{r['ev_gp']:.2f}x", "m": f"{r['gross_margin']:.1f}%",
             "a": f"{r['ev_rev_actual']:.2f}x" if r["ev_rev_actual"] else "—",
             "w": f"{r['ev_rev_warranted']:.2f}x",
             "v": f"{r['vs_warranted_pct']:+.0f}%" if r["vs_warranted_pct"] is not None else "—",
-        } for r in bg["rows"]]).classes("w-full dense-table").props("flat dense")
+        } for r in bg["rows"]], table_classes="w-full dense-table", table_props="flat dense", primary="t")
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                 "border-left:3px solid #1E40AF;padding:6px 10px;margin-top:4px;"):
@@ -686,7 +687,7 @@ def _render_forensics():
                    "period": (r["period"] or "—")[:7],
                    "status": LBL.get(r["status"], r["status"]),
                    "detail": r["detail"] or ""})
-    ui.table(columns=cols, rows=rd).classes("w-full dense-table").props("flat dense wrap-cells")
+    responsive_table(cols, rd, table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="ticker")
 
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
@@ -708,11 +709,11 @@ def _render_forensics():
                 {"name": "rev", "label": "% of revenue", "field": "rev", "align": "right"},
                 {"name": "gp", "label": "% of gross profit", "field": "gp", "align": "right"},
                 {"name": "rank", "label": "Rank (of GP)", "field": "rank", "align": "left"}]
-        ui.table(columns=cols, rows=[{
+        responsive_table(cols, [{
             "ticker": ("★ " if r["is_client"] else "") + r["ticker"],
             "sbc": f"{r['sbc']/1e6:,.1f}", "rev": f"{r['pct_revenue']:.1f}%",
             "gp": f"{r['pct_gross_profit']:.1f}%", "rank": f"{r['rank_gp']} of {sb['n']}",
-        } for r in sb["rows"]]).classes("w-full dense-table").props("flat dense")
+        } for r in sb["rows"]], table_classes="w-full dense-table", table_props="flat dense", primary="ticker")
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
                 "border-left:3px solid #B91C1C;padding:6px 10px;margin-top:4px;"):
@@ -768,12 +769,12 @@ def _render_script_scorecard():
     ui.label("Section run-time vs target").classes("section-head").style("margin-top:10px;")
     rows = [{"section": s["label"], "words": s["words"], "time": f"{s['minutes']:.1f} min",
              "target": f"{s['target']:.1f} min", "read": s["status"]} for s in d["sections"]]
-    ui.table(columns=[{"name": "section", "label": "Section", "field": "section", "align": "left"},
-                      {"name": "words", "label": "Words", "field": "words", "align": "right"},
-                      {"name": "time", "label": "Est. time", "field": "time", "align": "right"},
-                      {"name": "target", "label": "Target", "field": "target", "align": "right"},
-                      {"name": "read", "label": "Read", "field": "read", "align": "left"}],
-             rows=rows, row_key="section").classes("w-full").props("dense flat")
+    responsive_table([{"name": "section", "label": "Section", "field": "section", "align": "left"},
+                       {"name": "words", "label": "Words", "field": "words", "align": "right"},
+                       {"name": "time", "label": "Est. time", "field": "time", "align": "right"},
+                       {"name": "target", "label": "Target", "field": "target", "align": "right"},
+                       {"name": "read", "label": "Read", "field": "read", "align": "left"}],
+                     rows, row_key="section", table_classes="w-full", table_props="dense flat", primary="section")
 
     h = d.get("hedge")
     if h:
@@ -1065,14 +1066,14 @@ def _render_benchmark_analysis():
             "gr": (f"{r['rev_growth']:+.0f}%" + ("*" if r.get("growth_source") == "est" else "")) if r["rev_growth"] is not None else "—",
         }
 
-    ui.table(columns=cols, rows=[_bm_row(r) for r in bm["gp_ranked"]], row_key="co").classes("w-full").props("dense flat")
+    responsive_table(cols, [_bm_row(r) for r in bm["gp_ranked"]], row_key="co", table_classes="w-full", table_props="dense flat", primary="co")
 
     if bm.get("reference"):
         ui.label("Large-cap reference — industry growth / margin bar, excluded from the median").classes(
             "section-head").style("margin-top:10px;")
         ui.label("You don't apply a mega-cap processor's multiple to a micro-cap; these set context only.").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
-        ui.table(columns=cols, rows=[_bm_row(r) for r in bm["reference"]], row_key="co").classes("w-full").props("dense flat")
+        responsive_table(cols, [_bm_row(r) for r in bm["reference"]], row_key="co", table_classes="w-full", table_props="dense flat", primary="co")
 
     ui.label("* estimated (not separately reported in the filing / market feed).").style(
         f"color:{COLORS['text_muted']};font-size:10px;")
@@ -1201,17 +1202,18 @@ def _render_ndr_by_city():
     ui.label(d["read"]).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
 
     ui.label("Every metro, ranked").classes("section-head").style("margin-top:10px;")
-    ui.table(
-        columns=[{"name": "r", "label": "#", "field": "r", "align": "left"},
-                 {"name": "m", "label": "Metro", "field": "m", "align": "left"},
-                 {"name": "s", "label": f"Top-{d['day_capacity']} score", "field": "s", "align": "right"},
-                 {"name": "n", "label": "Non-holders", "field": "n", "align": "right"},
-                 {"name": "b", "label": "Booked", "field": "b", "align": "right"},
-                 {"name": "t", "label": "Trip on calendar", "field": "t", "align": "left"}],
-        rows=[{"r": r["rank"], "m": r["metro"], "s": f"{r['top_avg']:.0f}",
-               "n": r["non_holders"], "b": r["booked"],
-               "t": ", ".join(f"{x['name']} ({x['meetings']})" for x in r["trips"]) or "—"}
-              for r in d["rows"]]).classes("w-full dense-table").props("flat dense wrap-cells")
+    responsive_table(
+        [{"name": "r", "label": "#", "field": "r", "align": "left"},
+         {"name": "m", "label": "Metro", "field": "m", "align": "left"},
+         {"name": "s", "label": f"Top-{d['day_capacity']} score", "field": "s", "align": "right"},
+         {"name": "n", "label": "Non-holders", "field": "n", "align": "right"},
+         {"name": "b", "label": "Booked", "field": "b", "align": "right"},
+         {"name": "t", "label": "Trip on calendar", "field": "t", "align": "left"}],
+        [{"r": r["rank"], "m": r["metro"], "s": f"{r['top_avg']:.0f}",
+          "n": r["non_holders"], "b": r["booked"],
+          "t": ", ".join(f"{x['name']} ({x['meetings']})" for x in r["trips"]) or "—"}
+         for r in d["rows"]],
+        table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="m")
     ui.label(f"Ranked on the average engagement score of the top {d['day_capacity']} non-holders in "
              f"each metro — not the average across every fund. An NDR is {d['day_capacity']} meetings "
              f"in a day, not a survey; averaging the whole list penalises deep markets for their "
@@ -1586,10 +1588,10 @@ def _render_earnings_prep():
                 {"name": "s", "label": "vs Street", "field": "s", "align": "right"},
                 {"name": "l", "label": "Reads as", "field": "l", "align": "left"},
                 {"name": "dsc", "label": "What happens", "field": "dsc", "align": "left"}]
-        ui.table(columns=cols, rows=[{
+        responsive_table(cols, [{
             "rev": f"${x['revenue']:.2f}M", "g": f"{x['vs_guide_pct']:+.1f}%",
             "s": f"{x['vs_street_pct']:+.1f}%", "l": x["label"], "dsc": x["desc"],
-        } for x in d["scenarios"]]).classes("w-full dense-table").props("flat dense wrap-cells")
+        } for x in d["scenarios"]], table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="rev")
 
     if q and q.get("open"):
         ui.label(f"Q&A prep — unpaid from the {q['from_quarter']} call").classes(
@@ -1857,17 +1859,17 @@ def _render_board_ir_report():
                      "rationale is how the prior package listed an acquired company, a pending "
                      "acquisition and a bank as 'Active' for a quarter.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;")
-            ui.table(
-                columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
-                         {"name": "n", "label": "Company", "field": "n", "align": "left"},
-                         {"name": "g", "label": "Gross margin", "field": "g", "align": "right"},
-                         {"name": "m", "label": "In median?", "field": "m", "align": "left"},
-                         {"name": "w", "label": "Why it is here", "field": "w", "align": "left"}],
-                rows=[{"t": r["ticker"], "n": r["name"] or "",
-                       "g": f"{r['gm']:.1f}%" if r["gm"] is not None else "—",
-                       "m": "yes" if r["in_median"] else f"no ({r['gm_basis']})",
-                       "w": r["rationale"]} for r in _pkg["appendix"]]).classes(
-                "w-full dense-table").props("flat dense wrap-cells")
+            responsive_table(
+                [{"name": "t", "label": "", "field": "t", "align": "left"},
+                 {"name": "n", "label": "Company", "field": "n", "align": "left"},
+                 {"name": "g", "label": "Gross margin", "field": "g", "align": "right"},
+                 {"name": "m", "label": "In median?", "field": "m", "align": "left"},
+                 {"name": "w", "label": "Why it is here", "field": "w", "align": "left"}],
+                [{"t": r["ticker"], "n": r["name"] or "",
+                  "g": f"{r['gm']:.1f}%" if r["gm"] is not None else "—",
+                  "m": "yes" if r["in_median"] else f"no ({r['gm_basis']})",
+                  "w": r["rationale"]} for r in _pkg["appendix"]],
+                table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="n")
 
     # ---- Edit the narrative before export (numbers stay computed; the prose is yours) ----
     if not ui_context.is_read_only():

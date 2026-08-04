@@ -70,6 +70,7 @@ from data.seed.buyside_institutions import get_seed_buyside_institutions
 from data.seed.institution_contacts import get_institution_contacts
 from data.seed.consensus_estimates import ALL_PERIODS, DERIVED_PERIODS
 from page_modules_nicegui import nav
+from page_modules_nicegui.responsive import responsive_table
 
 
 def _load_json(name, default):
@@ -786,7 +787,8 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                             {"name": "rating", "label": "Rating", "field": "rating", "align": "left"},
                             {"name": "pt", "label": "PT", "field": "pt", "align": "left"},
                         ]
-                        an_table = ui.table(columns=an_cols, rows=an_rows, row_key="period").classes("w-full")
+                        an_table = responsive_table(an_cols, an_rows, row_key="period",
+                                                    table_classes="w-full", table_props="", primary="period")
                         # Colour the vs-guidance cells: amber = analyst models
                         # ABOVE guidance (a bar/miss risk into the print),
                         # green = in line, slate = below/conservative or blank.
