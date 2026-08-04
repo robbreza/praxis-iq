@@ -126,7 +126,7 @@ def _build_prompt(sender_kind, subject, attachment_names, body, attachment_text)
     s = _EXTRACTED_SCHEMA_BY_CATEGORY
     return f"""You are triaging one email received in a public company's investor-relations inbox (IRConnect@<company>).
 
-Sender kind: {sender_kind} (an "analyst" is sell-side equity research covering the stock; "institution" is a buy-side investor/prospect; "unknown" means neither list matched).
+Sender kind: {sender_kind} (an "analyst" is sell-side equity research covering the stock; "institution" is a buy-side investor/prospect; "retail" is an INDIVIDUAL shareholder emailing from a personal address, not a firm — prefer "shareholder_inquiry" for them; "unknown" means none matched).
 Subject: {subject}
 Attachment filename(s): {attachment_names}
 Body (may be truncated):

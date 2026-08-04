@@ -100,11 +100,40 @@ def _save_attachments(match, attachments, category, save_attachments_as, client_
     return doc_ids
 
 
+def _is_retail_sender(match):
+    """An individual / retail sender — not in the CRM and not from a corporate domain, so no
+    firm was resolved. A known analyst/institution, or a corporate-domain sender, has a firm."""
+    kind = (match or {}).get("kind")
+    if kind == "retail":
+        return True
+    if kind in ("analyst", "institution"):
+        return False
+    return not (match or {}).get("firm")
+
+
 def _route_message(match, subject, body, attachments, client_id, save_attachments_as, sender_email=None):
     result = email_classifier.classify_and_extract(
         subject, body, attachments, sender_kind=match.get("kind", "institution"),
     )
     category, extracted = result["category"], result["extracted"]
+
+    # ── Retail vs institutional auto-routing ──────────────────────────────────────────────────
+    # Sender identity overrides the phrasing. An individual/retail HOLDER asking to "speak to
+    # someone" is a SHAREHOLDER inquiry — never route them into the buy-side meeting pipeline. A
+    # KNOWN analyst/institution asking the same IS a management meeting request. This corrects the
+    # one place the two categories genuinely overlap.
+    retail = _is_retail_sender(match)
+    if category == "speak_to_management" and retail:
+        extracted = {"topic": (extracted or {}).get("topic") or subject or "shareholder question",
+                     "sub_type": "wants to speak to someone",
+                     "seeks_material_nonpublic": bool((extracted or {}).get("seeks_material_nonpublic")),
+                     "sentiment": (extracted or {}).get("sentiment")}
+        category = "shareholder_inquiry"
+    elif (category == "shareholder_inquiry" and not retail
+          and (extracted or {}).get("sub_type") == "wants to speak to someone"):
+        extracted = {"requested_contact": "IR", "topic": (extracted or {}).get("topic") or subject,
+                     "urgency": None}
+        category = "speak_to_management"
 
     doc_ids = _save_attachments(match, attachments, category, save_attachments_as, client_id)
     saved_filenames = [a[0] for a in attachments]
@@ -207,9 +236,11 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
                 # /consumer domain, which is a person, not a firm).
                 _disp = _decode(email.utils.parseaddr(msg.get("From", ""))[0]).strip()
                 _dom = from_addr.rsplit("@", 1)[-1] if "@" in from_addr else ""
-                match = {"name": _disp or from_addr,
-                         "firm": (None if (not _dom or _dom in _FREE_EMAIL_DOMAINS) else _dom),
-                         "kind": "institution"}
+                _firm = (None if (not _dom or _dom in _FREE_EMAIL_DOMAINS) else _dom)
+                # No firm resolvable (personal/consumer domain) → treat as retail so the classifier
+                # and the router handle it as a shareholder, not an institution.
+                match = {"name": _disp or from_addr, "firm": _firm,
+                         "kind": "institution" if _firm else "retail"}
 
             subject = _decode(msg.get("Subject", ""))
             body, attachments = _extract_body_and_attachments(msg)
