@@ -859,17 +859,24 @@ def _bm_bar(bm, field, fmt, title, median=None, better_low=False):
     xs = [r["ticker"] for r in rows]
     ys = [r[field] for r in rows]
     colors = [COLORS["accent"] if r["is_client"] else "#CBD5E1" for r in rows]
+    # Title as a wrapping HTML label, NOT baked into the figure: Plotly can't wrap a
+    # title, so on a phone-width chart it clips and collides with the modebar. As a
+    # label it wraps and stays readable at any width. (The figure then autosizes to
+    # its w-full container, so the plot itself is already responsive.)
+    ui.label(title).classes("w-full").style(
+        f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;"
+        "line-height:1.35;margin:8px 0 2px;")
     fig = go.Figure(go.Bar(x=xs, y=ys, marker_color=colors,
                            text=[fmt(v) for v in ys], textposition="outside",
                            cliponaxis=False))
     if median is not None:
         fig.add_hline(y=median, line_dash="dot", line_color="#94A3B8",
                       annotation_text=f"peer median {fmt(median)}", annotation_position="top right")
-    fig.update_layout(title=dict(text=title, font=dict(size=13)), height=280,
-                      margin=dict(l=44, r=16, t=40, b=28), showlegend=False,
+    fig.update_layout(autosize=True, height=280,
+                      margin=dict(l=44, r=16, t=14, b=28), showlegend=False,
                       plot_bgcolor="white", paper_bgcolor="white",
                       yaxis=dict(gridcolor="#EEF1F6"))
-    ui.plotly(fig).classes("w-full")
+    ui.plotly(fig).classes("w-full").style("min-width:0;")
 
 
 def _talking_card(points):
