@@ -304,12 +304,32 @@ def classify_and_extract(subject, body, attachments, sender_kind="unknown"):
         attachment_text=attachment_text,
     )
     raw = _call_claude(prompt, max_tokens=800)  # research_note's CFA-lens schema is the biggest of the six
+    category = extracted = None
     if raw:
         parsed = _parse_json(raw)
         if parsed and parsed.get("category") in CATEGORIES:
-            extracted = parsed.get("extracted")
-            return {"category": parsed["category"], "extracted": extracted if isinstance(extracted, dict) else {}}
-        print("[email_classifier] AI response didn't match expected shape — falling back to keyword classifier.")
+            category = parsed["category"]
+            _ext = parsed.get("extracted")
+            extracted = _ext if isinstance(_ext, dict) else {}
+        else:
+            print("[email_classifier] AI response didn't match expected shape — falling back to keyword classifier.")
 
-    category, extracted = _fallback_classify(subject or "", body or "", attachments, sender_kind)
+    if category is None:
+        category, extracted = _fallback_classify(subject or "", body or "", attachments, sender_kind)
+    return _finalize(category, extracted, attachments)
+
+
+def _finalize(category, extracted, attachments):
+    """A conference invite that carries a real .ics attachment is read from the .ics
+    (exact) rather than trusting the model's prose guess — .ics fields override the
+    extracted ones. Best-effort; a bad .ics never breaks classification."""
+    extracted = extracted if isinstance(extracted, dict) else {}
+    if category == "conference_invite" and attachments:
+        try:
+            from core import conferences
+            for k, v in (conferences.extract_from_attachments(attachments) or {}).items():
+                if v:
+                    extracted[k] = v
+        except Exception as exc:
+            print(f"[email_classifier] .ics merge skipped: {exc}")
     return {"category": category, "extracted": extracted}

@@ -5265,21 +5265,24 @@ def _render_pending_inbox_items():
                     c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;")
                     c_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or "").classes("w-full")
                     c_loc = ui.input("Location", value=extracted.get("location") or "").classes("w-full")
+                    # Organizer is parsed from the invite (the host running the conference — Baird,
+                    # Sidoti…), which is NOT always the sender's firm. Prefill the parsed value and
+                    # fall back to the sender firm; it used to be silently overwritten with the firm.
+                    c_org = ui.input("Organizer", value=extracted.get("organizer") or item["firm"] or "").classes("w-full")
 
-                    def confirm(item_id=item["id"], firm=item["firm"], c_event=c_event, c_date=c_date, c_loc=c_loc):
+                    def confirm(item_id=item["id"], firm=item["firm"], contact=item["contact"],
+                                c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org):
                         if not c_event.value:
                             ui.notify("Event name is required.", type="warning")
                             return
-                        events = db.load_json("ir_conference_calendar.csv", None) or []
-                        events.append({
-                            "Event": c_event.value, "Type": "Conference", "Date": c_date.value or "TBD",
-                            "Location": c_loc.value or "—", "Organizer": firm, "Status": "Invited — pending confirmation",
-                            "Deadline": "—", "Notes": f"Invitation received by email from {item['contact']} ({firm}).",
-                            "Source": "Email invite", "Attending": "TBD", "Priority": "Medium",
-                        })
-                        db.save_json("ir_conference_calendar.csv", events)
+                        from core import conferences
+                        _row, added = conferences.add_event(
+                            event=c_event.value, date=c_date.value or None, location=c_loc.value or None,
+                            organizer=c_org.value or firm, source="Email invite",
+                            notes=f"Invitation received by email from {contact} ({firm}).")
                         inbox_queue.mark_confirmed(item_id, outcome=f"Added '{c_event.value}' to Calendar")
-                        ui.notify(f"'{c_event.value}' added to Calendar — confirm details there.")
+                        ui.notify(f"'{c_event.value}' added to Calendar — confirm details there." if added
+                                  else f"'{c_event.value}' is already on the Calendar.")
                         _refresh()
                     confirm_label = "Add to Calendar"
 

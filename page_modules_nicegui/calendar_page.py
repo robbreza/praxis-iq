@@ -356,17 +356,17 @@ def render_calendar_page():
             if not name_in.value:
                 ui.notify("Event name is required", type="warning")
                 return
-            events.append({
-                "Event": name_in.value, "Type": type_sel.value, "Date": date_in.value,
-                "Location": location_in.value, "Organizer": organizer_in.value,
-                "Status": status_sel2.value, "Deadline": deadline_in.value,
-                "Notes": notes_in.value, "Source": "Manual entry",
-                "Attending": ", ".join(attending_in.value or []), "Priority": priority_sel.value,
-            })
-            _save_conferences(conf_path, events)
+            from core import conferences
+            _row, added = conferences.add_event(
+                event=name_in.value, event_type=type_sel.value, date=date_in.value,
+                location=location_in.value, organizer=organizer_in.value, status=status_sel2.value,
+                deadline=deadline_in.value, notes=notes_in.value, source="Manual entry",
+                attending=", ".join(attending_in.value or []) or "TBD", priority=priority_sel.value)
+            events[:] = conferences.load_events()  # keep the local render list in sync with the store
             render_cards()
             refresh_events()
-            ui.notify(f"'{name_in.value}' added to calendar")
+            ui.notify(f"'{name_in.value}' added to calendar" if added
+                      else f"'{name_in.value}' is already on the calendar")
             name_in.value = ""
 
         _add_btn = ui.button("Add to Calendar", on_click=add_event).props("color=primary").style("margin-top:8px;")
