@@ -5459,15 +5459,44 @@ def _render_pending_inbox_items():
                     c_deadline = ui.input("RSVP / confirm by (YYYY-MM-DD)",
                                           value=extracted.get("rsvp_deadline") or "").classes("w-full")
 
+                    # Who from management is available? The first call an IR person makes on an invite —
+                    # who can actually go. CEO and CFO first (the prepared-remarks speakers, same lineup
+                    # as the earnings transcript), then IR and other execs. Anyone already booked on the
+                    # event date is flagged, and the checked names become the calendar event's Attending.
+                    from core import conferences
+                    from config.client_config import role_roster as _role_roster
+                    _roster = sorted(_role_roster() or [],
+                                     key=lambda r: {"CEO": 0, "CFO": 1, "IR": 2}.get(r.get("role_key"), 3))
+                    _busy = conferences.busy_attendees_on(extracted.get("date"))
+                    ui.label("Who from management is available?").style(
+                        f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:8px;")
+                    _attend_cbs = {}
+                    for _r in _roster:
+                        _nm, _rk = _r.get("name"), _r.get("role_key")
+                        _conflict = _busy.get((_nm or "").lower())
+                        with ui.row().classes("items-center gap-2").style("margin-top:2px;"):
+                            _attend_cbs[_nm] = ui.checkbox(value=(_rk in ("CEO", "CFO"))).props("dense")
+                            ui.label(f"{_r.get('label')} — {_nm}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            if _conflict:
+                                ui.label(f"⚠ already booked: {_conflict}").style("color:#B45309;font-size:11px;")
+                            else:
+                                ui.label("available").style("color:#15803D;font-size:11px;")
+                    if not _roster:
+                        ui.label("No management roster on file for this client.").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
+
                     def confirm(item_id=item["id"], firm=item["firm"], contact=item["contact"],
-                                c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org, c_deadline=c_deadline):
+                                c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org, c_deadline=c_deadline,
+                                _attend_cbs=_attend_cbs):
                         if not c_event.value:
                             ui.notify("Event name is required.", type="warning")
                             return
                         from core import conferences
+                        _attending = ", ".join(nm for nm, cb in _attend_cbs.items() if cb.value) or "TBD"
                         _row, added = conferences.add_event(
                             event=c_event.value, date=c_date.value or None, location=c_loc.value or None,
-                            organizer=c_org.value or firm, deadline=c_deadline.value or None, source="Email invite",
+                            organizer=c_org.value or firm, deadline=c_deadline.value or None,
+                            attending=_attending, source="Email invite",
                             notes=f"Invitation received by email from {contact} ({firm}).")
                         inbox_queue.mark_confirmed(item_id, outcome=f"Added '{c_event.value}' to Calendar")
                         ui.notify(f"'{c_event.value}' added to Calendar — confirm details there." if added
@@ -5539,17 +5568,26 @@ def _render_pending_inbox_items():
                     _draft_box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
 
                     def _generate_draft(subject=item.get("subject"), body=item.get("body") or "",
-                                        extracted=extracted, _box=_draft_box):
+                                        extracted=extracted, _box=_draft_box, _reply_to=item.get("sender_email")):
                         d = shareholder_reply.draft_reply(subject, body, extracted)
                         _box.clear()
                         with _box:
                             _ta = ui.textarea("Draft reply — public info only; edit before sending", value=d["draft"]).props(
                                 'outlined autogrow input-style="min-height:150px"').classes("w-full").style("font-size:12px;")
                             with ui.row().classes("gap-2"):
+                                if _reply_to:
+                                    def _reply(_ta=_ta, _to=_reply_to, _subj=subject or ""):
+                                        _mt = (f"mailto:{_to}?subject={quote('Re: ' + _subj)}"
+                                               f"&body={quote(_ta.value)}")
+                                        ui.run_javascript(f"window.location.href = {json.dumps(_mt)}")
+                                        ui.notify(f"Opening a reply to {_to} — review and send from your mail client.")
+                                    ui.button("Reply", icon="reply", on_click=_reply).props("color=primary dense")
+
                                 def _copy(_ta=_ta):
                                     ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(_ta.value)})")
                                     ui.notify("Draft copied — paste it into your reply and send.", type="positive")
-                                ui.button("Copy draft", icon="content_copy", on_click=_copy).props("flat dense color=primary")
+                                ui.button("Copy draft", icon="content_copy", on_click=_copy).props(
+                                    ("flat dense" if _reply_to else "flat dense color=primary"))
                                 ui.button("Re-draft", icon="refresh", on_click=_generate_draft).props("flat dense")
                             ui.label("IRconnect never sends on your behalf — you review, edit, and send this yourself.").style(
                                 f"color:{COLORS['text_muted']};font-size:10.5px;")

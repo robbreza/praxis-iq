@@ -38,6 +38,24 @@ def load_events(client_id=None):
     return db.load_json(CALENDAR_KEY, None, client_id=client_id or get_active_client_id()) or []
 
 
+def busy_attendees_on(date_str, client_id=None):
+    """People already committed to a calendar event on `date_str` — {lower(name): event}.
+    Lets the inbox flag which executives are already booked when an invite comes in."""
+    import re
+    out = {}
+    ds = (str(date_str or "")).strip()
+    if not ds:
+        return out
+    for e in load_events(client_id):
+        if str(e.get("Date", "")).strip() != ds:
+            continue
+        for nm in re.split(r"[,+/;]", str(e.get("Attending") or "")):
+            nm = nm.strip()
+            if nm and nm.upper() not in ("TBD", "MANAGEMENT + IR", "—"):
+                out.setdefault(nm.lower(), e.get("Event"))
+    return out
+
+
 def save_events(events, client_id=None):
     db.save_json(CALENDAR_KEY, events, client_id=client_id or get_active_client_id())
 

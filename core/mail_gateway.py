@@ -100,7 +100,7 @@ def _save_attachments(match, attachments, category, save_attachments_as, client_
     return doc_ids
 
 
-def _route_message(match, subject, body, attachments, client_id, save_attachments_as):
+def _route_message(match, subject, body, attachments, client_id, save_attachments_as, sender_email=None):
     result = email_classifier.classify_and_extract(
         subject, body, attachments, sender_kind=match.get("kind", "institution"),
     )
@@ -122,7 +122,7 @@ def _route_message(match, subject, body, attachments, client_id, save_attachment
         inbox_queue.enqueue_item(
             category=category, contact=match.get("name"), firm=firm, subject=subject,
             extracted=extracted, doc_id=primary_doc_id, filename=primary[0] if primary else None,
-            source="email_sync", client_id=client_id, body=body,
+            source="email_sync", client_id=client_id, body=body, sender_email=sender_email,
         )
     return category, extracted, saved_filenames
 
@@ -214,7 +214,7 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
             subject = _decode(msg.get("Subject", ""))
             body, attachments = _extract_body_and_attachments(msg)
             category, extracted, saved_filenames = _route_message(
-                match, subject, body, attachments, client_id, save_attachments_as,
+                match, subject, body, attachments, client_id, save_attachments_as, sender_email=from_addr,
             )
 
             results.append({
