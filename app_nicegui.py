@@ -131,6 +131,7 @@ NAV_GROUPS = [
     ("OVERVIEW", [
         ("Home",      "smartphone", "Home\nOn the road", "Your on-the-road assistant — pulse, schedule, meeting prep & notes"),
         ("Today",     "space_dashboard", "Today", "Morning brief · Alerts · Actions due"),
+        ("Inbox",     "inbox", "IR Inbox", "The IRconnect inbox — parsed models, research notes and requests, filed automatically"),
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
         ("Lighthouse", "lightbulb", "Lighthouse\nWhy is the stock moving?", "Expected vs actual · Residual · Events · Technicals · CEO read"),
@@ -191,6 +192,7 @@ NAV_SUBITEMS = {
 PORTED = {
     "Home": "page_modules_nicegui.mobile_page",
     "Today": "page_modules_nicegui.today_page",
+    "Inbox": "page_modules_nicegui.inbox_page",
     "Investors": "page_modules_nicegui.investors_page",
     "Earnings": "page_modules_nicegui.earnings_page",
     "Markets": "page_modules_nicegui.markets_page",
