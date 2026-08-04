@@ -1275,14 +1275,14 @@ def _render_onboarding_checklist():
 
     for name, items in d["sections"]:
         ui.label(name).classes("section-head").style("margin-top:10px;")
-        ui.table(
-            columns=[{"name": "s", "label": "", "field": "s", "align": "left"},
-                     {"name": "i", "label": "Item", "field": "i", "align": "left"},
-                     {"name": "o", "label": "Owner", "field": "o", "align": "left"},
-                     {"name": "l", "label": "Live status", "field": "l", "align": "left"}],
-            rows=[{"s": "OK" if x["status"] == "ready" else "GAP", "i": x["item"],
-                   "o": x["owner"], "l": x["live"] or "—"} for x in items]).classes(
-            "w-full dense-table").props("flat dense wrap-cells")
+        responsive_table(
+            [{"name": "s", "label": "", "field": "s", "align": "left"},
+             {"name": "i", "label": "Item", "field": "i", "align": "left"},
+             {"name": "o", "label": "Owner", "field": "o", "align": "left"},
+             {"name": "l", "label": "Live status", "field": "l", "align": "left"}],
+            [{"s": "OK" if x["status"] == "ready" else "GAP", "i": x["item"],
+              "o": x["owner"], "l": x["live"] or "—"} for x in items],
+            table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="i")
         for x in items:
             if x.get("note"):
                 ui.label(f"{x['item']}: {x['note']}").style(
@@ -1308,15 +1308,16 @@ def _render_onboarding_checklist():
 
     ui.label("Criteria run against the current comp set, live").classes(
         "section-head").style("margin-top:10px;")
-    ui.table(
-        columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
-                 {"name": "n", "label": "Company", "field": "n", "align": "left"},
-                 {"name": "c", "label": "(c) comparable basis?", "field": "c", "align": "left"},
-                 {"name": "d", "label": "Detail", "field": "d", "align": "left"}],
-        rows=[{"t": r["ticker"], "n": r["name"] or "",
-               "c": "PASS" if r["c_comparable_basis"] else "FAIL",
-               "d": r["c_note"] + (f" · {r['flag_note']}" if r.get("flag_note") else "")}
-              for r in d["peer_check"]]).classes("w-full dense-table").props("flat dense wrap-cells")
+    responsive_table(
+        [{"name": "t", "label": "", "field": "t", "align": "left"},
+         {"name": "n", "label": "Company", "field": "n", "align": "left"},
+         {"name": "c", "label": "(c) comparable basis?", "field": "c", "align": "left"},
+         {"name": "d", "label": "Detail", "field": "d", "align": "left"}],
+        [{"t": r["ticker"], "n": r["name"] or "",
+          "c": "PASS" if r["c_comparable_basis"] else "FAIL",
+          "d": r["c_note"] + (f" · {r['flag_note']}" if r.get("flag_note") else "")}
+         for r in d["peer_check"]],
+        table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="n")
     ui.label("Criterion (a) — no pending or approved M&A — cannot be checked from XBRL and needs a "
              "human eye on each name's filings each quarter. It is the one that caught GDOT, and it "
              "caught it from an 8-K, not a feed.").style(
@@ -1333,14 +1334,15 @@ def _render_onboarding_checklist():
             ui.label(f"Issuer EV ~${(h.get('issuer_ev_m') or 0):.0f}M · {_sum}. A name that's only too big "
                      "isn't wrong — it's REFERENCE (kept for context, out of the median); only a name with "
                      "no live data is a true remove.").style(f"color:{COLORS['text_muted']};font-size:11px;")
-            ui.table(
-                columns=[{"name": "t", "label": "", "field": "t", "align": "left"},
-                         {"name": "v", "label": "Health", "field": "v", "align": "left"},
-                         {"name": "s", "label": "EV $M", "field": "s", "align": "left"},
-                         {"name": "n", "label": "Detail", "field": "n", "align": "left"}],
-                rows=[{"t": r["ticker"], "v": r["verdict"],
-                       "s": (f"{r['ev_m']:.0f}" if r.get("ev_m") else "—"), "n": r["note"]}
-                      for r in h.get("peers", [])]).classes("w-full dense-table").props("flat dense wrap-cells")
+            responsive_table(
+                [{"name": "t", "label": "", "field": "t", "align": "left"},
+                 {"name": "v", "label": "Health", "field": "v", "align": "left"},
+                 {"name": "s", "label": "EV $M", "field": "s", "align": "left"},
+                 {"name": "n", "label": "Detail", "field": "n", "align": "left"}],
+                [{"t": r["ticker"], "v": r["verdict"],
+                  "s": (f"{r['ev_m']:.0f}" if r.get("ev_m") else "—"), "n": r["note"]}
+                 for r in h.get("peers", [])],
+                table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="t")
             if h.get("remove"):
                 ui.label(f"Recommend REMOVE (no live data): {', '.join(h['remove'])}").style(
                     "color:#B91C1C;font-size:11px;font-weight:600;")
@@ -1539,11 +1541,11 @@ def _render_earnings_prep():
                          {"name": "r", "label": "Rating", "field": "r", "align": "left"},
                          {"name": "p", "label": "Price target", "field": "p", "align": "right"},
                          {"name": "d", "label": "Last action", "field": "d", "align": "left"}]
-                ui.table(columns=ccols, rows=[{
+                responsive_table(ccols, [{
                     "f": c["firm"], "r": c.get("grade") or "—",
                     "p": f"${c['price_target']:.2f}" if c.get("price_target") else "—",
-                    "d": c.get("date") or "—"} for c in b["coverage"]]).classes(
-                    "w-full dense-table").props("flat dense")
+                    "d": c.get("date") or "—"} for c in b["coverage"]],
+                    table_classes="w-full dense-table", table_props="flat dense", primary="f")
 
         if b.get("on_file_outside_range"):
             with ui.card().classes("w-full").style(
