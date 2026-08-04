@@ -275,6 +275,31 @@ def _dump_xlsx(file_bytes, char_budget):
 _MODEL_EXTENSIONS = (".xlsx", ".xls", ".xlsm", ".csv")
 
 
+def _fallback_shareholder_extract(subject, text):
+    """A best-effort shareholder_inquiry `extracted` for the keyword fallback (no LLM):
+    guess the sub-type, and flag the Reg FD red flag (fishing for un-released specifics)."""
+    if "dividend" in text:
+        sub = "dividend"
+    elif any(k in text for k in ("10-q", "10-k", "8-k", "filing", "annual report", "sec.gov")):
+        sub = "filings/where-to-find"
+    elif any(k in text for k in ("stock price", "share price", "stock is", "stock has", "dropped", "down ",
+                                  "why is the stock", "selling off")):
+        sub = "stock price"
+    elif any(k in text for k in ("call me", "speak to", "speak with", "talk to someone", "give me a call")):
+        sub = "wants to speak to someone"
+    elif any(k in text for k in ("complaint", "unhappy", "disappointed", "furious", "outraged")):
+        sub = "complaint"
+    elif any(k in text for k in ("earnings", "results", "report", "quarter")):
+        sub = "earnings/results"
+    else:
+        sub = "other"
+    mnpi = any(k in text for k in ("before you report", "before earnings", "ahead of earnings", "before the release",
+                                    "how is the quarter", "current quarter", "this quarter tracking", "tracking so far",
+                                    "guidance", "how are you tracking", "so far this quarter"))
+    return {"topic": (subject or "").strip() or "shareholder question",
+            "sub_type": sub, "seeks_material_nonpublic": mnpi, "sentiment": None}
+
+
 def _fallback_classify(subject, body, attachments, sender_kind):
     import os
     text = f"{subject}\n{body}".lower()
@@ -286,6 +311,11 @@ def _fallback_classify(subject, body, attachments, sender_kind):
         return "model", {}
     if sender_kind == "analyst" and has_pdf and "model" in text:
         return "model", {}
+    # A retail sender's email is a shareholder inquiry (coarse fallback; the LLM path is
+    # finer). Checked before the conference/NDR/speak keywords so a retail "conference call?"
+    # or "please call me" doesn't get mis-routed into the institutional pipeline.
+    if sender_kind == "retail":
+        return "shareholder_inquiry", _fallback_shareholder_extract(subject, text)
     if any(kw in text for kw in ("non-deal roadshow", "non deal roadshow", " ndr ", "ndr,", "ndr.", "roadshow")):
         return "ndr_request", {}
     if any(kw in text for kw in ("conference", "invite you to present", "investor day", "fireside chat")):
@@ -302,6 +332,11 @@ def _fallback_classify(subject, body, attachments, sender_kind):
     if any(kw in text for kw in ("meeting confirmed", "call scheduled", "confirmed for", "calendar invite",
                                   "zoom", "teams meeting", "webex", "1x1", "one-on-one", "conference call")):
         return "meeting_confirmation", {}
+    # Individual-shareholder language from an unknown sender (kind wasn't resolved to retail).
+    if any(kw in text for kw in ("shareholder", "individual investor", "retail investor", "shares i own",
+                                  "as a holder", "my shares", "small investor", "long-time holder",
+                                  "longtime holder", "as an investor in")):
+        return "shareholder_inquiry", _fallback_shareholder_extract(subject, text)
     return "general", {}
 
 
