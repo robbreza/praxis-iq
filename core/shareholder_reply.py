@@ -98,6 +98,11 @@ def draft_reply(subject, body, extracted, client_id=None):
                        f"({q.get('start')}–{q.get('end')}) — politely decline any financial specifics and note "
                        f"results will be released on {facts.get('earnings_date')}." if q.get("in_quiet")
                        else "The company is not currently in a quiet period.")
+    try:
+        from core import ir_knowledge
+        kb = ir_knowledge.context_block(client_id)
+    except Exception:
+        kb = ""
     prompt = f"""You are drafting a reply on behalf of the Investor Relations team of {facts['name']} \
 ({facts['ticker']}) to an email from an INDIVIDUAL / RETAIL shareholder.
 
@@ -107,10 +112,14 @@ STRICT REGULATION FD RULES — follow exactly:
 - If the shareholder asks about undisclosed or forward-looking specifics (e.g. how the current quarter is
   tracking before it is reported), politely DECLINE and point them to the company's next scheduled release.
 - Do NOT promise a call or meeting with management, or commit to anything requiring approval.
-- Do NOT state a dividend policy, a price target, or any financial figure. Point to the filings instead.
 - Warm, professional, concise (2–4 short paragraphs). Sign as "Investor Relations — {facts['name']}".
 
-PUBLIC FACTS you may reference (nothing else):
+APPROVED ANSWERS — pre-vetted and approved by the IR team; you MAY state these directly and in full when
+they address the shareholder's question (they are public and approved). For anything NOT covered here or in
+the public facts below, do NOT invent — defer to the filings / next release:
+{kb or '(none on file — defer substantive questions to the filings)'}
+
+PUBLIC FACTS you may reference:
 - Next earnings release: {facts.get('next_quarter')} on {facts.get('earnings_date')}.
 - Last reported quarter: {facts.get('last_reported')}.
 - Filings (10-Q/10-K, press releases) are on the SEC's EDGAR system and the company's IR website.

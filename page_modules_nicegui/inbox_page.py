@@ -81,3 +81,68 @@ def render_inbox_page():
                     ui.label(it.get("received_at", "")).style(f"color:{COLORS['text_muted']};font-size:11px;")
                 if it.get("subject"):
                     ui.label(it["subject"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
+
+    _render_ir_knowledge_editor()
+
+
+def _render_ir_knowledge_editor():
+    """The approved-answer knowledge base editor — the public answers the shareholder-reply
+    drafter is allowed to state directly. Every entry is IR-approved public info."""
+    from config.client_config import get_active_client_id
+    from core import ir_knowledge, ui_context
+    cid = get_active_client_id()
+    _ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
+
+    with ui.expansion("Approved answers — used when drafting shareholder replies", icon="menu_book").classes(
+            "w-full").style("margin-top:18px;"):
+        ui.label("Pre-vetted PUBLIC answers the reply drafter may state directly — dividend policy, transfer "
+                 "agent, filing locations, how to reach IR. Anything not here defers to your filings; nothing "
+                 "is invented. Keep every answer to publicly disclosed information.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
+
+        def _rebuild():
+            _box.clear()
+            with _box:
+                for e in ir_knowledge.load_entries(cid):
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};padding:8px 10px;"):
+                        if _ro:
+                            ui.label(e.get("topic") or "").style(f"color:{COLORS['text_heading']};font-size:12px;font-weight:600;")
+                            ui.label(e.get("answer") or "").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            continue
+                        _t = ui.input("Topic", value=e.get("topic") or "").props("outlined dense").classes(
+                            "w-full").style("font-size:12px;")
+                        _a = ui.textarea("Answer", value=e.get("answer") or "").props("outlined autogrow dense").classes(
+                            "w-full").style("font-size:12px;")
+                        with ui.row().classes("gap-2"):
+                            def _save(eid=e["id"], _t=_t, _a=_a):
+                                ir_knowledge.update_entry(eid, _t.value, _a.value, cid)
+                                ui.notify("Saved.", type="positive")
+
+                            def _del(eid=e["id"]):
+                                ir_knowledge.delete_entry(eid, cid)
+                                ui.notify("Removed.")
+                                _rebuild()
+                            ui.button("Save", icon="save", on_click=_save).props("flat dense color=primary")
+                            ui.button("Remove", icon="delete", on_click=_del).props("flat dense").style(
+                                f"color:{COLORS['danger']};")
+                if not _ro:
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['border']};padding:8px 10px;"):
+                        ui.label("Add an approved answer").style(
+                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                        _nt = ui.input("Topic (e.g. Dividend policy)").props("outlined dense").classes(
+                            "w-full").style("font-size:12px;")
+                        _na = ui.textarea("Answer (public info only)").props("outlined autogrow dense").classes(
+                            "w-full").style("font-size:12px;")
+
+                        def _add(_nt=_nt, _na=_na):
+                            if not (_nt.value and _na.value):
+                                ui.notify("Topic and answer are both required.", type="warning")
+                                return
+                            ir_knowledge.add_entry(_nt.value, _na.value, cid)
+                            ui.notify("Added to the knowledge base.", type="positive")
+                            _rebuild()
+                        ui.button("Add answer", icon="add", on_click=_add).props("color=primary dense").style("margin-top:4px;")
+        _rebuild()
