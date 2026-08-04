@@ -1183,9 +1183,17 @@ def _render_top_story():
         # Same eyebrow treatment as the metric labels (one system); colour carries
         # the only distinction — green for our own news, accent-blue for a peer.
         ui.label(eyebrow).classes("t-eyebrow").style(f"color:{accent};")
-        with ui.link(target=top["url"], new_tab=True).style("text-decoration:none;"):
+        def _story_title():
             ui.label(top.get("title", "")).classes("font-bold").style(
                 f"color:{COLORS['text_heading']};font-size:15px;line-height:1.25;")
+        # Only wrap in a link when there's a real URL — a None target makes NiceGUI's
+        # link component throw (compute_href on undefined). Illustrative peer news
+        # can carry no URL.
+        if top.get("url"):
+            with ui.link(target=top["url"], new_tab=True).style("text-decoration:none;"):
+                _story_title()
+        else:
+            _story_title()
         ui.label(f"{top.get('provider', '')} · {(top.get('pub') or '')[:10]}").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
         if peer:
@@ -1293,11 +1301,17 @@ def _render_peer_watch():
                     f"color:{COLORS['text_body']};font-size:12px;")
                 for f in s["filings"][:5]:
                     who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
-                    with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
+                    def _filing_line():
                         with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
                             ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:11px;width:42px;")
                             ui.label(f"{who} · {f['form']}").style(
                                 f"color:{COLORS['text_secondary']};font-size:12px;")
+                    # Link only when a real URL is present — target=None crashes the link component.
+                    if f.get("url"):
+                        with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
+                            _filing_line()
+                    else:
+                        _filing_line()
 
         # Client's OWN headlines, distinct from peer news. A microcap is often quiet — an empty state
         # says so (itself IR-relevant) rather than hiding the card.
