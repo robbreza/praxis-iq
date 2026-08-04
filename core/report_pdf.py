@@ -133,6 +133,10 @@ def weekly_brief_pdf(client_id=None):
             "Composed live from price &amp; volume, the IR activity log, the earnings calendar, the "
             f"script workflow, the investor pipeline and peer activity · generated {b['as_of']:%b %d, %Y}")
 
+    # Optional IR editorial note — prints first when the IR team has written one.
+    if b.get("ir_note"):
+        story.append(_callout("IR NOTE", _esc(b["ir_note"])))
+
     if b["stats"]:
         story.append(_stat_row([(_esc(v), _esc(l), _esc(s), ACCENT) for v, l, s in b["stats"]]))
 
@@ -775,7 +779,7 @@ def earnings_prep_pdf(client_id=None):
             f"and the {_esc((q or {}).get('from_quarter', 'last'))} transcript · "
             f"generated {d['as_of']:%b %d, %Y}")
 
-    story.append(_callout("READ THIS FIRST", _esc(earnings_prep.headline(d)),
+    story.append(_callout("READ THIS FIRST", _esc(d.get("headline") or earnings_prep.headline(d)),
                           colors.HexColor("#B91C1C")))
 
     # ---- Comp quality: is the base clean? ----
@@ -1359,6 +1363,13 @@ def board_package_pdf(client_id=None):
             f"actually filed). {_esc(str(p['upcoming']))} reports {_esc(str(p['upcoming_date']))} — "
             f"{p['days_to_upcoming']} days out and NOT reflected here. Composed live from SEC EDGAR, the "
             f"market feed and the IR activity log · generated {d['as_of']:%b %d, %Y}")
+
+    # ---- Executive summary (BLUF) ----
+    # Same board_package.summary() text the Reports page shows on screen, so the two
+    # can't drift and an IR edit prints here too. Added when the exec summary was
+    # lifted out of the on-screen renderer into board_package.summary().
+    if (d.get("summary") or {}).get("text"):
+        story.append(_callout("EXECUTIVE SUMMARY", _esc(d["summary"]["text"])))
 
     # ---- 1. Quarter at a glance ----
     story.append(Paragraph("1. Quarter at a glance", _S["h2"]))

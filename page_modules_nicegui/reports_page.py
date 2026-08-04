@@ -94,6 +94,52 @@ def _refresh():
     nav.go_to("Reports")
 
 
+def _render_narrative_editor(report, fields, on_saved, blurb=None):
+    """Shared 'Edit the narrative before export' expansion for the non-board reports
+    (Earnings Prep Brief, weekly brief). Mirrors the board package's editor, backed by
+    core.report_overrides. `fields` is a list of (field_key, label, auto_text); the
+    textarea shows the IR edit if one is saved, else the auto text, and Reset restores
+    the auto. `on_saved` re-renders the host page (Reports for the weekly brief, Earnings
+    for the Prep Brief). No-op in read-only mode."""
+    if ui_context.is_read_only():
+        return
+    from core import report_overrides
+    with ui.expansion("Edit the narrative before export", icon="edit").classes("w-full").style("margin-top:8px;"):
+        ui.label(blurb or ("The numbers are computed live and can’t be changed here — but this written "
+                 "block can. Your wording is used on screen AND in the PDF, and it persists across "
+                 "refreshes. Reset restores the auto-written version.")).style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        _ov = report_overrides.load(report)
+        _inputs = {}
+        for _fld, _lbl, _auto in fields:
+            ui.label(_lbl + ("  ·  edited" if _fld in _ov else "")).style(
+                f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:10px;")
+            _ta = ui.textarea(value=_ov.get(_fld, _auto or "")).props(
+                'outlined autogrow input-style="min-height:120px"').classes("w-full").style("font-size:12px;")
+            _inputs[_fld] = (_ta, _auto or "")
+
+        def _save():
+            _new = dict(report_overrides.load(report))
+            for _f, (_inp, _autoval) in _inputs.items():
+                _v = (_inp.value or "").strip()
+                if _v and _v != (_autoval or "").strip():
+                    _new[_f] = _v
+                else:
+                    _new.pop(_f, None)
+            report_overrides.save(report, _new)
+            ui.notify("Saved — the report and its PDF now use your wording.", type="positive")
+            on_saved()
+
+        def _reset():
+            report_overrides.save(report, {})
+            ui.notify("Reset to the auto-written narrative.", type="info")
+            on_saved()
+
+        with ui.row().style("margin-top:12px;"):
+            ui.button("Save edits", icon="save", on_click=_save).props("color=primary dense")
+            ui.button("Reset to auto", icon="restart_alt", on_click=_reset).props("flat dense")
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Weekly IR Intelligence Briefs — used to be 3 hardcoded literal entries
 # (fake stock prices, fixed dates) plus a "Generate Weekly Brief" button
@@ -145,6 +191,14 @@ def _render_live_weekly_brief():
                 f"background:{COLORS['accent']};color:white;padding:2px 10px;border-radius:6px;font-size:12px;")
         ui.label(b["headline"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
 
+        if b.get("ir_note"):
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"
+                    f"border-left:3px solid {COLORS['accent']};padding:8px 10px;margin-top:6px;"):
+                ui.label("IR NOTE").style(
+                    f"color:{COLORS['text_muted']};font-size:10px;font-weight:700;letter-spacing:.05em;")
+                ui.label(b["ir_note"]).style(f"color:{COLORS['text_body']};font-size:12px;line-height:1.5;")
+
         if b["stats"]:
             with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
                 for val, lbl, sub in b["stats"]:
@@ -172,6 +226,15 @@ def _render_live_weekly_brief():
         ui.label("Live brief — every figure recomputes from the latest price, filing and activity log; the PDF "
                  "is generated on the spot from the same numbers.").style(
             f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+
+        # IR editorial note — the one editable block on an otherwise fully-computed brief.
+        _render_narrative_editor(
+            "weekly_brief",
+            [("ir_note", "IR note — printed at the top of the brief", "")],
+            _refresh,
+            blurb=("Add an optional IR note — context the live data can't know (a board ask, a heads-up "
+                   "before a call). It prints at the top of the brief on screen and in the PDF. Leave it "
+                   "empty and the brief has no note. Reset clears it."))
 
 
 def _b64_image(b64_string):
@@ -1417,7 +1480,7 @@ def _render_earnings_prep():
             f"background:{COLORS['surface_bg']};border:1px solid #B91C1C;"
             "border-left:3px solid #B91C1C;padding:8px 10px;margin-top:4px;"):
         ui.label("Read this first").style("color:#B91C1C;font-size:12px;font-weight:700;")
-        ui.label(earnings_prep.headline(d)).style(
+        ui.label(d.get("headline") or earnings_prep.headline(d)).style(
             f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
         if d.get("sequential"):
             ui.label(d["sequential"]).style(f"color:{COLORS['text_body']};font-size:12px;margin-top:2px;")
@@ -1553,6 +1616,17 @@ def _render_earnings_prep():
             ui.label(str(s.get("title"))).style(f"color:{col};font-size:12px;font-weight:700;")
             ui.label(str(s.get("desc"))).style(f"color:{COLORS['text_body']};font-size:11px;")
 
+    # Edit the "Read this first" headline before export — same words on screen and in
+    # the PDF. Rendered on the Earnings page, so a save re-lands on the Prep Brief tab.
+    _render_narrative_editor(
+        "earnings_prep",
+        [("headline", "“Read this first” — the one thing to say first",
+          d.get("headline_auto") or "")],
+        lambda: nav.go_to("Earnings", "Prep Brief"),
+        blurb=("The brief leads with the sharpest true fact it can compute. Rewrite that opener here "
+               "if you want management to hear it in your words — it's used on screen and in the PDF, "
+               "and persists across refreshes. Reset restores the auto-written headline."))
+
     def _dl_prep_pdf():
         try:
             qlabel = (d.get("quarter") or "").replace(" ", "_")
@@ -1610,48 +1684,18 @@ def _render_board_ir_report():
     ui.label(f"As of the {s['quarter_end']} 10-Q · composed live from SEC EDGAR filings + market data").style(
         f"color:{COLORS['text_muted']};font-size:12px;")
 
-    # Executive summary (BLUF)
-    with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent_strong']};"
-            f"border-left:4px solid {COLORS['accent']};"):
-        ui.label("EXECUTIVE SUMMARY").style(
-            f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;")
-        # The old text asserted "cheap on a growing base" on every branch and quoted
-        # EV/Revenue as supporting evidence. Both are claims, not facts: the discount can
-        # be a premium, and EV/Revenue is not comparable across this peer set at all.
-        _disc = bm.get("discount_gp")
-        _med = bm.get("median_gp")
-        if _disc is None or _med is None:
-            _val = "not directly comparable on the current peer set"
-        elif _disc > 0:
-            _val = "a {:.0f}% discount to the {:.1f}x peer median".format(_disc, _med)
-        else:
-            _val = "a {:.0f}% PREMIUM to the {:.1f}x peer median".format(abs(_disc), _med)
-        # Built defensively: a recent IPO / non-payments issuer has None for figures USIO
-        # always has (net cash — SARO carries net DEBT), and the interchange line is USIO's.
-        _nc = bs.get("net_cash")
-        _seg = []
-        if inc.get("revenue") is not None:
-            _seg.append(f"Revenue ${inc['revenue']/1e6:.1f}M"
-                        + (f", up {inc['rev_growth_yoy']:.0f}% year-over-year" if inc.get("rev_growth_yoy") is not None else ""))
-        if inc.get("gross_profit") is not None:
-            _seg.append(f"${inc['gross_profit']/1e6:.1f}M gross profit")
-        if inc.get("adjusted_ebitda") is not None:
-            _seg.append(f"${inc['adjusted_ebitda']/1e3:.0f}K adjusted EBITDA")
-        _txt = ", with ".join(_seg) + "." if _seg else ""
-        if _nc is not None:
-            _txt += (f" Balance sheet is net cash (${_nc/1e6:.1f}M) — self-funding."
-                     if _nc >= 0 else f" Balance sheet carries net debt (${abs(_nc)/1e6:.1f}M).")
-        if u.get("ev_gp") is not None:
-            _txt += f" Shares trade at {u['ev_gp']:.1f}x EV/Gross Profit — {_val}."
-        _txt += (" EV/Revenue is NOT a usable comparison here and is excluded from that read: USIO "
-                 "reports revenue gross of interchange."
-                 if CT("ticker") == "USIO" else
-                 " EV/Revenue is not comparable across this peer set and is excluded from that read.")
-        if inc.get("operating_margin") is not None:
-            _txt += f" The re-rating hinges on operating-margin expansion (currently {inc['operating_margin']:.1f}%)."
-        ui.label(_txt.strip()).style(
-            f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
+    # Executive summary (BLUF) — composed in board_package.summary() so the PDF
+    # prints the SAME words and an IR edit (Edit the narrative → Executive summary)
+    # shows in both. Was computed inline here; that duplicated logic the PDF lacked.
+    _exec = (_pkg.get("summary") or {}).get("text") or ""
+    if _exec:
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent_strong']};"
+                f"border-left:4px solid {COLORS['accent']};"):
+            ui.label("EXECUTIVE SUMMARY").style(
+                f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;")
+            ui.label(_exec).style(
+                f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
 
     # None-safe formatters: a recent IPO / non-payments issuer has None for figures USIO
     # always carries (net cash, settlement float, some margins). Show "—" rather than crash.

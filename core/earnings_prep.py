@@ -407,7 +407,7 @@ def compose(client_id=None):
     """The whole brief."""
     ce = CE()
     bar = the_bar(client_id)
-    return {
+    d = {
         "ticker": CT("ticker"), "name": CT("name"),
         "quarter": ce.get("current_quarter"), "earnings_date": ce.get("earnings_date"),
         "days_out": _days_out(ce.get("earnings_date")),
@@ -425,6 +425,13 @@ def compose(client_id=None):
         # two years, off the SAME quarter. See core/comp_quality.py.
         "comp_quality": _comp_quality(),
     }
+    # The "Read this first" headline (the sharpest true fact) is computed here so the
+    # screen AND the PDF print the same words, and so an IR edit shows in both. The
+    # auto text is kept as headline_auto for the edit UI's Reset. (core.report_overrides)
+    from core import report_overrides
+    d["headline_auto"] = headline(d)
+    d["headline"] = report_overrides.apply("earnings_prep", "headline", d["headline_auto"], client_id)
+    return d
 
 
 def _comp_quality():

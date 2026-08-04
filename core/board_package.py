@@ -247,14 +247,67 @@ def appendix_comp_sheet(client_id=None):
     return rows
 
 
+def summary(period=None, val=None, client_id=None):
+    """Executive summary (BLUF) — the one paragraph the board reads first.
+
+    Moved out of the on-screen renderer (reports_page._render_board_ir_report) so the
+    report page AND the PDF print the SAME words, and so an IR edit (EDITABLE_FIELDS)
+    shows in both. Every clause is guarded: a recent IPO / non-payments issuer has None
+    for figures USIO always carries (net cash), and the interchange caveat is USIO-only.
+    """
+    p = period or _reported_period()
+    if not p or not p.get("summary"):
+        return {"text": ""}
+    v = val or valuation(client_id)
+    bm = v.get("bm") or {}
+    u = bm.get("usio") or {}
+    inc = p["summary"].get("income", {}) or {}
+    bs = p["summary"].get("balance", {}) or {}
+
+    disc, med = bm.get("discount_gp"), bm.get("median_gp")
+    if disc is None or med is None:
+        read = "not directly comparable on the current peer set"
+    elif disc > 0:
+        read = "a {:.0f}% discount to the {:.1f}x peer median".format(disc, med)
+    else:
+        read = "a {:.0f}% PREMIUM to the {:.1f}x peer median".format(abs(disc), med)
+
+    seg = []
+    if inc.get("revenue") is not None:
+        seg.append(f"Revenue ${inc['revenue']/1e6:.1f}M"
+                   + (f", up {inc['rev_growth_yoy']:.0f}% year-over-year"
+                      if inc.get("rev_growth_yoy") is not None else ""))
+    if inc.get("gross_profit") is not None:
+        seg.append(f"${inc['gross_profit']/1e6:.1f}M gross profit")
+    if inc.get("adjusted_ebitda") is not None:
+        seg.append(f"${inc['adjusted_ebitda']/1e3:.0f}K adjusted EBITDA")
+    txt = ", with ".join(seg) + "." if seg else ""
+
+    nc = bs.get("net_cash")
+    if nc is not None:
+        txt += (f" Balance sheet is net cash (${nc/1e6:.1f}M) — self-funding."
+                if nc >= 0 else f" Balance sheet carries net debt (${abs(nc)/1e6:.1f}M).")
+    if u.get("ev_gp") is not None:
+        txt += f" Shares trade at {u['ev_gp']:.1f}x EV/Gross Profit — {read}."
+    txt += (" EV/Revenue is NOT a usable comparison here and is excluded from that read: USIO "
+            "reports revenue gross of interchange."
+            if CT("ticker") == "USIO" else
+            " EV/Revenue is not comparable across this peer set and is excluded from that read.")
+    if inc.get("operating_margin") is not None:
+        txt += f" The re-rating hinges on operating-margin expansion (currently {inc['operating_margin']:.1f}%)."
+    return {"text": txt.strip()}
+
+
 _OVERRIDE_KEY = "board_report_overrides.json"
 
 # Narrative blocks the IR team can edit before export. The numbers stay computed;
 # only these prose fields are overridable. (override key -> section, field, label.)
 # Both render from compose() on screen AND in the PDF, so an edit shows in both.
 EDITABLE_FIELDS = [
-    ("sell_side.read", "sell_side", "read", "Sell-side coverage — the read"),
-    ("buy_side.note",  "buy_side",  "note", "Buy-side & retail — the note"),
+    ("summary.text",          "summary",   "text",        "Executive summary"),
+    ("sell_side.read",        "sell_side", "read",        "Sell-side coverage — the read"),
+    ("buy_side.note",         "buy_side",  "note",        "Buy-side & retail — the note"),
+    ("valuation.key_finding", "valuation", "key_finding", "Valuation — the key finding"),
 ]
 
 
@@ -283,12 +336,14 @@ def compose(client_id=None, raw=False):
     """Compose the board package. raw=True returns the auto-written version (no
     IR edits applied) — used by the edit UI to show the original for Reset."""
     p = _reported_period()
+    _val = valuation(client_id)  # computed once; summary() reuses it (no double build)
     d = {
         "ticker": CT("ticker"), "name": CT("name"),
         "as_of": datetime.now(),
         "period": p, "glance": at_a_glance(client_id, period=p),
         "sell_side": sell_side(client_id), "buy_side": buy_side(client_id),
-        "valuation": valuation(client_id), "open_items": open_items(client_id),
+        "valuation": _val, "open_items": open_items(client_id),
         "appendix": appendix_comp_sheet(client_id),
+        "summary": summary(p, _val, client_id),
     }
     return d if raw else _apply_overrides(d, client_id)

@@ -278,10 +278,17 @@ def compose(client_id=None):
             f"{_safe(lambda: activity_log.count_this_week(), 0) or 0} IR action(s) logged this week",
             script_stage()]
 
+    # Optional IR editorial note — context the live data can't know (a board ask, a
+    # heads-up before a call). Empty by default; when the IR team writes one it prints
+    # at the top of the brief on screen AND in the PDF. (core.report_overrides)
+    from core import report_overrides
+    ir_note = report_overrides.apply("weekly_brief", "ir_note", "", cid)
+
     return {
         "week_label": f"Week of {now:%b %d, %Y}",
         "as_of": now, "ticker": ticker, "name": name,
         "headline": " · ".join(head),
+        "ir_note": ir_note,
         "stats": stats,
         "sections": sections,
     }
