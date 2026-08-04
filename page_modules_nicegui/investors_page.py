@@ -5465,25 +5465,51 @@ def _render_pending_inbox_items():
                     # event date is flagged, and the checked names become the calendar event's Attending.
                     from core import conferences
                     from config.client_config import role_roster as _role_roster
+                    import re as _re
                     _roster = sorted(_role_roster() or [],
                                      key=lambda r: {"CEO": 0, "CFO": 1, "IR": 2}.get(r.get("role_key"), 3))
-                    _busy = conferences.busy_attendees_on(extracted.get("date"))
                     ui.label("Who from management is available?").style(
                         f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:8px;")
                     _attend_cbs = {}
-                    for _r in _roster:
-                        _nm, _rk = _r.get("name"), _r.get("role_key")
-                        _conflict = _busy.get((_nm or "").lower())
-                        with ui.row().classes("items-center gap-2").style("margin-top:2px;"):
-                            _attend_cbs[_nm] = ui.checkbox(value=(_rk in ("CEO", "CFO"))).props("dense")
-                            ui.label(f"{_r.get('label')} — {_nm}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                            if _conflict:
-                                ui.label(f"⚠ already booked: {_conflict}").style("color:#B45309;font-size:11px;")
-                            else:
-                                ui.label("available").style("color:#15803D;font-size:11px;")
-                    if not _roster:
-                        ui.label("No management roster on file for this client.").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                    _avail_box = ui.column().classes("w-full gap-0")
+
+                    def _render_avail(c_date=c_date, _roster=_roster, _attend_cbs=_attend_cbs, _avail_box=_avail_box):
+                        # Recompute conflicts against the CURRENT date field so editing the date
+                        # live-updates who's booked. Preserve any checkbox choices already made
+                        # (clear-and-repopulate the SAME dict so confirm()'s reference stays valid).
+                        _prev = {nm: cb.value for nm, cb in _attend_cbs.items()}
+                        _attend_cbs.clear()
+                        _avail_box.clear()
+                        _d = (c_date.value or "").strip()
+                        _busy = conferences.busy_attendees_on(_d) if _re.match(r"^\d{4}-\d{2}-\d{2}$", _d) else {}
+                        with _avail_box:
+                            if not _roster:
+                                ui.label("No management roster on file for this client.").style(
+                                    f"color:{COLORS['text_muted']};font-size:11px;")
+                                return
+                            for _r in _roster:
+                                _nm, _rk = _r.get("name"), _r.get("role_key")
+                                _conflict = _busy.get((_nm or "").lower())
+                                with ui.row().classes("items-center gap-2").style("margin-top:2px;"):
+                                    _attend_cbs[_nm] = ui.checkbox(
+                                        value=_prev.get(_nm, _rk in ("CEO", "CFO"))).props("dense")
+                                    ui.label(f"{_r.get('label')} — {_nm}").style(
+                                        f"color:{COLORS['text_body']};font-size:12px;")
+                                    if _conflict:
+                                        ui.label(f"⚠ already booked: {_conflict}").style("color:#B45309;font-size:11px;")
+                                    else:
+                                        ui.label("available").style("color:#15803D;font-size:11px;")
+
+                    _render_avail()
+                    # Re-check availability when the date changes: immediately on a complete/empty
+                    # value (paste or final digit), and on blur as a catch-all — without flickering
+                    # the roster on every partial keystroke mid-typing.
+                    def _on_date_change(_render_avail=_render_avail, c_date=c_date):
+                        _d = (c_date.value or "").strip()
+                        if _d == "" or _re.match(r"^\d{4}-\d{2}-\d{2}$", _d):
+                            _render_avail()
+                    c_date.on_value_change(lambda _e: _on_date_change())
+                    c_date.on("blur", lambda _e: _render_avail())
 
                     def confirm(item_id=item["id"], firm=item["firm"], contact=item["contact"],
                                 c_event=c_event, c_date=c_date, c_loc=c_loc, c_org=c_org, c_deadline=c_deadline,
