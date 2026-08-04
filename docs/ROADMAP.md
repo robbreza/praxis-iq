@@ -1,8 +1,8 @@
 # Praxis Point IR — Roadmap & Session Notes
 
-> Mirrored from the working roadmap memory (`praxis-next-steps`). Near-term roadmap for the
-> Praxis Point IR platform after the 2026-07-15 demo. Entries are reverse-chronological
-> (newest first). `[[name]]` markers reference related working-memory notes.
+> Mirrored from the working roadmap memory (`praxis-next-steps`) by `scripts/sync_roadmap.py`.
+> Near-term roadmap for the Praxis Point IR platform after the 2026-07-15 demo. Entries are
+> reverse-chronological (newest first). `[[name]]` markers reference related working-memory notes.
 >
 > _Last synced from memory: 2026-08-04._
 
