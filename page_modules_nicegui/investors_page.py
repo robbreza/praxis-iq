@@ -1442,11 +1442,17 @@ def _render_web_flow_tab(client_id):
                  "(the same store the Peer Prospects Promote button feeds).").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
         _hot_box = ui.column().classes("w-full gap-0")
+        # Capture read-only ONCE, here, where the page role/page context is bound. Re-checking
+        # it inside _render_hot() would be wrong: when _render_hot runs from an on_click
+        # callback the ui_context slot isn't bound, so is_read_only() returns True and every
+        # mutating control would vanish after the first add (same class of bug as the
+        # tenant-context callback issue). client_id is likewise captured, not re-resolved.
+        _read_only = ui_context.is_read_only()
 
         def _render_hot():
             _hot_box.clear()
             queued = web_flow.target_queue_keys(client_id)
-            read_only = ui_context.is_read_only()
+            read_only = _read_only
             with _hot_box:
                 unqueued = [v for v in d["hot_prospects"] if not web_flow.is_in_queue(v["org"], queued)]
                 if unqueued and not read_only:
