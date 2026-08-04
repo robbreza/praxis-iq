@@ -122,7 +122,7 @@ def _route_message(match, subject, body, attachments, client_id, save_attachment
         inbox_queue.enqueue_item(
             category=category, contact=match.get("name"), firm=firm, subject=subject,
             extracted=extracted, doc_id=primary_doc_id, filename=primary[0] if primary else None,
-            source="email_sync", client_id=client_id,
+            source="email_sync", client_id=client_id, body=body,
         )
     return category, extracted, saved_filenames
 

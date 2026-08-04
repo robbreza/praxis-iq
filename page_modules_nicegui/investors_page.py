@@ -5263,7 +5263,7 @@ def _render_structured_note(structured):
 _CATEGORY_LABELS = {
     "model": "Model", "research_note": "Research Note", "ndr_request": "NDR Request",
     "conference_invite": "Conference Invite", "speak_to_management": "Speak to Management",
-    "meeting_confirmation": "Meeting Confirmation",
+    "meeting_confirmation": "Meeting Confirmation", "shareholder_inquiry": "Shareholder Inquiry",
 }
 
 
@@ -5310,8 +5310,10 @@ def _render_pending_inbox_items():
             category = item.get("category", "general")
             with ui.card().classes("w-full").style(f"background:{COLORS['canvas_bg']};border:1px solid {COLORS['border']};margin-top:6px;"):
                 with ui.row().classes("w-full items-center justify-between"):
-                    ui.label(f"{_CATEGORY_LABELS.get(category, category)} — {item['contact']} ({item['firm']})") \
-                        .classes("font-bold").style(f"color:{COLORS['accent_light']};")
+                    _hdr = f"{_CATEGORY_LABELS.get(category, category)} — {item['contact'] or 'unknown sender'}"
+                    _hdr += f" ({item['firm']})" if item.get("firm") else (
+                        " (individual investor)" if category == "shareholder_inquiry" else "")
+                    ui.label(_hdr).classes("font-bold").style(f"color:{COLORS['accent_light']};")
                     ui.label(f"received {item['received_at']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
                 ui.label(f"Subject: {item.get('subject') or '(no subject)'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
@@ -5493,7 +5495,7 @@ def _render_pending_inbox_items():
                         _refresh()
                     confirm_label = "Schedule Meeting"
 
-                else:  # meeting_confirmation
+                elif category == "meeting_confirmation":
                     mc_type = ui.select(["1x1 call", "Conference call", "Video call", "In-person", "Other"],
                                          value=extracted.get("meeting_type") or "1x1 call", label="Meeting type").classes("w-full").style("margin-top:6px;")
                     mc_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")).classes("w-full")
@@ -5514,6 +5516,63 @@ def _render_pending_inbox_items():
                         ui.notify(f"Confirmed meeting with {contact} added to Meeting Hub.")
                         _refresh()
                     confirm_label = "Log Confirmed Meeting"
+
+                elif category == "shareholder_inquiry":
+                    from core import shareholder_reply
+                    ui.label(f"Topic: {extracted.get('topic') or item.get('subject') or 'shareholder question'}").style(
+                        f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
+                    _bits = " · ".join(b for b in (extracted.get("sub_type"), extracted.get("sentiment")) if b)
+                    if _bits:
+                        ui.label(_bits).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+                    # Regulation FD compliance flag — the point of this view. A shareholder fishing
+                    # for undisclosed/forward info, or a live quiet period, is surfaced up front.
+                    _note = shareholder_reply.compliance_note(extracted)
+                    if _note:
+                        with ui.card().classes("w-full").style(
+                                "background:#FEF3C7;border:1px solid #B45309;border-left:4px solid #B45309;"
+                                "padding:6px 10px;margin-top:6px;"):
+                            ui.label("⚠ Regulation FD — review before replying").style(
+                                "color:#8A5A0B;font-size:12px;font-weight:700;")
+                            ui.label(_note).style("color:#7A5310;font-size:11px;line-height:1.4;")
+
+                    _draft_box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
+
+                    def _generate_draft(subject=item.get("subject"), body=item.get("body") or "",
+                                        extracted=extracted, _box=_draft_box):
+                        d = shareholder_reply.draft_reply(subject, body, extracted)
+                        _box.clear()
+                        with _box:
+                            _ta = ui.textarea("Draft reply — public info only; edit before sending", value=d["draft"]).props(
+                                'outlined autogrow input-style="min-height:150px"').classes("w-full").style("font-size:12px;")
+                            with ui.row().classes("gap-2"):
+                                def _copy(_ta=_ta):
+                                    ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(_ta.value)})")
+                                    ui.notify("Draft copied — paste it into your reply and send.", type="positive")
+                                ui.button("Copy draft", icon="content_copy", on_click=_copy).props("flat dense color=primary")
+                                ui.button("Re-draft", icon="refresh", on_click=_generate_draft).props("flat dense")
+                            ui.label("IRconnect never sends on your behalf — you review, edit, and send this yourself.").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+                    with _draft_box:
+                        ui.button("Draft a compliant reply", icon="smart_toy",
+                                  on_click=_generate_draft).props("color=primary dense outline")
+                        ui.label("Uses only public facts (next earnings date, filing locations, quiet-period "
+                                 "status) — never guidance or unreleased numbers.").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
+
+                    def confirm(item_id=item["id"], contact=item["contact"]):
+                        inbox_queue.mark_confirmed(item_id, outcome=f"Handled shareholder inquiry from {contact}")
+                        ui.notify("Marked handled.")
+                        _refresh()
+                    confirm_label = "Mark handled"
+
+                else:  # any future/unrecognized category — never leave confirm undefined
+                    def confirm(item_id=item["id"]):
+                        inbox_queue.mark_confirmed(item_id, outcome="Reviewed")
+                        ui.notify("Marked reviewed.")
+                        _refresh()
+                    confirm_label = "Mark reviewed"
 
                 with ui.row().classes("w-full gap-2").style("margin-top:6px;"):
                     ui.button(confirm_label, on_click=confirm).props("color=primary dense")

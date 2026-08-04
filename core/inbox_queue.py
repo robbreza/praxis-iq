@@ -86,18 +86,20 @@ def list_items_by_category(category, client_id=None):
 
 
 def enqueue_item(category, contact, firm, subject, extracted=None, doc_id=None,
-                  filename=None, source="email_sync", client_id=None):
+                  filename=None, source="email_sync", client_id=None, body=None):
     """Called by core/mail_gateway.py once per routed message. `extracted`
     is whatever core/email_classifier.py pulled out (may be {} if no API
     key was configured or nothing could be found) — the review UI prefills
     from it and a human corrects/confirms rather than this ever writing
-    anywhere unattended."""
+    anywhere unattended. `body` is a truncated copy of the email text, kept
+    so a reply can be drafted with the original in hand (shareholder inquiries)."""
     cid = _resolve_client_id(client_id)
     queue = _load_queue(cid)
     entry = {
         "id": str(uuid.uuid4()), "category": category, "contact": contact, "firm": firm,
         "subject": subject, "extracted": extracted or {}, "doc_id": doc_id, "filename": filename,
-        "source": source, "status": "pending", "received_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "body": (body or "")[:2000], "source": source,
+        "status": "pending", "received_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     queue.append(entry)
     _save_queue(queue, cid)

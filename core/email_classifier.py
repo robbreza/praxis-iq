@@ -75,7 +75,7 @@ import urllib.request
 from core.security import get_anthropic_api_key
 
 CATEGORIES = ("model", "research_note", "ndr_request", "conference_invite",
-              "speak_to_management", "meeting_confirmation", "general")
+              "speak_to_management", "meeting_confirmation", "shareholder_inquiry", "general")
 
 # Per-category extraction schema, spelled out in the prompt so Claude knows
 # exactly which keys to fill in (and to use null rather than inventing a
@@ -105,6 +105,13 @@ _EXTRACTED_SCHEMA_BY_CATEGORY = {
                              'sender), "date": string|null (YYYY-MM-DD if identifiable), "time": string|null, '
                              '"meeting_type": string|null (e.g. "1x1 call", "conference call", "video call"), '
                              '"notes": string|null}',
+    "shareholder_inquiry": '{"topic": string|null (one line: what they are asking about), '
+                            '"sub_type": "earnings/results"|"dividend"|"filings/where-to-find"|'
+                            '"stock price"|"wants to speak to someone"|"complaint"|"other"|null, '
+                            '"seeks_material_nonpublic": true|false (TRUE if the email asks for undisclosed or '
+                            'forward-looking specifics — how the current/unreported quarter is tracking, guidance, '
+                            'anything not yet publicly released; this is a Regulation FD red flag), '
+                            '"sentiment": "Positive"|"Neutral"|"Negative"|null}',
     "general": "{}",
 }
 
@@ -142,7 +149,12 @@ Classify this email into exactly one category:
   promotional "join us live"/webinar blast, a media- or data-vendor event announcement, or a mass invitation to
   watch someone else speak — those are "general", even if they mention a "conference", "event", or "fireside chat".
   A real conference_invite asks the RECIPIENT's own management to attend/present, not to tune in to a broadcast.
-- "speak_to_management": a request for a call or meeting with company management (not tied to a roadshow or conference).
+- "speak_to_management": a request from an ANALYST or INSTITUTIONAL investor for a call or meeting with company
+  management (not tied to a roadshow or conference).
+- "shareholder_inquiry": an email from an INDIVIDUAL / RETAIL shareholder (not an analyst or institution) — a
+  question about earnings dates, dividends, where to find filings, the stock price, a request to speak to someone
+  about their shares, or a general shareholder comment or complaint. Use this rather than "speak_to_management"
+  (which is for analyst/institutional meeting requests) or "general" for retail-shareholder correspondence.
 - "meeting_confirmation": confirms, schedules, or reschedules a meeting/call that's already been arranged (e.g.
   "confirming our call for Tuesday at 2pm", a calendar invite reply, "looking forward to the 1x1 next week") —
   distinct from speak_to_management, which is the initial request for a meeting, not a confirmation of one already set up.
@@ -154,7 +166,7 @@ Attachment content, if any was extracted (may be empty or truncated):
 ---
 
 Respond with ONLY strict JSON, no markdown fence, no commentary, in exactly this shape:
-{{"category": "<one of the seven category strings above>", "extracted": <the fields object for that category, following its schema below — use null for anything not clearly present, never invent a number>}}
+{{"category": "<one of the eight category strings above>", "extracted": <the fields object for that category, following its schema below — use null for anything not clearly present, never invent a number>}}
 
 Schemas per category (use the one matching your chosen category):
 model: {s['model']}
@@ -163,6 +175,7 @@ ndr_request: {s['ndr_request']}
 conference_invite: {s['conference_invite']}
 speak_to_management: {s['speak_to_management']}
 meeting_confirmation: {s['meeting_confirmation']}
+shareholder_inquiry: {s['shareholder_inquiry']}
 general: {{}}
 """
 

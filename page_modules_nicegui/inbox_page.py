@@ -19,7 +19,7 @@ from config.theme_tokens import ACTIVE as COLORS
 _CAT_LABELS = {
     "model": "Model", "research_note": "Research note", "ndr_request": "NDR request",
     "speak_to_management": "Mgmt request", "conference_invite": "Conference invite",
-    "meeting_confirmation": "Meeting confirmed",
+    "meeting_confirmation": "Meeting confirmed", "shareholder_inquiry": "Shareholder inquiry",
 }
 
 
@@ -62,7 +62,8 @@ def render_inbox_page():
 
     # Recently filed — a short history so the ingestion is visible even when the queue is clear.
     recent = []
-    for cat in ("model", "research_note", "ndr_request", "speak_to_management", "conference_invite"):
+    for cat in ("model", "research_note", "ndr_request", "speak_to_management", "conference_invite",
+                "shareholder_inquiry"):
         for it in (inbox_queue.list_items_by_category(cat) or []):
             if it.get("status") != "pending":
                 recent.append(it)
