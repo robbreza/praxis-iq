@@ -148,12 +148,17 @@ def _build_domain_lookup(contact_lookup):
     return {d: v for d, v in by_domain.items() if v}
 
 
-def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachment", client_id=None):
+def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachment", client_id=None, accept_unknown=None):
     host, port, user, password = get_imap_config()
     if not host:
         return {"ok": False, "reason": "not_configured",
                 "message": "Email sync isn't set up yet - add MAIL_IMAP_HOST/PORT/USER/PASSWORD "
                            "to .env once you have real (or test) mailbox credentials."}
+
+    # A dedicated ingest inbox can accept mail from any sender (attributed from the email),
+    # rather than only known analyst contacts. Off by default; on via MAIL_INBOX_ACCEPT_ANY.
+    if accept_unknown is None:
+        accept_unknown = os.environ.get("MAIL_INBOX_ACCEPT_ANY", "").strip().lower() in ("1", "true", "yes", "on")
 
     import imaplib
     try:
@@ -180,7 +185,16 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
             if not match and "@" in from_addr:
                 match = domain_lookup.get(from_addr.rsplit("@", 1)[-1])
             if not match:
-                continue
+                if not accept_unknown:
+                    continue
+                # Accept-any inbox: no CRM match, so attribute straight from the email —
+                # display name as the contact, sending domain as the firm (never a free
+                # /consumer domain, which is a person, not a firm).
+                _disp = _decode(email.utils.parseaddr(msg.get("From", ""))[0]).strip()
+                _dom = from_addr.rsplit("@", 1)[-1] if "@" in from_addr else ""
+                match = {"name": _disp or from_addr,
+                         "firm": (None if (not _dom or _dom in _FREE_EMAIL_DOMAINS) else _dom),
+                         "kind": "institution"}
 
             subject = _decode(msg.get("Subject", ""))
             body, attachments = _extract_body_and_attachments(msg)
