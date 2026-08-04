@@ -1237,6 +1237,54 @@ def _refine_persona_draft(current_text, instruction, role, ss):
     return current_text, False
 
 
+def _refine_all_sections(ss, instruction):
+    """Apply ONE free-text instruction across every prepared-remarks section at once —
+    each active persona section AND the Guidance & Outlook section — running each
+    through _refine_persona_draft so the same per-section, figure-protecting,
+    no-fabrication guardrails apply everywhere. Non-destructive per section: a section
+    with no draft yet, or one where the AI is unavailable, is left untouched. Returns a
+    summary dict {changed, unchanged, skipped_empty, skipped_ai, sections[]} for the
+    caller to report; persists once at the end if anything changed."""
+    instruction = (instruction or "").strip()
+    summary = {"changed": 0, "unchanged": 0, "skipped_empty": 0, "skipped_ai": 0, "sections": []}
+    if not instruction:
+        return summary
+
+    def _apply(cur, role, label, setter):
+        cur = cur or ""
+        if not cur.strip():
+            summary["skipped_empty"] += 1
+            return
+        revised, was_ai = _refine_persona_draft(cur, instruction, role, ss)
+        if not was_ai:
+            summary["skipped_ai"] += 1
+            return
+        if revised.strip() and revised.strip() != cur.strip():
+            setter(revised)
+            summary["changed"] += 1
+            summary["sections"].append(label)
+        else:
+            summary["unchanged"] += 1
+
+    for role, key, label in _active_personas():
+        _apply(ss["script_text"].get(key), role, label,
+                lambda v, key=key: ss["script_text"].__setitem__(key, v))
+
+    # The Guidance & Outlook section is spoken by the CEO; refine it as a CEO section so
+    # a script-wide tone/style instruction reaches it too (figure protection keeps the
+    # guidance range intact). It lives in guidance_decision["text"], not script_text.
+    gd = ss.get("guidance_decision") or {}
+
+    def _set_guidance(v, gd=gd):
+        gd["text"] = v
+        ss["guidance_decision"] = gd
+    _apply(gd.get("text"), "CEO", "Guidance & Outlook", _set_guidance)
+
+    if summary["changed"]:
+        _save_json("script_workflow_state.json", ss)
+    return summary
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Guidance & Outlook Decision Engine — ported from app.py. This was flagged
 # in an earlier pass of this port as a deliberate gap ("no such stage exists
@@ -2343,6 +2391,56 @@ def _render_script_canvas(ss):
     # click to reach. Stacked, always-open expansion panels instead: every
     # section is on the page and reachable by scrolling, matching an actual
     # "IR reviews everything, then hands to CFO, then CEO" reading order.
+    # ── Refine EVERY section with one instruction ─────────────────────────
+    # The counterpart to the per-section "Refine": one directive applied across
+    # IR, CFO, Business Operations, CEO and the Guidance section together — for
+    # a script-wide pass ("less promotional throughout", "tighten everywhere",
+    # "warmer close"). Each section runs through the SAME guardrails as a single
+    # refine (figures + consensus framing protected; nothing invented); a section
+    # with no draft yet is skipped. On success it re-renders so every box updates.
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['accent']};"
+            f"border-radius:8px;margin:8px 0;"):
+        ui.label("Refine every section at once").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:13px;")
+        ui.label("Apply one instruction across all speakers and the Guidance section together — same "
+                 "guardrails as a single section (figures and consensus framing are protected; nothing is "
+                 "invented). Sections without a draft yet are skipped. Runs one AI pass per section.").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
+            all_instr = ui.input(
+                label="Instruction for every section",
+                placeholder="e.g. make the whole script less promotional · tighten throughout · warmer, plainer tone",
+            ).classes("flex-grow").props("dense")
+
+            def refine_all(all_instr=all_instr):
+                instr = (all_instr.value or "").strip()
+                if not instr:
+                    ui.notify("Type an instruction to apply across every section.", type="warning")
+                    return
+                ui.notify("Refining every section — one AI pass per speaker, this takes a moment…", type="info")
+                try:
+                    s = _refine_all_sections(ss, instr)
+                except Exception as exc:
+                    ui.notify(f"Refine-all failed: {exc}", type="negative")
+                    raise
+                if s["changed"]:
+                    parts = [f"Refined {s['changed']} section(s): {', '.join(s['sections'])}."]
+                    if s["skipped_empty"]:
+                        parts.append(f"{s['skipped_empty']} had no draft yet.")
+                    if s["skipped_ai"]:
+                        parts.append(f"{s['skipped_ai']} skipped — AI unavailable.")
+                    ui.notify(" ".join(parts), type="positive")
+                    _refresh()  # full re-render so every draft box shows the revised text
+                elif s["skipped_ai"]:
+                    ui.notify("Refine needs the AI (ANTHROPIC_API_KEY) — sections left unchanged.", type="warning")
+                else:
+                    ui.notify("No changes — nothing had a draft yet, or the sections already matched.",
+                              type="info")
+
+            ui.button("Refine all sections", icon="auto_fix_high", on_click=refine_all).props(
+                "color=primary dense")
+
     contacts = _contacts()
     for role, key, label in _active_personas():
         c = contacts.get(role, {"name": f"— {role} not configured —"})
