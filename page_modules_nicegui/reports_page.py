@@ -1639,6 +1639,46 @@ def _render_earnings_prep():
         "color=primary dense").style("margin-top:8px;")
 
 
+def _render_coverage_responsive(coverage):
+    """Sell-side coverage — a real 5-column table on desktop, stacked cards on phones.
+
+    The five columns (Firm / Rating / Price target / Last action / Status) can't fit a
+    375px screen and used to force a horizontal scroll that hid the Status column. Same
+    data both ways; the .resp-wide / .resp-stack pair is the global 640px breakpoint defined
+    in app_nicegui (NOT .mobile-only/.desktop-only — those are reserved Quasar classes whose
+    platform rules override a media query). One card per analyst on mobile, nothing off-screen."""
+    rows = [{"f": c["firm"], "r": c.get("grade") or "—",
+             "p": f"${c['price_target']:.2f}" if c.get("price_target") else "—",
+             "d": c.get("date") or "—", "stale": bool(c.get("stale"))}
+            for c in coverage]
+
+    # Desktop: the table, unchanged.
+    with ui.element("div").classes("resp-wide w-full"):
+        ui.table(
+            columns=[{"name": "f", "label": "Firm", "field": "f", "align": "left"},
+                     {"name": "r", "label": "Rating", "field": "r", "align": "left"},
+                     {"name": "p", "label": "Price target", "field": "p", "align": "right"},
+                     {"name": "d", "label": "Last action", "field": "d", "align": "left"},
+                     {"name": "s", "label": "Status", "field": "s", "align": "left"}],
+            rows=[{**r, "s": "DORMANT" if r["stale"] else "active"} for r in rows]).classes(
+                "w-full dense-table").props("flat dense")
+
+    # Mobile: one stacked card per analyst — firm + status on top, the rest beneath.
+    with ui.element("div").classes("resp-stack w-full"):
+        for r in rows:
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    "padding:8px 10px;margin:4px 0;"):
+                with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
+                    ui.label(r["f"]).style(
+                        f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                    ui.label("DORMANT" if r["stale"] else "active").style(
+                        ("background:#FEE2E2;color:#B91C1C;" if r["stale"] else "background:#DCFCE7;color:#15803D;")
+                        + "padding:1px 8px;border-radius:6px;font-size:10px;font-weight:700;")
+                ui.label(f"{r['r']}  ·  {r['p']}  ·  {r['d']}").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+
+
 def _render_board_ir_report():
     """Live Board IR Report — composed from the real filing, valuation, and
     ownership data, replacing the old static (and page-count-overstated) images."""
@@ -1784,16 +1824,7 @@ def _render_board_ir_report():
     if _pkg and _pkg.get("sell_side"):
         _ss = _pkg["sell_side"]
         ui.label("Sell-side coverage").classes("section-head").style("margin-top:10px;")
-        ui.table(
-            columns=[{"name": "f", "label": "Firm", "field": "f", "align": "left"},
-                     {"name": "r", "label": "Rating", "field": "r", "align": "left"},
-                     {"name": "p", "label": "Price target", "field": "p", "align": "right"},
-                     {"name": "d", "label": "Last action", "field": "d", "align": "left"},
-                     {"name": "s", "label": "Status", "field": "s", "align": "left"}],
-            rows=[{"f": c["firm"], "r": c.get("grade") or "—",
-                   "p": f"${c['price_target']:.2f}" if c.get("price_target") else "—",
-                   "d": c.get("date") or "—", "s": "DORMANT" if c.get("stale") else "active"}
-                  for c in _ss["coverage"]]).classes("w-full dense-table").props("flat dense")
+        _render_coverage_responsive(_ss["coverage"])
         ui.label(_ss["read"]).style(f"color:{COLORS['text_body']};font-size:12px;")
 
     if _pkg and _pkg.get("buy_side", {}).get("note"):

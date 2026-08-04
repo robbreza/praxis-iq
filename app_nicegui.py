@@ -1621,12 +1621,20 @@ ui.add_head_html(
     "<style>"
     ".mobile-only{display:none;}"
     ".mobile-tabbar{display:none;}"                       # bottom tab bar — phones only (shown below)
+    # Responsive swap pair for our OWN content (wide table <-> stacked cards). Deliberately
+    # NOT named .mobile-only/.desktop-only: those are RESERVED Quasar visibility classes whose
+    # platform-based rules (desktop platform emulating a small screen) override a plain media
+    # query. Custom names like .mobile-tabbar are unaffected, so these are too.
+    ".resp-wide{display:block;}"                          # e.g. a 5-column table: default (desktop)
+    ".resp-stack{display:none;}"                          # its stacked-card equivalent: phones only
     ".nav-desktop-hint{padding:10px 12px 4px;color:#94A3B8;font-size:11px;line-height:1.4;}"
     "@media (max-width:640px){"
     ".app-content{padding:12px 14px 84px !important;}"   # reclaim phone width + clear the fixed tab bar
     ".nav-group--desktop-only{display:none !important;}"  # hide heavy authoring groups on phones
     ".mobile-only{display:block !important;}"
     ".mobile-tabbar{display:block !important;}"
+    ".resp-wide{display:none !important;}"                # hide the wide table on phones...
+    ".resp-stack{display:block !important;}"              # ...and show the stacked cards instead
     "}"
     "</style>",
     shared=True)
