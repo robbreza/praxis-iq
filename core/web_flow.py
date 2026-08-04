@@ -19,10 +19,23 @@ DATA SOURCE, stated honestly (no fabrication for real tenants):
     ONLY tenant that receives illustrative data. See data/seed/web_flow.py and
     [[illustrative-demo-tenant]].
 """
+import re
+
 from config.client_config import get_active_client_id
 from core import db
 
 STORE_KEY = "web_flow_visitors.json"
+
+# Generic firm-name words dropped when matching a web visitor org to a 13F institution
+# name (which arrives as e.g. "HALEWOOD CAPITAL MANAGEMENT LP"). What's left is the
+# distinctive part ("HALEWOOD"), which is what the two names actually share.
+_ORG_STOPWORDS = {
+    "LLC", "INC", "LP", "LLP", "LTD", "PLC", "CO", "CORP", "THE", "AND",
+    "GROUP", "MANAGEMENT", "MGMT", "CAPITAL", "PARTNERS", "ADVISORS", "ADVISERS",
+    "ASSOCIATES", "ASSET", "ASSETS", "INVESTMENTS", "INVESTMENT", "INVESTORS",
+    "TRUST", "COMPANY", "HOLDINGS", "GLOBAL", "FUND", "FUNDS", "SECURITIES",
+    "EQUITY", "MANAGERS",
+}
 
 # Assets an investor can pull off an IR site, ranked by how much intent a download of
 # each implies. A model/deck pull is deep diligence; a press release is light.
@@ -113,3 +126,43 @@ def compose(client_id=None):
         "hot_prospects": hot_prospects,
         "n_new_unidentified": sum(1 for v in visitors if "unidentified" in v["category"].lower()),
     }
+
+
+# ── Matching web visitors to tracked institutions (for the engagement-score fold) ──
+def _org_key(name):
+    """Distinctive tokens of a firm name, uppercased, generic words dropped. 'Halewood
+    Capital Management LP' and 'HALEWOOD CAPITAL MGMT' both reduce to ('HALEWOOD',)."""
+    toks = re.sub(r"[^A-Za-z0-9 ]", " ", str(name or "")).upper().split()
+    core = tuple(t for t in toks if t not in _ORG_STOPWORDS)
+    return core or tuple(toks)
+
+
+def intent_map(client_id=None):
+    """{ distinctive-name-key : normalized visitor } for this tenant, or {} when no
+    web-flow feed exists (real tenants without an upload). Keyed for institution joins."""
+    d = compose(client_id)
+    if not d.get("available"):
+        return {}
+    out = {}
+    for v in d["visitors"]:
+        out[_org_key(v["org"])] = v
+    return out
+
+
+def intent_for(org_name, client_id=None, _map=None):
+    """The web-flow visitor matching a tracked institution's name, or None. Exact
+    distinctive-key match first, then a first-token fallback (best-effort for the
+    free-text names a real analytics export would carry). None ⇒ no web signal, so the
+    caller contributes nothing (never a fabricated zero)."""
+    m = _map if _map is not None else intent_map(client_id)
+    if not m:
+        return None
+    key = _org_key(org_name)
+    if key in m:
+        return m[key]
+    first = key[0] if key else None
+    if first:
+        for k, v in m.items():
+            if k and k[0] == first:
+                return v
+    return None

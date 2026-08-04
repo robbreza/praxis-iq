@@ -129,10 +129,20 @@ def _materiality_pts(book_pct):
 
 
 def _third_pillar(inst):
-    """(label, points) for the 20-point third pillar: real position materiality when we have it,
-    otherwise the original website-visits math for seed records."""
-    if inst.get("Book_Pct") is not None:
-        return "Position Materiality", _materiality_pts(inst["Book_Pct"])
+    """(label, points) for the 20-point third pillar.
+
+    Takes the STRONGER of position materiality (how big is the position) and active web
+    engagement (are they pulling your deck/model right now, download-weighted — attached
+    as _web_pts by score_institutions from core.web_flow). A tiny holder doing real
+    diligence on the IR site is engaged, and a large passive holder is engaged by
+    materiality; the max captures either without double-counting. Falls back to the
+    legacy visit-count math for seed records that have neither."""
+    web = inst.get("_web_pts")   # download-weighted, 0–20, or None when no web-flow match
+    mat = _materiality_pts(inst["Book_Pct"]) if inst.get("Book_Pct") is not None else None
+    cands = [(lbl, p) for lbl, p in (("Web Engagement", web), ("Position Materiality", mat))
+             if p is not None]
+    if cands:
+        return max(cands, key=lambda kv: kv[1])
     if inst.get("IR_Visits_30d") is not None:
         return "New IR Activity", _pts(min(25, inst["IR_Visits_30d"] * 8), 20, 25)
     if inst.get("Visit_Score") is not None:
@@ -140,14 +150,28 @@ def _third_pillar(inst):
     return "Position Materiality", None
 
 
-def score_institutions(institutions, mode, q2_listeners, meeting_log=None):
+def score_institutions(institutions, mode, q2_listeners, meeting_log=None, client_id=None):
     """Score each institution from whatever real signals exist.
 
     Components with no source contribute nothing and are labelled; an institution with NO scorable
     component gets Engagement_Score None, not 0, so the UI can say "no data" instead of implying we
     measured engagement and found none."""
     meeting_log = meeting_log or []
+    # Fold IR-website intent (download-weighted) into the third pillar where a web-analytics
+    # feed exists. intent_map is {} for tenants with no upload, so this is a no-op there — no
+    # fabricated signal for a client without real web data. See core/web_flow.py.
+    from config.client_config import get_active_client_id
+    from core import web_flow
+    _wmap = web_flow.intent_map(client_id or get_active_client_id())
+
     for inst in institutions:
+        w = web_flow.intent_for(inst.get("Fund", ""), _map=_wmap) if _wmap else None
+        if w:
+            inst["_web_pts"] = round(w["intent"] * 20 / 100)   # 0–100 intent → 0–20 pillar
+            inst["Web_Intent"] = w["intent"]
+            inst["Web_Downloads"] = w["downloads"]
+        else:
+            inst["_web_pts"] = None
         interaction_pts = compute_interaction_score(get_fund_meetings(meeting_log, inst["Fund"]))
         if mode == "pre":
             breakdown = [
@@ -234,7 +258,7 @@ def get_fresh_scored_institutions(client_id=None):
     # institution, scored" source (Today's Strongest-Signal widget + anywhere else), so leaving it
     # on the seed put demo funds on the front page for every tenant.
     institutions = score_institutions(targets.targets_as_institutions(client_id=cid),
-                                      mode, q2_listeners, meeting_log)
+                                      mode, q2_listeners, meeting_log, client_id=cid)
     return institutions, meeting_log
 
 
