@@ -118,7 +118,7 @@ from nicegui import ui
 
 from config.client_config import CA, CE, CI, CP, CT, client_data_path, get_active_client_id, ndr_defaults
 from config.theme_tokens import ACTIVE as COLORS
-from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, nobo_engine, prospecting, risk_scorecard, sec_filings
+from core import analyst_coverage, consensus, db, documents, fit_score, inbox_queue, mail_gateway, market_data, nobo_engine, prospecting, risk_scorecard, sec_filings, ui_context
 from core.investor_scoring import (
     INTERACTION_SCORE_MAX,
     OUTCOME_POINTS,
@@ -1438,20 +1438,49 @@ def _render_web_flow_tab(client_id):
         ui.label("Hot prospects — high intent, not yet holders").classes(
             "section-head").style("margin-top:14px;")
         ui.label("These orgs pulled real diligence material (deck / model / filings) but don't own you yet "
-                 "— the sharpest targets this view surfaces.").style(
+                 "— the sharpest targets this view surfaces. Push one into the Target Database pipeline "
+                 "(the same store the Peer Prospects Promote button feeds).").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
-        for v in d["hot_prospects"]:
-            with ui.card().classes("w-full").style(
-                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-                    "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
-                with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
-                    ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
-                    ui.label(f"intent {v['intent']}").style(
-                        "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
-                        "font-size:11px;font-weight:700;")
-                ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
-                         f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+        _hot_box = ui.column().classes("w-full gap-0")
+
+        def _render_hot():
+            _hot_box.clear()
+            queued = web_flow.target_queue_keys(client_id)
+            read_only = ui_context.is_read_only()
+            with _hot_box:
+                unqueued = [v for v in d["hot_prospects"] if not web_flow.is_in_queue(v["org"], queued)]
+                if unqueued and not read_only:
+                    def _add_all(unqueued=unqueued):
+                        n = sum(1 for v in unqueued if web_flow.add_to_target_queue(v, client_id))
+                        ui.notify(f"Added {n} hot prospect(s) to the Target Database pipeline.", type="positive")
+                        _render_hot()
+                    ui.button(f"Add all {len(unqueued)} to target queue", icon="playlist_add",
+                              on_click=_add_all).props("color=primary dense").style("margin:6px 0;")
+                for v in d["hot_prospects"]:
+                    already = web_flow.is_in_queue(v["org"], queued)
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
+                        with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
+                            ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                            ui.label(f"intent {v['intent']}").style(
+                                "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
+                                "font-size:11px;font-weight:700;")
+                        ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
+                                 f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
+                            f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+                        if already:
+                            ui.label("✓ In target pipeline").style(
+                                "color:#15803D;font-size:11px;font-weight:600;margin-top:4px;")
+                        elif not read_only:
+                            def _add_one(v=v):
+                                if web_flow.add_to_target_queue(v, client_id):
+                                    ui.notify(f"'{v['org']}' added to the Target Database pipeline.",
+                                              type="positive")
+                                _render_hot()
+                            ui.button("Add to target queue", icon="add", on_click=_add_one).props(
+                                "flat dense color=primary").style("margin-top:4px;")
+        _render_hot()
 
     ui.label("All visitors — ranked by intent").classes("section-head").style("margin-top:14px;")
     rows = [{

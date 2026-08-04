@@ -166,3 +166,40 @@ def intent_for(org_name, client_id=None, _map=None):
             if k and k[0] == first:
                 return v
     return None
+
+
+def target_queue_keys(client_id=None):
+    """Distinctive-name keys already in the manual target pipeline (prospects.json), so
+    the UI can show which hot prospects are already queued."""
+    cid = client_id or get_active_client_id()
+    plist = db.load_json("prospects.json", [], client_id=cid) or []
+    return {_org_key(p.get("fund", "")) for p in plist}
+
+
+def is_in_queue(org, queued_keys):
+    """Is this org already in the target pipeline? (given a set from target_queue_keys)."""
+    return _org_key(org) in queued_keys
+
+
+def add_to_target_queue(visitor, client_id=None):
+    """Push a web-flow hot prospect into the manual target pipeline — the SAME
+    prospects.json store the Peer Prospects 'Promote' button writes to, so a
+    web-sourced target lands in Target Database / the pipeline like any other, not in a
+    disconnected list. Idempotent by distinctive name. Returns (added: bool)."""
+    cid = client_id or get_active_client_id()
+    plist = db.load_json("prospects.json", [], client_id=cid) or []
+    key = _org_key(visitor.get("org", ""))
+    if not key or any(_org_key(p.get("fund", "")) == key for p in plist):
+        return False
+    dl = ", ".join(visitor.get("downloads") or [])
+    plist.append({
+        "fund": visitor.get("org", ""),
+        "metro": "Unknown (web)",
+        "style": (f"IR-website engagement — pulled {dl}" if dl else "IR-website engagement — read pages")
+                 + f" (intent {int(visitor.get('intent') or 0)})",
+        "score": int(visitor.get("intent") or 0),
+        "outcome": None,
+        "source": "IR Website (web flow)",
+    })
+    db.save_json("prospects.json", plist, client_id=cid)
+    return True
