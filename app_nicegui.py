@@ -1203,7 +1203,7 @@ def main_page(request: Request = None):
                                         "flat align=left no-caps dense").classes(sub_cls)
                 # A one-line hint (mobile only) that the heavy tools live on desktop.
                 if heavy and group_label == "REPORTS & SETTINGS":
-                    ui.html('<div class="mobile-only nav-desktop-hint">CRM build-out, earnings scripts &amp; '
+                    ui.html('<div class="resp-stack nav-desktop-hint">CRM build-out, earnings scripts &amp; '
                             'reports are on desktop.</div>')
 
     # Mobile bottom tab bar — thumb-reachable quick nav to the core on-the-road surfaces. Hidden on
