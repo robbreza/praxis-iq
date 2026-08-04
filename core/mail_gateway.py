@@ -172,12 +172,20 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
             return {"ok": False, "reason": "search_failed", "message": "IMAP search returned a non-OK status."}
 
         domain_lookup = _build_domain_lookup(contact_lookup)
+        from core import db as _db
+        _seen = _db.load_json("mail_seen_msgids.json", [], client_id=client_id) or []
+        _seen_set = set(_seen)
         results = []
         for num in data[0].split():
             status, msg_data = conn.fetch(num, "(RFC822)")
             if status != "OK" or not msg_data or not msg_data[0]:
                 continue
             msg = email.message_from_bytes(msg_data[0][1])
+            _mid = (msg.get("Message-ID") or "").strip()
+            if _mid and _mid in _seen_set:
+                continue  # handled on an earlier sync — skip (no re-classify, no re-file)
+            if _mid:
+                _seen.append(_mid); _seen_set.add(_mid)
             from_addr = email.utils.parseaddr(msg.get("From", ""))[1].lower()
             # exact address first (names the individual); else the firm domain (catches an
             # associate sending on the analyst's behalf).
@@ -211,6 +219,9 @@ def sync_inbox(contact_lookup, since_days=14, save_attachments_as="email_attachm
 
         conn.close()
         conn.logout()
+        if len(_seen) > 2000:
+            _seen = _seen[-2000:]
+        _db.save_json("mail_seen_msgids.json", _seen, client_id=client_id)
         return {"ok": True, "reason": "success", "messages": results}
     except Exception as e:
         return {"ok": False, "reason": "fetch_error", "message": str(e)}
