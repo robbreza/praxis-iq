@@ -173,6 +173,19 @@ def remove(key, scope="client", cid=None):
 _ILLUSTRATIVE = {"demo"}
 
 
+def bank(cid, question, kind="manual"):
+    """Add ONE prep question to the bank — the client's own history plus (unless the
+    client is illustrative) the global house book, sector-tagged — so a question the IR
+    team knows will come up seeds future adversarial passes (and same-sector clients).
+    Returns {new_client, new_global}. Idempotent per question text."""
+    cid = cid or get_active_client_id()
+    nc = add(question, kind=kind, scope="client", cid=cid, added_by="prep")
+    ng = False
+    if cid not in _ILLUSTRATIVE:
+        ng = add(question, kind=kind, scope="global", added_by="prep", sector=client_sector(cid))
+    return {"new_client": bool(nc), "new_global": bool(ng)}
+
+
 def accrue(cid, quarter, surprises, hits=None):
     """Fold a call's outcomes into the bank: SURPRISES (questions we didn't predict)
     go to BOTH the client history AND the global house book — that's the cross-client

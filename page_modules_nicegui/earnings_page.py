@@ -3178,6 +3178,25 @@ def _render_qa_prep_tab(ss):
                         _rsel.on_value_change(lambda e, it=it: (it.__setitem__("responder", e.value),
                                                                 _save_json("script_workflow_state.json", ss)))
                         ui.space()
+                        if it.get("banked"):
+                            ui.label("Banked ✓").style("color:#15803D;font-size:11px;font-weight:600;")
+                        else:
+                            def _bank(it=it):
+                                if not (it.get("question") or "").strip():
+                                    ui.notify("Nothing to bank.", type="warning")
+                                    return
+                                from core import qa_bank
+                                from config.client_config import get_active_client_id
+                                res = qa_bank.bank(get_active_client_id(), it["question"], _qa_item_source(it))
+                                it["banked"] = True
+                                _save_json("script_workflow_state.json", ss)
+                                where = ("house bank + this client" if res["new_global"]
+                                         else ("this client's bank" if res["new_client"] else "already banked"))
+                                ui.notify(f"Banked ({where}) — it'll seed future adversarial passes.",
+                                          type="positive")
+                                _render_adv()
+                            ui.button("Bank", icon="savings", on_click=_bank).props("flat dense").style(
+                                f"color:{COLORS['accent']};font-size:11px;")
                         ui.button("Promote to KB", icon="menu_book",
                                   on_click=lambda it=it: _promote_answer_to_kb(it)).props("flat dense").style(
                             f"color:{COLORS['accent']};font-size:11px;")
@@ -3215,10 +3234,20 @@ def _render_qa_prep_tab(ss):
                         _mi = {"question": _nq.value.strip(), "why": "", "angle": (_na.value or "").strip(),
                                "manual": True, "source": "manual"}
                         _ensure_responder(_mi, _resp_opts)
+                        # A question the IR person adds by hand is inherently worth remembering —
+                        # auto-bank it so it seeds future adversarial passes.
+                        try:
+                            from core import qa_bank
+                            from config.client_config import get_active_client_id
+                            qa_bank.bank(get_active_client_id(), _mi["question"], "manual")
+                            _mi["banked"] = True
+                        except Exception as exc:
+                            print(f"[qa add] auto-bank skipped: {exc}")
                         data.setdefault("items", []).append(_mi)
                         data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
                         _save_json("script_workflow_state.json", ss)
                         _render_adv()
+                        ui.notify("Added to prep and banked for future passes.", type="positive")
                     ui.button("Add Q&A", icon="add", on_click=_add_qa).props("color=primary dense").style(
                         "margin-top:4px;")
 
