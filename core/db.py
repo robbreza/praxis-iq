@@ -195,6 +195,25 @@ CREATE TABLE IF NOT EXISTS contacts (
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_firm_key ON contacts (firm_key);
 CREATE INDEX IF NOT EXISTS idx_contacts_cik ON contacts (cik);
+-- web_events: raw per-session website-traffic events (a pageview / download / form-submit),
+-- written by the site's capture snippet via a serverless function and aggregated by
+-- core/web_ingest.py into web_flow visitor rows. `tenant` lets one table serve Praxis's own
+-- marketing site (tenant='praxis') now and any client's IR site later.
+CREATE TABLE IF NOT EXISTS web_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant     TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    path       TEXT,
+    asset      TEXT,
+    org        TEXT,
+    email      TEXT,
+    utm_source TEXT,
+    referrer   TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_events_tenant_session ON web_events (tenant, session_id);
+CREATE INDEX IF NOT EXISTS idx_web_events_tenant_created ON web_events (tenant, created_at);
 """
 
 _POSTGRES_SCHEMA = """
@@ -298,6 +317,21 @@ CREATE TABLE IF NOT EXISTS contacts (
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_firm_key ON contacts (firm_key);
 CREATE INDEX IF NOT EXISTS idx_contacts_cik ON contacts (cik);
+CREATE TABLE IF NOT EXISTS web_events (
+    id         BIGSERIAL PRIMARY KEY,
+    tenant     TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    path       TEXT,
+    asset      TEXT,
+    org        TEXT,
+    email      TEXT,
+    utm_source TEXT,
+    referrer   TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_web_events_tenant_session ON web_events (tenant, session_id);
+CREATE INDEX IF NOT EXISTS idx_web_events_tenant_created ON web_events (tenant, created_at);
 """
 
 

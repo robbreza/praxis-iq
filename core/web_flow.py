@@ -41,7 +41,12 @@ _ORG_STOPWORDS = {
 # each implies. A model/deck pull is deep diligence; a press release is light.
 ASSET_INTENT = {
     "Earnings model": 5, "Investor deck": 4, "10-Q": 3, "10-K": 3, "Fact sheet": 3,
-    "Transcript": 2, "Press release": 2, "ESG report": 2, "Other": 1,
+    "Transcript": 2, "Press release": 2, "ESG report": 2,
+    # Marketing-site actions — Praxis's OWN site (praxispointir.com) surfaces prospective
+    # CLIENTS (leads), not investors; a demo request is the strongest signal there.
+    "Demo request": 5, "Pricing": 4, "Product overview": 3, "Security overview": 3,
+    "Services overview": 2,
+    "Other": 1,
 }
 
 
