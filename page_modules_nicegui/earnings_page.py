@@ -2944,6 +2944,72 @@ def _qa_item_source(it):
     return it.get("source") or ("manual" if it.get("manual") else "ai")
 
 
+# Keyword hints for who fields a given Q&A: CFO takes the financial/numbers questions,
+# CEO takes strategy/competition/positioning. Ambiguous ones default to the CEO.
+_QA_CFO_KWS = ("revenue", "margin", "ebitda", "eps", "cash", "sg&a", "guidance", "take rate", "interest income",
+               "float", "capital allocation", "buyback", "expense", "tax", "balance sheet", "free cash flow",
+               "consensus", "deceleration", "run-rate", "run rate", "cadence", "seasonality", "opex")
+_QA_CEO_KWS = ("strateg", "competit", "market", "product", "partnership", "m&a", "acquisition", "vision",
+               "long-term", "long term", "expansion", "positioning", "moat", "roadmap", "pipeline", "vertical")
+
+
+def _responder_options():
+    """The pool of call responders — the CONFIRMED speaker lineup for the reporting
+    period (role — name), falling back to the client's role roster before confirmation."""
+    from core import speakers
+    period = speakers.current_period()
+    rec = speakers.get_confirmed(period) if period else None
+    opts, seen = [], set()
+
+    def _add(role, nm):
+        nm = (nm or "").strip()
+        if not nm:
+            return
+        label = f"{(role or '').strip()} — {nm}" if (role or "").strip() else nm
+        if label not in seen:
+            seen.add(label)
+            opts.append(label)
+
+    if rec and rec.get("speakers"):
+        for s in rec["speakers"]:
+            _add(s.get("role"), s.get("name"))
+    else:
+        from config.client_config import role_roster
+        for e in (role_roster() or []):
+            _add(e.get("role_key"), e.get("name"))
+    return opts
+
+
+def _role_of_option(opt):
+    return opt.split("—")[0].strip().upper() if "—" in (opt or "") else ""
+
+
+def _suggest_responder(question, opts):
+    """Best-guess responder for a question from the keyword hints; '' if no roster."""
+    if not opts:
+        return "Unassigned"
+    q = (question or "").lower()
+
+    def _match(role):
+        return next((o for o in opts if _role_of_option(o) == role), None)
+
+    if any(k in q for k in _QA_CFO_KWS):
+        m = _match("CFO")
+        if m:
+            return m
+    if any(k in q for k in _QA_CEO_KWS):
+        m = _match("CEO")
+        if m:
+            return m
+    return _match("CEO") or opts[0]  # default general/strategic asks to the CEO
+
+
+def _ensure_responder(it, opts):
+    """Fill a suggested responder if none is set (persisted so it flows to the export)."""
+    if not it.get("responder"):
+        it["responder"] = _suggest_responder(it.get("question", ""), opts)
+
+
 def _sync_recurring_into_prep(ss):
     """Fold the deterministic recurring Q&A (research-note catalysts + last quarter's
     un-pre-empted topics, from _build_qa_prep) into the single editable prep list as
@@ -2953,6 +3019,7 @@ def _sync_recurring_into_prep(ss):
     items = data.setdefault("items", [])
     dismissed = set(data.get("dismissed_recurring", []))
     have = {_qa_key(it.get("question")) for it in items}
+    opts = _responder_options()
     added = 0
     for d in _build_qa_prep(ss):
         k = _qa_key(d.get("topic"))
@@ -2961,12 +3028,21 @@ def _sync_recurring_into_prep(ss):
         why = d.get("source", "")
         if d.get("detail"):
             why = f"{why} — {d['detail']}" if why else d["detail"]
-        items.append({"question": d.get("topic", ""), "why": why,
-                      "angle": d.get("suggested_angle", ""), "source": "recurring",
-                      "severity": d.get("severity")})
+        new = {"question": d.get("topic", ""), "why": why,
+               "angle": d.get("suggested_angle", ""), "source": "recurring",
+               "severity": d.get("severity")}
+        _ensure_responder(new, opts)
+        items.append(new)
         have.add(k)
         added += 1
-    if added:
+    # Backfill a suggested responder on any item still missing one (e.g. AI items
+    # generated before responder assignment existed), so the whole list is assigned.
+    resp_backfill = 0
+    for it in items:
+        if not it.get("responder"):
+            it["responder"] = _suggest_responder(it.get("question", ""), opts)
+            resp_backfill += 1
+    if added or resp_backfill:
         data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
         _save_json("script_workflow_state.json", ss)
     return added
@@ -2986,6 +3062,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 .qa{border-left:3px solid var(--line);padding:8px 0 10px 14px;margin:0 0 12px;break-inside:avoid}
 .qa.recurring{border-left-color:var(--teal)} .qa.ai{border-left-color:var(--amber)} .qa.manual{border-left-color:var(--blue)}
 .qa .q{font-weight:700;font-size:16px}
+.qa .resp{display:inline-block;font-size:11.5px;font-weight:600;color:var(--teal);
+   border:1px solid var(--teal);border-radius:10px;padding:0 8px;margin:4px 0 2px}
 .qa .why{color:var(--muted);font-size:12.5px;font-style:italic;margin:2px 0 6px}
 .qa .a{font-size:15px;white-space:pre-wrap}
 .qa .todo{color:#B91C1C;font-style:italic}
@@ -3010,9 +3088,12 @@ def _qa_prep_sheet_html(ss):
         for it in group:
             q = _html.escape((it.get("question") or "").strip())
             why = _html.escape((it.get("why") or "").strip())
+            resp = (it.get("responder") or "").strip()
+            resp_html = (f'<div class="resp">→ {_html.escape(resp)}</div>'
+                         if resp and resp.lower() != "unassigned" else "")
             a_raw = (it.get("angle") or "").strip()
             a = _html.escape(a_raw) if a_raw else '<span class="todo">[ answer to prepare ]</span>'
-            rows.append(f'<div class="qa {src}"><div class="q">{q}</div>'
+            rows.append(f'<div class="qa {src}"><div class="q">{q}</div>' + resp_html
                         + (f'<div class="why">{why}</div>' if why else "")
                         + f'<div class="a">{a}</div></div>')
         secs.append(f'<section><h2>{_html.escape(heading)}</h2>{"".join(rows)}</section>')
@@ -3043,6 +3124,8 @@ def _render_qa_prep_tab(ss):
     _adv_ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
     adv_box = ui.column().classes("w-full gap-1").style("margin-top:4px;")
 
+    _resp_opts = _responder_options()
+
     def _render_adv():
         adv_box.clear()
         # Live reference into ss so in-place edits (question / prepared answer) persist.
@@ -3062,6 +3145,9 @@ def _render_qa_prep_tab(ss):
                     if _adv_ro:
                         ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
                             f"color:{COLORS['text_heading']};font-size:13px;")
+                        _resp = (it.get("responder") or "").strip()
+                        if _resp and _resp.lower() != "unassigned":
+                            ui.label("Responder: " + _resp).style(f"color:{clr};font-size:11.5px;font-weight:600;")
                         if it.get("why"):
                             ui.label("What invites it: " + it["why"]).style(
                                 f"color:{COLORS['text_muted']};font-size:12px;")
@@ -3083,6 +3169,14 @@ def _render_qa_prep_tab(ss):
                                                          _save_json("script_workflow_state.json", ss)))
                     with ui.row().classes("w-full items-center").style("gap:6px;"):
                         ui.label(tag_txt).style(f"color:{clr};font-size:10px;font-weight:600;")
+                        _rchoices = ["Unassigned"] + _resp_opts
+                        _rcur = (it.get("responder") or "Unassigned").strip() or "Unassigned"
+                        if _rcur not in _rchoices:
+                            _rchoices = _rchoices + [_rcur]  # keep a stale/departed responder selectable
+                        _rsel = ui.select(_rchoices, value=_rcur, label="Responder").props(
+                            "dense outlined").classes("min-w-[210px]").style("font-size:12px;")
+                        _rsel.on_value_change(lambda e, it=it: (it.__setitem__("responder", e.value),
+                                                                _save_json("script_workflow_state.json", ss)))
                         ui.space()
                         ui.button("Promote to KB", icon="menu_book",
                                   on_click=lambda it=it: _promote_answer_to_kb(it)).props("flat dense").style(
@@ -3118,9 +3212,10 @@ def _render_qa_prep_tab(ss):
                         if not (_nq.value or "").strip():
                             ui.notify("Enter a question.", type="warning")
                             return
-                        data.setdefault("items", []).append(
-                            {"question": _nq.value.strip(), "why": "", "angle": (_na.value or "").strip(),
-                             "manual": True, "source": "manual"})
+                        _mi = {"question": _nq.value.strip(), "why": "", "angle": (_na.value or "").strip(),
+                               "manual": True, "source": "manual"}
+                        _ensure_responder(_mi, _resp_opts)
+                        data.setdefault("items", []).append(_mi)
                         data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
                         _save_json("script_workflow_state.json", ss)
                         _render_adv()
@@ -3139,8 +3234,10 @@ def _render_qa_prep_tab(ss):
         if not adv_items:
             ui.notify("Needs the AI (ANTHROPIC_API_KEY) and a drafted script — nothing generated.", type="warning")
             return
+        _opts = _responder_options()
         for it in adv_items:
             it["source"] = "ai"
+            _ensure_responder(it, _opts)
         # Regenerate only the AI items — keep recurring and the IR person's own Q&A (and
         # the dismissed_recurring set, by updating the dict in place rather than replacing).
         data = ss.setdefault("adversarial_qa", {})
