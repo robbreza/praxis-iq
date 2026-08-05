@@ -1426,10 +1426,184 @@ _VERDICT_STYLE = {
 }
 
 
+def _prep_vs_actual(quarter, ss, force=False):
+    """Loop-closer: grade THIS quarter's prep against what actually happened on the call.
+    (a) Script fidelity — our drafted prepared remarks vs the transcript's prepared section:
+        which planned points were delivered, dropped/softened, or improvised.
+    (b) Q&A prediction accuracy — our adversarial-Q&A predictions vs the actual analyst
+        questions: hits, misses, and surprises, with a hit rate.
+    Two on-demand model calls comparing the two given texts (it summarizes/compares what's
+    there — it does not assert company facts of its own). Cached in ss['prep_vs_actual']
+    [quarter]. Returns the dict, or None if there's no transcript or no drafted script."""
+    cache = (ss.get("prep_vs_actual") or {}).get(quarter)
+    if cache and not force:
+        return cache
+    from core import morning_after, transcripts
+    rec = transcripts.get_transcript(quarter)
+    if not rec or not (rec.get("full_text") or "").strip():
+        return None
+    planned_script = _assembled_script_text(ss)
+    if not planned_script.strip():
+        return None
+    predictions = [it.get("question", "") for it in (ss.get("adversarial_qa") or {}).get("items", [])
+                   if it.get("question")]
+    prepared_actual, qa_actual, _ = morning_after.split_prepared_qa(rec["full_text"])
+
+    out = {"generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+           "script": {"delivered": [], "dropped": [], "improvised": []},
+           "qa": {"hits": [], "misses": [], "surprises": [], "hit_rate": None},
+           "had_predictions": bool(predictions)}
+
+    # (a) Script fidelity — planned prepared remarks vs actual prepared remarks.
+    sp = (f"You are comparing an IR team's PLANNED earnings-call prepared remarks against what management "
+          f"ACTUALLY said. Base everything ONLY on the two texts below; do not infer facts not present.\n\n"
+          f"PLANNED SCRIPT:\n{planned_script[:6000]}\n\n"
+          f"ACTUAL PREPARED REMARKS (from the transcript):\n{(prepared_actual or '')[:6000]}\n\n"
+          f"List, each on its own line, using EXACTLY these prefixes:\n"
+          f"DELIVERED: <a substantive planned point management did make>\n"
+          f"DROPPED: <a substantive planned point that was NOT made or was materially softened — and why it matters>\n"
+          f"IMPROVISED: <a substantive point management made that was NOT in the plan>\n"
+          f"Up to 5 of each, most important first. Output only those lines, nothing else.")
+    raw = _call_claude_script(sp, 900)
+    for line in (raw or "").splitlines():
+        s = line.strip()
+        for pref, key in (("DELIVERED:", "delivered"), ("DROPPED:", "dropped"), ("IMPROVISED:", "improvised")):
+            if s.upper().startswith(pref):
+                v = s[len(pref):].strip()
+                if v:
+                    out["script"][key].append(v)
+                break
+
+    # (b) Q&A prediction accuracy — our predicted questions vs the actual Q&A.
+    if predictions and (qa_actual or "").strip():
+        pred_block = "\n".join(f"{i + 1}. {q}" for i, q in enumerate(predictions))
+        qp = (f"An IR team PREDICTED the tough analyst questions below before the call. Compare them to the "
+              f"ACTUAL Q&A from the transcript. Base everything ONLY on the texts.\n\n"
+              f"PREDICTED QUESTIONS:\n{pred_block}\n\n"
+              f"ACTUAL Q&A (transcript):\n{qa_actual[:6000]}\n\n"
+              f"Output lines using EXACTLY these prefixes:\n"
+              f"HIT: <the predicted question, briefly> || <how the analyst actually framed it, brief>\n"
+              f"MISS: <the predicted question, briefly>\n"
+              f"SURPRISE: <an actual analyst question the prediction list did NOT anticipate>\n"
+              f"You MUST output exactly one HIT or MISS line for EACH of the {len(predictions)} numbered "
+              f"predicted questions above — no prediction may be left out. Then up to 5 SURPRISE lines. "
+              f"Output only those lines.")
+        raw2 = _call_claude_script(qp, 900)
+        for line in (raw2 or "").splitlines():
+            s = line.strip()
+            if s.upper().startswith("HIT:"):
+                q, _, framed = s[4:].strip().partition("||")
+                out["qa"]["hits"].append({"pred": q.strip(), "actual": framed.strip()})
+            elif s.upper().startswith("MISS:"):
+                out["qa"]["misses"].append(s[5:].split("||")[0].strip())
+            elif s.upper().startswith("SURPRISE:"):
+                out["qa"]["surprises"].append(s[9:].split("||")[0].strip())
+        h, m = len(out["qa"]["hits"]), len(out["qa"]["misses"])
+        if h + m:
+            out["qa"]["hit_rate"] = round(100 * h / (h + m))
+
+    ss.setdefault("prep_vs_actual", {})[quarter] = out
+    _save_json("script_workflow_state.json", ss)
+    return out
+
+
+def _render_prep_vs_actual(ss, quarter):
+    """Render the prep-vs-actual loop-closer (see _prep_vs_actual) — an on-demand,
+    cached comparison of this quarter's drafted script + predicted Q&A against the call."""
+    ui.label("Prep vs. Actual — how good was our prep?").classes("section-head").style("margin-top:12px;")
+    ui.label("Closes the loop: your drafted script and the tough questions you predicted, graded against what "
+             "management actually said and what analysts actually asked on this call.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+    box = ui.column().classes("w-full")
+
+    def _paint(data):
+        box.clear()
+        with box:
+            if not data:
+                ui.label("Run it to compare your prep against the call. Needs a drafted script (Script "
+                         "Generation) and this quarter's transcript; predicted questions come from the "
+                         "Adversarial analyst pass.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                return
+            ui.label(f"Generated {data['generated_at']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            sc = data["script"]
+            with ui.row().classes("w-full gap-3").style("margin-top:4px;"):
+                _metric_card("Delivered", str(len(sc["delivered"])), "planned points that landed", "#15803D")
+                _metric_card("Dropped", str(len(sc["dropped"])), "planned but not said",
+                             "#B91C1C" if sc["dropped"] else "#15803D")
+                _metric_card("Improvised", str(len(sc["improvised"])), "said, not planned",
+                             "#B45309" if sc["improvised"] else COLORS["text_muted"])
+            for title, key, clr in (("Dropped from the plan", "dropped", "#B91C1C"),
+                                    ("Improvised — off script", "improvised", "#B45309"),
+                                    ("Delivered as planned", "delivered", "#15803D")):
+                for v in sc[key]:
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            f"border-left:3px solid {clr};padding:5px 10px;margin-top:3px;"):
+                        ui.label(f"{title}").style(f"color:{clr};font-size:11px;font-weight:700;")
+                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:12px;")
+
+            qa = data["qa"]
+            if data.get("had_predictions"):
+                ui.label("Q&A predictions — did we see them coming?").classes("section-head").style("margin-top:10px;")
+                total = len(qa["hits"]) + len(qa["misses"])
+                hr = qa["hit_rate"]
+                hr_clr = "#15803D" if (hr or 0) >= 60 else ("#B45309" if (hr or 0) >= 30 else "#B91C1C")
+                with ui.row().classes("w-full gap-3"):
+                    _metric_card("Hit rate", f"{hr}%" if hr is not None else "—",
+                                 f"{len(qa['hits'])} of {total} predicted", hr_clr)
+                    _metric_card("Predicted & asked", str(len(qa["hits"])), "we saw it coming", "#15803D")
+                    _metric_card("Missed", str(len(qa["misses"])), "predicted, didn't come up",
+                                 COLORS["text_muted"])
+                    _metric_card("Surprises", str(len(qa["surprises"])), "asked, we didn't predict",
+                                 "#B91C1C" if qa["surprises"] else "#15803D")
+                for h in qa["hits"]:
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "border-left:3px solid #15803D;padding:5px 10px;margin-top:3px;"):
+                        ui.label(f"HIT · {h['pred']}").style("color:#15803D;font-size:12px;font-weight:600;")
+                        if h.get("actual"):
+                            ui.label(f"Asked as: {h['actual']}").style(
+                                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                for s in qa["surprises"]:
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "border-left:3px solid #B91C1C;padding:5px 10px;margin-top:3px;"):
+                        ui.label(f"SURPRISE · {s}").style("color:#B91C1C;font-size:12px;font-weight:600;")
+                        ui.label("Feed this into next quarter's prep.").style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
+                for mtext in qa["misses"]:
+                    ui.label(f"Missed (predicted, not asked): {mtext}").style(
+                        f"color:{COLORS['text_muted']};font-size:11px;")
+            else:
+                ui.label("No adversarial-Q&A predictions on file — run the Adversarial analyst pass on the "
+                         "Script Generation tab to also grade Q&A prediction accuracy.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+
+    _paint((ss.get("prep_vs_actual") or {}).get(quarter))
+
+    async def _run():
+        ui.notify("Comparing your prep against the call — two model passes…", type="info")
+        try:
+            data = await asyncio.to_thread(_prep_vs_actual, quarter, ss, True)
+        except Exception as e:
+            ui.notify(f"Comparison failed: {e}", type="negative")
+            return
+        if not data:
+            ui.notify("Needs a drafted script and a transcript for this quarter.", type="warning")
+            return
+        _paint(data)
+        ui.notify("Done — see how the prep held up.", type="positive")
+
+    have = bool((ss.get("prep_vs_actual") or {}).get(quarter))
+    ui.button("Re-run prep comparison" if have else "Compare prep vs. this call",
+              icon="compare_arrows", on_click=_run).props("color=primary dense").style("margin-top:4px;")
+
+
 def _render_morning_after_tab():
     """Post-call critique (core.morning_after): what the tape did, how the call
     was delivered, and what the Q&A actually exposed — material gaps first."""
     from core import morning_after, transcripts
+    ss = _load_json("script_workflow_state.json", None) or {}
 
     ui.label("Morning After — post-call critique").classes("text-lg font-bold")
     ui.label("What the tape did, how the call ran, and what the Q&A exposed. The Q&A is an arena: "
@@ -1452,6 +1626,9 @@ def _render_morning_after_tab():
 
     @ui.refreshable
     def _body():
+        # Loop-closer first: how did this quarter's prep hold up against the call?
+        _render_prep_vs_actual(ss, state["q"])
+        ui.markdown("---")
         try:
             c = morning_after.critique(state["q"])
         except Exception as e:

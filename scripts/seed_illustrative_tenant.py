@@ -521,8 +521,116 @@ def seed():
             "consolidate":   {"status": "pending",  "completed_at": None, "notes": ""},
             "legal_signoff": {"status": "pending",  "completed_at": None, "notes": ""},
         },
+        # Illustrative adversarial-Q&A predictions (normally produced by the AI pass on the
+        # Script Generation tab) — seeded so the Morning-After "Prep vs. Actual" loop-closer
+        # has predictions to grade against the seeded Q2 transcript below.
+        "adversarial_qa": {
+            "generated_at": (TODAY - timedelta(days=2)).strftime("%Y-%m-%d %H:%M"),
+            "items": [
+                {"question": "The $2.5M beat is attributed to stronger PayFac attach — is that improvement "
+                             "sustainable or a pull-forward?", "why": "", "angle": ""},
+                {"question": "Prepaid float drove the quarter, but prepaid was flagged as declining — is the "
+                             "softness structural or temporary?", "why": "", "angle": ""},
+                {"question": "Interest income is absent from the revenue and margin commentary despite being "
+                             "material — did it stabilize?", "why": "", "angle": ""},
+                {"question": "Hitting the guidance low end implies a sharp H2 deceleration from the H1 run-rate "
+                             "— walk us through the cadence.", "why": "", "angle": ""},
+                {"question": "Cash improved to $42M but there's no mention of capital allocation — buyback, "
+                             "M&A, or reinvestment?", "why": "", "angle": ""},
+                {"question": "You're maintaining the high end to preserve conservatism around H2 execution — "
+                             "what specifically are you hedging?", "why": "", "angle": ""},
+                {"question": "Operating margin held flat at 24% despite a $2.5M revenue beat — why no "
+                             "incremental-margin flow-through?", "why": "", "angle": ""},
+            ],
+        },
     }, client_id=CID)
     print("[demo] seeded script workflow (2 of 5 stages complete, Q2 actuals in -> engine computes)")
+
+    # 6b. Illustrative Q2 2026 call transcript — so the Morning-After tab can demonstrate the
+    # "Prep vs. Actual" loop-closer end to end: the prepared remarks drop the prepaid-float
+    # driver and improvise a QSR partnership; the Q&A hits two predictions (H2 cadence, capital
+    # allocation), misses the rest, and throws two surprises (big-tech competition, the
+    # partnership's economics). Illustrative demo content only.
+    from core import transcripts as _transcripts
+    _q2_transcript = """Operator
+Operator
+Conference Operator
+00:00:00
+Good afternoon and welcome to the Northlake Payments, Inc. Second Quarter 2026 Earnings Conference Call. All participants are in a listen-only mode. After management's prepared remarks there will be a question-and-answer session. I will now turn the call over to Dana Whitfield, Investor Relations.
+
+Dana Whitfield
+Dana Whitfield
+Investor Relations
+00:01:10
+Thank you, operator, and good afternoon everyone. With me today are Marcus Ellery, Chief Executive Officer, and Priya Raman, Chief Financial Officer. Before we begin, I'd remind you that today's call contains forward-looking statements subject to risks and uncertainties, and I refer you to our SEC filings. With that, I'll turn it to Marcus.
+
+Marcus Ellery
+Marcus Ellery
+Chief Executive Officer
+00:02:30
+Thank you, Dana. We delivered a strong second quarter and are raising our full-year revenue guidance to a range of $405.9 million to $413.3 million. I'm also very pleased to announce today that we have signed a multi-year processing partnership with a leading national quick-service restaurant brand, which we expect to begin contributing in the fourth quarter. Our strategy of deepening enterprise relationships is working.
+
+Priya Raman
+Priya Raman
+Chief Financial Officer
+00:06:15
+Thank you, Marcus. Second quarter revenue was $102.5 million, gross margin was 24 percent, and adjusted EBITDA was $14.5 million. We ended the quarter with $42 million of cash on the balance sheet. Our results reflect disciplined execution across the business.
+
+Tom Vance
+Tom Vance
+Chief Revenue Officer
+00:11:40
+Thanks, Priya. Transaction volume reached $8.9 billion in the quarter, up 12 percent year over year, and our PayFac attach rates continued to improve across the merchant base.
+
+Operator
+Operator
+Conference Operator
+00:15:00
+We will now begin the question-and-answer session. Our first question comes from an analyst.
+
+Analyst - William Rourke, Cedar Point Securities
+00:15:20
+Thanks for taking my question. Your full-year guidance implies a meaningful step-down in the second half growth rate versus the first half run-rate. Can you walk us through the cadence and what gives you confidence in the back half?
+
+Marcus Ellery
+Chief Executive Officer
+00:16:05
+Sure. We expect steady sequential execution and the new partnership ramps in Q4, which underpins our confidence.
+
+Analyst - Priya Nadar, Kingsbridge Research
+00:18:40
+With $42 million of cash and improving free cash flow, how are you thinking about capital allocation - buybacks, M&A, or continued reinvestment?
+
+Priya Raman
+Chief Financial Officer
+00:19:20
+For now our priority remains organic reinvestment, though we continuously evaluate the landscape.
+
+Analyst - Greg Molina, Fairhaven Partners
+00:22:10
+Can you talk about the competitive environment, particularly with the larger technology platforms moving further into embedded payments? How defensible is your position?
+
+Marcus Ellery
+Chief Executive Officer
+00:23:00
+We believe our vertical specialization and service model differentiate us, and we feel well positioned.
+
+Analyst - Sarah Kwon, Delphi Equity
+00:26:30
+On the new QSR partnership you announced - can you give any sense of the size or the economics, and whether it's exclusive?
+
+Marcus Ellery
+Chief Executive Officer
+00:27:10
+We're not disclosing specific terms today, but we view it as a strategically significant enterprise win.
+
+Operator
+00:31:00
+That concludes today's question-and-answer session. Thank you for joining.
+"""
+    _transcripts.ingest_transcript(_q2_transcript, "Q2 2026", call_date=(TODAY - timedelta(days=3)).strftime("%Y-%m-%d"),
+                                   source="illustrative-demo", source_filename="NLKP_Q2_2026_call.txt", client_id=CID)
+    print("[demo] seeded illustrative Q2 2026 transcript (Morning-After prep-vs-actual demo)")
 
     # 7. Form 4 insider activity — a real capability (SEC EDGAR), so it may be shown.
     ins = [
