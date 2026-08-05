@@ -584,6 +584,63 @@ def render_console_calendar(user):
                         ui.label(when).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
 
 
+def _render_web_traffic_panel():
+    """Dogfood: praxispointir.com's own traffic through the IRconnect web-flow analyzer.
+    Identified visitors here are prospective CLIENTS (leads), not investors. Aggregated from
+    the web_events table (core/web_ingest) that the site's capture snippet feeds."""
+    from core import web_flow, web_ingest
+    from page_modules_nicegui.signals import waiting_signal
+
+    box = ui.column().classes("w-full").style("gap:8px;margin-top:8px;")
+
+    def _render():
+        box.clear()
+        with box:
+            with ui.row().classes("w-full items-center").style("gap:8px;"):
+                ui.label("praxispointir.com — live traffic").classes("text-lg font-bold").style(
+                    f"color:{COLORS['text_heading']};")
+                ui.space()
+
+                def _refresh():
+                    try:
+                        web_ingest.aggregate("praxis")
+                    except Exception as e:
+                        ui.notify(f"Refresh failed: {e}", type="negative")
+                        return
+                    _render()
+                ui.button("Refresh from live traffic", icon="refresh", on_click=_refresh).props(
+                    "flat dense").style(f"color:{COLORS['text_muted']};")
+            ui.label("Our own marketing site through the web-flow analyzer — an identified visitor is a "
+                     "prospective client (a lead), not an investor.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+
+            d = web_flow.compose("praxis")
+            if not d.get("available"):
+                waiting_signal("praxispointir.com traffic",
+                               "Deploy the site capture snippet and set DATABASE_URL in Netlify, then Refresh.",
+                               "who's evaluating IRconnect, what they read, and the hottest leads", compact=True)
+                return
+            with ui.row().style("gap:12px;flex-wrap:wrap;"):
+                _stat_tile("Visitors", str(d["n_visitors"]))
+                _stat_tile("Identified leads", str(d["n_visitors"] - d["n_new_unidentified"]))
+                _stat_tile("Downloaders", str(d["n_downloaders"]))
+                _stat_tile("Hot leads", str(len(d["hot_prospects"])), amber=len(d["hot_prospects"]) > 0)
+            for v in d["hot_prospects"][:10]:
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                        "border-left:4px solid #B45309;padding:6px 10px;"):
+                    with ui.row().classes("w-full items-center justify-between"):
+                        ui.label(v["org"]).style(
+                            f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                        ui.label(f"intent {v['intent']} · {v['intent_label']}").style(
+                            "color:#B45309;font-size:11px;font-weight:700;")
+                    ui.label(f"{v['pages']} pages · {v['minutes']} min · "
+                             + (", ".join(v["downloads"]) or "no downloads")).style(
+                        f"color:{COLORS['text_muted']};font-size:11px;")
+
+    _render()
+
+
 def render_console_home(user):
     rows = portfolio.portfolio_overview()
     needs = sum(1 for r in rows if r["attention"])
@@ -644,3 +701,6 @@ def render_console_home(user):
                     "gap:16px;width:100%;"):
                 for r in rows:
                     _client_card(r)
+
+            # Dogfood: our own praxispointir.com traffic through the analyzer.
+            _render_web_traffic_panel()
