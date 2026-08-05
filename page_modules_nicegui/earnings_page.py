@@ -2920,31 +2920,85 @@ def _render_qa_prep_tab(ss):
              "comes with a Regulation FD-safe answer angle (public info only; it never invents a number or "
              "guidance). Review before the call.").style(f"color:{COLORS['text_muted']};font-size:11px;")
 
+    from core import ui_context
+    _adv_ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
     adv_box = ui.column().classes("w-full gap-1").style("margin-top:4px;")
 
     def _render_adv():
         adv_box.clear()
-        data = ss.get("adversarial_qa") or {}
+        # Live reference into ss so in-place edits (question / prepared answer) persist.
+        data = ss.get("adversarial_qa") or {} if _adv_ro else ss.setdefault("adversarial_qa", {})
         adv_items = data.get("items") or []
         with adv_box:
             if data.get("generated_at"):
-                ui.label(f"Generated {data['generated_at']} — from the assembled script at that time. "
-                         "Re-run after editing the script.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(f"Generated {data['generated_at']} — the AI-drafted answers are editable; your own "
+                         "Q&A and edits are kept when you re-run.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
             for it in adv_items:
+                clr = "#1E40AF" if it.get("manual") else "#B45309"
                 with ui.card().classes("w-full").style(
-                        "background:rgba(180,83,9,.07);border:1px solid #B4530955;border-left:4px solid #B45309;"
+                        f"background:rgba(180,83,9,.05);border:1px solid {clr}55;border-left:4px solid {clr};"
                         "margin-bottom:6px;"):
-                    ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
-                        f"color:{COLORS['text_heading']};font-size:13px;")
-                    if it.get("why"):
+                    if _adv_ro:
+                        ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
+                            f"color:{COLORS['text_heading']};font-size:13px;")
+                        if it.get("why"):
+                            ui.label("What invites it: " + it["why"]).style(
+                                f"color:{COLORS['text_muted']};font-size:12px;")
+                        if it.get("angle"):
+                            ui.label("Prepared answer: " + it["angle"]).style(
+                                f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+                        continue
+                    _q = ui.input("Question", value=it.get("question", "")).props("dense").classes(
+                        "w-full").style("font-size:12px;")
+                    _q.on_value_change(lambda e, it=it: (it.__setitem__("question", e.value),
+                                                         _save_json("script_workflow_state.json", ss)))
+                    if it.get("why") and not it.get("manual"):
                         ui.label("What invites it: " + it["why"]).style(
-                            f"color:{COLORS['text_muted']};font-size:12px;")
-                    if it.get("angle"):
-                        ui.label("Reg FD-safe answer angle: " + it["angle"]).style(
-                            f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+                            f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    _a = ui.textarea("Prepared answer (Reg FD-safe — public info only)",
+                                     value=it.get("angle", "")).props("dense autogrow").classes(
+                        "w-full").style("font-size:12px;")
+                    _a.on_value_change(lambda e, it=it: (it.__setitem__("angle", e.value),
+                                                         _save_json("script_workflow_state.json", ss)))
+                    with ui.row().classes("w-full items-center").style("gap:6px;"):
+                        ui.label("Added by IR" if it.get("manual") else "AI-drafted — edit freely").style(
+                            f"color:{COLORS['text_muted']};font-size:10px;")
+                        ui.space()
+
+                        def _rm(it=it, adv_items=adv_items):
+                            adv_items.remove(it)
+                            _save_json("script_workflow_state.json", ss)
+                            _render_adv()
+                        ui.button("Remove", icon="delete", on_click=_rm).props("flat dense").style(
+                            f"color:{COLORS['danger']};font-size:11px;")
             if not adv_items and data.get("generated_at"):
                 ui.label("No exposed questions surfaced — the script pre-empts the obvious ones.").style(
                     f"color:{COLORS['text_muted']};font-size:12px;")
+
+            # Add-your-own Q&A — a question you know will come up plus your prepared answer.
+            if not _adv_ro:
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['accent']};"
+                        "padding:8px 10px;margin-top:4px;"):
+                    ui.label("Add your own Q&A").classes("font-bold").style(
+                        f"color:{COLORS['text_body']};font-size:12px;")
+                    _nq = ui.input("Question").props("dense").classes("w-full").style("font-size:12px;")
+                    _na = ui.textarea("Prepared answer (public info only)").props("dense autogrow").classes(
+                        "w-full").style("font-size:12px;")
+
+                    def _add_qa(_nq=_nq, _na=_na):
+                        if not (_nq.value or "").strip():
+                            ui.notify("Enter a question.", type="warning")
+                            return
+                        data.setdefault("items", []).append(
+                            {"question": _nq.value.strip(), "why": "", "angle": (_na.value or "").strip(),
+                             "manual": True})
+                        data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
+                        _save_json("script_workflow_state.json", ss)
+                        _render_adv()
+                    ui.button("Add Q&A", icon="add", on_click=_add_qa).props("color=primary dense").style(
+                        "margin-top:4px;")
 
     _render_adv()
 
@@ -2958,10 +3012,14 @@ def _render_qa_prep_tab(ss):
         if not adv_items:
             ui.notify("Needs the AI (ANTHROPIC_API_KEY) and a drafted script — nothing generated.", type="warning")
             return
-        ss["adversarial_qa"] = {"items": adv_items, "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+        # Keep the IR person's own Q&A across a re-run — only the AI-drafted items regenerate.
+        manual = [it for it in (ss.get("adversarial_qa") or {}).get("items", []) if it.get("manual")]
+        ss["adversarial_qa"] = {"items": adv_items + manual,
+                                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
         _save_json("script_workflow_state.json", ss)
         _render_adv()
-        ui.notify(f"Surfaced {len(adv_items)} exposed question(s) — review the answer angles.", type="positive")
+        ui.notify(f"Surfaced {len(adv_items)} exposed question(s) — review and edit the answers, or add your own.",
+                  type="positive")
 
     _have = bool((ss.get("adversarial_qa") or {}).get("items"))
     ui.button("Re-run adversarial pass" if _have else "Generate tough questions from the script",
