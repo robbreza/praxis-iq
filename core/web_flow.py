@@ -77,6 +77,8 @@ def _normalize(v):
         "org": v.get("org") or v.get("Visitor_Organization") or "—",
         "category": v.get("category") or v.get("Category") or "New — unidentified",
         "is_holder": bool(v.get("is_holder")),
+        "ticker": v.get("ticker"),   # public-company ticker when the visitor firm is public
+
         "pages": pages, "minutes": minutes, "visits": int(v.get("visits") or 1),
         "downloads": downloads, "n_downloads": len(downloads),
         "last_visit": v.get("last_visit") or v.get("Date") or "",

@@ -69,6 +69,33 @@ def _minutes(timestamps):
     return max(1, round((max(parsed) - min(parsed)).total_seconds() / 60))
 
 
+_public_idx = {"map": None}
+
+
+def _public_index():
+    """{distinctive-name-key: {'ticker','name'}} of every SEC-registered public company,
+    built once (per process) from sec_filings.ticker_name_map(). Keyed by web_flow._org_key
+    so an identified visitor firm can be matched to a ticker."""
+    if _public_idx["map"] is None:
+        from core import sec_filings, web_flow
+        idx = {}
+        for tk, name in (sec_filings.ticker_name_map() or {}).items():
+            key = web_flow._org_key(name)
+            if key and key not in idx:
+                idx[key] = {"ticker": tk, "name": name}
+        _public_idx["map"] = idx
+    return _public_idx["map"]
+
+
+def public_match(org):
+    """If an identified visitor firm is a public company, return {'ticker','name'}, else None.
+    Conservative: a distinctive-token match against SEC company_tickers (no fuzzy guessing)."""
+    from core import web_flow
+    if not org or org == "New — unidentified":
+        return None
+    return _public_index().get(web_flow._org_key(org))
+
+
 def _session_to_visitor(events):
     """One session's events → a web_flow visitor row (see core/web_flow._normalize)."""
     pageviews = [e for e in events if e["event_type"] == "pageview"]
@@ -77,10 +104,12 @@ def _session_to_visitor(events):
         downloads.append("Demo request")
     ident = next((e for e in events if (e.get("org") or "").strip()), None)
     org = (ident or {}).get("org")
+    pub = public_match(org)
     return {
         "org": org or "New — unidentified",
         "category": "Identified lead" if org else "New — unidentified",
         "is_holder": False,   # praxispointir.com is marketing — visitors are leads, not holders
+        "ticker": pub["ticker"] if pub else None,     # public-company flag
         "pages": len(pageviews) or len(events),
         "minutes": _minutes([e.get("created_at") for e in events]),
         "visits": 1,

@@ -12,13 +12,16 @@ from core import db, web_flow, web_ingest
 
 @pytest.fixture
 def wdb(monkeypatch, tmp_path):
-    """A temp SQLite file for web_events, with the real schema applied."""
+    """A temp SQLite file for web_events, with the real schema applied. Also stubs the SEC
+    public-company index so aggregation never makes a live SEC call (kept hermetic + fast)."""
     path = str(tmp_path / "web.db")
     c = sqlite3.connect(path)
     c.executescript(db._SQLITE_SCHEMA)
     c.commit()
     c.close()
     monkeypatch.setattr(web_ingest.db, "get_connection", lambda: sqlite3.connect(path), raising=False)
+    monkeypatch.setattr("core.sec_filings.ticker_name_map", lambda force=False: {}, raising=False)
+    monkeypatch.setattr(web_ingest, "_public_idx", {"map": None})
     return path
 
 

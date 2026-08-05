@@ -258,6 +258,27 @@ def _parse_ticker_map(raw):
     return {str(row["ticker"]).upper(): str(row["cik_str"]) for row in raw.values()}
 
 
+SEC_TICKER_NAME_KEY = "sec_ticker_names.json"
+
+
+def ticker_name_map(force=False):
+    """{TICKER: company title} from SEC's company_tickers.json, cached — the counterpart to
+    the ticker→CIK map that KEEPS the company name, for reverse name→ticker matching (e.g.
+    flagging which website visitors are public companies; see core/web_ingest). Degrades to
+    the cached copy (or {}) if the SEC fetch fails, so callers never hard-depend on the network."""
+    if not force:
+        cached = db.load_json(SEC_TICKER_NAME_KEY, None)
+        if cached:
+            return cached
+    try:
+        raw = _get("https://www.sec.gov/files/company_tickers.json").json()
+        m = {str(r["ticker"]).upper(): str(r["title"]) for r in raw.values()}
+        db.save_json(SEC_TICKER_NAME_KEY, m)
+        return m
+    except Exception:
+        return db.load_json(SEC_TICKER_NAME_KEY, {}) or {}
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # 13D / 13G — ownership-stake alerts
 # ─────────────────────────────────────────────────────────────────────────

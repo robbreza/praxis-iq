@@ -620,18 +620,26 @@ def _render_web_traffic_panel():
                                "Deploy the site capture snippet and set DATABASE_URL in Netlify, then Refresh.",
                                "who's evaluating IRconnect, what they read, and the hottest leads", compact=True)
                 return
+            n_public = sum(1 for v in d["visitors"] if v.get("ticker"))
             with ui.row().style("gap:12px;flex-wrap:wrap;"):
                 _stat_tile("Visitors", str(d["n_visitors"]))
                 _stat_tile("Identified leads", str(d["n_visitors"] - d["n_new_unidentified"]))
-                _stat_tile("Downloaders", str(d["n_downloaders"]))
+                _stat_tile("Public cos", str(n_public), amber=n_public > 0)
                 _stat_tile("Hot leads", str(len(d["hot_prospects"])), amber=len(d["hot_prospects"]) > 0)
-            for v in d["hot_prospects"][:10]:
+            # Lead by intent; a public company visiting (ticker) is worth calling out.
+            leads = [v for v in d["visitors"] if v["category"] != "New — unidentified"]
+            for v in (d["hot_prospects"] or leads)[:12]:
                 with ui.card().classes("w-full").style(
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                         "border-left:4px solid #B45309;padding:6px 10px;"):
                     with ui.row().classes("w-full items-center justify-between"):
-                        ui.label(v["org"]).style(
-                            f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                        with ui.row().classes("items-center").style("gap:6px;"):
+                            ui.label(v["org"]).style(
+                                f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                            if v.get("ticker"):
+                                ui.label(v["ticker"]).style(
+                                    "background:#15803D;color:white;font-size:10px;font-weight:800;"
+                                    "padding:1px 7px;border-radius:9px;")
                         ui.label(f"intent {v['intent']} · {v['intent_label']}").style(
                             "color:#B45309;font-size:11px;font-weight:700;")
                     ui.label(f"{v['pages']} pages · {v['minutes']} min · "
