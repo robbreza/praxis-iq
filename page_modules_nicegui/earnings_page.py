@@ -4233,6 +4233,9 @@ def _render_script_workflow_tab():
     def _paint():
         box.clear()
         with box:
+            # Loop-readiness overview first — visible regardless of the gate, so a
+            # brand-new client sees exactly what to provide (including "confirm the lineup").
+            _render_loop_readiness()
             # No configured reporting period -> nothing to gate on; render the workflow.
             if period and (not speakers.is_confirmed(period) or st["editing"]):
                 def _done():
@@ -4340,6 +4343,34 @@ def _render_confirmed_speaker_bar(period, on_edit):
         ui.space()
         ui.button("Edit lineup", icon="edit", on_click=on_edit).props("flat dense").style(
             f"color:{COLORS['text_muted']};")
+
+
+def _render_loop_readiness(client_id=None):
+    """Per-client 'what's lighting up / what's waiting' strip for the earnings-script /
+    Q&A loop — the ready inputs summarized, each still-missing input shown as a shared
+    waiting_signal card naming what to provide and what it unlocks (see core.loop_readiness)."""
+    from core import loop_readiness
+    from page_modules_nicegui.signals import waiting_signal
+    r = loop_readiness.assess(client_id)
+    stages = r["stages"]
+    head = (f"Loop readiness — {r['ready_required']}/{r['total_required']} inputs ready"
+            + ("  ·  fully lit ✓" if r["fully_lit"] else ""))
+    hclr = "#15803D" if r["fully_lit"] else "#B45309"
+    with ui.expansion(head, icon="checklist", value=not r["fully_lit"]).classes("w-full").style(
+            f"border:1px solid {hclr}55;border-radius:8px;margin:6px 0;"):
+        ui.label("What the full earnings-script / Q&A loop needs for this client — provide a waiting input to "
+                 "light up the next stage.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ready = [s for s in stages if s["ready"]]
+        if ready:
+            ui.label("✓ Ready: " + "  ·  ".join(f"{s['label']} ({s['detail']})" for s in ready)).style(
+                "color:#15803D;font-size:11.5px;font-weight:600;margin-top:2px;")
+        for s in stages:
+            if not s["ready"]:
+                what = s["waiting_for"] + (" (optional — enrichment)" if s.get("optional") else "")
+                waiting_signal(what, s["todo"], s["unlocks"], compact=True)
+        if r["fully_lit"]:
+            ui.label("Every input is in — the loop runs end to end: predict → grade → accrue → seed → "
+                     "promote → trend.").style("color:#15803D;font-size:11.5px;margin-top:2px;")
 
 
 def _render_workflow_content():
