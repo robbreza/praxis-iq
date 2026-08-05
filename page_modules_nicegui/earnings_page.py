@@ -2893,7 +2893,7 @@ def _promote_answer_to_kb(item):
     Opens a confirm dialog (topic + answer, both editable) with an explicit Reg FD
     reminder — the KB is public-facing, so only publicly disclosed info belongs here.
     Reads the item's CURRENT (possibly hand-edited) question/answer."""
-    from core import ir_knowledge
+    from core import ir_knowledge, shareholder_reply
     from config.client_config import get_active_client_id
     cid = get_active_client_id()
     default_topic = (item.get("question") or "").strip()
@@ -2911,6 +2911,10 @@ def _promote_answer_to_kb(item):
         _ans = ui.textarea("Approved answer (public info only)", value=default_answer).props(
             "outlined autogrow dense").classes("w-full").style("font-size:12px;")
 
+        # Active MNPI check — scan the answer for forward-looking / possibly-non-public
+        # language and warn (live, as the text is edited) before it lands in the public KB.
+        _warn = ui.column().classes("w-full").style("margin-top:2px;")
+
         with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat dense")
 
@@ -2919,10 +2923,35 @@ def _promote_answer_to_kb(item):
                     ui.notify("Topic and answer are both required.", type="warning")
                     return
                 ir_knowledge.add_entry(_topic.value, _ans.value, cid)
-                ui.notify("Added to the approved-answer KB — available to the shareholder-reply drafter "
-                          "(IR Inbox).", type="positive")
+                flagged = shareholder_reply.scan_mnpi(_ans.value).get("flagged")
+                ui.notify(("Added to the approved-answer KB (you promoted despite the forward-looking flag) — "
+                           "available to the shareholder-reply drafter." if flagged else
+                           "Added to the approved-answer KB — available to the shareholder-reply drafter "
+                           "(IR Inbox)."), type="warning" if flagged else "positive")
                 dlg.close()
-            ui.button("Add to approved answers", icon="menu_book", on_click=_confirm).props("color=primary dense")
+            _confirm_btn = ui.button("Add to approved answers", icon="menu_book", on_click=_confirm).props("dense")
+
+        def _scan():
+            res = shareholder_reply.scan_mnpi(_ans.value or "")
+            _warn.clear()
+            if res["flagged"]:
+                with _warn:
+                    with ui.card().classes("w-full").style(
+                            "background:rgba(185,28,28,.08);border:1px solid #B91C1C;border-left:4px solid #B91C1C;"
+                            "padding:6px 10px;"):
+                        ui.label("⚠ Possible material non-public / forward-looking language").classes(
+                            "font-bold").style("color:#B91C1C;font-size:12px;")
+                        ui.label("The KB is public-facing. Confirm every statement here is ALREADY publicly "
+                                 "disclosed before promoting — flagged: " + ", ".join(res["reasons"])).style(
+                            f"color:{COLORS['text_body']};font-size:11.5px;")
+                        for p in res["phrases"][:6]:
+                            ui.label(f"• “{p}”").style(
+                                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+            _confirm_btn.text = "Promote anyway" if res["flagged"] else "Add to approved answers"
+            _confirm_btn.props(f'color={"warning" if res["flagged"] else "primary"}')
+
+        _ans.on_value_change(lambda e: _scan())
+        _scan()  # initial scan of the prefilled answer
     dlg.open()
 
 

@@ -11,9 +11,51 @@ Public facts it will reference: the company name/ticker, the next scheduled earn
 date, quiet-period status, and that filings live on EDGAR / the IR site. It will not
 state a number, a dividend policy, or any forward view that isn't already public.
 """
+import re
 from datetime import date, datetime
 
 from config.client_config import CE, CF, CT, get_active_client_id
+
+
+# Forward-looking / possibly-material-non-public language patterns, used to scan an
+# answer BEFORE it's promoted into the public-facing approved-answer KB. Each is a
+# (regex, human-readable reason). Heuristic — it flags for human review, never blocks.
+_MNPI_PATTERNS = [
+    (r"\bon track to\b", "forward commitment"),
+    (r"\bwe (?:expect|anticipate|intend|plan|aim)\b", "forward-looking statement"),
+    (r"\bwe(?:'re| are) (?:targeting|guiding)\b", "forward target"),
+    (r"\b(?:should|will|expect to) (?:reach|grow|deliver|exceed|hit|improve|increase|accelerate)\b",
+     "forward projection"),
+    (r"\b(?:next|coming|upcoming|following) (?:quarter|year|month|period|half)\b", "future period"),
+    (r"\b(?:second half|first half|h2|h1)\b", "half-year outlook"),
+    (r"\b(?:guidance|outlook|forecast|projected|projection)\b", "guidance / outlook reference"),
+    (r"\b(?:this|current) quarter\b", "current (unreleased) quarter"),
+    (r"\bquarter[- ]to[- ]date\b", "quarter-to-date figure"),
+    (r"\bso far (?:this|in the)\b", "intra-period progress"),
+    (r"\bbefore we report\b", "pre-release reference"),
+    (r"\bpreliminary\b", "preliminary / unreleased figure"),
+    (r"\bwe(?:'re| are) (?:seeing|tracking)\b", "intra-period trend"),
+]
+
+
+def scan_mnpi(text):
+    """Scan a would-be-public answer for forward-looking / possibly material non-public
+    language, so the Promote-to-KB flow can WARN before an unreleased statement lands in
+    the public-facing knowledge base. Heuristic — flags for human review, does NOT block.
+    Returns {flagged, reasons, phrases}."""
+    src = text or ""
+    reasons, phrases, seen = [], [], set()
+    for pat, why in _MNPI_PATTERNS:
+        m = re.search(pat, src, re.IGNORECASE)
+        if not m:
+            continue
+        if why not in reasons:
+            reasons.append(why)
+        ph = m.group(0).strip()
+        if ph.lower() not in seen:
+            seen.add(ph.lower())
+            phrases.append(ph)
+    return {"flagged": bool(phrases), "reasons": reasons, "phrases": phrases}
 
 
 def quiet_period_status(client_id=None):
