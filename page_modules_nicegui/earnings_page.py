@@ -1502,6 +1502,18 @@ def _prep_vs_actual(quarter, ss, force=False):
         if h + m:
             out["qa"]["hit_rate"] = round(100 * h / (h + m))
 
+    # Accrue this call's outcomes into the house Q&A bank — surprises (questions we
+    # didn't predict) feed BOTH this client's history and the global house book, so
+    # they seed every future adversarial pass. Idempotent per question text.
+    try:
+        from core import qa_bank
+        from config.client_config import get_active_client_id
+        hit_texts = [x.get("pred", "") for x in out["qa"]["hits"] if x.get("pred")]
+        out["accrued"] = qa_bank.accrue(get_active_client_id(), quarter, out["qa"]["surprises"], hit_texts)
+    except Exception as exc:
+        print(f"[prep_vs_actual] qa_bank accrual skipped: {exc}")
+        out["accrued"] = {"new_global": 0, "new_client": 0}
+
     ss.setdefault("prep_vs_actual", {})[quarter] = out
     _save_json("script_workflow_state.json", ss)
     return out
@@ -1556,6 +1568,15 @@ def _render_prep_vs_actual(ss, quarter):
                                  COLORS["text_muted"])
                     _metric_card("Surprises", str(len(qa["surprises"])), "asked, we didn't predict",
                                  "#B91C1C" if qa["surprises"] else "#15803D")
+                acc = data.get("accrued") or {}
+                if acc.get("new_global"):
+                    ui.label(f"✓ {acc['new_global']} new surprise(s) added to the house Q&A bank — they'll seed "
+                             "future adversarial passes for every client.").style(
+                        "color:#15803D;font-size:11px;font-weight:600;margin-top:2px;")
+                elif acc.get("new_client"):
+                    ui.label(f"✓ {acc['new_client']} new question(s) banked for this client — they'll seed future "
+                             "adversarial passes here.").style(
+                        "color:#15803D;font-size:11px;font-weight:600;margin-top:2px;")
                 for h in qa["hits"]:
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
@@ -1569,7 +1590,7 @@ def _render_prep_vs_actual(ss, quarter):
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                             "border-left:3px solid #B91C1C;padding:5px 10px;margin-top:3px;"):
                         ui.label(f"SURPRISE · {s}").style("color:#B91C1C;font-size:12px;font-weight:600;")
-                        ui.label("Feed this into next quarter's prep.").style(
+                        ui.label("Banked → seeds next quarter's adversarial pass.").style(
                             f"color:{COLORS['text_muted']};font-size:11px;")
                 for mtext in qa["misses"]:
                     ui.label(f"Missed (predicted, not asked): {mtext}").style(
@@ -2484,6 +2505,15 @@ def _adversarial_qa(ss):
     ticker = CT("ticker", "")
     prep = _build_qa_prep(ss)
     grounding = "\n".join(f"- {i['topic']} ({i['source']})" for i in prep) or "(none on file)"
+    # Seed with the house Q&A bank — recurring questions analysts have actually asked
+    # (accrued from prior calls' surprises, across every client), so a question that
+    # blindsided us once gets checked against every future script.
+    try:
+        from core import qa_bank
+        _house = qa_bank.questions(get_active_client_id(), limit=25)
+    except Exception:
+        _house = []
+    house_block = "\n".join(f"- {q}" for q in _house) or "(none on file)"
     _cons = market_data.consensus_rev_value()
     cons_line = (f"Street consensus revenue was ${_cons:.1f}M." if isinstance(_cons, (int, float)) and _cons
                  else "No published sell-side consensus is on file for this name.")
@@ -2497,6 +2527,10 @@ support, a trend it doesn't address, a soft spot it glosses over, a comparison i
 Topics analysts have ALREADY flagged (ingested research notes + last quarter's unanswered questions) — weave \
 these in where the script fails to pre-empt them:
 {grounding}
+
+Recurring questions from the HOUSE Q&A BANK — analysts have asked versions of these on prior calls (across \
+issuers). For any that THIS script does not clearly pre-empt, surface it as a likely question:
+{house_block}
 
 ===== BEGIN PREPARED-REMARKS SCRIPT =====
 {script}
@@ -2932,6 +2966,71 @@ def _render_qa_prep_tab(ss):
     _have = bool((ss.get("adversarial_qa") or {}).get("items"))
     ui.button("Re-run adversarial pass" if _have else "Generate tough questions from the script",
               icon="gavel", on_click=_run_adv).props("color=primary dense").style("margin-top:4px;")
+
+    _render_qa_bank_editor()
+
+
+def _render_qa_bank_editor():
+    """The house Q&A bank — questions analysts have actually asked (accrued from prior
+    calls' surprises + the code-seeded defaults), which seed every adversarial pass.
+    Merged view (global house book ∪ this client); add/remove client entries."""
+    from core import qa_bank, ui_context
+    from config.client_config import get_active_client_id
+    cid = get_active_client_id()
+    _ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
+
+    with ui.expansion("House Q&A bank — recurring questions that seed the adversarial pass",
+                      icon="quiz").classes("w-full").style("margin-top:10px;"):
+        ui.label("Questions analysts have actually asked — accrued automatically from Morning-After "
+                 "surprises (across every client) plus a seeded set of recurring asks. Every adversarial "
+                 "pass is seeded with this bank, so a question that surprised us once gets checked against "
+                 "every future script.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
+
+        def _rebuild():
+            _box.clear()
+            with _box:
+                entries = qa_bank.merged(cid)
+                if not entries:
+                    ui.label("Bank is empty.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                for e in entries:
+                    kind = e.get("kind") or "manual"
+                    src = f" · from {e.get('source_client')} {e.get('source_quarter') or ''}".rstrip() \
+                        if e.get("source_client") else (" · house seed" if e.get("seed") else "")
+                    with ui.card().classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "padding:5px 10px;"):
+                        with ui.row().classes("w-full items-center justify-between gap-2"):
+                            ui.label(e.get("question", "")).style(
+                                f"color:{COLORS['text_body']};font-size:12px;flex:1;")
+                            tag_clr = "#B91C1C" if kind == "surprise" else (
+                                "#15803D" if kind == "asked" else COLORS["text_muted"])
+                            ui.label(f"{kind}{src}").style(f"color:{tag_clr};font-size:10px;white-space:nowrap;")
+                            if not _ro and not e.get("seed"):
+                                def _del(k=e.get("key")):
+                                    # Remove from whichever scope holds it (client first, else global).
+                                    qa_bank.remove(k, scope="client", cid=cid)
+                                    qa_bank.remove(k, scope="global")
+                                    ui.notify("Removed from the bank.")
+                                    _rebuild()
+                                ui.button(icon="close", on_click=_del).props("flat dense round size=sm").style(
+                                    f"color:{COLORS['danger']};")
+                if not _ro:
+                    with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
+                        _nq = ui.input(label="Add a question to the house bank",
+                                       placeholder="e.g. How exposed are you to interchange-fee regulation?").classes(
+                            "flex-grow").props("dense")
+
+                        def _add(_nq=_nq):
+                            if not (_nq.value or "").strip():
+                                ui.notify("Type a question first.", type="warning")
+                                return
+                            qa_bank.add(_nq.value, kind="manual", scope="global", added_by="user")
+                            ui.notify("Added to the house bank — it'll seed future adversarial passes.",
+                                      type="positive")
+                            _rebuild()
+                        ui.button("Add", icon="add", on_click=_add).props("color=primary dense")
+        _rebuild()
 
 
 def _ensure_script_drafted(ss):
