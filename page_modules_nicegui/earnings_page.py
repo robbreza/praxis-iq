@@ -2926,38 +2926,118 @@ def _promote_answer_to_kb(item):
     dlg.open()
 
 
-def _render_qa_prep_tab(ss):
-    ui.label("Q&A Prep — Predicted Questions").classes("font-bold")
-    ui.label("Topics that weren't pre-empted last quarter, plus catalysts/risks flagged in ingested sell-side "
-              "research notes. Deterministic — no AI call needed, always available.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
-    items = _build_qa_prep(ss)
-    if not items:
-        ui.label("Nothing carried over from last quarter, and no research notes with catalysts/risks have "
-                  "been ingested yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
-    else:
-        sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
-        for item in items:
-            clr = sev_color.get(item["severity"], "#64748B")
-            with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {clr};margin-bottom:6px;"):
-                ui.label(f"{item['severity']} · {item['topic']}").classes("font-bold").style(f"color:{clr};font-size:13px;")
-                ui.label(item["source"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
-                if item.get("detail"):
-                    ui.label(item["detail"]).style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"{item['suggested_angle']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+def _qa_key(q):
+    """Normalized dedup key for a Q&A question."""
+    import re
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", (q or "").lower())).strip()[:90]
 
-    # ── Adversarial analyst pass ──────────────────────────────────────────
-    # The AI counterpart to the deterministic list above: it reads the ASSEMBLED
-    # script and role-plays a skeptical sell-side analyst, surfacing the questions
-    # the prepared remarks leave exposed — each with a Reg FD-safe answer angle.
-    # On-demand (a real AI call), cached in ss so it doesn't re-run every render.
-    ui.separator().style("margin:10px 0 4px;")
-    ui.label("Adversarial analyst pass — questions the drafted script leaves exposed").classes("font-bold").style(
-        f"color:{COLORS['text_heading']};font-size:13px;")
-    ui.label("An AI plays a skeptical sell-side analyst reading your ASSEMBLED script and finds the toughest "
-             "follow-ups it invites — grounded in the research notes and last quarter's open topics above. Each "
-             "comes with a Regulation FD-safe answer angle (public info only; it never invents a number or "
-             "guidance). Review before the call.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+# Source metadata for a unified Q&A prep item: (border color, editor tag, sheet heading).
+_QA_SOURCES = {
+    "recurring": ("#0F766E", "Recurring — from research / last quarter", "From analyst research & last quarter"),
+    "ai": ("#B45309", "AI-drafted — edit freely", "Surfaced from the script (AI)"),
+    "manual": ("#1E40AF", "Added by IR", "Added by IR"),
+}
+
+
+def _qa_item_source(it):
+    return it.get("source") or ("manual" if it.get("manual") else "ai")
+
+
+def _sync_recurring_into_prep(ss):
+    """Fold the deterministic recurring Q&A (research-note catalysts + last quarter's
+    un-pre-empted topics, from _build_qa_prep) into the single editable prep list as
+    source='recurring' — unless already present or previously dismissed. This unifies
+    the two Q&A sources into ONE editable/promotable/exportable list. Idempotent."""
+    data = ss.setdefault("adversarial_qa", {})
+    items = data.setdefault("items", [])
+    dismissed = set(data.get("dismissed_recurring", []))
+    have = {_qa_key(it.get("question")) for it in items}
+    added = 0
+    for d in _build_qa_prep(ss):
+        k = _qa_key(d.get("topic"))
+        if not k or k in have or k in dismissed:
+            continue
+        why = d.get("source", "")
+        if d.get("detail"):
+            why = f"{why} — {d['detail']}" if why else d["detail"]
+        items.append({"question": d.get("topic", ""), "why": why,
+                      "angle": d.get("suggested_angle", ""), "source": "recurring",
+                      "severity": d.get("severity")})
+        have.add(k)
+        added += 1
+    if added:
+        data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
+        _save_json("script_workflow_state.json", ss)
+    return added
+
+
+_QA_SHEET_CSS = """<style>
+:root{--ink:#1a2230;--muted:#5c6b80;--line:#dfe4ea;--teal:#0F766E;--amber:#B45309;--blue:#1E40AF;--bg:#fbfcfe}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:36px 30px 80px}
+header{border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:8px}
+header h1{margin:0;font-size:22px}
+header .meta{color:var(--muted);font-size:13px;margin-top:2px}
+.note{color:var(--muted);font-size:12.5px;margin:8px 0 20px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 8px;
+   border-bottom:1px solid var(--line);padding-bottom:5px}
+.qa{border-left:3px solid var(--line);padding:8px 0 10px 14px;margin:0 0 12px;break-inside:avoid}
+.qa.recurring{border-left-color:var(--teal)} .qa.ai{border-left-color:var(--amber)} .qa.manual{border-left-color:var(--blue)}
+.qa .q{font-weight:700;font-size:16px}
+.qa .why{color:var(--muted);font-size:12.5px;font-style:italic;margin:2px 0 6px}
+.qa .a{font-size:15px;white-space:pre-wrap}
+.qa .todo{color:#B91C1C;font-style:italic}
+footer{margin-top:34px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);padding-top:8px}
+@media print{body{background:#fff}.wrap{padding:0}}
+</style>"""
+
+
+def _qa_prep_sheet_html(ss):
+    """Self-contained, print-friendly Q&A prep sheet — every prepared question and
+    answer, grouped by source, for management to carry into the call. Downloaded."""
+    import html as _html
+    ticker, quarter = CT("ticker", ""), CE().get("current_quarter", "")
+    title = f"{ticker} {quarter} — Q&A Prep Sheet".strip()
+    items = (ss.get("adversarial_qa") or {}).get("items", [])
+    secs = []
+    for src, (_clr, _tag, heading) in _QA_SOURCES.items():
+        group = [it for it in items if _qa_item_source(it) == src]
+        if not group:
+            continue
+        rows = []
+        for it in group:
+            q = _html.escape((it.get("question") or "").strip())
+            why = _html.escape((it.get("why") or "").strip())
+            a_raw = (it.get("angle") or "").strip()
+            a = _html.escape(a_raw) if a_raw else '<span class="todo">[ answer to prepare ]</span>'
+            rows.append(f'<div class="qa {src}"><div class="q">{q}</div>'
+                        + (f'<div class="why">{why}</div>' if why else "")
+                        + f'<div class="a">{a}</div></div>')
+        secs.append(f'<section><h2>{_html.escape(heading)}</h2>{"".join(rows)}</section>')
+    body = "".join(secs) or '<p class="note">No Q&A prepared yet.</p>'
+    gen = (ss.get("adversarial_qa") or {}).get("generated_at") or ""
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<title>{_html.escape(title)}</title>' + _QA_SHEET_CSS + '</head><body><div class="wrap">'
+            f'<header><h1>{_html.escape(title)}</h1><div class="meta">Prepared answers use publicly '
+            f'disclosed information only.{(" · compiled " + _html.escape(gen)) if gen else ""}</div></header>'
+            '<div class="note">Reference for management during Q&A. Each answer is Regulation FD-safe — do not '
+            'volunteer unreleased or forward-looking specifics.</div>'
+            + body +
+            '<footer>Generated by IRconnect · internal prep — not for distribution.</footer>'
+            '</div></body></html>')
+
+
+def _render_qa_prep_tab(ss):
+    ui.label("Q&A Prep").classes("font-bold")
+    ui.label("One editable prep list from three sources: recurring questions (ingested research notes + last "
+             "quarter's open topics), the AI adversarial pass over your script, and your own additions. Edit any "
+             "answer, add your own, promote a good answer to the approved-answer KB, or export the sheet for the "
+             "call.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+    # Unify the sources: fold the deterministic recurring questions into the single editable list.
+    _sync_recurring_into_prep(ss)
 
     from core import ui_context
     _adv_ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
@@ -2974,9 +3054,10 @@ def _render_qa_prep_tab(ss):
                          "Q&A and edits are kept when you re-run.").style(
                     f"color:{COLORS['text_muted']};font-size:11px;")
             for it in adv_items:
-                clr = "#1E40AF" if it.get("manual") else "#B45309"
+                _src = _qa_item_source(it)
+                clr, tag_txt, _heading = _QA_SOURCES.get(_src, _QA_SOURCES["ai"])
                 with ui.card().classes("w-full").style(
-                        f"background:rgba(180,83,9,.05);border:1px solid {clr}55;border-left:4px solid {clr};"
+                        f"background:rgba(0,0,0,.04);border:1px solid {clr}55;border-left:4px solid {clr};"
                         "margin-bottom:6px;"):
                     if _adv_ro:
                         ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
@@ -2992,7 +3073,7 @@ def _render_qa_prep_tab(ss):
                         "w-full").style("font-size:12px;")
                     _q.on_value_change(lambda e, it=it: (it.__setitem__("question", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
-                    if it.get("why") and not it.get("manual"):
+                    if it.get("why"):
                         ui.label("What invites it: " + it["why"]).style(
                             f"color:{COLORS['text_muted']};font-size:11.5px;")
                     _a = ui.textarea("Prepared answer (Reg FD-safe — public info only)",
@@ -3001,15 +3082,19 @@ def _render_qa_prep_tab(ss):
                     _a.on_value_change(lambda e, it=it: (it.__setitem__("angle", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
                     with ui.row().classes("w-full items-center").style("gap:6px;"):
-                        ui.label("Added by IR" if it.get("manual") else "AI-drafted — edit freely").style(
-                            f"color:{COLORS['text_muted']};font-size:10px;")
+                        ui.label(tag_txt).style(f"color:{clr};font-size:10px;font-weight:600;")
                         ui.space()
                         ui.button("Promote to KB", icon="menu_book",
                                   on_click=lambda it=it: _promote_answer_to_kb(it)).props("flat dense").style(
                             f"color:{COLORS['accent']};font-size:11px;")
 
-                        def _rm(it=it, adv_items=adv_items):
+                        def _rm(it=it, adv_items=adv_items, data=data):
                             adv_items.remove(it)
+                            if _qa_item_source(it) == "recurring":
+                                k = _qa_key(it.get("question"))
+                                dl = data.setdefault("dismissed_recurring", [])
+                                if k and k not in dl:
+                                    dl.append(k)  # so a removed recurring question doesn't re-fold
                             _save_json("script_workflow_state.json", ss)
                             _render_adv()
                         ui.button("Remove", icon="delete", on_click=_rm).props("flat dense").style(
@@ -3035,7 +3120,7 @@ def _render_qa_prep_tab(ss):
                             return
                         data.setdefault("items", []).append(
                             {"question": _nq.value.strip(), "why": "", "angle": (_na.value or "").strip(),
-                             "manual": True})
+                             "manual": True, "source": "manual"})
                         data.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
                         _save_json("script_workflow_state.json", ss)
                         _render_adv()
@@ -3054,18 +3139,29 @@ def _render_qa_prep_tab(ss):
         if not adv_items:
             ui.notify("Needs the AI (ANTHROPIC_API_KEY) and a drafted script — nothing generated.", type="warning")
             return
-        # Keep the IR person's own Q&A across a re-run — only the AI-drafted items regenerate.
-        manual = [it for it in (ss.get("adversarial_qa") or {}).get("items", []) if it.get("manual")]
-        ss["adversarial_qa"] = {"items": adv_items + manual,
-                                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+        for it in adv_items:
+            it["source"] = "ai"
+        # Regenerate only the AI items — keep recurring and the IR person's own Q&A (and
+        # the dismissed_recurring set, by updating the dict in place rather than replacing).
+        data = ss.setdefault("adversarial_qa", {})
+        keep = [it for it in data.get("items", []) if _qa_item_source(it) != "ai"]
+        data["items"] = adv_items + keep
+        data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         _save_json("script_workflow_state.json", ss)
         _render_adv()
         ui.notify(f"Surfaced {len(adv_items)} exposed question(s) — review and edit the answers, or add your own.",
                   type="positive")
 
-    _have = bool((ss.get("adversarial_qa") or {}).get("items"))
-    ui.button("Re-run adversarial pass" if _have else "Generate tough questions from the script",
-              icon="gavel", on_click=_run_adv).props("color=primary dense").style("margin-top:4px;")
+    _have = bool(any(_qa_item_source(it) == "ai" for it in (ss.get("adversarial_qa") or {}).get("items", [])))
+    with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
+        ui.button("Re-run adversarial pass" if _have else "Generate tough questions from the script",
+                  icon="gavel", on_click=_run_adv).props("color=primary dense")
+
+        def _export_qa_sheet():
+            html = _qa_prep_sheet_html(ss)
+            fname = f"{CT('ticker')}_{CE().get('current_quarter','')}_QA_Prep_Sheet.html".replace(" ", "_")
+            ui.download(html.encode("utf-8"), fname)
+        ui.button("Q&A prep sheet (HTML)", icon="print", on_click=_export_qa_sheet).props("flat")
 
     _render_qa_bank_editor()
 
