@@ -2887,6 +2887,45 @@ def _teleprompter_html(ss):
             + bar + '<main id="doc">' + "\n".join(secs) + '</main>' + _TELEPROMPTER_JS + '</body></html>')
 
 
+def _promote_answer_to_kb(item):
+    """Connector: promote a prepared Q&A answer into the approved-answer KB
+    (core.ir_knowledge), where the shareholder-reply drafter may state it directly.
+    Opens a confirm dialog (topic + answer, both editable) with an explicit Reg FD
+    reminder — the KB is public-facing, so only publicly disclosed info belongs here.
+    Reads the item's CURRENT (possibly hand-edited) question/answer."""
+    from core import ir_knowledge
+    from config.client_config import get_active_client_id
+    cid = get_active_client_id()
+    default_topic = (item.get("question") or "").strip()
+    default_answer = (item.get("angle") or "").strip()
+
+    with ui.dialog() as dlg, ui.card().style("min-width:440px;max-width:560px;"):
+        ui.label("Promote to approved answers").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:14px;")
+        ui.label("This becomes an APPROVED answer the shareholder-reply drafter may state directly to "
+                 "shareholders. Promote it ONLY if the answer contains publicly disclosed information — never "
+                 "anything unreleased or forward-looking that hasn't been said publicly.").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;max-width:520px;")
+        _topic = ui.input("Topic (short label)", value=default_topic[:90]).props("outlined dense").classes(
+            "w-full").style("font-size:12px;")
+        _ans = ui.textarea("Approved answer (public info only)", value=default_answer).props(
+            "outlined autogrow dense").classes("w-full").style("font-size:12px;")
+
+        with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+            def _confirm(_topic=_topic, _ans=_ans, cid=cid):
+                if not (_topic.value or "").strip() or not (_ans.value or "").strip():
+                    ui.notify("Topic and answer are both required.", type="warning")
+                    return
+                ir_knowledge.add_entry(_topic.value, _ans.value, cid)
+                ui.notify("Added to the approved-answer KB — available to the shareholder-reply drafter "
+                          "(IR Inbox).", type="positive")
+                dlg.close()
+            ui.button("Add to approved answers", icon="menu_book", on_click=_confirm).props("color=primary dense")
+    dlg.open()
+
+
 def _render_qa_prep_tab(ss):
     ui.label("Q&A Prep — Predicted Questions").classes("font-bold")
     ui.label("Topics that weren't pre-empted last quarter, plus catalysts/risks flagged in ingested sell-side "
@@ -2965,6 +3004,9 @@ def _render_qa_prep_tab(ss):
                         ui.label("Added by IR" if it.get("manual") else "AI-drafted — edit freely").style(
                             f"color:{COLORS['text_muted']};font-size:10px;")
                         ui.space()
+                        ui.button("Promote to KB", icon="menu_book",
+                                  on_click=lambda it=it: _promote_answer_to_kb(it)).props("flat dense").style(
+                            f"color:{COLORS['accent']};font-size:11px;")
 
                         def _rm(it=it, adv_items=adv_items):
                             adv_items.remove(it)
