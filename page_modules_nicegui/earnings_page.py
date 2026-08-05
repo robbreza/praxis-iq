@@ -2293,6 +2293,243 @@ def _build_qa_prep(ss):
     return items
 
 
+def _adversarial_qa(ss):
+    """AI 'skeptical analyst' pass over the ASSEMBLED script: the toughest follow-up
+    questions the prepared remarks LEAVE EXPOSED — a number stated but unexplained, a
+    claim without support, a soft spot glossed over — each with why the script invites
+    it and a Regulation FD-safe answer angle (public info only; never a new number,
+    never guidance, never MNPI). Grounded in the deterministic Q&A prep (research-note
+    catalysts + last quarter's un-pre-empted topics) so it reflects what analysts have
+    actually flagged. Returns a list of {question, why, angle}; [] if no script / no AI."""
+    script = _assembled_script_text(ss)
+    if not script.strip():
+        return []
+    ticker = CT("ticker", "")
+    prep = _build_qa_prep(ss)
+    grounding = "\n".join(f"- {i['topic']} ({i['source']})" for i in prep) or "(none on file)"
+    _cons = market_data.consensus_rev_value()
+    cons_line = (f"Street consensus revenue was ${_cons:.1f}M." if isinstance(_cons, (int, float)) and _cons
+                 else "No published sell-side consensus is on file for this name.")
+    prompt = f"""You are a SKEPTICAL, well-prepared sell-side analyst covering {ticker}. Below is the FULL \
+prepared-remarks script the company will read on its upcoming earnings call. Find the toughest follow-up \
+questions the script LEAVES EXPOSED — a figure it states but doesn't explain, a claim it makes without \
+support, a trend it doesn't address, a soft spot it glosses over, a comparison it invites.
+
+{cons_line}
+
+Topics analysts have ALREADY flagged (ingested research notes + last quarter's unanswered questions) — weave \
+these in where the script fails to pre-empt them:
+{grounding}
+
+===== BEGIN PREPARED-REMARKS SCRIPT =====
+{script}
+===== END PREPARED-REMARKS SCRIPT =====
+
+Give 5-8 questions, HARDEST first. For EACH, output EXACTLY this block and nothing else:
+Q: <the pointed question an analyst would actually ask on the call>
+WHY: <what in THIS script invites it — quote or paraphrase the exposed line>
+ANGLE: <a Regulation FD-SAFE way for management to answer: PUBLIC information only. Do NOT invent a number, do \
+NOT provide guidance or any unreleased figure, do NOT promise a call/meeting. If an honest answer would need \
+undisclosed info, the angle is to acknowledge the question and defer to the next scheduled disclosure.>
+---
+
+Rules: base every question on THIS script's actual content — do not fabricate facts about the company, and the \
+ANGLE must never manufacture a figure or a forward-looking number."""
+    raw = _call_claude_script(prompt, 1400)
+    if not raw or not raw.strip():
+        return []
+    items = []
+    for block in raw.split("---"):
+        q = why = angle = ""
+        for line in block.strip().splitlines():
+            s = line.strip()
+            if s.lower().startswith("q:"):
+                q = s[2:].strip()
+            elif s.lower().startswith("why:"):
+                why = s[4:].strip()
+            elif s.lower().startswith("angle:"):
+                angle = s[6:].strip()
+        if q:
+            items.append({"question": q, "why": why, "angle": angle})
+    return items
+
+
+def _fmt_val(v, label):
+    """Format a tie-out figure the way it reads in the script, inferred from the metric label."""
+    lo = label.lower()
+    if "margin" in lo or "growth" in lo or "yoy" in lo:
+        return f"{v:g}%"
+    if "eps" in lo:
+        return f"${v:.2f}"
+    if "volume processed" in lo:
+        return f"${v:g}B"
+    return f"${v:g}M"
+
+
+def _number_tieout(ss):
+    """Deterministic (no-AI) audit of the ASSEMBLED script against the source-of-truth
+    numbers — the CFO's Stage-1 actuals (q2_numbers) and the recorded guidance range.
+    Every figure spoken in the script is classified:
+      - matched:    equals a submitted value (ties out).
+      - mismatches: keyword-anchored NEAR-MISS on a HEADLINE metric — the script states a
+                    figure close to (but not equal to) e.g. revenue, right where it talks
+                    about revenue. This is the classic stale-number / fat-finger slip.
+      - unverified: a figure that doesn't tie to any submitted value (YoY %, prior-year,
+                    derived) — usually fine, surfaced for a human eyeball.
+      - omitted:    a headline actual that never appears in the script (informational).
+    Returns {present, matched[], mismatches[], unverified[], omitted[]}."""
+    import math
+    import re
+    script = _assembled_script_text(ss)
+    out = {"present": bool(script.strip()), "matched": [], "mismatches": [], "unverified": [], "omitted": []}
+    if not out["present"]:
+        return out
+    n = ss.get("q2_numbers", {}) or {}
+    gd = ss.get("guidance_decision", {}) or {}
+
+    # Source of truth: (label, value, class, keywords, is_headline)
+    sources = []
+
+    def add(label, val, cls, kws, headline=False):
+        if isinstance(val, (int, float)):
+            sources.append((label, float(val), cls, kws, headline))
+
+    add("Revenue", n.get("rev"), "money_m", ["revenue", "top line", "top-line"], True)
+    add("Adjusted EBITDA", n.get("ebitda"), "money_m", ["ebitda"], True)
+    add("Gross profit", n.get("gp"), "money_m", ["gross profit"])
+    add("SG&A", n.get("sga"), "money_m", ["sg&a", "operating expense"])
+    add("Cash", n.get("cash"), "money_m", ["cash"])
+    add("ACH revenue", n.get("ach"), "money_m", ["ach"])
+    add("Card/PayFac revenue", n.get("card"), "money_m", ["card", "payfac"])
+    add("Prepaid revenue", n.get("prepaid"), "money_m", ["prepaid"])
+    add("Output Solutions revenue", n.get("output"), "money_m", ["output"])
+    add("Transactions", n.get("txn"), "money_m", ["transaction"])
+    add("Gross margin", n.get("gm"), "pct", ["margin"], True)
+    add("Volume growth (YoY)", n.get("vol_yoy"), "pct", ["volume", "grew", "growth", "year-over-year", "yoy"])
+    add("Volume processed", n.get("vol"), "money_b", ["volume", "processed"], True)
+    add("GAAP EPS", n.get("eps"), "dollars", ["eps", "per share", "earnings per share"], True)
+    add("FY guidance — low end", gd.get("new_low"), "money_m",
+        ["guidance", "full-year", "full year", "raising", "reaffirm"], True)
+    add("FY guidance — high end", gd.get("new_hi"), "money_m",
+        ["guidance", "full-year", "full year", "raising", "reaffirm"], True)
+    # Street consensus is a legitimate comparison figure the script may cite ("$102M Street") —
+    # recognize it as a source so it ties out instead of looking like a misstated revenue.
+    add("Street consensus", market_data.consensus_rev_value(), "money_m", ["consensus", "street", "estimate"])
+
+    def _cround(x, nd):  # commercial (round-half-up) rounding, unlike Python's banker's round()
+        f = 10 ** nd
+        return math.floor(abs(x) * f + 0.5) / f * (1 if x >= 0 else -1)
+
+    def eq(a, b):
+        # Exact to a tenth, OR a legitimate rounding of the submitted value (so "$103M"
+        # for a submitted 102.5 ties out, but a typo'd "$102.3M" does not).
+        if abs(a - b) <= 0.05:
+            return True
+        return any(abs(a - _cround(b, nd)) <= 0.001 for nd in (0, 1))
+
+    def near(a, b):
+        return abs(b) > 0 and not eq(a, b) and abs(a - b) <= 0.12 * abs(b)
+
+    num_re = re.compile(
+        r'(\$)?\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s?(billion|million|percent|bps|%|\bB\b|\bM\b|\bK\b)?',
+        re.I)
+    # Comparison cues that mark a figure as a reference (a guide, the Street, a prior period),
+    # NOT the metric itself — if one sits just before the figure, it's never a "mismatch".
+    _COMPARE_CUES = ("guide", "street", "consensus", "estimate", "expectation", "versus", " vs ",
+                     "ahead of", "compared", "prior", "year-ago", "year ago", "a year", "up from",
+                     "down from", "from $", " than ", "above", "below", "beat", "target", "outlook", "forecast")
+    matched_labels, mismatch_labels, seen = set(), set(), set()
+    for m in num_re.finditer(script):
+        dollar, raw, suf = m.group(1), m.group(2), (m.group(3) or "").lower()
+        try:
+            val = float(raw.replace(",", ""))
+        except ValueError:
+            continue
+        if suf in ("%", "percent"):
+            cls = "pct"
+        elif suf in ("billion", "b"):
+            cls = "money_b"
+        elif suf in ("million", "m"):
+            cls = "money_m"
+        elif dollar and val < 20 and "." in raw:
+            cls = "dollars"
+        else:
+            continue  # plain integers ("20 years", "3 questions") — too noisy to audit
+        snippet = script[max(0, m.start() - 45):min(len(script), m.end() + 30)].replace("\n", " ").strip()
+        pre = script[max(0, m.start() - 30):m.start()].lower()  # tight window immediately before the figure
+        same = [s for s in sources if s[2] == cls]
+        if any(eq(val, s[1]) for s in same):
+            for s in same:
+                if eq(val, s[1]):
+                    matched_labels.add(s[0])
+            continue
+        # Keyword-anchored near-miss on a HEADLINE metric: the metric word must sit in the tight
+        # window right BEFORE the figure, with no comparison cue there — so "$100M guide",
+        # "$102M Street" and "up from $88M" read as comparisons, not misstatements of the metric.
+        flagged = False
+        if not any(c in pre for c in _COMPARE_CUES):
+            for label, sval, _cls, kws, headline in same:
+                if headline and near(val, sval) and any(k in pre for k in kws):
+                    out["mismatches"].append({"label": label, "source": sval, "script": val, "snippet": snippet})
+                    mismatch_labels.add(label)
+                    flagged = True
+                    break
+        if flagged:
+            continue
+        dedup = (round(val, 3), snippet[:24])
+        if dedup not in seen:
+            seen.add(dedup)
+            out["unverified"].append({"value": val, "cls": cls, "snippet": snippet})
+    out["matched"] = sorted(matched_labels)
+    # A headline metric is "omitted" only if it's neither tied out NOR flagged as a
+    # mismatch — a mismatched metric IS mentioned (just wrong), not missing.
+    out["omitted"] = [s[0] for s in sources if s[4] and s[0] not in matched_labels and s[0] not in mismatch_labels]
+    out["unverified"] = out["unverified"][:15]
+    return out
+
+
+def _render_number_tieout(ss):
+    """Render the deterministic number tie-out audit (see _number_tieout)."""
+    t = _number_tieout(ss)
+    if not t["present"]:
+        return
+    ui.separator().style("margin:10px 0 4px;")
+    ui.label("Number tie-out — does the script match the submitted numbers?").classes("font-bold").style(
+        f"color:{COLORS['text_heading']};font-size:13px;")
+    ui.label("Deterministic check (no AI, always on): every figure spoken in the assembled script tied back to "
+             "the CFO's Stage-1 actuals and the recorded guidance range. A mismatch is a stated figure CLOSE to "
+             "a headline number but not equal to it — the classic stale-number slip.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+    if t["mismatches"]:
+        for m in t["mismatches"]:
+            with ui.card().classes("w-full").style(
+                    "background:rgba(185,28,28,.08);border:1px solid #B91C1C;border-left:4px solid #B91C1C;"
+                    "margin:4px 0;"):
+                ui.label(f"⚠ Possible mismatch — {m['label']}").classes("font-bold").style(
+                    "color:#B91C1C;font-size:12px;")
+                ui.label(f"Script states {_fmt_val(m['script'], m['label'])}, but the submitted {m['label']} is "
+                         f"{_fmt_val(m['source'], m['label'])}.").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"…{m['snippet']}…").style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+    else:
+        ui.label("✓ No conflicting headline figures — every headline number stated ties to the submitted "
+                 "actuals.").style("color:#15803D;font-size:12px;font-weight:600;")
+    if t["matched"]:
+        ui.label("Ties out: " + ", ".join(t["matched"])).style("color:#15803D;font-size:11.5px;")
+    if t["omitted"]:
+        ui.label("Submitted but not stated in the script (informational): " + ", ".join(t["omitted"])).style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+    if t["unverified"]:
+        with ui.expansion(f"{len(t['unverified'])} other figure(s) not tied to a submitted number — review",
+                          icon="fact_check").classes("w-full").style("margin-top:4px;"):
+            ui.label("Figures in the script (YoY %, prior-year, derived) that don't match a Stage-1 actual — "
+                     "usually fine, just confirm each is right.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;")
+            for u in t["unverified"]:
+                unit = "%" if u["cls"] == "pct" else ""
+                ui.label(f"• {u['value']:g}{unit}  —  …{u['snippet']}…").style(
+                    f"color:{COLORS['text_body']};font-size:11.5px;")
+
+
 def _render_qa_prep_tab(ss):
     ui.label("Q&A Prep — Predicted Questions").classes("font-bold")
     ui.label("Topics that weren't pre-empted last quarter, plus catalysts/risks flagged in ingested sell-side "
@@ -2302,16 +2539,76 @@ def _render_qa_prep_tab(ss):
     if not items:
         ui.label("Nothing carried over from last quarter, and no research notes with catalysts/risks have "
                   "been ingested yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
-        return
-    sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
-    for item in items:
-        clr = sev_color.get(item["severity"], "#64748B")
-        with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {clr};margin-bottom:6px;"):
-            ui.label(f"{item['severity']} · {item['topic']}").classes("font-bold").style(f"color:{clr};font-size:13px;")
-            ui.label(item["source"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
-            if item.get("detail"):
-                ui.label(item["detail"]).style(f"color:{COLORS['text_body']};font-size:12px;")
-            ui.label(f"{item['suggested_angle']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+    else:
+        sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
+        for item in items:
+            clr = sev_color.get(item["severity"], "#64748B")
+            with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {clr};margin-bottom:6px;"):
+                ui.label(f"{item['severity']} · {item['topic']}").classes("font-bold").style(f"color:{clr};font-size:13px;")
+                ui.label(item["source"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                if item.get("detail"):
+                    ui.label(item["detail"]).style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"{item['suggested_angle']}").style(f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+
+    # ── Adversarial analyst pass ──────────────────────────────────────────
+    # The AI counterpart to the deterministic list above: it reads the ASSEMBLED
+    # script and role-plays a skeptical sell-side analyst, surfacing the questions
+    # the prepared remarks leave exposed — each with a Reg FD-safe answer angle.
+    # On-demand (a real AI call), cached in ss so it doesn't re-run every render.
+    ui.separator().style("margin:10px 0 4px;")
+    ui.label("Adversarial analyst pass — questions the drafted script leaves exposed").classes("font-bold").style(
+        f"color:{COLORS['text_heading']};font-size:13px;")
+    ui.label("An AI plays a skeptical sell-side analyst reading your ASSEMBLED script and finds the toughest "
+             "follow-ups it invites — grounded in the research notes and last quarter's open topics above. Each "
+             "comes with a Regulation FD-safe answer angle (public info only; it never invents a number or "
+             "guidance). Review before the call.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    adv_box = ui.column().classes("w-full gap-1").style("margin-top:4px;")
+
+    def _render_adv():
+        adv_box.clear()
+        data = ss.get("adversarial_qa") or {}
+        adv_items = data.get("items") or []
+        with adv_box:
+            if data.get("generated_at"):
+                ui.label(f"Generated {data['generated_at']} — from the assembled script at that time. "
+                         "Re-run after editing the script.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            for it in adv_items:
+                with ui.card().classes("w-full").style(
+                        "background:rgba(180,83,9,.07);border:1px solid #B4530955;border-left:4px solid #B45309;"
+                        "margin-bottom:6px;"):
+                    ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
+                        f"color:{COLORS['text_heading']};font-size:13px;")
+                    if it.get("why"):
+                        ui.label("What invites it: " + it["why"]).style(
+                            f"color:{COLORS['text_muted']};font-size:12px;")
+                    if it.get("angle"):
+                        ui.label("Reg FD-safe answer angle: " + it["angle"]).style(
+                            f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+            if not adv_items and data.get("generated_at"):
+                ui.label("No exposed questions surfaced — the script pre-empts the obvious ones.").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+
+    _render_adv()
+
+    def _run_adv():
+        ui.notify("Reading the script as a skeptical analyst…", type="info")
+        try:
+            adv_items = _adversarial_qa(ss)
+        except Exception as exc:
+            ui.notify(f"Adversarial pass failed: {exc}", type="negative")
+            raise
+        if not adv_items:
+            ui.notify("Needs the AI (ANTHROPIC_API_KEY) and a drafted script — nothing generated.", type="warning")
+            return
+        ss["adversarial_qa"] = {"items": adv_items, "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+        _save_json("script_workflow_state.json", ss)
+        _render_adv()
+        ui.notify(f"Surfaced {len(adv_items)} exposed question(s) — review the answer angles.", type="positive")
+
+    _have = bool((ss.get("adversarial_qa") or {}).get("items"))
+    ui.button("Re-run adversarial pass" if _have else "Generate tough questions from the script",
+              icon="gavel", on_click=_run_adv).props("color=primary dense").style("margin-top:4px;")
 
 
 def _ensure_script_drafted(ss):
@@ -2508,6 +2805,9 @@ def _render_script_canvas(ss):
                     _refresh()
 
                 ui.button("Save & Mark First Pass Completed", on_click=mark_first_pass).props("color=primary dense")
+
+        # Deterministic audit of the assembled script against the submitted numbers.
+        _render_number_tieout(ss)
 
 
 # ─────────────────────────────────────────────────────────────────────────
