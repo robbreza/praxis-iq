@@ -4,9 +4,13 @@
 > Near-term roadmap for the Praxis Point IR platform after the 2026-07-15 demo. Entries are
 > reverse-chronological (newest first). `[[name]]` markers reference related working-memory notes.
 >
-> _Last synced from memory: 2026-08-04._
+> _Last synced from memory: 2026-08-05._
 
 ---
+
+## 2026-08-04 (cont.) — Automated test suite for the Q&A/script workflow
+
+**DONE (commit bc8eb45).** The session's Q&A/script features were verified only manually + by render-only `smoke_render.py`; the heuristic logic had zero committed coverage (unlike the 61-test Lighthouse suite). Added a pytest suite following `tests/test_lighthouse_*` convention: **`tests/conftest.py`** — `mem_db` fixture (opt-in, in-memory replacement for `core.db` load/save so store-touching tests never write the real DB / a real tenant — the STRUCTURAL fix for the demo-clobber hazard hit 3× this session). **`test_qa_mnpi.py`** (scan_mnpi safe-clean vs forward-looking-flagged), **`test_qa_number_tieout.py`** (exact/rounding tie-out, typo near-miss amid guide/Street, no false flags, omitted, guidance range, `_fmt_val`; monkeypatches `_assembled_script_text` + `market_data.consensus_rev_value`), **`test_qa_prep.py`** (`_qa_key` dedup, `_qa_item_source`, `_quarter_sort_key`, `_prep_accuracy_series`, `_suggest_responder`), **`test_qa_bank.py`** (`_sector_key`, sector-scoped seeds/questions, accrue/bank counts, demo global-isolation, idempotency — hermetic via `mem_db` + fake client sectors). 29 tests passing; 90 collected across tests/ with no disturbance to Lighthouse. Run: `python -m pytest tests/test_qa_*.py -q`. **Recommended next (not built): per-client loop-readiness panel (reuse `waiting_signal`); analyst-follow-up bridge (surprise question → who asked → CRM flag).** [[cfa-level-financial-analysis]]
 
 ## 2026-08-04 (cont.) — Cross-quarter prediction-accuracy trend (Q&A loop complete)
 
