@@ -2530,6 +2530,152 @@ def _render_number_tieout(ss):
                     f"color:{COLORS['text_body']};font-size:11.5px;")
 
 
+# Historical minutes per prepared-remarks section, from the Q1 2026 actuals
+# (_Q1_SECTION_TIMING) — the budget the live estimate is measured against.
+_SECTION_BUDGET_MIN = {"CEO": 8.0, "CFO": 10.0, "CRO": 10.0}
+_QA_ALLOTMENT_MIN = 40.0      # historical Q&A length (Q1 2026 ran 40 min)
+_HIST_CALL_MIN = 72.0         # historical total call length (Q1 2026)
+
+
+def _call_time_budget(ss):
+    """Roll the per-section word counts into a projected call length, at the client's
+    OWN Q1-derived speaking rate (_HISTORICAL_WPM), each prepared section measured
+    against its historical minutes and the whole thing added to the historical Q&A
+    allotment. Deterministic. Returns {rows, prepared, qa, total, hist_total, wpm}."""
+    wpm = _HISTORICAL_WPM or 130
+
+    def est(txt):
+        w = len((txt or "").split())
+        return w, (w / wpm if wpm else 0.0)
+
+    rows = []
+    op, welcome, fls = _call_opening_text(ss)
+    ow, om = est(" ".join(x for x in (op, welcome, fls) if x))
+    rows.append({"label": "Call opening (operator + welcome + safe harbor)", "words": ow, "est": om, "budget": None})
+    for role, key, label in _active_personas():
+        w, mn = est(ss["script_text"].get(key, ""))
+        rows.append({"label": label, "words": w, "est": mn, "budget": _SECTION_BUDGET_MIN.get(role)})
+    gtext = (ss.get("guidance_decision") or {}).get("text", "")
+    if gtext.strip():
+        w, mn = est(gtext)
+        rows.append({"label": "Guidance & Outlook", "words": w, "est": mn, "budget": 4.0})
+    prepared = sum(r["est"] for r in rows)
+    return {"rows": rows, "prepared": prepared, "qa": _QA_ALLOTMENT_MIN,
+            "total": prepared + _QA_ALLOTMENT_MIN, "hist_total": _HIST_CALL_MIN, "wpm": wpm}
+
+
+def _render_time_budget(ss):
+    """Render the whole-call time budget (see _call_time_budget)."""
+    b = _call_time_budget(ss)
+    if not any(r["words"] for r in b["rows"]):
+        return
+    ui.separator().style("margin:10px 0 4px;")
+    ui.label("Call time budget — how long will this run?").classes("font-bold").style(
+        f"color:{COLORS['text_heading']};font-size:13px;")
+    ui.label(f"Estimated speaking time at the client's own Q1-derived pace (~{b['wpm']} words/min), each prepared "
+             f"section against its historical minutes, rolled up with the historical ~{b['qa']:.0f}-min Q&A. "
+             "Deterministic — no AI.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+    over = b["total"] - b["hist_total"]
+    band = b["hist_total"] * 0.06
+    hl_clr = "#B91C1C" if over > band else ("#1E40AF" if over < -band else "#15803D")
+    verdict = ("runs long" if over > band else ("runs short" if over < -band else "on pace"))
+    with ui.card().classes("w-full").style(
+            f"background:rgba(0,0,0,.12);border:1px solid {hl_clr};border-left:4px solid {hl_clr};margin:4px 0;"):
+        ui.label(f"Projected call ≈ {b['total']:.0f} min").classes("font-bold").style(
+            f"color:{hl_clr};font-size:14px;")
+        ui.label(f"Prepared remarks ≈ {b['prepared']:.1f} min  +  ~{b['qa']:.0f} min Q&A (historical). "
+                 f"vs ~{b['hist_total']:.0f} min historical (Q1 2026) — {verdict} by {abs(over):.0f} min.").style(
+            f"color:{COLORS['text_body']};font-size:12px;")
+
+    for r in b["rows"]:
+        if r["budget"]:
+            d = r["est"] - r["budget"]
+            fclr = "#B91C1C" if d > r["budget"] * 0.15 else ("#1E40AF" if d < -r["budget"] * 0.15 else "#15803D")
+            note = f"budget {r['budget']:.0f} min · {'+' if d >= 0 else ''}{d:.1f} min"
+        else:
+            fclr, note = COLORS["text_muted"], "no historical budget"
+        with ui.row().classes("w-full items-center").style("gap:8px;padding:1px 0;"):
+            ui.label(r["label"]).style(f"color:{COLORS['text_body']};font-size:12px;flex:1;")
+            ui.label(f"≈ {r['est']:.1f} min ({r['words']}w)").style(
+                f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;text-align:right;")
+            ui.label(note).style(f"color:{fclr};font-size:12px;min-width:150px;text-align:right;font-weight:600;")
+
+
+def _script_blocks(ss):
+    """Structured (speaker, label, text) blocks in speaking order — the same content
+    _assembled_script_text flattens, kept per-speaker for the teleprompter export."""
+    contacts = _contacts()
+    op, welcome, fls = _call_opening_text(ss)
+    blocks = []
+    if op and op.strip():
+        blocks.append(("Operator", "Call opening", op))
+    ir_name = contacts.get("IR", {}).get("name", "Investor Relations")
+    intro = "\n\n".join(x for x in (welcome, fls) if x and x.strip())
+    if intro:
+        blocks.append((ir_name, "Welcome & safe harbor", intro))
+    for role, key, label in _active_personas():
+        txt = ss["script_text"].get(key, "")
+        if txt and txt.strip():
+            blocks.append((contacts.get(role, {}).get("name", role), label, txt))
+    gtext = (ss.get("guidance_decision") or {}).get("text", "")
+    if gtext.strip():
+        blocks.append((contacts.get("CEO", {}).get("name", "CEO"), "Guidance & outlook", gtext))
+    return blocks
+
+
+_TELEPROMPTER_CSS = """<style>
+:root{--fs:30px;--accent:#4aa3ff}
+*{box-sizing:border-box}
+body{margin:0;background:#0b0f14;color:#eef2f7;font-family:Georgia,'Times New Roman',serif;line-height:1.75}
+.bar{position:fixed;inset:0 0 auto 0;display:flex;gap:8px;align-items:center;padding:8px 14px;
+ background:linear-gradient(#0b0f14,rgba(11,15,20,.9) 70%,transparent);z-index:10}
+.bar .title{margin-right:auto;font:600 13px system-ui;color:#8aa0b6;letter-spacing:.03em}
+.bar button{font:600 14px system-ui;background:#1b2430;color:#eef2f7;border:1px solid #2c3a4a;border-radius:6px;
+ padding:6px 11px;cursor:pointer}
+.bar button:hover{background:#243244}
+main{max-width:900px;margin:0 auto;padding:60px 28px 80vh;font-size:var(--fs)}
+section{margin:0}
+h2{position:sticky;top:42px;background:#0b0f14;margin:26px 0 12px;padding:8px 0;border-bottom:2px solid var(--accent);
+ display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-family:system-ui}
+h2 .role{font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h2 .who{font-size:15px;color:#8aa0b6;white-space:nowrap}
+p{margin:0 0 .7em}
+.handoff{text-align:center;color:#5f7488;font:600 15px system-ui;letter-spacing:.1em;margin:22px 0}
+@media print{.bar{display:none}body{background:#fff;color:#000}h2{background:#fff}main{padding-top:12px}}
+</style>"""
+
+_TELEPROMPTER_JS = """<script>
+var fs=30,auto=false,tid=null;
+function setFs(d){fs=Math.max(16,Math.min(80,fs+d));document.documentElement.style.setProperty('--fs',fs+'px');}
+function toggle(){auto=!auto;var b=document.getElementById('auto');b.textContent=auto?'\\u23F8 Stop':'\\u25B6 Auto-scroll';
+ if(auto){tid=setInterval(function(){window.scrollBy(0,1);},40);}else{clearInterval(tid);}}
+</script>"""
+
+
+def _teleprompter_html(ss):
+    """A self-contained, dark, large-type teleprompter page of the assembled script —
+    per speaker, with handoff cues, font-size controls and an auto-scroll toggle.
+    Downloaded (not an Artifact), so inline CSS/JS is fine."""
+    import html as _html
+    ticker, quarter = CT("ticker", ""), CE().get("current_quarter", "")
+    title = f"{ticker} {quarter} — Teleprompter".strip()
+    blocks = _script_blocks(ss)
+    secs = []
+    for i, (speaker, label, text) in enumerate(blocks):
+        paras = "".join(f"<p>{_html.escape(p.strip())}</p>" for p in text.split("\n") if p.strip())
+        handoff = "" if i == len(blocks) - 1 else '<div class="handoff">▼  pause — hand off  ▼</div>'
+        secs.append(f'<section><h2><span class="role">{_html.escape(label)}</span>'
+                    f'<span class="who">{_html.escape(speaker)}</span></h2>{paras}</section>{handoff}')
+    bar = (f'<div class="bar"><span class="title">{_html.escape(title)}</span>'
+           '<button onclick="setFs(-2)">A−</button><button onclick="setFs(2)">A+</button>'
+           '<button id="auto" onclick="toggle()">▶ Auto-scroll</button></div>')
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<title>{_html.escape(title)}</title>' + _TELEPROMPTER_CSS + '</head><body>'
+            + bar + '<main id="doc">' + "\n".join(secs) + '</main>' + _TELEPROMPTER_JS + '</body></html>')
+
+
 def _render_qa_prep_tab(ss):
     ui.label("Q&A Prep — Predicted Questions").classes("font-bold")
     ui.label("Topics that weren't pre-empted last quarter, plus catalysts/risks flagged in ingested sell-side "
@@ -2790,6 +2936,13 @@ def _render_script_canvas(ss):
 
             ui.button("Download Current Draft", on_click=export_txt).props("flat")
 
+            def export_teleprompter():
+                html = _teleprompter_html(ss)
+                fname = f"{CT('ticker')}_{CE().get('current_quarter','')}_Teleprompter.html".replace(" ", "_")
+                ui.download(html.encode("utf-8"), fname)
+
+            ui.button("Teleprompter (HTML)", icon="present_to_all", on_click=export_teleprompter).props("flat")
+
             fp = ss.get("first_pass_complete")
             if fp:
                 ui.label(f"First Pass Completed — {fp}").style("color:#15803D;font-size:12px;font-weight:600;")
@@ -2806,8 +2959,9 @@ def _render_script_canvas(ss):
 
                 ui.button("Save & Mark First Pass Completed", on_click=mark_first_pass).props("color=primary dense")
 
-        # Deterministic audit of the assembled script against the submitted numbers.
+        # Deterministic audits of the assembled script: numbers tie-out + call time budget.
         _render_number_tieout(ss)
+        _render_time_budget(ss)
 
 
 # ─────────────────────────────────────────────────────────────────────────
