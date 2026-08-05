@@ -2981,10 +2981,12 @@ def _render_qa_bank_editor():
 
     with ui.expansion("House Q&A bank — recurring questions that seed the adversarial pass",
                       icon="quiz").classes("w-full").style("margin-top:10px;"):
-        ui.label("Questions analysts have actually asked — accrued automatically from Morning-After "
-                 "surprises (across every client) plus a seeded set of recurring asks. Every adversarial "
-                 "pass is seeded with this bank, so a question that surprised us once gets checked against "
-                 "every future script.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _csec = qa_bank.client_sector(cid)
+        ui.label(f"Questions analysts have actually asked — accrued automatically from Morning-After "
+                 f"surprises (tagged by the source client's sector) plus a seeded set of recurring asks. "
+                 f"Every adversarial pass is seeded with the questions relevant to this client's sector "
+                 f"(here: {_csec}) plus universal ones — so a payments question never seeds an aerospace "
+                 f"client.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
         _box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
 
         def _rebuild():
@@ -2995,6 +2997,7 @@ def _render_qa_bank_editor():
                     ui.label("Bank is empty.").style(f"color:{COLORS['text_muted']};font-size:12px;")
                 for e in entries:
                     kind = e.get("kind") or "manual"
+                    sector = e.get("sector") or "universal"
                     src = f" · from {e.get('source_client')} {e.get('source_quarter') or ''}".rstrip() \
                         if e.get("source_client") else (" · house seed" if e.get("seed") else "")
                     with ui.card().classes("w-full").style(
@@ -3005,7 +3008,8 @@ def _render_qa_bank_editor():
                                 f"color:{COLORS['text_body']};font-size:12px;flex:1;")
                             tag_clr = "#B91C1C" if kind == "surprise" else (
                                 "#15803D" if kind == "asked" else COLORS["text_muted"])
-                            ui.label(f"{kind}{src}").style(f"color:{tag_clr};font-size:10px;white-space:nowrap;")
+                            ui.label(f"{kind} · {sector}{src}").style(
+                                f"color:{tag_clr};font-size:10px;white-space:nowrap;")
                             if not _ro and not e.get("seed"):
                                 def _del(k=e.get("key")):
                                     # Remove from whichever scope holds it (client first, else global).
@@ -3020,12 +3024,16 @@ def _render_qa_bank_editor():
                         _nq = ui.input(label="Add a question to the house bank",
                                        placeholder="e.g. How exposed are you to interchange-fee regulation?").classes(
                             "flex-grow").props("dense")
+                        _sec_sel = ui.select({_csec: f"{_csec} only", "universal": "All sectors"},
+                                             value=_csec, label="Applies to").props("dense outlined").classes(
+                            "min-w-[150px]")
 
-                        def _add(_nq=_nq):
+                        def _add(_nq=_nq, _sec_sel=_sec_sel):
                             if not (_nq.value or "").strip():
                                 ui.notify("Type a question first.", type="warning")
                                 return
-                            qa_bank.add(_nq.value, kind="manual", scope="global", added_by="user")
+                            qa_bank.add(_nq.value, kind="manual", scope="global", added_by="user",
+                                        sector=_sec_sel.value or "universal")
                             ui.notify("Added to the house bank — it'll seed future adversarial passes.",
                                       type="positive")
                             _rebuild()
