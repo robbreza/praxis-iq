@@ -543,6 +543,32 @@ def seed():
                              "incremental-margin flow-through?", "why": "", "angle": ""},
             ],
         },
+        # Illustrative prep-vs-actual history so the Morning-After "Prediction accuracy
+        # over time" trend shows the loop compounding (Q1 17% -> Q2 29%). The Q2 record
+        # is regenerated for real when the user runs the comparison against the transcript.
+        "prep_vs_actual": {
+            "Q1 2026": {
+                "generated_at": (TODAY - timedelta(days=83)).strftime("%Y-%m-%d %H:%M"),
+                "script": {"delivered": ["Revenue and margin walk", "Volume growth commentary"],
+                           "dropped": ["Interest-income sensitivity"], "improvised": ["Board refresh mention"]},
+                "qa": {"hits": [{"pred": "Take-rate durability", "actual": "asked about attach sustainability"}],
+                       "misses": ["Prepaid mix shift", "Interest income", "Opex leverage", "Churn by cohort",
+                                  "FX exposure"],
+                       "surprises": ["Regulatory exposure to interchange caps", "Data-center cost inflation"],
+                       "hit_rate": 17},
+                "had_predictions": True, "accrued": {"new_global": 0, "new_client": 3}},
+            "Q2 2026": {
+                "generated_at": (TODAY - timedelta(days=3)).strftime("%Y-%m-%d %H:%M"),
+                "script": {"delivered": ["Revenue $102.5M", "Margin 24%", "Volume $8.9B +12%"],
+                           "dropped": ["Prepaid float driver"], "improvised": ["QSR partnership"]},
+                "qa": {"hits": [{"pred": "H2 deceleration cadence", "actual": "asked about the back-half step-down"},
+                                {"pred": "Capital allocation priority", "actual": "buyback vs M&A"}],
+                       "misses": ["PayFac attach sustainability", "Prepaid softness", "Interest income",
+                                  "High-end conservatism", "Flat operating margin"],
+                       "surprises": ["Big-tech competitive positioning", "QSR partnership economics"],
+                       "hit_rate": 29},
+                "had_predictions": True, "accrued": {"new_global": 0, "new_client": 4}},
+        },
     }, client_id=CID)
     print("[demo] seeded script workflow (2 of 5 stages complete, Q2 actuals in -> engine computes)")
 

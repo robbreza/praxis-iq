@@ -1519,6 +1519,64 @@ def _prep_vs_actual(quarter, ss, force=False):
     return out
 
 
+def _quarter_sort_key(q):
+    """Chronological sort key for a quarter label like 'Q2 2026' -> (2026, 2)."""
+    import re
+    yr = re.search(r"(20\d\d)", q or "")
+    qn = re.search(r"[Qq]\s*([1-4])", q or "")
+    return (int(yr.group(1)) if yr else 9999, int(qn.group(1)) if qn else 9)
+
+
+def _prep_accuracy_series(ss):
+    """Every quarter with a recorded prep-vs-actual hit rate, chronologically —
+    the cross-quarter prediction-accuracy trend."""
+    pts = []
+    for q, rec in (ss.get("prep_vs_actual") or {}).items():
+        qa = (rec or {}).get("qa") or {}
+        hr = qa.get("hit_rate")
+        if hr is None:
+            continue
+        h, m = len(qa.get("hits") or []), len(qa.get("misses") or [])
+        pts.append({"quarter": q, "rate": hr, "hits": h, "total": h + m,
+                    "surprises": len(qa.get("surprises") or [])})
+    pts.sort(key=lambda p: _quarter_sort_key(p["quarter"]))
+    return pts
+
+
+def _render_prep_accuracy_trend(ss):
+    """A compact cross-quarter trend of the adversarial pass's prediction accuracy —
+    shows the loop compounding as the house bank learns. Rendered only with 2+ quarters."""
+    pts = _prep_accuracy_series(ss)
+    if len(pts) < 2:
+        return
+    latest, prev = pts[-1], pts[-2]
+    delta = latest["rate"] - prev["rate"]
+    dclr = "#15803D" if delta > 0 else ("#B91C1C" if delta < 0 else COLORS["text_muted"])
+    arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "—")
+
+    ui.label("Prediction accuracy over time").classes("section-head").style("margin-top:14px;")
+    ui.label("How often the adversarial pass predicted the questions analysts actually asked. It should climb "
+             "as the house Q&A bank accrues each call's surprises and seeds the next pass.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;")
+    ui.label(f"{arrow} {abs(delta)} pts vs {prev['quarter']} — now {latest['rate']}% ({latest['hits']} of "
+             f"{latest['total']} predicted).").style(f"color:{dclr};font-size:12.5px;font-weight:600;margin-top:2px;")
+
+    for p in pts:
+        is_latest = p is latest
+        bar_clr = COLORS["accent"] if is_latest else COLORS["accent_light2"]
+        with ui.row().classes("w-full items-center").style("gap:8px;margin-top:3px;"):
+            ui.label(p["quarter"]).style(
+                f"color:{COLORS['text_body']};font-size:12px;width:84px;"
+                f"font-weight:{'700' if is_latest else '400'};")
+            with ui.element("div").style(
+                    f"flex:1;height:12px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    "border-radius:6px;overflow:hidden;"):
+                ui.element("div").style(f"height:100%;width:{max(2, min(100, p['rate']))}%;background:{bar_clr};")
+            ui.label(f"{p['rate']}%  ·  {p['hits']}/{p['total']}").style(
+                f"color:{COLORS['text_muted']};font-size:11.5px;width:96px;text-align:right;"
+                "font-variant-numeric:tabular-nums;")
+
+
 def _render_prep_vs_actual(ss, quarter):
     """Render the prep-vs-actual loop-closer (see _prep_vs_actual) — an on-demand,
     cached comparison of this quarter's drafted script + predicted Q&A against the call."""
@@ -1649,6 +1707,8 @@ def _render_morning_after_tab():
     def _body():
         # Loop-closer first: how did this quarter's prep hold up against the call?
         _render_prep_vs_actual(ss, state["q"])
+        # …and the cross-quarter arc, so the compounding is visible (2+ quarters).
+        _render_prep_accuracy_trend(ss)
         ui.markdown("---")
         try:
             c = morning_after.critique(state["q"])
