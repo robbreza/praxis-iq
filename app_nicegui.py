@@ -401,6 +401,13 @@ def apply_theme():
     """)
 
 
+def _render_fallback_banner():
+    """Page-top degraded-DB warning (shown on login too, since a Neon outage is the exact
+    reason a sign-in would fail). Implementation lives in the import-safe signals module."""
+    from page_modules_nicegui.signals import fallback_banner
+    fallback_banner()
+
+
 def _auth_card(title, subtitle):
     """Shared centered card shell for the login / change-password pages."""
     col = ui.column().classes("w-full items-center").style("margin-top:8vh;")
@@ -420,6 +427,7 @@ def login_page():
     if _current_user():
         ui.navigate.to("/")
         return
+    _render_fallback_banner()   # explains a sign-in failure when the Neon user store is offline
     with _auth_card("IRconnect", "Sign in"):
         email = ui.input("Email").props("outlined dense autofocus").classes("w-full")
         pw = ui.input("Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
@@ -699,6 +707,7 @@ def console_page_route():
         ui.navigate.to("/change-password"); return
     if not auth.is_staff(user):
         ui.navigate.to("/"); return
+    _render_fallback_banner()   # operators especially need to know the store is degraded
     from page_modules_nicegui import console_page
     console_page.render_console_home(user)
 
@@ -1139,6 +1148,8 @@ def main_page(request: Request = None):
             smenu.open()
 
         search.on_value_change(lambda: _run_search())
+
+    _render_fallback_banner()   # page-top degraded-DB warning (no-op when healthy)
 
     with drawer:
         # Role selector — options come from the active client's profile

@@ -40,6 +40,30 @@ def waiting_signal(what, detail=None, unlocks=None, compact=False):
                 f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
 
 
+def fallback_banner():
+    """A loud, page-top banner when the app is running on the local SQLite fallback
+    because Neon (the authoritative store) is unreachable — so a degraded/stale state is
+    never silent (it previously only printed one console line). Renders nothing when the
+    database is healthy. Lives here (an import-safe UI module) so it's reusable across
+    app pages and unit-testable without importing app_nicegui (which calls ui.run())."""
+    try:
+        from core import db
+        if not db.is_degraded_fallback():
+            return
+    except Exception:
+        return
+    with ui.element("div").style(
+            "width:100%;background:#B91C1C;color:#fff;padding:9px 18px;display:flex;align-items:center;"
+            "gap:12px;box-shadow:0 1px 6px rgba(0,0,0,.28);z-index:6;"):
+        ui.label("⚠").style("font-size:19px;line-height:1;")
+        with ui.column().classes("gap-0"):
+            ui.label("Database offline — running on a local fallback").style(
+                "font-weight:700;font-size:13px;")
+            ui.label("Live tenants aren't loading and changes are NOT saved to your database. Check "
+                     "DATABASE_URL / your Neon plan, then restart the app to reconnect.").style(
+                "font-size:11.5px;opacity:.93;")
+
+
 def waiting_chip(what):
     """A one-line inline chip version — for a table cell / metric row where a full card is too big."""
     ui.label(f"⏳ waiting for {what}").style(

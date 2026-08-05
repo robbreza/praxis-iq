@@ -410,6 +410,15 @@ def _pg_reachable():
     return _pg_status["available"]
 
 
+def is_degraded_fallback():
+    """True when Neon IS the authoritative store (DATABASE_URL is set) but is
+    UNREACHABLE this process, so the app is running on the local SQLite fallback —
+    a degraded state serving stale/local data that the UI should surface loudly.
+    False when SQLite is the intended backend (no DATABASE_URL) or Neon is reachable.
+    Cheap after the first call (both checks are cached), safe to call per render."""
+    return postgres_configured() and not _pg_reachable()
+
+
 def is_postgres():
     """True if DATABASE_URL is configured, psycopg2 is importable, and a
     real connection to Neon has been confirmed reachable this process —
