@@ -8,6 +8,10 @@
 
 ---
 
+## 2026-08-04 (cont.) — "Promote to KB" connector (Q&A answer → approved answers)
+
+**DONE (commit c4a04b9).** Bridges two of the three answer surfaces: a prepared Q&A answer (adversarial pass) can be promoted into the approved-answer KB (`core.ir_knowledge`), where the shareholder-reply drafter may state it directly. Each editable Q&A item has a **"Promote to KB"** button → `_promote_answer_to_kb(item)` opens a confirm dialog (topic + answer, both editable, prefilled from the item's CURRENT question/angle) with an **explicit Reg FD reminder** — the KB is public-facing, so only publicly disclosed info belongs there; confirm calls `ir_knowledge.add_entry(topic, answer, cid)`. Verified live: promoting a demo Q&A answer added it to the demo KB and it showed in `ir_knowledge.context_block("demo")` — i.e. now available to the shareholder-reply drafter on the IR Inbox; test entry cleaned after. smoke 44/44. Completes the connector flagged after the editable-Q&A build.
+
 ## 2026-08-04 (cont.) — Editable Q&A prep (own Q&A + edit generated answers)
 
 **DONE (commit 9c645c3).** The adversarial-pass Q&A prep was read-only; now the IR team can edit it. Every item's **question and prepared answer (angle) are editable inputs that autosave in place** (same pattern as the script draft box); an **"Add your own Q&A"** affordance appends a question + prepared answer (tagged "Added by IR", blue accent vs AI-drafted amber); Remove drops any item. **Re-running the adversarial pass PRESERVES the IR person's own Q&A** (only AI-drafted items regenerate — `_run_adv` keeps items flagged `manual`). Read-only viewers keep the non-editable display (`_adv_ro` captured once). Rendered in `_render_qa_prep_tab`'s adversarial section (`_render_adv`). Verified live: added a manual Q&A + edited a generated answer, both survived a DB round-trip; demo test artifacts cleaned after. Note: the three Q&A/answer surfaces are distinct — **adversarial Q&A prep** (per-call, editable, this), **house Q&A bank** (`qa_bank`, questions only, seeds future passes), **ir_knowledge KB** (approved answers for shareholder replies). smoke 44/44.
