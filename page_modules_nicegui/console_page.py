@@ -590,8 +590,18 @@ async def _open_lead_email_dialog(v):
     plus a compliant LinkedIn people-search link for a manual lookup."""
     import asyncio
 
-    from core import lead_outreach, zoho_mail
+    from core import lead_outreach, sales_pipeline, zoho_mail
     _zoho = zoho_mail.is_configured()
+
+    def _track(note=None):
+        """Record this inbound web lead + the touch in the sales pipeline."""
+        demo = bool(v.get("demo_request")) or ("Demo request" in (v.get("downloads") or []))
+        lead = sales_pipeline.upsert_lead(
+            "inbound", company=v.get("org"), ticker=v.get("ticker"),
+            email=v.get("email"), demo_request=demo)
+        if note:
+            sales_pipeline.log_touch(lead["id"], kind="email", note=note)
+
     with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
         ui.label(f"Email {v.get('org') or 'lead'}").classes("font-bold").style(
             f"color:{COLORS['text_heading']};font-size:14px;")
@@ -622,6 +632,8 @@ async def _open_lead_email_dialog(v):
             def _open_mail(_subj=_subj, _body=_body, to=v.get("email")):
                 href = f"mailto:{to}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
                 ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                _track(note=_subj.value or "email opened")
+                ui.notify("Tracked in the pipeline (Contacted).", type="positive")
             ui.button("Open in email", icon="mail", on_click=_open_mail).props(
                 "flat dense" if _zoho else "color=primary dense")
 
@@ -634,7 +646,8 @@ async def _open_lead_email_dialog(v):
                     ok, err = await asyncio.to_thread(
                         zoho_mail.send_email, to, _subj.value or "", _body.value or "")
                     if ok:
-                        ui.notify(f"Sent to {to} via Zoho.", type="positive")
+                        _track(note=_subj.value or "sent via Zoho")
+                        ui.notify(f"Sent to {to} — tracked in the pipeline.", type="positive")
                         dlg.close()
                     else:
                         ui.notify(f"Zoho send failed: {err}", type="negative")
@@ -651,6 +664,211 @@ async def _open_lead_email_dialog(v):
         _status.text = "Draft ready — edit as needed, then Open in email."
     else:
         _status.text = "Couldn't draft automatically — write your message above, then Open in email."
+
+
+_STAGE_STYLE = {
+    "identified": ("#64748B", "rgba(100,116,139,.14)"),
+    "contacted":  ("#2563EB", "rgba(37,99,235,.14)"),
+    "replied":    ("#0891B2", "rgba(8,145,178,.14)"),
+    "meeting":    ("#7C3AED", "rgba(124,58,237,.14)"),
+    "demo":       ("#B45309", "rgba(180,83,9,.14)"),
+    "won":        ("#15803D", "rgba(21,128,61,.14)"),
+    "lost":       ("#B91C1C", "rgba(185,28,28,.12)"),
+}
+
+
+async def _open_pipeline_email_dialog(lead, on_sent=None):
+    """Compose outreach to a pipeline lead; on send/open it logs a touch back to the pipeline
+    (advancing identified → contacted and starting the follow-up clock)."""
+    import asyncio
+
+    from core import ir_contact, sales_pipeline, zoho_mail
+    _zoho = zoho_mail.is_configured()
+    d = ir_contact.draft_email({"ir_name": lead.get("contact_name"),
+                                "company": lead.get("company"), "ticker": lead.get("ticker"),
+                                "analysts": None})
+    with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
+        ui.label(f"Email {lead.get('company') or 'lead'}").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:14px;")
+        who = " · ".join(x for x in [lead.get("contact_name"), lead.get("contact_title")] if x)
+        if who:
+            ui.label(who).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _to = ui.input("To", value=lead.get("email") or "").props("outlined dense").classes(
+            "w-full").style("font-size:12px;")
+        _subj = ui.input("Subject", value=d["subject"]).props("outlined dense").classes(
+            "w-full").style("font-size:12px;")
+        _body = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
+            "w-full").style("font-size:12px;")
+
+        def _logged(note):
+            sales_pipeline.log_touch(lead["id"], kind="email", note=note)
+            if on_sent:
+                on_sent()
+
+        with ui.row().classes("justify-end w-full gap-2 items-center").style("margin-top:4px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+            def _copy(_to=_to, _subj=_subj, _body=_body):
+                ui.run_javascript("navigator.clipboard.writeText(" + json.dumps(
+                    f"To: {_to.value}\nSubject: {_subj.value or ''}\n\n{_body.value or ''}") + ")")
+                ui.notify("Draft copied.", type="positive")
+            ui.button("Copy", icon="content_copy", on_click=_copy).props("flat dense")
+
+            def _open_mail(_to=_to, _subj=_subj, _body=_body):
+                href = f"mailto:{_to.value}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
+                ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                _logged(_subj.value or "email opened")
+                ui.notify("Logged as a touch — lead moved to Contacted.", type="positive")
+                dlg.close()
+            ui.button("Open in email", icon="mail", on_click=_open_mail).props(
+                "flat dense" if _zoho else "color=primary dense")
+
+            if _zoho:
+                async def _send(_to=_to, _subj=_subj, _body=_body):
+                    if not (_to.value or "").strip():
+                        ui.notify("Add a recipient email.", type="warning")
+                        return
+                    ui.notify("Sending via Zoho…", type="info")
+                    ok, err = await asyncio.to_thread(
+                        zoho_mail.send_email, _to.value, _subj.value or "", _body.value or "")
+                    if ok:
+                        _logged(_subj.value or "sent via Zoho")
+                        ui.notify(f"Sent to {_to.value} — logged to the pipeline.", type="positive")
+                        dlg.close()
+                    else:
+                        ui.notify(f"Zoho send failed: {err}", type="negative")
+                ui.button("Send via Zoho", icon="send", on_click=_send).props("color=primary dense")
+    dlg.open()
+
+
+def _render_sales_pipeline_panel():
+    """The unified Praxis sales pipeline (core.sales_pipeline, tenant 'praxis'). Inbound
+    demo-requests and overdue follow-ups surface first; reply-marking is manual; nothing
+    auto-sends. Fed by the web-traffic analyzer (inbound) and the prospect screener (outbound)."""
+    from core import sales_pipeline as sp
+    from core import web_ingest
+    from page_modules_nicegui.signals import waiting_signal
+
+    box = ui.column().classes("w-full").style("gap:8px;margin-top:8px;")
+
+    def _stage_chip(stage):
+        clr, bg = _STAGE_STYLE.get(stage, ("#64748B", "rgba(100,116,139,.14)"))
+        ui.label(stage.upper()).style(
+            f"background:{bg};color:{clr};font-size:9px;font-weight:800;letter-spacing:.04em;"
+            "padding:2px 8px;border-radius:9px;")
+
+    def _lead_card(lead, overdue):
+        src = lead.get("source")
+        border = "#B45309" if (src == "inbound" and lead.get("demo_request")) else (
+            "#B91C1C" if overdue else (COLORS["accent"] if src == "inbound" else COLORS["border"]))
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                f"border-left:4px solid {border};padding:6px 10px;"):
+            with ui.row().classes("w-full items-center").style("gap:7px;"):
+                ui.icon("call_received" if src == "inbound" else "search").style(
+                    f"color:{COLORS['text_muted']};font-size:14px;").tooltip(
+                    "Inbound — came to us" if src == "inbound" else "Outbound — we found them")
+                ui.label(lead.get("company") or "—").style(
+                    f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                if lead.get("ticker"):
+                    ui.label(lead["ticker"]).style(
+                        "background:#15803D;color:white;font-size:9.5px;font-weight:800;"
+                        "padding:1px 7px;border-radius:9px;")
+                if lead.get("demo_request"):
+                    ui.label("DEMO REQUEST").style(
+                        "background:#B45309;color:white;font-size:9px;font-weight:800;"
+                        "padding:1px 7px;border-radius:9px;")
+                if overdue:
+                    ui.label("FOLLOW-UP DUE").style(
+                        "background:#B91C1C;color:white;font-size:9px;font-weight:800;"
+                        "padding:1px 7px;border-radius:9px;")
+                ui.space()
+                _stage_chip(lead.get("stage"))
+            who = " · ".join(x for x in [lead.get("contact_name"), lead.get("contact_title"),
+                                         lead.get("email")] if x)
+            if who:
+                ui.label(who).style(f"color:{COLORS['text_muted']};font-size:11px;")
+            with ui.row().classes("w-full items-center").style("gap:8px;margin-top:2px;"):
+                sel = ui.select(sp.STAGES, value=lead.get("stage")).props("dense outlined").style(
+                    "font-size:11px;min-width:120px;")
+
+                def _on_stage(e, lid=lead["id"]):
+                    sp.set_stage(lid, e.value)
+                    _render()
+                sel.on("update:model-value", _on_stage)
+
+                nf = ui.input(value=lead.get("next_follow_up") or "").props(
+                    "type=date dense outlined").style("font-size:11px;max-width:150px;").tooltip(
+                    "Next follow-up")
+
+                def _on_nf(e, lid=lead["id"], nf=nf):
+                    sp.set_follow_up(lid, (nf.value or "").strip() or None)
+                    _render()
+                nf.on("blur", _on_nf)
+
+                ui.space()
+                if lead.get("stage") in ("contacted", "identified"):
+                    ui.button("Mark replied", icon="mark_email_read",
+                              on_click=lambda lid=lead["id"]: (sp.mark_replied(lid), _render())).props(
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                ui.button("Email", icon="send",
+                          on_click=lambda lead=lead: _open_pipeline_email_dialog(lead, on_sent=_render)).props(
+                    "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+
+    def _render():
+        box.clear()
+        with box:
+            with ui.row().classes("w-full items-center").style("gap:8px;"):
+                ui.label("Sales pipeline").classes("text-lg font-bold").style(
+                    f"color:{COLORS['text_heading']};")
+                ui.space()
+
+                def _sync():
+                    try:
+                        web_ingest.aggregate("praxis")
+                        new = sp.ingest_inbound()
+                    except Exception as e:
+                        ui.notify(f"Sync failed: {e}", type="negative")
+                        return
+                    ui.notify(f"Synced inbound traffic — {new} new lead(s).", type="positive")
+                    _render()
+                ui.button("Sync inbound leads", icon="sync", on_click=_sync).props(
+                    "flat dense").style(f"color:{COLORS['text_muted']};")
+            ui.label("One board for IRconnect prospects — inbound demo requests and overdue "
+                     "follow-ups first. Reply-marking is manual; nothing auto-sends.").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+
+            s = sp.summary()
+            with ui.row().style("gap:12px;flex-wrap:wrap;"):
+                _stat_tile("Open leads", str(s["open"]))
+                _stat_tile("Inbound", str(s["inbound"]))
+                _stat_tile("Follow-ups due", str(s["due"]), amber=s["due"] > 0)
+                _stat_tile("Won", str(s["won"]))
+
+            leads = sp.list_leads()
+            if not leads:
+                waiting_signal("your sales pipeline",
+                               "Click a company in the prospect screener to track it, or Sync "
+                               "inbound leads to pull demo requests from praxispointir.com.",
+                               "who's in play, what stage, and what needs a follow-up today",
+                               compact=True)
+                return
+
+            due = sp.due_followups()
+            if due:
+                ui.label(f"Needs attention today — {len(due)}").style(
+                    f"color:#B45309;font-size:12px;font-weight:800;margin-top:4px;")
+                for lead in due:
+                    _lead_card(lead, overdue=True)
+                ui.label("Pipeline").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;font-weight:700;margin-top:6px;")
+            due_ids = {d["id"] for d in due}
+            for lead in leads:
+                if lead["id"] in due_ids:
+                    continue
+                _lead_card(lead, overdue=sp.is_overdue(lead))
+
+    _render()
 
 
 def _render_web_traffic_panel():
@@ -756,7 +974,7 @@ def _render_prospect_screener():
         out = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
 
         async def _open_prospect_dialog(ticker, company):
-            from core import ir_contact, zoho_mail
+            from core import ir_contact, sales_pipeline, zoho_mail
             _zoho = zoho_mail.is_configured()
             with ui.dialog() as dlg, ui.card().style("min-width:520px;max-width:640px;"):
                 ui.label(f"{company} · {ticker}").classes("font-bold").style(
@@ -814,7 +1032,19 @@ def _render_prospect_screener():
                     "w-full").style("font-size:12px;")
                 _bt = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
                     "w-full").style("font-size:12px;")
-                with ui.row().classes("justify-end w-full gap-2 items-center"):
+                def _track(note=None):
+                    """Add this prospect to the sales pipeline as an outbound lead."""
+                    lead = sales_pipeline.add_outbound(e)
+                    if note:
+                        sales_pipeline.log_touch(lead["id"], kind="email", note=note)
+                    return lead
+
+                with ui.row().classes("w-full items-center gap-2").style("margin-top:2px;"):
+                    ui.button("Add to pipeline", icon="add_task",
+                              on_click=lambda: (_track(), ui.notify(
+                                  f"{company} added to the sales pipeline.", type="positive"))).props(
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
+                    ui.space()
                     ui.button("Cancel", on_click=dlg.close).props("flat dense")
 
                     def _copy(_to=_to, _subj=_subj, _bt=_bt):
@@ -826,6 +1056,8 @@ def _render_prospect_screener():
                     def _openmail(_to=_to, _subj=_subj, _bt=_bt):
                         href = f"mailto:{_to.value}?subject={quote(_subj.value or '')}&body={quote(_bt.value or '')}"
                         ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                        _track(note=_subj.value or "email opened")
+                        ui.notify("Tracked in the pipeline (Contacted).", type="positive")
                     ui.button("Open in email", icon="mail", on_click=_openmail).props(
                         "flat dense" if _zoho else "color=primary dense")
 
@@ -838,7 +1070,8 @@ def _render_prospect_screener():
                             ok, err = await asyncio.to_thread(
                                 zoho_mail.send_email, _to.value, _subj.value or "", _bt.value or "")
                             if ok:
-                                ui.notify(f"Sent to {_to.value} via Zoho.", type="positive")
+                                _track(note=_subj.value or "sent via Zoho")
+                                ui.notify(f"Sent to {_to.value} — tracked in the pipeline.", type="positive")
                                 dlg.close()
                             else:
                                 ui.notify(f"Zoho send failed: {err}", type="negative")
@@ -977,6 +1210,8 @@ def render_console_home(user):
                 for r in rows:
                     _client_card(r)
 
+            # Unified Praxis sales pipeline (inbound demo requests + outbound screener prospects).
+            _render_sales_pipeline_panel()
             # Dogfood: our own praxispointir.com traffic through the analyzer.
             _render_web_traffic_panel()
             # IRconnect sales prospecting: screen public cos by metro / industry / analyst coverage.
