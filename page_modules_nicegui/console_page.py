@@ -649,9 +649,22 @@ def _render_web_traffic_panel():
                              + (", ".join(v["downloads"]) or "no downloads")).style(
                         f"color:{COLORS['text_muted']};font-size:11px;")
                     if v.get("email"):
-                        with ui.row().classes("items-center").style("gap:5px;margin-top:2px;"):
+                        def _email_lead(v=v):
+                            to = v["email"]
+                            subj = "IRconnect — a quick hello"
+                            body = (
+                                "Hi,\n\nThanks for taking a look at IRconnect. We help investor relations "
+                                "teams compute the work behind the IR calendar — investor targeting, "
+                                "guidance analytics, earnings-script prep, and risk monitoring — from real, "
+                                "disclosed data.\n\nI'd be glad to give you a short walkthrough. Do you have "
+                                "20 minutes this week?\n\nBest regards,\nPraxis Point\npraxispointir.com")
+                            href = f"mailto:{to}?subject={quote(subj)}&body={quote(body)}"
+                            ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                        with ui.row().classes("items-center").style("gap:6px;margin-top:3px;"):
                             ui.icon("mail").style(f"color:{COLORS['text_muted']};font-size:13px;")
                             ui.label(v["email"]).style(f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
+                            ui.button("Email", icon="send", on_click=_email_lead).props(
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
 
     _render()
 
