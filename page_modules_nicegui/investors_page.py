@@ -1253,6 +1253,7 @@ def render_investors_page():
         t7 = ui.tab("Peer Prospects")
         t8 = ui.tab("Accounts (CRM)")
         t9 = ui.tab("Website")
+        t10 = ui.tab("Import list")
 
     # Lazy tab loading — this page used to build ALL FIVE tabs' content
     # (each with its own set of database reads) on every single visit,
@@ -1270,7 +1271,7 @@ def render_investors_page():
     # A sidebar sub-item can deep-link straight to any tab; map the label back to
     # its tab object so lazy loading opens (and eager-builds) the right one. All
     # tabs are lazy now — whichever we open on is built by the eager block below.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8, t9)}
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10)}
     default_tab = _by_name.get(nav.consume_target_tab(), t1)
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
         with ui.tab_panel(t1) as p1:
@@ -1291,6 +1292,8 @@ def render_investors_page():
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t9) as p9:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t10) as p10:
+            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
 
     # NDR Planner and Target Database read the mode-scored institutions, so
     # they pull from _mode_ctx (current mode) rather than capturing the initial
@@ -1308,6 +1311,7 @@ def render_investors_page():
         t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
         t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"])),
         t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
+        t10.props["name"]: (p10, lambda: _render_import_verify_tab(client_id)),
     }
     loaded_tabs = set()
     # A mode toggle also invalidates the two mode-dependent lazy tabs so they
@@ -1371,6 +1375,101 @@ def render_investors_page():
     _dcont.clear()
     with _dcont:
         _dbuild()
+
+
+def _render_import_verify_tab(client_id):
+    """Import & Verify a List — paste an outside list of firms (conference / sell-side / broker /
+    AI-generated), verify each is a REAL SEC 13F filer (unconfirmed ones flagged, never trusted),
+    reconcile against what we already track, and promote the verified-new into the curated target
+    book. See core/list_verify.py."""
+    import asyncio
+
+    from core import list_verify
+
+    ui.label("Import & Verify a List").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("Paste a list of firms — from a conference, a sell-side desk, a broker, or an AI tool. Each is "
+             "checked against SEC EDGAR as a real 13F filer (anything we can't confirm is flagged, never "
+             "trusted), reconciled against what we already track, and the verified-new ones can be promoted "
+             "into your curated target book. One firm per line.").style(
+        f"color:{COLORS['text_muted']};font-size:12px;")
+
+    box = ui.textarea(placeholder="Whitebox Advisors, LLC\nCorsair Capital Management, L.P.\n1620 Investment Advisors").props(
+        "outlined autogrow").classes("w-full").style("font-size:12px;margin-top:6px;")
+    results = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
+    state = {"checks": []}
+
+    def _render_results(rows):
+        results.clear()
+        state["checks"] = []
+        with results:
+            real = [r for r in rows if r["is_real"]]
+            unconf = [r for r in rows if not r["is_real"]]
+            new_real = [r for r in real if r["status"] == "new"]
+            ui.label(f"{len(rows)} firms · {len(real)} verified real · {len(unconf)} unconfirmed · "
+                     f"{len(new_real)} verified & new").classes("font-bold").style(
+                f"color:{COLORS['text_heading']};font-size:13px;")
+            _order = {"new": 0, "contacts": 1, "prospect": 2, "holder": 3}
+            for r in sorted(rows, key=lambda x: (not x["is_real"], _order.get(x["status"], 9))):
+                clr = "#B91C1C" if not r["is_real"] else ("#B45309" if r["status"] == "new" else "#15803D")
+                with ui.card().classes("w-full").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                        f"border-left:4px solid {clr};padding:5px 10px;"):
+                    with ui.row().classes("w-full items-center").style("gap:8px;"):
+                        if r["is_real"]:
+                            cb = ui.checkbox(value=(r["status"] == "new")).props("dense")
+                            state["checks"].append((cb, r))
+                            ui.icon("check_circle").style("color:#15803D;font-size:16px;")
+                        else:
+                            ui.icon("help_outline").style("color:#B91C1C;font-size:16px;")
+                        ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:12.5px;font-weight:600;")
+                        ui.space()
+                        if r["is_real"]:
+                            ui.label(f"CIK {r['cik'] or '—'}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        badge = ("#B91C1C", "unconfirmed — review") if not r["is_real"] else (clr, r["status_label"])
+                        ui.label(badge[1]).style(
+                            f"background:{badge[0]}1a;color:{badge[0]};font-size:10px;font-weight:700;"
+                            "padding:1px 8px;border-radius:9px;white-space:nowrap;")
+
+            if not real:
+                return
+
+            def _promote():
+                sel = [r for cb, r in state["checks"] if cb.value]
+                if not sel:
+                    ui.notify("Tick at least one verified firm to promote.", type="warning")
+                    return
+                n = list_verify.promote(sel, client_id)
+                ui.notify(f"Promoted {n} firm(s) to the curated target book (Target Database → Curated)."
+                          if n else "Those firms are already in the curated book.", type="positive")
+            ui.button("Promote selected to targets", icon="playlist_add", on_click=_promote).props(
+                "color=primary dense").style("margin-top:6px;")
+            ui.label("Only verified firms can be promoted — unconfirmed ones are never added.").style(
+                f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+    async def _verify():
+        names = [ln.strip() for ln in (box.value or "").splitlines() if ln.strip()]
+        if not names:
+            ui.notify("Paste at least one firm (one per line).", type="warning")
+            return
+        if len(names) > 100:
+            ui.notify("Keeping it to the first 100 firms.", type="warning")
+            names = names[:100]
+        results.clear()
+        with results:
+            ui.spinner(size="lg")
+            ui.label(f"Verifying {len(names)} firm(s) against SEC EDGAR…").style(
+                f"color:{COLORS['text_muted']};font-size:12px;")
+        try:
+            rows = await asyncio.to_thread(list_verify.verify_and_reconcile, names, client_id)
+        except Exception as exc:
+            results.clear()
+            with results:
+                ui.label(f"Verification failed: {exc}").style("color:#B91C1C;font-size:12px;")
+            return
+        _render_results(rows)
+
+    ui.button("Verify & reconcile", icon="fact_check", on_click=_verify).props("color=primary dense").style(
+        "margin-top:4px;")
 
 
 def _render_web_flow_tab(client_id):
