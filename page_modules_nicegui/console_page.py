@@ -755,10 +755,100 @@ def _render_prospect_screener():
             mx = ui.number("Prime cap", value=15).props("dense outlined").classes("w-[110px]")
         out = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
 
+        async def _open_prospect_dialog(ticker, company):
+            from core import ir_contact, zoho_mail
+            _zoho = zoho_mail.is_configured()
+            with ui.dialog() as dlg, ui.card().style("min-width:520px;max-width:640px;"):
+                ui.label(f"{company} · {ticker}").classes("font-bold").style(
+                    f"color:{COLORS['text_heading']};font-size:14px;")
+                _busy = ui.label("Looking up the IR contact on Yahoo…").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+                _det = ui.column().classes("w-full").style("gap:4px;")
+            dlg.open()
+            try:
+                e = await asyncio.to_thread(ir_contact.enrich, ticker)
+            except Exception as exc:
+                _busy.text = f"Lookup failed: {exc}"
+                return
+            _busy.delete()
+            with _det:
+                bits = [f"{e['analysts']} analysts" if e.get("analysts") is not None else None,
+                        _mcap(e.get("market_cap")), e.get("city"), e.get("industry") or e.get("sector")]
+                ui.label(" · ".join(x for x in bits if x)).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                if e.get("summary"):
+                    ui.label(e["summary"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+                ui.label("IR decision-maker").style(
+                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                if e.get("ir_name"):
+                    _clr = "#B45309" if e["ir_kind"] == "cfo" else ("#B91C1C" if e["ir_kind"] == "ceo" else "#15803D")
+                    with ui.row().classes("items-center").style("gap:8px;"):
+                        ui.icon("badge").style(f"color:{_clr};font-size:16px;")
+                        ui.label(e["ir_name"]).style(
+                            f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                        ui.label(ir_contact.contact_label(e)).style(
+                            f"background:{_clr}1a;color:{_clr};font-size:10px;font-weight:700;"
+                            "padding:1px 8px;border-radius:9px;")
+                    if e.get("ceo_name") and e["ir_kind"] != "ceo":
+                        ui.label(f"CEO: {e['ceo_name']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                else:
+                    ui.label("No IR/CFO listed on Yahoo — add the contact manually below.").style(
+                        f"color:{COLORS['text_muted']};font-size:11.5px;")
+                with ui.row().classes("items-center").style("gap:12px;"):
+                    if e.get("phone"):
+                        ui.label(f"☎ {e['phone']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    if e.get("website"):
+                        ui.link("Website ↗", e["website"], new_tab=True).style(f"color:{COLORS['accent']};font-size:11px;")
+                    _q = quote(f"{e.get('ir_name') or ''} {company}".strip())
+                    ui.link("Find on LinkedIn ↗",
+                            f"https://www.linkedin.com/search/results/people/?keywords={_q}",
+                            new_tab=True).style(f"color:{COLORS['accent']};font-size:11px;")
+
+                d = ir_contact.draft_email(e)
+                ui.label("Email the prospect").style(
+                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                _to = ui.input("To", value=e.get("suggested_email") or "").props("outlined dense").classes(
+                    "w-full").style("font-size:12px;")
+                ui.label("Defaults to the company IR inbox (ir@domain) — confirm, or replace with the "
+                         "person's address.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                _subj = ui.input("Subject", value=d["subject"]).props("outlined dense").classes(
+                    "w-full").style("font-size:12px;")
+                _bt = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
+                    "w-full").style("font-size:12px;")
+                with ui.row().classes("justify-end w-full gap-2 items-center"):
+                    ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+                    def _copy(_to=_to, _subj=_subj, _bt=_bt):
+                        ui.run_javascript("navigator.clipboard.writeText(" + json.dumps(
+                            f"To: {_to.value}\nSubject: {_subj.value or ''}\n\n{_bt.value or ''}") + ")")
+                        ui.notify("Draft copied.", type="positive")
+                    ui.button("Copy", icon="content_copy", on_click=_copy).props("flat dense")
+
+                    def _openmail(_to=_to, _subj=_subj, _bt=_bt):
+                        href = f"mailto:{_to.value}?subject={quote(_subj.value or '')}&body={quote(_bt.value or '')}"
+                        ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                    ui.button("Open in email", icon="mail", on_click=_openmail).props(
+                        "flat dense" if _zoho else "color=primary dense")
+
+                    if _zoho:
+                        async def _send(_to=_to, _subj=_subj, _bt=_bt):
+                            if not (_to.value or "").strip():
+                                ui.notify("Add a recipient email.", type="warning")
+                                return
+                            ui.notify("Sending via Zoho…", type="info")
+                            ok, err = await asyncio.to_thread(
+                                zoho_mail.send_email, _to.value, _subj.value or "", _bt.value or "")
+                            if ok:
+                                ui.notify(f"Sent to {_to.value} via Zoho.", type="positive")
+                                dlg.close()
+                            else:
+                                ui.notify(f"Zoho send failed: {err}", type="negative")
+                        ui.button("Send via Zoho", icon="send", on_click=_send).props("color=primary dense")
+
         def _rowcard(r, clr):
             with ui.card().classes("w-full").style(
                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-                    f"border-left:4px solid {clr};padding:5px 10px;"):
+                    f"border-left:4px solid {clr};padding:5px 10px;cursor:pointer;").on(
+                    "click", lambda r=r: _open_prospect_dialog(r["ticker"], r["name"])):
                 with ui.row().classes("w-full items-center").style("gap:8px;"):
                     ui.label(r["ticker"]).style(
                         f"background:{clr};color:white;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;")
