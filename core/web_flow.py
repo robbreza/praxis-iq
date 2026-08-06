@@ -80,6 +80,8 @@ def _normalize(v):
         "ticker": v.get("ticker"),   # public-company ticker when the visitor firm is public
         "email": v.get("email"),     # contact captured from a form self-identify (if any)
         "device": v.get("device"),   # "mobile" / "desktop" (coarse device type, no device id)
+        "paths": v.get("paths") or [],       # pages viewed, for personalized outreach
+        "demo_request": bool(v.get("demo_request")),
 
         "pages": pages, "minutes": minutes, "visits": int(v.get("visits") or 1),
         "downloads": downloads, "n_downloads": len(downloads),

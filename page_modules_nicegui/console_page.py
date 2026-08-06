@@ -584,6 +584,52 @@ def render_console_calendar(user):
                         ui.label(when).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
 
 
+async def _open_lead_email_dialog(v):
+    """Compose a personalized outreach email to a website lead: an activity-based draft
+    (core.lead_outreach), editable, opened in the operator's mail client (never auto-sent),
+    plus a compliant LinkedIn people-search link for a manual lookup."""
+    import asyncio
+
+    from core import lead_outreach
+    with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
+        ui.label(f"Email {v.get('org') or 'lead'}").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:14px;")
+        bits = []
+        if v.get("ticker"):
+            bits.append(v["ticker"])
+        if v.get("device"):
+            bits.append(v["device"])
+        bits.append(f"intent {v.get('intent', 0)}")
+        dls = ", ".join(v.get("downloads") or []) or "no downloads"
+        ui.label(" · ".join(bits) + " · " + dls).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        ui.link("Find on LinkedIn ↗", lead_outreach.linkedin_search_url(v), new_tab=True).style(
+            f"color:{COLORS['accent']};font-size:12px;")
+
+        _subj = ui.input("Subject").props("outlined dense").classes("w-full").style("font-size:12px;")
+        _body = ui.textarea("Message").props("outlined autogrow dense").classes("w-full").style("font-size:12px;")
+        _status = ui.label("Drafting from the lead's activity…").style(
+            f"color:{COLORS['text_muted']};font-size:11px;")
+        with ui.row().classes("justify-end w-full gap-2").style("margin-top:4px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+            def _open_mail(_subj=_subj, _body=_body, to=v.get("email")):
+                href = f"mailto:{to}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
+                ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+            ui.button("Open in email", icon="send", on_click=_open_mail).props("color=primary dense")
+    dlg.open()
+
+    try:
+        d = await asyncio.to_thread(lead_outreach.draft_email, v)
+    except Exception as exc:
+        d = None
+        print(f"[console] lead draft failed: {exc}")
+    if d:
+        _subj.value, _body.value = d["subject"], d["body"]
+        _status.text = "Draft ready — edit as needed, then Open in email."
+    else:
+        _status.text = "Couldn't draft automatically — write your message above, then Open in email."
+
+
 def _render_web_traffic_panel():
     """Dogfood: praxispointir.com's own traffic through the IRconnect web-flow analyzer.
     Identified visitors here are prospective CLIENTS (leads), not investors. Aggregated from
@@ -649,21 +695,11 @@ def _render_web_traffic_panel():
                              + (", ".join(v["downloads"]) or "no downloads")).style(
                         f"color:{COLORS['text_muted']};font-size:11px;")
                     if v.get("email"):
-                        def _email_lead(v=v):
-                            to = v["email"]
-                            subj = "IRconnect — a quick hello"
-                            body = (
-                                "Hi,\n\nThanks for taking a look at IRconnect. We help investor relations "
-                                "teams compute the work behind the IR calendar — investor targeting, "
-                                "guidance analytics, earnings-script prep, and risk monitoring — from real, "
-                                "disclosed data.\n\nI'd be glad to give you a short walkthrough. Do you have "
-                                "20 minutes this week?\n\nBest regards,\nPraxis Point\npraxispointir.com")
-                            href = f"mailto:{to}?subject={quote(subj)}&body={quote(body)}"
-                            ui.run_javascript(f"window.location.href = {json.dumps(href)}")
                         with ui.row().classes("items-center").style("gap:6px;margin-top:3px;"):
                             ui.icon("mail").style(f"color:{COLORS['text_muted']};font-size:13px;")
                             ui.label(v["email"]).style(f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
-                            ui.button("Email", icon="send", on_click=_email_lead).props(
+                            ui.button("Email", icon="send",
+                                      on_click=lambda v=v: _open_lead_email_dialog(v)).props(
                                 "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
 
     _render()

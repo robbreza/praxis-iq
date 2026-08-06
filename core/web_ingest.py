@@ -111,8 +111,15 @@ def public_match(org):
 def _session_to_visitor(events):
     """One session's events → a web_flow visitor row (see core/web_flow._normalize)."""
     pageviews = [e for e in events if e["event_type"] == "pageview"]
+    seen, paths = set(), []
+    for e in pageviews:                       # distinct pages viewed, in order (for personalization)
+        p = (e.get("path") or "").strip()
+        if p and p not in seen:
+            seen.add(p)
+            paths.append(p)
     downloads = [e["asset"] for e in events if e["event_type"] == "download" and e.get("asset")]
-    if any(e["event_type"] == "demo_request" for e in events):
+    demo_request = any(e["event_type"] == "demo_request" for e in events)
+    if demo_request:
         downloads.append("Demo request")
     ident = next((e for e in events if (e.get("org") or "").strip()), None)
     org = (ident or {}).get("org")
@@ -124,6 +131,8 @@ def _session_to_visitor(events):
         "is_holder": False,   # praxispointir.com is marketing — visitors are leads, not holders
         "ticker": pub["ticker"] if pub else None,     # public-company flag
         "device": device,                             # "mobile" / "desktop" (coarse, no device id)
+        "paths": paths,                               # distinct pages viewed (for personalized outreach)
+        "demo_request": demo_request,
         "pages": len(pageviews) or len(events),
         "minutes": _minutes([e.get("created_at") for e in events]),
         "visits": 1,
