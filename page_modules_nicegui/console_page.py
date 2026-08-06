@@ -728,6 +728,104 @@ def _render_web_traffic_panel():
     _render()
 
 
+def _render_prospect_screener():
+    """Screen public companies as IRconnect SALES prospects by metro / industry / analyst
+    coverage (core.prospect_screener). >5 analysts = a growing IR pain point (prime prospect);
+    >15 and they likely already run a competing tool."""
+    import asyncio
+
+    from core import prospect_screener as ps
+
+    def _mcap(m):
+        return "" if not m else (f"${m / 1e9:.1f}B" if m >= 1e9 else f"${m / 1e6:.0f}M")
+
+    with ui.expansion("Prospect screener — public companies by metro, industry & analyst coverage",
+                      icon="travel_explore").classes("w-full").style("margin-top:10px;"):
+        ui.label("More than 5 sell-side analysts signals a growing IR pain point (a prime prospect); more "
+                 "than 15 and they likely already run a competing tool. Coverage counts from Yahoo. Metro "
+                 "universe is curated + growable (add tickers below).").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _all = ps.metros()
+        _default = "Phoenix / Arizona" if "Phoenix / Arizona" in _all else (_all[0] if _all else None)
+        with ui.row().classes("items-end").style("gap:10px;flex-wrap:wrap;margin-top:4px;"):
+            metro = ui.select(_all, value=_default, label="Metro").props("dense outlined").classes("min-w-[210px]")
+            industry = ui.input("Industry (optional)", placeholder="semiconductor · homebuilding").props(
+                "dense outlined").classes("min-w-[190px]")
+            mn = ui.number("Min analysts", value=6).props("dense outlined").classes("w-[110px]")
+            mx = ui.number("Prime cap", value=15).props("dense outlined").classes("w-[110px]")
+        out = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
+
+        def _rowcard(r, clr):
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    f"border-left:4px solid {clr};padding:5px 10px;"):
+                with ui.row().classes("w-full items-center").style("gap:8px;"):
+                    ui.label(r["ticker"]).style(
+                        f"background:{clr};color:white;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;")
+                    ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:12.5px;font-weight:600;")
+                    ui.space()
+                    a = r.get("analysts")
+                    ui.label(f"{a if a is not None else '—'} analysts").style(
+                        f"color:{clr};font-size:11.5px;font-weight:700;")
+                    ui.label(_mcap(r.get("market_cap"))).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                sub = " · ".join(x for x in [r.get("city"), r.get("industry") or r.get("sector")] if x)
+                if sub:
+                    ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+        def _render(res):
+            out.clear()
+            with out:
+                c = res["counts"]
+                with ui.row().style("gap:12px;flex-wrap:wrap;"):
+                    _stat_tile("Screened", str(c["total"]))
+                    _stat_tile("Prime (6–15)", str(c["prime"]), amber=c["prime"] > 0)
+                    _stat_tile("Likely tooled", str(c["tooled"]))
+                    _stat_tile("Too early", str(c["early"]))
+                if res["prime"]:
+                    ui.label("Prime prospects — the growing pain point").style(
+                        f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                    for r in res["prime"]:
+                        _rowcard(r, "#B45309")
+                if res["tooled"]:
+                    with ui.expansion(f"Likely already tooled ({len(res['tooled'])})").classes("w-full"):
+                        for r in res["tooled"]:
+                            _rowcard(r, "#15803D")
+                if res["early"]:
+                    with ui.expansion(f"Too early — ≤{int(mn.value or 6) - 1} analysts ({len(res['early'])})").classes("w-full"):
+                        for r in res["early"]:
+                            _rowcard(r, COLORS["text_muted"])
+
+        async def _run(refresh=False):
+            if not metro.value or not ps.tickers_for(metro.value):
+                ui.notify(f"No company universe seeded for {metro.value} yet — add tickers below.", type="warning")
+                return
+            ui.notify("Screening via Yahoo…", type="info")
+            try:
+                res = await asyncio.to_thread(ps.screen, metro.value, industry.value,
+                                              int(mn.value or 6), int(mx.value or 15), refresh)
+            except Exception as e:
+                ui.notify(f"Screen failed: {e}", type="negative")
+                return
+            _render(res)
+
+        with ui.row().style("gap:8px;margin-top:4px;"):
+            ui.button("Screen", icon="search", on_click=lambda: _run(False)).props("color=primary dense")
+            ui.button("Refresh from Yahoo", icon="refresh", on_click=lambda: _run(True)).props("flat dense").style(
+                f"color:{COLORS['text_muted']};")
+
+        with ui.expansion("Add companies to a metro's universe").classes("w-full").style("margin-top:4px;"):
+            addt = ui.textarea("Tickers (comma or space separated)").props("dense outlined").classes(
+                "w-full").style("font-size:12px;")
+
+            def _add(metro=metro, addt=addt):
+                import re as _re
+                toks = [t for t in _re.split(r"[,\s]+", (addt.value or "")) if t.strip()]
+                n = ps.add_tickers(metro.value, toks)
+                ui.notify(f"Added {n} ticker(s) to {metro.value} — click Screen." if n else "Nothing new to add.",
+                          type="positive" if n else "warning")
+            ui.button("Add to universe", icon="add", on_click=_add).props("dense").style("margin-top:4px;")
+
+
 def render_console_home(user):
     rows = portfolio.portfolio_overview()
     needs = sum(1 for r in rows if r["attention"])
@@ -791,3 +889,5 @@ def render_console_home(user):
 
             # Dogfood: our own praxispointir.com traffic through the analyzer.
             _render_web_traffic_panel()
+            # IRconnect sales prospecting: screen public cos by metro / industry / analyst coverage.
+            _render_prospect_screener()
