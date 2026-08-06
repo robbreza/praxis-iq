@@ -32,6 +32,29 @@ def is_configured():
     return bool(u and p)
 
 
+def verify_connection():
+    """Connect and authenticate to Zoho SMTP WITHOUT sending anything — confirms the app
+    password is valid before it's relied on. Returns (ok, error)."""
+    user, pw, host, port, _ = _cfg()
+    if not (user and pw):
+        return False, "Zoho isn't connected yet — set ZOHO_SMTP_USER and ZOHO_SMTP_PASS."
+    try:
+        ctx = ssl.create_default_context()
+        if port == 587:
+            with smtplib.SMTP(host, port, timeout=25) as s:
+                s.starttls(context=ctx)
+                s.login(user, pw)
+        else:
+            with smtplib.SMTP_SSL(host, port, context=ctx, timeout=25) as s:
+                s.login(user, pw)
+        return True, None
+    except smtplib.SMTPAuthenticationError:
+        return False, ("Zoho rejected the login — ZOHO_SMTP_PASS must be an app-specific "
+                       "password (not your normal password), and ZOHO_SMTP_USER your full email.")
+    except Exception as e:
+        return False, str(e)
+
+
 def send_email(to, subject, body):
     """Send one email from the configured Zoho account. Returns (ok, error). Blocking SMTP —
     call from a worker thread (asyncio.to_thread) so the UI event loop isn't held."""

@@ -68,3 +68,15 @@ def test_missing_recipient(monkeypatch):
     monkeypatch.setenv("ZOHO_SMTP_PASS", "p")
     ok, err = zoho_mail.send_email("", "s", "b")
     assert not ok and "recipient" in err.lower()
+
+
+def test_verify_connection_logs_in_without_sending(monkeypatch):
+    monkeypatch.setenv("ZOHO_SMTP_USER", "me@praxispointir.com")
+    monkeypatch.setenv("ZOHO_SMTP_PASS", "app-pass")
+    monkeypatch.delenv("ZOHO_SMTP_PORT", raising=False)
+    _FakeSMTP.captured = {}
+    monkeypatch.setattr(zoho_mail.smtplib, "SMTP_SSL", _FakeSMTP)
+    ok, err = zoho_mail.verify_connection()
+    assert ok and err is None
+    assert _FakeSMTP.captured["login"] == ("me@praxispointir.com", "app-pass")
+    assert "msg" not in _FakeSMTP.captured        # verify never sends a message
