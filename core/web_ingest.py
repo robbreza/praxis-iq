@@ -12,6 +12,7 @@ CLIENTS (leads), since the site is marketing, not an IR page — so is_holder is
 and every identified firm is a lead. The same pipe can later serve a client's IR site by
 writing events under that client's id (and matching is_holder against its 13F holders).
 """
+import re
 from datetime import datetime, timezone
 
 from core import db
@@ -73,27 +74,38 @@ _public_idx = {"map": None}
 
 
 def _public_index():
-    """{distinctive-name-key: {'ticker','name'}} of every SEC-registered public company,
-    built once (per process) from sec_filings.ticker_name_map(). Keyed by web_flow._org_key
-    so an identified visitor firm can be matched to a ticker."""
+    """Public-company lookup built once (per process) from sec_filings.ticker_name_map():
+      by_name   — {distinctive-name-key: {'ticker','name'}}  (e.g. "Roper Technologies" -> ROP)
+      by_ticker — {TICKER: {'ticker','name'}}                 (e.g. a hand-typed "Msft" -> MSFT)."""
     if _public_idx["map"] is None:
         from core import sec_filings, web_flow
-        idx = {}
+        by_name, by_ticker = {}, {}
         for tk, name in (sec_filings.ticker_name_map() or {}).items():
+            entry = {"ticker": tk, "name": name}
+            by_ticker[tk.upper()] = entry
             key = web_flow._org_key(name)
-            if key and key not in idx:
-                idx[key] = {"ticker": tk, "name": name}
-        _public_idx["map"] = idx
+            if key and key not in by_name:
+                by_name[key] = entry
+        _public_idx["map"] = {"by_name": by_name, "by_ticker": by_ticker}
     return _public_idx["map"]
 
 
 def public_match(org):
     """If an identified visitor firm is a public company, return {'ticker','name'}, else None.
-    Conservative: a distinctive-token match against SEC company_tickers (no fuzzy guessing)."""
-    from core import web_flow
+    Matches conservatively: first a distinctive-name-token match against SEC company_tickers
+    (e.g. "Roper Technologies" -> ROP), then, for a short ticker-like string, a direct ticker
+    match (e.g. a hand-typed "Msft" / "MSFT" -> Microsoft). No fuzzy guessing."""
     if not org or org == "New — unidentified":
         return None
-    return _public_index().get(web_flow._org_key(org))
+    from core import web_flow
+    idx = _public_index()
+    hit = idx["by_name"].get(web_flow._org_key(org))
+    if hit:
+        return hit
+    tk = re.sub(r"[^A-Za-z]", "", org).upper()
+    if 1 <= len(tk) <= 5:                       # only a short, ticker-shaped string
+        return idx["by_ticker"].get(tk)
+    return None
 
 
 def _session_to_visitor(events):

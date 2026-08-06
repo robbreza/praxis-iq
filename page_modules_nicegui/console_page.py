@@ -645,6 +645,10 @@ def _render_web_traffic_panel():
                     ui.label(f"{v['pages']} pages · {v['minutes']} min · "
                              + (", ".join(v["downloads"]) or "no downloads")).style(
                         f"color:{COLORS['text_muted']};font-size:11px;")
+                    if v.get("email"):
+                        with ui.row().classes("items-center").style("gap:5px;margin-top:2px;"):
+                            ui.icon("mail").style(f"color:{COLORS['text_muted']};font-size:13px;")
+                            ui.label(v["email"]).style(f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
 
     _render()
 

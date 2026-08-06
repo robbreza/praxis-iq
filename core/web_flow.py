@@ -78,6 +78,7 @@ def _normalize(v):
         "category": v.get("category") or v.get("Category") or "New — unidentified",
         "is_holder": bool(v.get("is_holder")),
         "ticker": v.get("ticker"),   # public-company ticker when the visitor firm is public
+        "email": v.get("email"),     # contact captured from a form self-identify (if any)
 
         "pages": pages, "minutes": minutes, "visits": int(v.get("visits") or 1),
         "downloads": downloads, "n_downloads": len(downloads),

@@ -24,6 +24,14 @@ def test_public_firm_matches_ticker():
     assert web_ingest.public_match("Apple Inc.")["ticker"] == "AAPL"
 
 
+def test_ticker_shaped_string_matches_directly():
+    # a hand-typed ticker (or ticker-like org string) resolves to the company
+    assert web_ingest.public_match("AAPL")["ticker"] == "AAPL"
+    assert web_ingest.public_match("Rop")["ticker"] == "ROP"                # short, ticker-shaped
+    # a long non-matching firm name is NOT force-matched to a ticker
+    assert web_ingest.public_match("Some Long Private Advisory Group") is None
+
+
 def test_private_or_unknown_firm_is_none():
     assert web_ingest.public_match("Meridian IR Advisors LLC") is None      # not public
     assert web_ingest.public_match("New — unidentified") is None
