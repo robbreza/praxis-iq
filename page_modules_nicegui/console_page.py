@@ -609,8 +609,14 @@ async def _open_lead_email_dialog(v):
         _body = ui.textarea("Message").props("outlined autogrow dense").classes("w-full").style("font-size:12px;")
         _status = ui.label("Drafting from the lead's activity…").style(
             f"color:{COLORS['text_muted']};font-size:11px;")
-        with ui.row().classes("justify-end w-full gap-2").style("margin-top:4px;"):
+        with ui.row().classes("justify-end w-full gap-2 items-center").style("margin-top:4px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+            def _copy(_subj=_subj, _body=_body, to=v.get("email")):
+                text = f"To: {to}\nSubject: {_subj.value or ''}\n\n{_body.value or ''}"
+                ui.run_javascript(f"navigator.clipboard.writeText({json.dumps(text)})")
+                ui.notify("Draft copied — paste into Zoho (or any email).", type="positive")
+            ui.button("Copy", icon="content_copy", on_click=_copy).props("flat dense")
 
             def _open_mail(_subj=_subj, _body=_body, to=v.get("email")):
                 href = f"mailto:{to}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
