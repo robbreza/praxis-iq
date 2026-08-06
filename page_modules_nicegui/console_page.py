@@ -634,6 +634,9 @@ def _render_web_traffic_panel():
                         "border-left:4px solid #B45309;padding:6px 10px;"):
                     with ui.row().classes("w-full items-center justify-between"):
                         with ui.row().classes("items-center").style("gap:6px;"):
+                            if v.get("device") in ("mobile", "desktop"):
+                                ui.icon("smartphone" if v["device"] == "mobile" else "computer").style(
+                                    f"color:{COLORS['text_muted']};font-size:15px;").tooltip(v["device"])
                             ui.label(v["org"]).style(
                                 f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
                             if v.get("ticker"):

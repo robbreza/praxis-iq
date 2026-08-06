@@ -20,7 +20,7 @@ from core import db
 PRAXIS_TENANT = "praxis"
 
 _EVENT_COLS = ["session_id", "event_type", "path", "asset", "org", "email",
-               "utm_source", "referrer", "created_at"]
+               "utm_source", "referrer", "device", "created_at"]
 
 
 def _ph(conn):
@@ -28,7 +28,7 @@ def _ph(conn):
 
 
 def record_event(tenant, session_id, event_type, path=None, asset=None, org=None,
-                 email=None, utm_source=None, referrer=None, created_at=None):
+                 email=None, utm_source=None, referrer=None, device=None, created_at=None):
     """Insert one raw event. Used by tests and any in-app capture; in production the same
     row shape is written by the serverless function. created_at defaults to now (UTC)."""
     conn = db.get_connection()
@@ -36,9 +36,9 @@ def record_event(tenant, session_id, event_type, path=None, asset=None, org=None
         ph = _ph(conn)
         conn.cursor().execute(
             f"INSERT INTO web_events (tenant, session_id, event_type, path, asset, org, email, "
-            f"utm_source, referrer, created_at) VALUES ({', '.join([ph] * 10)})",
+            f"utm_source, referrer, device, created_at) VALUES ({', '.join([ph] * 11)})",
             (tenant, session_id, event_type, path, asset, org, email, utm_source, referrer,
-             created_at or datetime.now(timezone.utc).isoformat()))
+             device, created_at or datetime.now(timezone.utc).isoformat()))
         conn.commit()
     finally:
         conn.close()
@@ -117,11 +117,13 @@ def _session_to_visitor(events):
     ident = next((e for e in events if (e.get("org") or "").strip()), None)
     org = (ident or {}).get("org")
     pub = public_match(org)
+    device = next((e.get("device") for e in events if (e.get("device") or "").strip()), None)
     return {
         "org": org or "New — unidentified",
         "category": "Identified lead" if org else "New — unidentified",
         "is_holder": False,   # praxispointir.com is marketing — visitors are leads, not holders
         "ticker": pub["ticker"] if pub else None,     # public-company flag
+        "device": device,                             # "mobile" / "desktop" (coarse, no device id)
         "pages": len(pageviews) or len(events),
         "minutes": _minutes([e.get("created_at") for e in events]),
         "visits": 1,

@@ -210,6 +210,7 @@ CREATE TABLE IF NOT EXISTS web_events (
     email      TEXT,
     utm_source TEXT,
     referrer   TEXT,
+    device     TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_web_events_tenant_session ON web_events (tenant, session_id);
@@ -328,6 +329,7 @@ CREATE TABLE IF NOT EXISTS web_events (
     email      TEXT,
     utm_source TEXT,
     referrer   TEXT,
+    device     TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_web_events_tenant_session ON web_events (tenant, session_id);
@@ -371,6 +373,24 @@ def _ensure_contact_columns(cur, pg):
         for c, t in _CONTACT_EXTRA_COLS:
             if c not in have:
                 cur.execute(f"ALTER TABLE contacts ADD COLUMN {c} {t}")
+
+
+# Columns added to web_events AFTER its first ship (CREATE TABLE IF NOT EXISTS won't
+# alter an existing table, so a live Neon table needs an explicit migration).
+_WEB_EVENTS_EXTRA_COLS = [("device", "TEXT")]
+
+
+def _ensure_web_events_columns(cur, pg):
+    """Idempotently add _WEB_EVENTS_EXTRA_COLS to the web_events table. Safe on every init."""
+    if pg:
+        for c, t in _WEB_EVENTS_EXTRA_COLS:
+            cur.execute(f"ALTER TABLE web_events ADD COLUMN IF NOT EXISTS {c} {t}")
+    else:
+        cur.execute("PRAGMA table_info(web_events)")
+        have = {r[1] for r in cur.fetchall()}
+        for c, t in _WEB_EVENTS_EXTRA_COLS:
+            if c not in have:
+                cur.execute(f"ALTER TABLE web_events ADD COLUMN {c} {t}")
 
 
 # Cached, once-per-process reachability check (see _pg_reachable below) —
@@ -540,6 +560,7 @@ def _get_pooled_pg_connection():
     with real.cursor() as cur:
         cur.execute(_POSTGRES_SCHEMA)
         _ensure_contact_columns(cur, pg=True)
+        _ensure_web_events_columns(cur, pg=True)
     real.commit()
     _pg_conn_holder["conn"] = real
     return real
@@ -571,6 +592,7 @@ def get_connection():
     conn.executescript(_SQLITE_SCHEMA)
     _cur = conn.cursor()
     _ensure_contact_columns(_cur, pg=False)
+    _ensure_web_events_columns(_cur, pg=False)
     conn.commit()
     return conn
 
