@@ -590,7 +590,8 @@ async def _open_lead_email_dialog(v):
     plus a compliant LinkedIn people-search link for a manual lookup."""
     import asyncio
 
-    from core import lead_outreach
+    from core import lead_outreach, zoho_mail
+    _zoho = zoho_mail.is_configured()
     with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
         ui.label(f"Email {v.get('org') or 'lead'}").classes("font-bold").style(
             f"color:{COLORS['text_heading']};font-size:14px;")
@@ -621,7 +622,23 @@ async def _open_lead_email_dialog(v):
             def _open_mail(_subj=_subj, _body=_body, to=v.get("email")):
                 href = f"mailto:{to}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
                 ui.run_javascript(f"window.location.href = {json.dumps(href)}")
-            ui.button("Open in email", icon="send", on_click=_open_mail).props("color=primary dense")
+            ui.button("Open in email", icon="mail", on_click=_open_mail).props(
+                "flat dense" if _zoho else "color=primary dense")
+
+            if _zoho:
+                async def _send(_subj=_subj, _body=_body, to=v.get("email")):
+                    if not (to or "").strip():
+                        ui.notify("No email on this lead.", type="warning")
+                        return
+                    ui.notify("Sending via Zoho…", type="info")
+                    ok, err = await asyncio.to_thread(
+                        zoho_mail.send_email, to, _subj.value or "", _body.value or "")
+                    if ok:
+                        ui.notify(f"Sent to {to} via Zoho.", type="positive")
+                        dlg.close()
+                    else:
+                        ui.notify(f"Zoho send failed: {err}", type="negative")
+                ui.button("Send via Zoho", icon="send", on_click=_send).props("color=primary dense")
     dlg.open()
 
     try:
