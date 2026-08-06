@@ -4,9 +4,13 @@
 > Near-term roadmap for the Praxis Point IR platform after the 2026-07-15 demo. Entries are
 > reverse-chronological (newest first). `[[name]]` markers reference related working-memory notes.
 >
-> _Last synced from memory: 2026-08-05._
+> _Last synced from memory: 2026-08-06._
 
 ---
+
+## 2026-08-06 — praxispointir.com traffic capture is LIVE (deployed + verified E2E)
+
+Merged `web-traffic-capture`→main and **deployed** (irconnect-site). User set Netlify env vars `DATABASE_URL` + `IPINFO_TOKEN` (IPinfo free Lite, 150K req/mo). Added **`privacy.html`** (matches site template, real contact@praxispointir.com, fixes the previously-broken footer Privacy link) disclosing cookieless analytics + company-level-not-personal ID + no-IP-stored. **DEPLOY-FAIL FIX (important Netlify lesson):** a function's OWN `netlify/functions/package.json` is NOT auto-installed by Netlify → esbuild "Could not resolve @neondatabase/serverless" → build failed (old deploy stayed live, new pages 404'd). Fix = move the dependency to a **ROOT `package.json`** (Netlify auto-installs root deps before bundling functions); removed the functions package.json. **Verified END-TO-END on the live site:** POST to `/.netlify/functions/track` → 204 → row in Neon `web_events` (tenant='praxis') → `web_ingest.aggregate('praxis')` produced a correct lead row (org, "Demo request" download, email, is_holder False, ticker None); a real browser pageview also flowed through (org None = my IP filtered — correct). Wiped all test events so praxis starts at 0 for the ad launch. **Reminder given to user: rotate the Neon password** (it appeared in a setup screenshot). Site also still runs Plausible (aggregate) alongside. Open follow-ups unchanged (merge sessions by firm; paid IP-to-Company upgrade for fuller coverage/domain match; same pipe can feed a client IR site).
 
 ## 2026-08-05 — Web-traffic analyzer fed by REAL praxispointir.com traffic
 
