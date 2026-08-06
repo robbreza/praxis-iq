@@ -7,7 +7,8 @@ from core import sales_pipeline as sp
 def _enrich(ticker="WAL", company="Western Alliance", ir="Miles Pondelik"):
     return {"ticker": ticker, "company": company, "ir_name": ir,
             "ir_title": "VP Investor Relations", "ir_kind": "ir",
-            "suggested_email": "ir@westernalliance.com"}
+            "suggested_email": "ir@westernalliance.com",
+            "domain": "westernalliance.com", "market_cap": 8_000_000_000}
 
 
 def test_add_outbound_starts_identified(mem_db):
@@ -79,6 +80,22 @@ def test_overdue_outranks_current_and_appears_in_reminders(mem_db):
     assert sp.list_leads()[0]["ticker"] == "BBB"             # overdue floats up
     due = sp.due_followups()
     assert [d["ticker"] for d in due] == ["BBB"]
+
+
+def test_add_outbound_carries_onboarding_facts(mem_db):
+    lead = sp.add_outbound(_enrich())
+    assert lead["domain"] == "westernalliance.com" and lead["market_cap"] == 8_000_000_000
+    assert lead["onboarded_cid"] is None
+
+
+def test_mark_onboarded(mem_db):
+    lead = sp.add_outbound(_enrich())
+    sp.set_stage(lead["id"], "won")
+    sp.mark_onboarded(lead["id"], "wal")
+    got = sp.list_leads()[0]
+    assert got["onboarded_cid"] == "wal" and got["stage"] == "won"
+    assert got["next_follow_up"] is None
+    assert any(a["kind"] == "onboarded" for a in got["activity"])
 
 
 def test_summary_counts(mem_db):

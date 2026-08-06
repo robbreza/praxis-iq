@@ -20,9 +20,17 @@ def _slug(s):
     return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
 
 
-def _open_add_client_dialog():
+def _open_add_client_dialog(prefill=None, on_created=None):
     """Onboard a new tenant from the Console: write the client record to the DB, reload the
-    registry, and seed its two standard IR logins — no code change, no deploy."""
+    registry, and seed its two standard IR logins — no code change, no deploy.
+
+    `prefill` (optional) seeds the form — used by the sales-pipeline Won → onboarding hand-off,
+    so a closed lead's company/ticker/domain/market-cap carry straight into the new client.
+    `on_created(cid)` fires after a successful create (e.g. to mark the lead onboarded)."""
+    prefill = prefill or {}
+    _mcap_m = prefill.get("market_cap_m")
+    if _mcap_m is None and prefill.get("market_cap"):
+        _mcap_m = round(prefill["market_cap"] / 1_000_000)         # yfinance gives absolute $
     with ui.dialog() as dialog, ui.card().style(
             f"width:430px;padding:22px;background:{COLORS['surface_bg']};"
             f"border:1px solid {COLORS['border']};border-radius:10px;gap:6px;"):
@@ -30,15 +38,22 @@ def _open_add_client_dialog():
         ui.label("Creates the tenant and its two standard IR logins "
                  "(directorofir@ / irassistant@).").style(
             f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:6px;")
-        name_in = ui.input("Company name").props("outlined dense autofocus").classes("w-full")
-        ticker_in = ui.input("Ticker").props("outlined dense").classes("w-full")
+        if prefill.get("from_lead"):
+            ui.label(f"Onboarding {prefill.get('name') or 'this lead'} from the sales pipeline — "
+                     "confirm the details below.").style(
+                f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
+        name_in = ui.input("Company name", value=prefill.get("name") or "").props(
+            "outlined dense autofocus").classes("w-full")
+        ticker_in = ui.input("Ticker", value=prefill.get("ticker") or "").props(
+            "outlined dense").classes("w-full")
         cid_in = ui.input("Client ID", placeholder="lowercase id — blank = derive from ticker") \
             .props("outlined dense").classes("w-full")
         exch_in = ui.select(_EXCHANGES, value="NASDAQ", label="Exchange") \
             .props("outlined dense").classes("w-full")
-        mcap_in = ui.number("Market cap ($M)", value=None, step=10, min=0) \
+        mcap_in = ui.number("Market cap ($M)", value=_mcap_m, step=10, min=0) \
             .props("outlined dense").classes("w-full")
-        domain_in = ui.input("Email domain", placeholder="e.g. standardaero.com") \
+        domain_in = ui.input("Email domain", value=prefill.get("domain") or "",
+                             placeholder="e.g. standardaero.com") \
             .props("outlined dense").classes("w-full")
         ui.label("Market cap sizes investor-targeting gates (micro <$300M · small <$2B · mid <$10B "
                  "· large). Left blank ⇒ microcap gates until set. Client ID is the permanent tenant "
@@ -75,6 +90,11 @@ def _open_add_client_dialog():
             client_store.upsert_client(cid, record, active=True)
             reload_registry()
             logins = auth.seed_client_users(cid)
+            if on_created:
+                try:
+                    on_created(cid)
+                except Exception as exc:
+                    print(f"[console] on_created hook failed: {exc}")
             dialog.close()
             ui.notify(
                 f"Added {name} ({ticker}). Logins: {', '.join(logins) or '—'} · "
@@ -811,9 +831,28 @@ def _render_sales_pipeline_panel():
                     ui.button("Mark replied", icon="mark_email_read",
                               on_click=lambda lid=lead["id"]: (sp.mark_replied(lid), _render())).props(
                         "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                if lead.get("onboarded_cid"):
+                    ui.label(f"Onboarded → {lead['onboarded_cid']}").style(
+                        "background:rgba(21,128,61,.14);color:#15803D;font-size:10px;font-weight:800;"
+                        "padding:2px 8px;border-radius:9px;")
+                elif lead.get("stage") == "won":
+                    ui.button("Onboard as client", icon="rocket_launch",
+                              on_click=lambda lead=lead: _onboard_won_lead(lead)).props(
+                        "dense").style("font-size:10.5px;")
                 ui.button("Email", icon="send",
                           on_click=lambda lead=lead: _open_pipeline_email_dialog(lead, on_sent=_render)).props(
                     "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+
+        def _onboard_won_lead(lead):
+            """Hand a Won lead to the standard add-client onboarding, prefilled from the lead."""
+            domain = lead.get("domain")
+            if not domain and (lead.get("email") or "").count("@") == 1:
+                domain = lead["email"].split("@", 1)[1].strip().lower()
+            _open_add_client_dialog(
+                prefill={"from_lead": True, "name": lead.get("company"),
+                         "ticker": lead.get("ticker"), "domain": domain,
+                         "market_cap": lead.get("market_cap")},
+                on_created=lambda cid, lid=lead["id"]: (sp.mark_onboarded(lid, cid), None)[1])
 
     def _render():
         box.clear()

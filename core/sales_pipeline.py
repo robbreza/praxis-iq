@@ -66,7 +66,8 @@ def _find(rows, lid):
 
 
 def _upsert_into(rows, source, company, ticker=None, email=None, contact_name=None,
-                 contact_title=None, demo_request=False, notes=None):
+                 contact_title=None, demo_request=False, notes=None, domain=None,
+                 market_cap=None):
     """Add/merge a lead in the given `rows` list (no I/O). Returns the lead dict."""
     lid = lead_id(source, company, ticker)
     lead = _find(rows, lid)
@@ -74,9 +75,10 @@ def _upsert_into(rows, source, company, ticker=None, email=None, contact_name=No
         lead = {
             "id": lid, "source": source, "company": company, "ticker": ticker,
             "email": email, "contact_name": contact_name, "contact_title": contact_title,
+            "domain": domain, "market_cap": market_cap,
             "demo_request": bool(demo_request), "stage": "identified", "owner": None,
             "created_at": _now(), "last_touch": None, "next_follow_up": None,
-            "notes": notes or "", "activity": [],
+            "notes": notes or "", "activity": [], "onboarded_cid": None,
         }
         rows.append(lead)
     else:
@@ -86,6 +88,8 @@ def _upsert_into(rows, source, company, ticker=None, email=None, contact_name=No
         lead["email"] = email or lead.get("email")
         lead["contact_name"] = contact_name or lead.get("contact_name")
         lead["contact_title"] = contact_title or lead.get("contact_title")
+        lead["domain"] = domain or lead.get("domain")
+        lead["market_cap"] = market_cap if market_cap is not None else lead.get("market_cap")
         lead["demo_request"] = bool(lead.get("demo_request")) or bool(demo_request)
         if notes:
             lead["notes"] = notes
@@ -93,12 +97,13 @@ def _upsert_into(rows, source, company, ticker=None, email=None, contact_name=No
 
 
 def upsert_lead(source, company, ticker=None, email=None, contact_name=None,
-                contact_title=None, demo_request=False, notes=None):
+                contact_title=None, demo_request=False, notes=None, domain=None,
+                market_cap=None):
     """Add a lead, or merge fresh facts into an existing one, and persist. Never disturbs a
     lead's stage / owner / follow-up / activity — those are workflow state, not facts."""
     rows = _load()
     lead = _upsert_into(rows, source, company, ticker, email, contact_name,
-                        contact_title, demo_request, notes)
+                        contact_title, demo_request, notes, domain, market_cap)
     _save(rows)
     return lead
 
@@ -113,7 +118,25 @@ def add_outbound(enrich):
         contact_name=enrich.get("ir_name"),
         contact_title=enrich.get("ir_title") or (
             "CFO (default IR contact)" if enrich.get("ir_kind") == "cfo" else None),
+        domain=enrich.get("domain"),
+        market_cap=enrich.get("market_cap"),
     )
+
+
+def mark_onboarded(lid, cid):
+    """Record that a won lead was onboarded as client tenant `cid` (so the board shows it and
+    the hand-off can't be triggered twice). Ensures the stage is 'won'."""
+    rows = _load()
+    lead = _find(rows, lid)
+    if lead is None:
+        return None
+    lead["onboarded_cid"] = cid
+    lead["stage"] = "won"
+    lead["next_follow_up"] = None
+    lead["activity"] = (lead.get("activity") or []) + [
+        {"ts": _now(), "kind": "onboarded", "note": f"onboarded as client '{cid}'"}]
+    _save(rows)
+    return lead
 
 
 def set_stage(lid, stage, save=True):
