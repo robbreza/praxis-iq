@@ -1292,7 +1292,21 @@ def _read_tsv_member(zf, base):
             yield row
 
 
-def refresh_13f_bulk_all(ticker_name_pairs):
+def _recent_13f_datasets(n=2):
+    """The n most recently posted Form 13F bulk datasets from SEC's index page,
+    newest first: [(zip_url, 'start-end'), ...]. _latest_13f_dataset() returns just
+    the first; the prospect-hook two-quarter diff needs the prior one too."""
+    resp = _get(FORM_13F_INDEX_URL, timeout=30)
+    out = []
+    for m in _13F_ZIP_LINK_RE.finditer(resp.text):
+        path, start, end = m.group(1), m.group(2), m.group(3)
+        out.append((f"https://www.sec.gov{path}", f"{start}-{end}"))
+        if len(out) >= n:
+            break
+    return out
+
+
+def refresh_13f_bulk_all(ticker_name_pairs, dataset=None, save=True):
     """Complete institutional 13F holders for every tracked ticker, from SEC's
     quarterly Form 13F BULK structured dataset — filtered by issuer, joined to
     the filing manager. Unlike the EDGAR full-text-search path (which only
@@ -1309,8 +1323,13 @@ def refresh_13f_bulk_all(ticker_name_pairs):
     Writes the same per-ticker cache shape (SEC_13F_HOLDERS_KEY_FMT) every
     existing reader already expects, but with size_known=True and real
     shares/value, plus city/state and the resolved CUSIP. Returns
-    {ticker: result_dict}."""
-    zip_url, label = _latest_13f_dataset()
+    {ticker: result_dict}.
+
+    `dataset` overrides which quarter's ZIP to pull ((zip_url, label) from
+    _recent_13f_datasets); default is the latest. `save=False` returns the
+    holders WITHOUT touching the per-ticker cache or the prior-quarter archive
+    — the prospect-hook uses that to pull a prior quarter for a one-off diff."""
+    zip_url, label = dataset or _latest_13f_dataset()
     resp = _get(zip_url, timeout=300)
     zf = zipfile.ZipFile(io.BytesIO(resp.content))
 
@@ -1424,8 +1443,9 @@ def refresh_13f_bulk_all(ticker_name_pairs):
             "cusip": resolved_cusip.get(tk),
             "_fetched_at": datetime.now().isoformat(), "_error": None,
         }
-        _archive_prior_if_new_quarter(tk, label)
-        db.save_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=tk.upper()), result)
+        if save:
+            _archive_prior_if_new_quarter(tk, label)
+            db.save_json(SEC_13F_HOLDERS_KEY_FMT.format(ticker=tk.upper()), result)
         results[tk] = result
     return results
 

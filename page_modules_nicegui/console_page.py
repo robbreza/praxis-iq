@@ -1013,7 +1013,9 @@ def _render_prospect_screener():
         out = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
 
         async def _open_prospect_dialog(ticker, company):
-            from core import ir_contact, sales_pipeline, zoho_mail
+            import base64
+
+            from core import ir_contact, prospect_hook, sales_pipeline, zoho_mail
             _zoho = zoho_mail.is_configured()
             with ui.dialog() as dlg, ui.card().style("min-width:520px;max-width:640px;"):
                 ui.label(f"{company} · {ticker}").classes("font-bold").style(
@@ -1071,6 +1073,64 @@ def _render_prospect_screener():
                     "w-full").style("font-size:12px;")
                 _bt = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
                     "w-full").style("font-size:12px;")
+
+                # ── personalized 13F hook (two-quarter ownership diff + metro trend) ──
+                ui.label("Personalized hook — 13F ownership moves").style(
+                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:6px;")
+                _hookwrap = ui.column().classes("w-full").style("gap:4px;")
+
+                def _paint_hook(data):
+                    _hookwrap.clear()
+                    with _hookwrap:
+                        if not data or data.get("error"):
+                            if data and data.get("error"):
+                                ui.label(data["error"]).style(
+                                    f"color:{COLORS['text_muted']};font-size:11px;")
+                            return
+                        txt = prospect_hook.hook_text(data)
+                        if txt:
+                            if txt not in (_bt.value or ""):
+                                _bt.value = txt + "\n\n" + (_bt.value or "")   # prepend into the email
+                            ui.label("Added to the message above:").style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                            ui.label(txt).style(
+                                f"color:{COLORS['text_body']};font-size:11.5px;"
+                                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                                "border-radius:6px;padding:6px 8px;")
+                        png = prospect_hook.metro_chart_png(data)
+                        if png:
+                            uri = "data:image/png;base64," + base64.b64encode(png).decode()
+                            ui.image(uri).style(
+                                f"max-width:100%;border:1px solid {COLORS['border']};border-radius:8px;")
+                            ui.button("Download chart (PNG)", icon="download",
+                                      on_click=lambda png=png, tk=ticker: ui.download(
+                                          png, f"{tk}_holders_by_metro.png")).props(
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+
+                async def _prepare_hook(_btn=None):
+                    _hookstatus.text = "Pulling two quarters of 13F from SEC — this takes a couple minutes…"
+                    try:
+                        data = await asyncio.to_thread(prospect_hook.prepare, ticker, company)
+                    except Exception as exc:
+                        _hookstatus.text = f"Hook prep failed: {exc}"
+                        return
+                    if data.get("error"):
+                        _hookstatus.text = data["error"]
+                        return
+                    _hookstatus.text = (f"Ready — {data['n_holders']} holders, "
+                                        f"{len(data['top_changes'])} moves ({data['quarter']}).")
+                    _paint_hook(data)
+
+                with ui.row().classes("w-full items-center").style("gap:8px;"):
+                    ui.button("Prepare hook", icon="insights", on_click=_prepare_hook).props(
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
+                    _hookstatus = ui.label(
+                        f"Pulls {company}'s last two 13F quarters (~2 min). Cached after the first run.").style(
+                        f"color:{COLORS['text_muted']};font-size:10.5px;")
+                _cached_hook = prospect_hook.get_cached(ticker)
+                if _cached_hook and not _cached_hook.get("error"):
+                    _paint_hook(_cached_hook)
+
                 def _track(note=None):
                     """Add this prospect to the sales pipeline as an outbound lead."""
                     lead = sales_pipeline.add_outbound(e)
