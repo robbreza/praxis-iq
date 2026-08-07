@@ -1434,6 +1434,50 @@ def board_package_pdf(client_id=None):
         if bs_.get("note"):
             story.append(Paragraph(_esc(bs_["note"]), _S["body"]))
 
+    # ---- 3b. Institutional holder moves this quarter (two-quarter 13F diff) ----
+    hm_ = d.get("holder_moves")
+    if hm_ and hm_.get("briefing"):
+        from core import prospect_hook as _ph
+        # Helvetica lacks →/− glyphs; keep the PDF ASCII (the screen keeps the nicer unicode).
+        def _ascii(s):
+            return (s or "").replace("→", "->").replace("−", "-").replace("–", "-")
+        story.append(Paragraph("Institutional holder moves this quarter", _S["h2"]))
+        story.append(Paragraph(_esc(_ascii(hm_["briefing"])), _S["body"]))
+        _top = hm_.get("top") or []
+        if _top:
+            rows = [[Paragraph(h, _S["th"]) for h in ["Institution", "Move", "$ change", "Metro"]]]
+            for c in _top:
+                up = c["direction"] in ("added", "new")
+                amt = c["value"] if c["direction"] == "new" else (
+                    c["prior_value"] if c["direction"] == "exited" else c["delta_value"])
+                rows.append([
+                    Paragraph(_esc(c["filer"]), _S["td"]),
+                    Paragraph(_esc(c["direction"]), _S["td"]),
+                    Paragraph(("+" if up else "-") + _ascii(_ph._fmt_usd(amt)), _S["td"]),
+                    Paragraph(_esc(c.get("metro") or "—"), _S["td"])])
+            t = Table(rows, colWidths=[2.6 * inch, 1.1 * inch, 1.2 * inch, 1.6 * inch])
+            t.setStyle(TableStyle([
+                ("LINEBELOW", (0, 0), (-1, 0), 0.8, INK),
+                ("LINEBELOW", (0, 1), (-1, -1), 0.4, BORDER),
+                ("TEXTCOLOR", (2, 1), (2, -1), INK),
+                ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5)]))
+            story.append(t)
+        try:                                    # the moves chart, same visual the screen shows
+            from config.client_config import get_active_client_id
+            _cached = _ph.get_cached(d["ticker"], client_id=client_id or get_active_client_id())
+            _png = _ph.active_moves_chart_png(_cached) if _cached else None
+            if _png:
+                import io as _io
+
+                from reportlab.lib.utils import ImageReader
+                from reportlab.platypus import Image as _RLImage
+                _iw, _ih = ImageReader(_io.BytesIO(_png)).getSize()
+                _w = 6.3 * inch
+                story.append(_RLImage(_io.BytesIO(_png), width=_w, height=_w * _ih / _iw))
+        except Exception as _exc:
+            print(f"[report_pdf] holder-moves chart skipped: {_exc}")
+
     # ---- 4. Market context & valuation vs peers ----
     story.append(PageBreak())
     story.append(Paragraph("4. Market context &amp; valuation vs peers", _S["h2"]))

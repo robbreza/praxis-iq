@@ -75,6 +75,16 @@ def test_active_moves_chart_png_bytes(mocked):
     assert png and png[:8] == b"\x89PNG\r\n\x1a\n"           # the visual of the hook renders
 
 
+def test_net_posture_and_board_briefing(mocked):
+    # AMKR fixture: Epsilon(new) + Alpha(added) vs Gamma(trimmed) + Delta(exited) => mixed 2/2
+    d = ph.prepare("AMKR", "Amkor Technology")
+    p = ph.net_posture(d)
+    assert p == {"label": "mixed", "accumulating": 2, "trimming": 2}
+    b = ph.briefing_text(d)
+    assert b.startswith("Across the")                        # board-toned, not the outreach "I ran…"
+    assert "adding or initiating" in b and "trimming or exiting" in b
+
+
 def test_prepare_is_cached(mocked):
     ph.prepare("AMKR", "Amkor Technology")
     n_after_first = mocked["n"]

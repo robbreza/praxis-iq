@@ -1803,6 +1803,72 @@ def _render_board_ir_report():
         if nobo_cov is not None:
             _bm_stat("NOBO coverage", f"{nobo_cov:.0f}%", f"{nobo_ret:.0f}% retail")
 
+    # Institutional holder moves this quarter — the two-quarter 13F diff (family-netted,
+    # active-vs-passive) from core.prospect_hook. Read-only of the cache on render; the ~90s
+    # SEC pull is the explicit Prepare/Refresh button, never run inline (same rule as 13F refresh).
+    ui.label("Institutional holder moves this quarter").classes("section-head").style("margin-top:10px;")
+    _moves_box = ui.column().classes("w-full").style("gap:5px;")
+
+    def _paint_holder_moves():
+        import asyncio
+        import base64
+
+        from config.client_config import get_active_client_id
+        from core import prospect_hook
+        _moves_box.clear()
+        _cid = get_active_client_id()
+        data = prospect_hook.get_cached(CT("ticker"), client_id=_cid)
+        with _moves_box:
+            _status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            _status.set_visibility(False)
+
+            async def _prep():
+                _status.set_visibility(True)
+                _status.text = "Pulling two quarters of 13F from SEC — about 90 seconds…"
+                try:
+                    await asyncio.to_thread(prospect_hook.prepare, CT("ticker"), CT("name"), True, 10, _cid)
+                except Exception as exc:
+                    _status.text = f"Briefing failed: {exc}"
+                    return
+                _paint_holder_moves()
+
+            if not data or data.get("error"):
+                ui.label((data or {}).get("error")
+                         or "No holder-move briefing yet — pull two quarters of 13F to see which "
+                            "institutions accumulated, trimmed, initiated or exited this quarter.").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.button("Prepare holder-move briefing", icon="insights", on_click=_prep).props("dense")
+                return
+
+            ui.label(prospect_hook.briefing_text(data)).style(
+                f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.55;")
+            for c in (data.get("top_changes") or [])[:6]:
+                up = c["direction"] in ("added", "new")
+                clr = "#15803D" if up else "#B91C1C"
+                amt = c["value"] if c["direction"] == "new" else (
+                    c["prior_value"] if c["direction"] == "exited" else c["delta_value"])
+                with ui.row().classes("w-full items-center").style("gap:8px;"):
+                    ui.label("▲" if up else "▼").style(f"color:{clr};font-size:10px;")
+                    ui.label(c["filer"]).style(f"color:{COLORS['text_heading']};font-size:12px;font-weight:600;")
+                    ui.label(c["direction"]).style(f"color:{clr};font-size:10.5px;")
+                    ui.space()
+                    ui.label(("+" if up else "−") + prospect_hook._fmt_usd(amt)).style(
+                        f"color:{clr};font-size:12px;font-weight:700;")
+                    if c.get("metro"):
+                        ui.label(c["metro"]).style(f"color:{COLORS['text_muted']};font-size:10px;min-width:120px;text-align:right;")
+            png = prospect_hook.active_moves_chart_png(data)
+            if png:
+                ui.image("data:image/png;base64," + base64.b64encode(png).decode()).style(
+                    f"max-width:100%;border:1px solid {COLORS['border']};border-radius:8px;margin-top:4px;")
+            with ui.row().classes("items-center").style("gap:10px;margin-top:2px;"):
+                ui.label(f"Prepared {str(data.get('prepared_at'))[:10]} · covers {data.get('prior_quarter')} → "
+                         f"{data.get('quarter')} · {data.get('n_holders')} holders").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;")
+                ui.button("Refresh (re-pull 13F)", icon="refresh", on_click=_prep).props("flat dense").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+    _paint_holder_moves()
+
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:4px solid #B45309;margin-top:8px;"):

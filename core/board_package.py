@@ -332,6 +332,28 @@ def _apply_overrides(d, client_id=None):
     return d
 
 
+def holder_moves(client_id=None):
+    """The quarter's institutional holder MOVES (adds / trims / new / exits), from the two-quarter
+    13F diff computed by core.prospect_hook (family-netted, active-vs-passive). READ-ONLY of the
+    cache — the ~90s SEC pull is a deliberate 'Refresh holder moves' action, never run on a board
+    render (same rule as refresh_13f_holders). Returns None until a briefing has been prepared."""
+    from core import prospect_hook
+    from config.client_config import get_active_client_id
+    cid = client_id or get_active_client_id()
+    data = prospect_hook.get_cached(CT("ticker"), client_id=cid)
+    if not data or data.get("error"):
+        return None
+    return {
+        "quarter": data.get("quarter"), "prior_quarter": data.get("prior_quarter"),
+        "n_holders": data.get("n_holders"), "n_prior": data.get("n_prior"),
+        "posture": prospect_hook.net_posture(data),
+        "briefing": prospect_hook.briefing_text(data),
+        "top": (data.get("top_changes") or [])[:6],
+        "metro_trend": data.get("metro_trend_active") or data.get("metro_trend"),
+        "prepared_at": data.get("prepared_at"),
+    }
+
+
 def compose(client_id=None, raw=False):
     """Compose the board package. raw=True returns the auto-written version (no
     IR edits applied) — used by the edit UI to show the original for Reset."""
@@ -342,6 +364,7 @@ def compose(client_id=None, raw=False):
         "as_of": datetime.now(),
         "period": p, "glance": at_a_glance(client_id, period=p),
         "sell_side": sell_side(client_id), "buy_side": buy_side(client_id),
+        "holder_moves": holder_moves(client_id),
         "valuation": _val, "open_items": open_items(client_id),
         "appendix": appendix_comp_sheet(client_id),
         "summary": summary(p, _val, client_id),

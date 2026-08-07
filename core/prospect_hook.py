@@ -169,12 +169,16 @@ def _direction(prior_sh, cur_sh):
     return "unchanged"
 
 
-def prepare(ticker, company, force=False, top_n=10):
+def prepare(ticker, company, force=False, top_n=10, client_id=None):
     """Pull two quarters of 13F, diff, and cache the hook payload for `ticker`. Returns the
     payload dict (with 'error' set on failure). Idempotent: a cached payload for the current
-    quarter is returned as-is unless force=True."""
+    quarter is returned as-is unless force=True.
+
+    `client_id` scopes the cache: prospects cache under the internal 'praxis' tenant (default);
+    a client's own holder-move briefing caches under that client's id so it lives with its data."""
+    tenant = client_id or _CACHE_TENANT
     ticker = (ticker or "").upper()
-    cached = db.load_json(_CACHE_KEY_FMT.format(ticker=ticker), default=None, client_id=_CACHE_TENANT)
+    cached = db.load_json(_CACHE_KEY_FMT.format(ticker=ticker), default=None, client_id=tenant)
     datasets = sec_filings._recent_13f_datasets(2)
     if len(datasets) < 2:
         return {"ticker": ticker, "company": company, "top_changes": [],
@@ -240,13 +244,13 @@ def prepare(ticker, company, force=False, top_n=10):
         "value_by_metro": by_val.most_common(12),
         "prepared_at": _now(), "error": None,
     }
-    db.save_json(_CACHE_KEY_FMT.format(ticker=ticker), payload, client_id=_CACHE_TENANT)
+    db.save_json(_CACHE_KEY_FMT.format(ticker=ticker), payload, client_id=tenant)
     return payload
 
 
-def get_cached(ticker):
+def get_cached(ticker, client_id=None):
     return db.load_json(_CACHE_KEY_FMT.format(ticker=(ticker or "").upper()),
-                        default=None, client_id=_CACHE_TENANT)
+                        default=None, client_id=client_id or _CACHE_TENANT)
 
 
 # ── deterministic hook copy ────────────────────────────────────────────────
@@ -283,6 +287,35 @@ def _move_phrase(c):
     if c["direction"] == "exited":
         return f"{c['filer']} {v} (was {_fmt_usd(c['prior_value'])}){tail}"
     return f"{c['filer']} {v} {_fmt_shares(c['delta_shares'])} shares ({_fmt_usd(c['delta_value'])}){tail}"
+
+
+def net_posture(data):
+    """Board-level read of the quarter: are the biggest movers net accumulating or distributing?
+    Counts direction across the top moves (adds/new vs trims/exits)."""
+    top = (data or {}).get("top_changes") or []
+    acc = sum(1 for c in top if c["direction"] in ("added", "new"))
+    dist = sum(1 for c in top if c["direction"] in ("trimmed", "exited"))
+    label = ("net accumulation" if acc > dist else
+             "net distribution" if dist > acc else "mixed")
+    return {"label": label, "accumulating": acc, "trimming": dist}
+
+
+def briefing_text(data):
+    """A board-toned summary of the quarter's institutional moves — distinct from the outreach
+    hook_text (which is written to a prospect). Factual, no invented figures. '' if no moves."""
+    if not data or data.get("error") or not data.get("top_changes"):
+        return ""
+    p = net_posture(data)
+    active = [c for c in (data.get("top_active") or []) if abs(c["delta_value"]) >= _MIN_ACTIVE_USD][:3]
+    lead = (f"Across the {data['prior_quarter']} → {data['quarter']} 13F filings, the ten largest "
+            f"ownership moves were {p['label']} ({p['accumulating']} adding or initiating, "
+            f"{p['trimming']} trimming or exiting).")
+    if active:
+        lead += " Notable active-manager moves: " + "; ".join(_move_phrase(c) for c in active) + "."
+    tr = data.get("metro_trend_active") or data.get("metro_trend")
+    if tr and tr.get("count", 0) >= 2:
+        lead += f" {tr['count']} of the biggest active moves sit in {tr['metro']}."
+    return lead
 
 
 _MIN_ACTIVE_USD = 25_000_000        # ignore trivially small "active" moves when choosing the lead
