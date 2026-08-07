@@ -69,6 +69,12 @@ def test_metro_chart_png_bytes(mocked):
     assert png and png[:8] == b"\x89PNG\r\n\x1a\n"           # valid PNG signature
 
 
+def test_active_moves_chart_png_bytes(mocked):
+    d = ph.prepare("AMKR", "Amkor Technology")
+    png = ph.active_moves_chart_png(d)
+    assert png and png[:8] == b"\x89PNG\r\n\x1a\n"           # the visual of the hook renders
+
+
 def test_prepare_is_cached(mocked):
     ph.prepare("AMKR", "Amkor Technology")
     n_after_first = mocked["n"]
@@ -106,6 +112,43 @@ def test_fund_family_is_netted(mem_db, monkeypatch):
     # 489M + 410M (cur) vs 620M (prior) => +$279M, ADDED (not exited, not two new positions)
     assert vg[0]["direction"] == "added" and vg[0]["delta_value"] == 279_000_000
     assert "across its funds" in ph.hook_text(d)
+
+
+def test_active_moves_lead_over_passive(mem_db, monkeypatch):
+    # Passive giants have the biggest dollar swings, but the hook must lead with the ACTIVE
+    # managers (the conviction signal), not Vanguard/Morgan Stanley flow.
+    cur = [
+        {"cik": "1", "filer": "VANGUARD GROUP INC", "city": "Malvern", "state": "PA",
+         "shares": 10_000_000, "value": 5_000_000_000},
+        {"cik": "2", "filer": "MORGAN STANLEY", "city": "New York", "state": "NY",
+         "shares": 5_000_000, "value": 2_000_000_000},
+        {"cik": "3", "filer": "Norges Bank", "city": "Oslo", "state": "Q8",
+         "shares": 2_000_000, "value": 400_000_000},                    # active, trimmed
+        {"cik": "4", "filer": "Bridgewater Associates, LP", "city": "Westport", "state": "CT",
+         "shares": 1_000_000, "value": 300_000_000},                    # active, added
+    ]
+    pri = [
+        {"cik": "1", "filer": "VANGUARD GROUP INC", "city": "Valley Forge", "state": "PA",
+         "shares": 6_000_000, "value": 3_000_000_000},
+        {"cik": "2", "filer": "MORGAN STANLEY", "city": "New York", "state": "NY",
+         "shares": 2_000_000, "value": 800_000_000},
+        {"cik": "3", "filer": "Norges Bank", "city": "Oslo", "state": "Q8",
+         "shares": 4_000_000, "value": 800_000_000},
+        {"cik": "4", "filer": "Bridgewater Associates, LP", "city": "Westport", "state": "CT",
+         "shares": 500_000, "value": 150_000_000},
+    ]
+    monkeypatch.setattr(sec_filings, "_recent_13f_datasets",
+                        lambda n=2: [("u_cur", "01mar2026-31may2026"), ("u_pri", "01dec2025-28feb2026")])
+    monkeypatch.setattr(sec_filings, "refresh_13f_bulk_all",
+                        lambda pairs, dataset=None, save=True: {pairs[0][0]: {
+                            "holders": [dict(h) for h in (cur if dataset[1].startswith("01mar") else pri)]}})
+    d = ph.prepare("XYZ", "Example Semiconductor")
+    assert all(not c["passive"] for c in d["top_active"])               # active view excludes flow
+    assert [c["filer"] for c in d["top_active"]] == ["Norges Bank", "Bridgewater Associates, LP"]
+    t = ph.hook_text(d)
+    assert "active-manager moves" in t
+    assert "Norges Bank" in t and "Bridgewater" in t
+    assert "Vanguard" not in t and "Morgan Stanley" not in t            # passive giants not in the lead
 
 
 def test_no_holders_returns_error(mem_db, monkeypatch):

@@ -13,6 +13,7 @@ deliberate, cached, off-render action; hook_text()/metro_chart_png() read the ca
 reusable engine behind the personalized prospect email.
 """
 import io
+import re
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -91,6 +92,49 @@ def _family(filer):
     return None
 
 
+# PASSIVE / FLOW managers: index complexes, bulge-bracket bank broker-dealers, and market makers.
+# Their 13F swings are mechanical (index tracking, customer facilitation, delta hedges), NOT
+# conviction — a $3.5B Barclays move says nothing an IR team can act on. Everything NOT on this
+# list is treated as an ACTIVE manager (a real repositioning worth a conversation). Fuzzy at the
+# margins by nature; curated to the clearly-mechanical names. Values here are family labels (post
+# _aggregate) or raw-name prefixes for firms that don't get family-netted.
+_FLOW_LABELS = {
+    "Vanguard", "BlackRock", "State Street", "Geode", "Northern Trust", "Charles Schwab",
+    "JPMorgan", "Morgan Stanley", "Goldman Sachs", "Bank of America", "Barclays", "UBS",
+    "Deutsche Bank", "Citadel",
+}
+_FLOW_NAME_PREFIXES = [
+    "JANE STREET", "SUSQUEHANNA", "VIRTU", "WOLVERINE", "JUMP TRADING", "IMC ", "OPTIVER",
+    "CITADEL SECURITIES", "TWO SIGMA SECURITIES", "CITIGROUP", "CITIBANK", "WELLS FARGO",
+    "BNY MELLON", "BANK OF NEW YORK", "MELLON", "ROYAL BANK OF CANADA", "BANK OF MONTREAL",
+    "TORONTO-DOMINION", "TORONTO DOMINION", "BNP PARIBAS", "HSBC", "NOMURA", "MIZUHO",
+    "SOCIETE GENERALE", "CREDIT SUISSE", "MACQUARIE", "SUMITOMO", "NATIONAL BANK OF CANADA",
+]
+
+
+def _is_flow(name):
+    """True if `name` is a passive/flow manager (index / bank broker-dealer / market maker)."""
+    if name in _FLOW_LABELS:
+        return True
+    up = (name or "").upper().strip()
+    return any(up.startswith(p) for p in _FLOW_NAME_PREFIXES)
+
+
+_ENTITY_TOKENS = {"Llc", "Llp", "Lp", "Inc", "Ltd", "Lt", "Plc", "Na", "Us", "Uk", "Lp.",
+                  "Ii", "Iii", "Iv", "Sa", "Ag", "Nv", "Ab", "Co", "Corp", "Sec", "Mgmt"}
+
+
+def _clean_filer(name):
+    """Tidy a raw SEC filer name for display: drop a trailing ' / CT' state tag, and title-case
+    an ALL-CAPS name while keeping entity suffixes (LLC/LP/INC) upper. Mixed-case names untouched."""
+    n = re.sub(r"\s*/\s*[A-Za-z]{2}\s*$", "", (name or "").strip())
+    if n.isupper():
+        n = n.title()
+        n = re.sub(r"[A-Za-z]+", lambda m: m.group(0).upper() if m.group(0) in _ENTITY_TOKENS
+                   else m.group(0), n)
+    return n
+
+
 def _aggregate(holders):
     """Collapse the known multi-entity fund families to one group; keep every other filer as
     itself. Group key is stable across quarters. Metro/name follow the family's largest entity."""
@@ -154,9 +198,11 @@ def prepare(ticker, company, force=False, top_n=10):
         base = c or p
         cur_sh, pri_sh = (c or {}).get("shares") or 0, (p or {}).get("shares") or 0
         cur_val, pri_val = (c or {}).get("value") or 0, (p or {}).get("value") or 0
+        name = base.get("name")
         changes.append({
-            "filer": base.get("name"),
+            "filer": _clean_filer(name),
             "family": bool(base.get("is_family")),
+            "passive": _is_flow(name),
             "city": base.get("city"), "state": base.get("state"),
             "metro": _metro(base.get("city"), base.get("state")),
             "shares": cur_sh, "prior_shares": pri_sh, "delta_shares": cur_sh - pri_sh,
@@ -167,9 +213,12 @@ def prepare(ticker, company, force=False, top_n=10):
     # dollar impact desc; filer name as a stable tiebreaker so equal-impact moves don't reorder
     movers.sort(key=lambda c: (-abs(c["delta_value"]), (c["filer"] or "")))
     top = movers[:top_n]
+    top_active = [c for c in movers if not c["passive"]][:top_n]   # conviction moves only
 
     metro_counts = Counter(c["metro"] for c in top if c.get("metro"))
     trend = metro_counts.most_common(1)[0] if metro_counts else None
+    active_counts = Counter(c["metro"] for c in top_active if c.get("metro"))
+    active_trend = active_counts.most_common(1)[0] if active_counts else None
 
     by_cnt, by_val = Counter(), Counter()
     for g in cur_g.values():
@@ -183,7 +232,10 @@ def prepare(ticker, company, force=False, top_n=10):
         "quarter": datasets[0][1], "prior_quarter": datasets[1][1],
         "n_holders": n_cur_raw, "n_prior": n_pri_raw,
         "top_changes": top,
+        "top_active": top_active,
         "metro_trend": ({"metro": trend[0], "count": trend[1], "of": len(top)} if trend else None),
+        "metro_trend_active": ({"metro": active_trend[0], "count": active_trend[1],
+                                "of": len(top_active)} if active_trend else None),
         "holders_by_metro": by_cnt.most_common(12),
         "value_by_metro": by_val.most_common(12),
         "prepared_at": _now(), "error": None,
@@ -233,16 +285,38 @@ def _move_phrase(c):
     return f"{c['filer']} {v} {_fmt_shares(c['delta_shares'])} shares ({_fmt_usd(c['delta_value'])}){tail}"
 
 
+_MIN_ACTIVE_USD = 25_000_000        # ignore trivially small "active" moves when choosing the lead
+
+
+def _metro_line(trend, noun):
+    return (f" {trend['count']} of the {noun} are {trend['metro']} funds — "
+            f"a metro you could cover in a single day of meetings.")
+
+
 def hook_text(data):
-    """A short, factual outreach paragraph built deterministically from the diff. '' if there
-    are no usable movers."""
+    """A short, factual outreach paragraph built deterministically from the diff — no AI, no
+    invented figures. ADAPTS to the prospect: when there are real active-manager moves it leads
+    with those (the conviction signal), and only claims a metro cluster when the ACTIVE movers
+    genuinely concentrate; otherwise it falls back to the biggest moves overall. '' if no movers."""
     if not data or data.get("error") or not data.get("top_changes"):
         return ""
     co = data.get("company") or data.get("ticker")
+    pq, q = data["prior_quarter"], data["quarter"]
+    active = [c for c in (data.get("top_active") or []) if abs(c["delta_value"]) >= _MIN_ACTIVE_USD]
+
+    if len(active) >= 2:
+        lead = (f"I ran {co}'s last two 13F quarters ({pq} → {q}). The notable active-manager moves: "
+                + "; ".join(_move_phrase(c) for c in active[:3]) + ".")
+        tr = data.get("metro_trend_active")
+        n_active = len(data.get("top_active") or [])
+        if tr and tr["count"] >= max(2, round(0.4 * n_active)):     # a real cluster, not passive noise
+            lead += _metro_line(tr, "biggest active moves")
+        return lead
+
+    # fallback: the move set is dominated by passive/flow — report the biggest moves overall
     top = data["top_changes"]
-    lead = (f"I ran {co}'s last two 13F quarters ({data['prior_quarter']} → {data['quarter']}). "
-            f"Among the {len(top)} biggest ownership moves: "
-            + "; ".join(_move_phrase(c) for c in top[:3]) + ".")
+    lead = (f"I ran {co}'s last two 13F quarters ({pq} → {q}). Among the {len(top)} biggest "
+            f"ownership moves: " + "; ".join(_move_phrase(c) for c in top[:3]) + ".")
     trend = data.get("metro_trend")
     if trend and trend["count"] >= 2:
         lead += (f" {trend['count']} of those {trend['of']} movers are {trend['metro']} funds — "
@@ -284,6 +358,63 @@ def metro_chart_png(data, width=700, row_h=30, pad=18):
         w = max(3, int(bar_max * v / maxv))
         d.rectangle([bar_x, y + 3, bar_x + w, y + row_h - 9], fill=bar)
         d.text((bar_x + w + 6, y + 5), str(v), fill=sub, font=font)
+        y += row_h
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def active_moves_chart_png(data, width=760, row_h=32, pad=18):
+    """The VISUAL of the hook: the biggest ACTIVE-manager moves this quarter as a diverging bar
+    chart — added/new to the right (green), trimmed/exited to the left (red), each labeled with
+    the fund, dollar move, and metro. Falls back to the biggest moves overall if no active ones.
+    Returns PNG bytes, or None if nothing to plot."""
+    from PIL import Image, ImageDraw, ImageFont
+    moves = [m for m in ((data or {}).get("top_active") or []) if abs(m.get("delta_value") or 0)]
+    if not moves:
+        moves = [m for m in ((data or {}).get("top_changes") or []) if abs(m.get("delta_value") or 0)]
+    moves = moves[:8]
+    if not moves:
+        return None
+    ink, sub, bg = (17, 24, 39), (100, 116, 139), (255, 255, 255)
+    green, red, axis = (21, 128, 61), (185, 28, 28), (203, 213, 225)
+    title_h, label_w = 52, 172
+    height = title_h + pad + row_h * len(moves) + pad
+    img = Image.new("RGB", (width, height), bg)
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 12)
+        small = ImageFont.truetype("arial.ttf", 11)
+        title_font = ImageFont.truetype("arialbd.ttf", 16)
+    except Exception:
+        font = small = title_font = ImageFont.load_default()
+    co = data.get("company") or data.get("ticker")
+    d.text((pad, 12), f"{co} — biggest active-manager moves", fill=ink, font=title_font)
+    d.text((pad, 32), f"{data.get('prior_quarter', '')} → {data.get('quarter', '')}   "
+                      "▮ added / new    ▮ trimmed / exited", fill=sub, font=small)
+
+    axis_left, axis_right = pad + label_w, width - pad
+    center = (axis_left + axis_right) // 2
+    half = (axis_right - axis_left) // 2 - 78          # leave room for end labels
+    maxv = max(abs(m["delta_value"]) for m in moves) or 1
+    d.line([center, title_h + pad - 2, center, height - pad + 2], fill=axis, width=1)
+    y = title_h + pad
+    for m in moves:
+        inflow = m["direction"] in ("added", "new")
+        col = green if inflow else red
+        name = m["filer"]
+        name = (name[:24] + "…") if len(name) > 25 else name
+        d.text((pad, y + 6), name, fill=ink, font=font)
+        w = max(3, int(half * abs(m["delta_value"]) / maxv))
+        if inflow:
+            d.rectangle([center, y + 4, center + w, y + row_h - 8], fill=col)
+            tag = f"+{_fmt_usd(m['delta_value'])}" + (f" · {m['metro']}" if m.get("metro") else "")
+            d.text((center + w + 5, y + 6), tag, fill=sub, font=small)
+        else:
+            d.rectangle([center - w, y + 4, center, y + row_h - 8], fill=col)
+            tag = f"−{_fmt_usd(m['delta_value'])}" + (f" · {m['metro']}" if m.get("metro") else "")
+            tw = d.textlength(tag, font=small)
+            d.text((center - w - 5 - tw, y + 6), tag, fill=sub, font=small)
         y += row_h
     buf = io.BytesIO()
     img.save(buf, format="PNG")

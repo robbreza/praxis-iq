@@ -1097,12 +1097,21 @@ def _render_prospect_screener():
                                 f"color:{COLORS['text_body']};font-size:11.5px;"
                                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                                 "border-radius:6px;padding:6px 8px;")
+                        # the moves chart IS the visual of the hook; the metro chart answers "where to go"
+                        moves_png = prospect_hook.active_moves_chart_png(data)
+                        if moves_png:
+                            ui.image("data:image/png;base64," + base64.b64encode(moves_png).decode()).style(
+                                f"max-width:100%;border:1px solid {COLORS['border']};border-radius:8px;")
+                            ui.button("Download moves chart (PNG)", icon="download",
+                                      on_click=lambda p=moves_png, tk=ticker: ui.download(
+                                          p, f"{tk}_active_moves.png")).props(
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
                         png = prospect_hook.metro_chart_png(data)
                         if png:
                             uri = "data:image/png;base64," + base64.b64encode(png).decode()
                             ui.image(uri).style(
                                 f"max-width:100%;border:1px solid {COLORS['border']};border-radius:8px;")
-                            ui.button("Download chart (PNG)", icon="download",
+                            ui.button("Download metro chart (PNG)", icon="download",
                                       on_click=lambda png=png, tk=ticker: ui.download(
                                           png, f"{tk}_holders_by_metro.png")).props(
                                 "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
