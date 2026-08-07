@@ -320,14 +320,20 @@ def render_today_page():
     td = datetime.now().strftime("%A, %B %d, %Y")
 
     ui.label(td).style(f"color:{COLORS['accent_light2']};text-transform:uppercase;letter-spacing:.08em;font-size:13px;")
-    # Greeting name: CFO, not the IR contact (CI()) — per the user, ahead of
-    # a Wednesday demo to USIO's CFO (Michael White). Falls back to the IR
-    # contact's name if a client has no CFO configured, so this doesn't
-    # break for a future client with a different exec roster.
-    cfo = C().get("executives", {}).get("CFO", {})
-    greet_name = cfo.get("name") or CI().get("name", "there")
-    first_name = (greet_name.split() or ["there"])[0]
-    ui.label(f"Good morning, {first_name}.").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    # Greet the actual logged-in user — whoever is viewing (IR / CEO / CFO via the role selector),
+    # not a hardcoded exec. (This used to name USIO's CFO for one specific demo.) Falls back to a
+    # clean, name-less greeting when there's no session — e.g. the smoke renderer.
+    first_name = ""
+    try:
+        from nicegui import app as _app
+        from core import auth as _auth
+        _uid = _app.storage.user.get("user_id")
+        _u = _auth.get_user(_uid) if _uid else None
+        first_name = ((_u or {}).get("display_name") or "").split(" ")[0]
+    except Exception:
+        first_name = ""
+    ui.label(f"Good morning, {first_name}." if first_name else "Good morning.") \
+        .classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
     # RBAC: view-only roles (e.g. CRO/Legal) can read the morning brief but not
     # persist mark-noted/sent/consensus actions — enforced at the _save_state

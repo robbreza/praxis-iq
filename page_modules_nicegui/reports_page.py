@@ -1,8 +1,7 @@
 """
 page_modules_nicegui/reports_page.py — Reports & Deliverables page, NiceGUI version.
 
-Six tabs. The first five were ported from the original Streamlit "Reports"
-section:
+Five tabs, ported from the original Streamlit "Reports" section:
 1. Board IR Reports        — embedded report-page images + reviewed tracking
 3. Peer & Market Analysis  — embedded report-page images + key findings
 4. Reg FD & Compliance     — the important one: quiet-period banner, log-an-
@@ -384,10 +383,15 @@ def _render_board_reports_tab(reviews, review_path):
     ui.label("Composed live from the latest SEC filing, valuation, and ownership data — not a static image, and "
              "always current.").style(f"color:{COLORS['text_muted']}")
 
-    with ui.expansion("IR Quarterly Board Package · Live", value=True).classes("w-full"):
+    ui.label("THE BOARD DELIVERABLE").style(
+        f"color:{COLORS['accent']};font-size:11px;font-weight:700;letter-spacing:.08em;margin-top:2px;")
+    with ui.expansion("IR Quarterly Board Package · Live", value=True).classes("w-full").style(
+            f"border:1px solid {COLORS['accent']}44;border-radius:10px;"):
         _render_board_ir_report()
         _reviewed_row(reviews, review_path, "USIO_Board_IR_Report")
 
+    ui.label("SUPPORTING REPORTS & KITS").style(
+        f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.08em;margin-top:14px;")
     with ui.expansion("Quarterly financial trend (QoQ) — client & peers · Live").classes("w-full"):
         _render_quarterly_trend()
 

@@ -121,7 +121,7 @@ def render_calendar_page():
 
     ui.html(
         "<div class='section-eyebrow'>CALENDAR</div>"
-        "<div class='section-title'>Earnings &middot; Conferences &middot; NDR Trips</div>"
+        "<div class='section-title'>Earnings &middot; Conferences &middot; Deadlines</div>"
     )
 
     # RBAC: view-only roles (e.g. Legal) can browse the calendar and export it

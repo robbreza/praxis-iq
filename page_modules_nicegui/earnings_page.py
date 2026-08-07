@@ -666,7 +666,7 @@ def _render_prep_brief_tab():
 
 def render_earnings_page():
     earnings = CE()
-    ui.label(f"Script Generation · {earnings.get('current_quarter','')} · "
+    ui.label(f"Earnings Cycle · {earnings.get('current_quarter','')} · "
              f"{earnings.get('earnings_date','')} {earnings.get('call_time','')}").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
     # Deep-link from elsewhere in the app — consumed once per page visit,

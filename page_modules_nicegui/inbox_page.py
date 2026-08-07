@@ -72,15 +72,25 @@ def render_inbox_page():
     if recent:
         ui.label("Recently filed").classes("section-head").style("margin-top:18px;")
         for it in recent:
-            with ui.card().classes("w-full").style(
-                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};padding:6px 12px;"):
-                with ui.row().classes("w-full justify-between items-center"):
-                    ui.label(f"{_cat_label(it.get('category'))}  ·  "
-                             f"{it.get('firm') or it.get('contact') or '—'}").style(
-                        f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                    ui.label(it.get("received_at", "")).style(f"color:{COLORS['text_muted']};font-size:11px;")
+            # Expandable so a filed row isn't a dead end — tap to see what it was, where it was
+            # filed, and the original text, without leaving the inbox.
+            _hdr = f"{_cat_label(it.get('category'))}  ·  {it.get('firm') or it.get('contact') or '—'}"
+            with ui.expansion(_hdr, caption=it.get("received_at", "")).classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
                 if it.get("subject"):
-                    ui.label(it["subject"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(it["subject"]).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                if it.get("outcome"):
+                    ui.label(f"Filed: {it['outcome']}").style(f"color:{COLORS['accent']};font-size:12px;")
+                if it.get("sender_email"):
+                    ui.label(f"From: {it['sender_email']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                if it.get("filename"):
+                    ui.label(f"Attachment: {it['filename']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                if it.get("body"):
+                    ui.label(it["body"]).style(
+                        f"color:{COLORS['text_muted']};font-size:12px;white-space:pre-wrap;margin-top:4px;")
+                if not any(it.get(k) for k in ("subject", "outcome", "sender_email", "filename", "body")):
+                    ui.label("No further detail captured for this item.").style(
+                        f"color:{COLORS['text_muted']};font-size:12px;")
 
     _render_ir_knowledge_editor()
 
