@@ -4950,6 +4950,7 @@ def _render_ndr_requests_tab():
             r_city = ui.input("City *").classes("flex-1")
             r_metro = ui.input("Metro region",
                                autocomplete=sorted({i["Metro"] for i in get_seed_buyside_institutions(get_active_client_id())})).classes("flex-1")
+        r_email = ui.input("Analyst email", placeholder="so Reply pre-fills the recipient").classes("w-full")
         r_reason = ui.textarea("Reason / context", placeholder="What did they ask for, and why?").classes("w-full")
 
         def log_request():
@@ -4960,6 +4961,7 @@ def _render_ndr_requests_tab():
             reqs.append({
                 "id": datetime.now().strftime("%Y%m%d%H%M%S"), "analyst": r_analyst.value, "firm": r_firm.value,
                 "city": r_city.value, "metro": r_metro.value or r_city.value, "reason": r_reason.value or "—",
+                "analyst_email": (r_email.value or "").strip() or None,
                 "received": datetime.now().strftime("%b %d, %Y"), "resolved": False, "seeded": False,
             })
             _save_ndr_requests(reqs)
