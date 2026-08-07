@@ -129,7 +129,6 @@ _install_event_tenant_hook()
 # nav's text color (graphite inactive, navy active) instead of fixed emoji.
 NAV_GROUPS = [
     ("OVERVIEW", [
-        ("Home",      "smartphone", "Home\nOn the road", "Your on-the-road assistant — pulse, schedule, meeting prep & notes"),
         ("Today",     "space_dashboard", "Today", "Morning brief · Alerts · Actions due"),
         ("Inbox",     "inbox", "IR Inbox", "The IRconnect inbox — parsed models, research notes and requests, filed automatically"),
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
@@ -147,6 +146,12 @@ NAV_GROUPS = [
     ("REPORTS & SETTINGS", [
         ("Reports",   "assessment", "Reports", "Board report · Investor deck · Reg FD"),
         ("Settings",  "settings", "Settings", "Platform configuration · Data sources"),
+    ]),
+    # The phone / on-the-road view — demoted to the bottom and renamed "Mobile" (it is NOT the
+    # desktop home; Today is the dashboard). The section KEY stays "Home", so routing, the mobile
+    # landing (_is_mobile_ua → "Home"), and the bottom tab bar are all unaffected.
+    ("ON THE ROAD", [
+        ("Home",      "smartphone", "Mobile", "The phone / on-the-road view — pulse, schedule, meeting prep & notes"),
     ]),
 ]
 
