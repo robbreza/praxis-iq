@@ -1244,16 +1244,22 @@ def render_investors_page():
     ui.markdown("---")
 
     with ui.tabs().classes("w-full") as tabs:
+        # Tabs are ordered by INTENT to match the sidebar's three clusters, so the strip reads
+        # left-to-right as Ownership → Targeting → Engagement (variable names kept stable; only
+        # the on-screen order changed). See NAV_SUBGROUPS / NAV_SUBITEMS["Investors"].
+        # ── Ownership — who owns the stock
         t1 = ui.tab("Buy-Side Intelligence")
-        t2 = ui.tab("NDR Planner")
-        t3 = ui.tab("Meeting Hub")
-        t4 = ui.tab("Target Database")
         t5 = ui.tab("SEC Intelligence")
         t6 = ui.tab("NOBO Ownership")
-        t7 = ui.tab("Peer Prospects")
-        t8 = ui.tab("Accounts (CRM)")
         t9 = ui.tab("Website")
+        # ── Targeting — who should own it
+        t4 = ui.tab("Target Database")
+        t7 = ui.tab("Peer Prospects")
         t10 = ui.tab("Import list")
+        # ── Engagement — reach & track
+        t2 = ui.tab("NDR Planner")
+        t3 = ui.tab("Meeting Hub")
+        t8 = ui.tab("Accounts (CRM)")
 
     # Lazy tab loading — this page used to build ALL FIVE tabs' content
     # (each with its own set of database reads) on every single visit,
@@ -1298,20 +1304,24 @@ def render_investors_page():
     # NDR Planner and Target Database read the mode-scored institutions, so
     # they pull from _mode_ctx (current mode) rather than capturing the initial
     # list — a tab built after a mode toggle uses the fresh scores.
+    # Order matches the intent-grouped tab strip / sidebar clusters (Ownership → Targeting →
+    # Engagement) so lazy_tab_probe (and the nav drift test) see the same order as the nav.
     lazy_panels = {
+        # ── Ownership
         t1.props["name"]: (p1, lambda: _buyside_section()),
+        t5.props["name"]: (p5, lambda: _render_sec_intelligence_tab()),
+        # NOBO Ownership relocated here from Market Intelligence — its render (with the Broadridge
+        # upload) is the shared one in markets_page, called cross-module like Earnings' narrative.
+        t6.props["name"]: (p6, lambda: _render_nobo_tab()),
+        t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
+        # ── Targeting
+        t4.props["name"]: (p4, lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id)),
+        t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
+        t10.props["name"]: (p10, lambda: _render_import_verify_tab(client_id)),
+        # ── Engagement
         t2.props["name"]: (p2, lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"])),
         t3.props["name"]: (p3, lambda: _render_meeting_hub_tab()),
-        t4.props["name"]: (p4, lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id)),
-        t5.props["name"]: (p5, lambda: _render_sec_intelligence_tab()),
-        # NOBO Ownership relocated here from Market Intelligence — its render
-        # (with the Broadridge upload) is the shared one in markets_page, called
-        # cross-module the same way Earnings calls _render_narrative_momentum.
-        t6.props["name"]: (p6, lambda: _render_nobo_tab()),
-        t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
         t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"])),
-        t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
-        t10.props["name"]: (p10, lambda: _render_import_verify_tab(client_id)),
     }
     from core import lazy_tab_probe
     lazy_tab_probe.register("Investors", lazy_panels)   # no-op unless smoke is capturing

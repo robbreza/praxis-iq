@@ -175,15 +175,31 @@ _MOBILE_TABS = [
 # single-view and render as plain nav buttons with no expander.
 NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
-    "Investors": ["Buy-Side Intelligence", "NDR Planner", "Meeting Hub",
-                  "Target Database", "SEC Intelligence", "NOBO Ownership", "Peer Prospects",
-                  "Accounts (CRM)", "Website", "Import list"],
+    # Investor Targeting's 10 destinations, grouped by INTENT (see NAV_SUBGROUPS below) — the flat
+    # order here IS the group order, and must match the page's tab strip order (guarded by
+    # tests/test_nav_subitems.py).
+    "Investors": ["Buy-Side Intelligence", "SEC Intelligence", "NOBO Ownership", "Website",
+                  "Target Database", "Peer Prospects", "Import list",
+                  "NDR Planner", "Meeting Hub", "Accounts (CRM)"],
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
                   "Consensus Tracker", "Call Transcripts", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
                   "Peer & Market Analysis", "Reg FD & Compliance",
                   "Automation Tracker"],
     "Settings":  ["Platform Config", "Data Sources", "About"],
+}
+
+# Optional intra-page grouping of the sidebar sub-items, so a dense page reads as a few clear
+# intents instead of one long list (the ease-of-use audit's Investor-Targeting finding: 10 near-
+# flat siblings → 3 buckets). Each group is (label, one-line intent, [sub-item names]). A page NOT
+# listed here renders its NAV_SUBITEMS as a flat list, unchanged. The concatenation of a page's
+# groups here MUST equal its NAV_SUBITEMS list, in order (asserted by tests/test_nav_subitems.py).
+NAV_SUBGROUPS = {
+    "Investors": [
+        ("Ownership",  "who owns the stock", ["Buy-Side Intelligence", "SEC Intelligence", "NOBO Ownership", "Website"]),
+        ("Targeting",  "who should own it",  ["Target Database", "Peer Prospects", "Import list"]),
+        ("Engagement", "reach & track",      ["NDR Planner", "Meeting Hub", "Accounts (CRM)"]),
+    ],
 }
 
 # Which sections have been ported to NiceGUI so far. Update this as each
@@ -366,6 +382,27 @@ def apply_theme():
         .nav-sub.active {{
             color: {COLORS["accent_strong"]} !important;
             font-weight: 700 !important;
+        }}
+        /* Intent header above each sub-item cluster (Ownership / Targeting / Engagement). */
+        .nav-subgroup {{
+            font-size: 10.5px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: {COLORS["text_secondary"]};
+            font-weight: 700;
+            padding: 10px 8px 3px;
+            display: flex;
+            align-items: baseline;
+            gap: 7px;
+            line-height: 1.2;
+        }}
+        .nav-subgroup:first-child {{ padding-top: 4px; }}
+        .nav-subgroup span {{
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 400;
+            font-size: 11px;
+            color: {COLORS["text_muted"]};
         }}
         /* ─────────────────────────────────────────────────────────────
            SHARED UI STANDARD (2026-07-21 consistency pass)
@@ -1231,12 +1268,23 @@ def main_page(request: Request = None):
                         # Accordion: only the expanded, accessible section shows its
                         # sub-items — each deep-links straight to that tab.
                         if subs and is_open and access != "none":
+                            def _sub_btn(section, sub):
+                                sub_cls = "nav-sub w-full" + (
+                                    " active" if (section == state["page"] and sub == state["active_tab"]) else "")
+                                ui.button(sub, on_click=lambda s=section, t=sub: go_to(s, t)).props(
+                                    "flat align=left no-caps dense").classes(sub_cls)
                             with ui.column().classes("nav-subwrap w-full gap-0"):
-                                for sub in subs:
-                                    sub_cls = "nav-sub w-full" + (
-                                        " active" if (is_active and sub == state["active_tab"]) else "")
-                                    ui.button(sub, on_click=lambda s=section, t=sub: go_to(s, t)).props(
-                                        "flat align=left no-caps dense").classes(sub_cls)
+                                _groups = NAV_SUBGROUPS.get(section)
+                                if _groups:
+                                    # Grouped: a small intent header above each cluster of sub-items.
+                                    for gname, gcaption, gitems in _groups:
+                                        ui.html(f'<div class="nav-subgroup">{gname}'
+                                                f'<span>{gcaption}</span></div>')
+                                        for sub in gitems:
+                                            _sub_btn(section, sub)
+                                else:
+                                    for sub in subs:
+                                        _sub_btn(section, sub)
                 # A one-line hint (mobile only) that the heavy tools live on desktop.
                 if heavy and group_label == "REPORTS & SETTINGS":
                     ui.html('<div class="resp-stack nav-desktop-hint">CRM build-out, earnings scripts &amp; '
