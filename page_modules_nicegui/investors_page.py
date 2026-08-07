@@ -4358,16 +4358,27 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
 
             for idx, trip in enumerate(trips):
                 all_meetings = trip.get("meetings", [])
-                real_meetings = [m for m in all_meetings if m.get("type") != "break"]
+                # A malformed trip (e.g. legacy seed data where meetings is a COUNT, not a list)
+                # must not crash the whole NDR Planner tab — treat a non-list as no meetings.
+                if not isinstance(all_meetings, list):
+                    all_meetings = []
+                real_meetings = [m for m in all_meetings if isinstance(m, dict) and m.get("type") != "break"]
                 done_m = sum(1 for m in real_meetings if m.get("status") == "completed")
                 non_h = sum(1 for m in real_meetings if m.get("non_holder", True))
                 trip_status = trip.get("status", "Planning")
+                if trip_status not in ("Planning", "In Progress", "Completed"):   # legacy/seed values
+                    trip_status = {"complete": "Completed", "completed": "Completed",
+                                   "in progress": "In Progress"}.get(str(trip_status).lower(), "Planning")
                 status_icon = {"Planning": "", "In Progress": "", "Completed": ""}.get(trip_status, "")
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                     with ui.row().classes("w-full justify-between items-start"):
                         with ui.column().classes("gap-0"):
-                            ui.label(f"{status_icon} {trip['name']}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                            ui.label(f"{trip['dates']} · {trip['city']} · {'Virtual' if trip['ndr_type']=='virtual' else 'In-Person'} · Sponsor: {trip.get('sponsor_bank','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            _tname = trip.get("name") or trip.get("city") or "NDR trip"
+                            _tdates = trip.get("dates") or trip.get("date") or "—"
+                            _ttype = "Virtual" if trip.get("ndr_type") == "virtual" else "In-Person"
+                            _tsponsor = trip.get("sponsor_bank") or trip.get("sponsor") or "—"
+                            ui.label(f"{status_icon} {_tname}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+                            ui.label(f"{_tdates} · {trip.get('city','—')} · {_ttype} · Sponsor: {_tsponsor}").style(f"color:{COLORS['text_muted']};font-size:12px;")
                             ui.label(f"Focus: {trip.get('focus','—')} · Attendees: {', '.join(trip.get('team',[])) or '—'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
                             if trip.get("notes"):
                                 ui.label(f"Objectives: {trip['notes']}").style(f"color:{COLORS['text_muted']};font-size:12px;")

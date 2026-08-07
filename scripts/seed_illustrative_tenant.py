@@ -343,9 +343,14 @@ def seed():
         ("San Francisco / Bay Area",  96, "Westmark Partners", 4),
     ]
     db.save_json("ndr_trips.json", [
-        {"id": f"trip-{i+1}", "city": c, "metro": c,
+        # Full trip shape the NDR Planner panels expect (name + meetings as a LIST, not a count) —
+        # the old compact {"meetings": n, "status": "complete"} shape crashed _active_ndrs_panel.
+        {"id": f"trip-{i+1}", "name": f"{sp} — {c}", "city": c, "metro": c,
          "date": (TODAY - timedelta(days=d)).strftime("%Y-%m-%d"),
-         "time": "Full day", "sponsor": sp, "meetings": n, "status": "complete"}
+         "dates": (TODAY - timedelta(days=d)).strftime("%Y-%m-%d"),
+         "time": "Full day", "ndr_type": "in_person", "sponsor": sp, "sponsor_bank": sp,
+         "meetings": [], "team": [], "shortlist": [], "notes": "", "focus": "", "debrief": {},
+         "status": "Completed"}
         for i, (c, d, sp, n) in enumerate(trips)
     ], client_id=CID)
     print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips")
