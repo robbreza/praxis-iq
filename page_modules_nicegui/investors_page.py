@@ -2099,6 +2099,52 @@ def _quick_log_call(inst):
     ui.notify(f"Logged a call for {pretty_name(inst['Fund'])}.", type="positive")
 
 
+def _open_person_notes(person_name, firm):
+    """Per-person notes timeline for one roster member — this client's notes only (contact_notes
+    defaults to the active client). Keyed by (name, firm) with no CIK, the same convention as
+    add_contact_note, so what's written here and elsewhere lines up on one timeline."""
+    from core import contacts as _cmod
+    contact_id = _cmod.contact_id_for(None, person_name, firm)
+    with ui.dialog() as d, ui.card().style("min-width:min(94vw,480px);max-width:560px;"):
+        ui.label(f"Notes — {pretty_name(person_name)}").classes("text-lg font-bold").style(
+            f"color:{COLORS['text_heading']};")
+        ui.label(firm).style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.separator().style("margin:6px 0;")
+        _box = ui.column().classes("w-full").style("gap:5px;")
+
+        def _paint():
+            _box.clear()
+            with _box:
+                items = _cmod.contact_notes(contact_id)
+                if not items:
+                    ui.label("No notes yet — add the first one below.").style(
+                        f"color:{COLORS['text_muted']};font-size:12px;")
+                for it in items:
+                    with ui.element("div").style(
+                            f"border-left:3px solid {COLORS['accent']};padding:1px 0 1px 9px;"):
+                        ui.label(" · ".join(x for x in (it.get("ts"), it.get("source"), it.get("by")) if x)).style(
+                            f"color:{COLORS['text_muted']};font-size:10.5px;")
+                        ui.label(it.get("note", "")).style(
+                            f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+
+        _in = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full").style("margin-top:4px;")
+
+        def _add():
+            txt = (_in.value or "").strip()
+            if not txt:
+                ui.notify("Nothing to save yet.", type="warning"); return
+            _cmod.add_contact_note(person_name, firm, txt, source="Account 360",
+                                   by=(CI().get("name") or "IR Team"))
+            _in.value = ""
+            _paint()
+            ui.notify(f"Note added to {pretty_name(person_name)}.", type="positive")
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Close", on_click=d.close).props("flat")
+            ui.button("Add note", icon="add", on_click=_add).props("color=primary")
+        _paint()
+    d.open()
+
+
 def _open_account_profile(rec):
     """Account 360 — one card fusing the AUTO-derived book (holdings, peers, fund
     lineup, NDR pipeline) with the HUMAN relationship layer (quality, last contact,
@@ -2193,8 +2239,9 @@ def _open_account_profile(rec):
 
             _withemail = sum(1 for p in _team if p.get("email"))
             _section(f"Investment team — {len(_team)} on file · {_withemail} reachable")
-            ui.label("The named PMs / analysts we hold at this firm — decision-makers first.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label("The named PMs / analysts we hold at this firm — decision-makers first. Click Notes "
+                     "for a per-person timeline.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            _pnotes = db.load_json("contact_notes.json", default={}) or {}   # one read for the counts
             with ui.column().classes("w-full gap-0").style("max-height:236px;overflow-y:auto;margin-top:2px;"):
                 for p in _team:
                     with ui.row().classes("w-full items-center gap-2").style(
@@ -2213,6 +2260,10 @@ def _open_account_profile(rec):
                                 .props("flat dense round size=sm").tooltip(f"Draft to {p['email']}")
                         else:
                             ui.label("no email").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                        _pcnt = len(_pnotes.get(_cmod.contact_id_for(None, p["name"], name), []))
+                        ui.button(f"Notes{f' ({_pcnt})' if _pcnt else ''}", icon="sticky_note_2",
+                                  on_click=lambda p=p: _open_person_notes(p["name"], name)) \
+                            .props("flat dense size=sm").tooltip("Per-person notes timeline")
 
         # ── Contact & outreach ─────────────────────────────────────
         # The metro → fund flow ended at "who is this" with no way to reach them. This closes
