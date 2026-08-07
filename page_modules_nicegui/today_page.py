@@ -446,11 +446,11 @@ def render_today_page():
         with ui.column().classes("w-full md:flex-1 gap-4"):
             _render_risk_signals(state, days, snap, pt_avg)
             _render_earnings_readiness(days)
+            _render_peer_watch()
         with ui.column().classes("w-full md:flex-1 gap-4"):
             _render_investor_pipeline()
             _render_analyst_coverage()
             _render_insider_activity()
-            _render_peer_watch()
             _render_activity_responses(state)
 
 
