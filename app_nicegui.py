@@ -202,6 +202,23 @@ NAV_SUBGROUPS = {
     ],
 }
 
+# Plain-language gloss for the JARGON sub-items (the audit's P3 — the Lighthouse "Why is the stock
+# moving?" pattern, applied where a label is an acronym or insider term). Self-explanatory items
+# (Meeting Hub, Target Database, Board IR Reports…) are deliberately left un-glossed so the rail
+# stays scannable.
+NAV_SUBITEM_GLOSS = {
+    "IR Risk Dashboard":   "what could move the stock",
+    "PT Drift Tracker":    "how price targets have moved",
+    "SEC Intelligence":    "13D / 13G / 13F filings",
+    "NOBO Ownership":      "who your retail holders are",
+    "NDR Planner":         "non-deal roadshow scheduling",
+    "Narrative Momentum":  "is the story landing?",
+    "Prep Brief":          "one-page earnings prep",
+    "Morning After":       "post-call critique",
+    "Reg FD & Compliance": "fair-disclosure logging",
+    "Automation Tracker":  "what the platform ran for you",
+}
+
 # Which sections have been ported to NiceGUI so far. Update this as each
 # page_modules_nicegui/<name>.py lands (see task list — ported incrementally,
 # smallest/lowest-risk pages first).
@@ -382,6 +399,25 @@ def apply_theme():
         .nav-sub.active {{
             color: {COLORS["accent_strong"]} !important;
             font-weight: 700 !important;
+        }}
+        /* Sub-item label + optional plain-language gloss (jargon items only). */
+        .nav-sub {{ min-height: 30px !important; padding-top: 3px !important; padding-bottom: 3px !important; }}
+        .nav-sub-label {{
+            font-size: 14.5px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: {COLORS["text_secondary"]};
+        }}
+        .nav-sub.active .nav-sub-label {{
+            color: {COLORS["accent_strong"]};
+            font-weight: 700;
+        }}
+        .nav-sub-gloss {{
+            font-size: 10.5px;
+            font-weight: 400;
+            line-height: 1.15;
+            color: {COLORS["text_muted"]};
+            margin-top: 1px;
         }}
         /* Intent header above each sub-item cluster (Ownership / Targeting / Engagement). */
         .nav-subgroup {{
@@ -954,7 +990,15 @@ def main_page(request: Request = None):
     # device default (phones -> Home, desktop -> Today).
     _requested = (request.query_params.get("page") if request is not None else None)
     _landing = _requested if _requested in PORTED else ("Home" if _is_mobile_ua(request) else "Today")
-    state = {"page": _landing, "role": DEFAULT_ROLE_KEY, "expanded": None, "active_tab": None}
+    # "expanded" is the SET of sections whose sub-items are shown. Multiple can be open at once
+    # (the audit's P3: an accordion that collapses the rest hides the whole map on a wide desktop).
+    # The active page auto-expands; clicking an already-active section toggles it.
+    state = {"page": _landing, "role": DEFAULT_ROLE_KEY, "expanded": set(), "active_tab": None}
+    # Auto-expand the landing page's own section so its sub-items show immediately (e.g. a deep
+    # link to /?page=Investors opens with its rail already visible).
+    if NAV_SUBITEMS.get(_landing):
+        state["expanded"].add(_landing)
+        state["active_tab"] = NAV_SUBITEMS[_landing][0]
     nav_buttons = {}
     # section → tooltip text, for re-labelling nav buttons as access changes.
     desc_by_section = {section: desc
@@ -1048,9 +1092,10 @@ def main_page(request: Request = None):
         from page_modules_nicegui import nav
         subs = NAV_SUBITEMS.get(section)
         state["page"] = section
-        # Accordion: expand the section we're navigating to (collapses any other);
-        # single-view pages collapse everything.
-        state["expanded"] = section if subs else None
+        # Multi-open: expand the section we're navigating to, WITHOUT collapsing the others the
+        # user already opened. Single-view pages (no subs) leave the set untouched.
+        if subs:
+            state["expanded"].add(section)
         # Highlight the requested sub-item, or the page's first tab when arriving
         # via the parent (which opens on that first tab).
         state["active_tab"] = (tab or (subs[0] if subs else None))
@@ -1059,6 +1104,19 @@ def main_page(request: Request = None):
         render_nav()
         render_page()
         render_bottom_nav()
+
+    def _nav_click(section):
+        # Clicking the section you're already on toggles its sub-items open/closed (multi-open
+        # sidebar); clicking any other section navigates there and expands it.
+        subs = NAV_SUBITEMS.get(section)
+        if subs and section == state["page"]:
+            if section in state["expanded"]:
+                state["expanded"].discard(section)
+            else:
+                state["expanded"].add(section)
+            render_nav()
+        else:
+            go_to(section)
 
     def on_tab_change(tab_name):
         # Page → sidebar sync: user switched a tab inside the current page, so
@@ -1078,7 +1136,10 @@ def main_page(request: Request = None):
         # Re-sync the accordion to whatever page is now active (role gating in
         # render_nav locks the rest).
         _subs = NAV_SUBITEMS.get(state["page"])
-        state["expanded"] = state["page"] if _subs else None
+        # Drop any now-locked sections from the open set, then keep the active page expanded.
+        state["expanded"] = {s for s in state["expanded"] if role_can_view(state["role"], s)}
+        if _subs:
+            state["expanded"].add(state["page"])
         state["active_tab"] = _subs[0] if _subs else None
         render_nav()
         render_page()
@@ -1244,11 +1305,11 @@ def main_page(request: Request = None):
                         subs = NAV_SUBITEMS.get(section)
                         access = role_access_level(state["role"], section)
                         is_active = section == state["page"]
-                        is_open = state["expanded"] == section
+                        is_open = section in state["expanded"]
                         lines = label.split("\n")
                         line1, line2 = lines[0], (lines[1] if len(lines) > 1 else "")
                         cls = "nav-btn w-full" + (" active" if is_active else "")
-                        with ui.button(on_click=lambda s=section: go_to(s)).props("flat align=left no-caps").classes(cls) as btn:
+                        with ui.button(on_click=lambda s=section: _nav_click(s)).props("flat align=left no-caps").classes(cls) as btn:
                             with ui.row().classes("items-center no-wrap w-full").style("gap:12px;"):
                                 ui.icon(icon).classes("nav-icon")
                                 with ui.column().classes("gap-0").style("align-items:flex-start;flex:1;min-width:0;"):
@@ -1271,8 +1332,15 @@ def main_page(request: Request = None):
                             def _sub_btn(section, sub):
                                 sub_cls = "nav-sub w-full" + (
                                     " active" if (section == state["page"] and sub == state["active_tab"]) else "")
-                                ui.button(sub, on_click=lambda s=section, t=sub: go_to(s, t)).props(
-                                    "flat align=left no-caps dense").classes(sub_cls)
+                                gloss = NAV_SUBITEM_GLOSS.get(sub)
+                                with ui.button(on_click=lambda s=section, t=sub: go_to(s, t)).props(
+                                        "flat align=left no-caps dense").classes(sub_cls) as _sb:
+                                    with ui.column().classes("gap-0 items-start").style("min-width:0;"):
+                                        ui.label(sub).classes("nav-sub-label")
+                                        if gloss:
+                                            ui.label(gloss).classes("nav-sub-gloss")
+                                if gloss:
+                                    _sb.tooltip(gloss)
                             with ui.column().classes("nav-subwrap w-full gap-0"):
                                 _groups = NAV_SUBGROUPS.get(section)
                                 if _groups:
