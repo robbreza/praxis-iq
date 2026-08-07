@@ -34,3 +34,6 @@ outputs/
 # Marketing site now lives in its own repo: github.com/robbreza/irconnect-site
 irconnect_live/
 webheadshot.png
+
+# Runtime logs (scheduled holder-move refresh, etc.)
+logs/
