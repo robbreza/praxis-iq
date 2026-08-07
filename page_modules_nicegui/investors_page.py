@@ -2244,6 +2244,45 @@ def _open_account_profile(rec):
             ui.label("No contact on file — enter an email above to draft, or reach out via your own channel.").style(
                 f"color:{COLORS['text_muted']};font-size:11px;")
 
+        # ── Contact notes (the per-person timeline, client-scoped) ─────────────────
+        # The same notes surfaced on House Contacts, here on the client's own account view — this
+        # client's notes only (contact_notes defaults to the active client, so one client never sees
+        # another's notes on a shared person). Keyed to the primary contact on file.
+        if _contact.get("name"):
+            _section(f"Contact notes — {pretty_name(_contact['name'])}")
+            _note_cid = _cmod.contact_id_for(None, _contact["name"], name)
+            _notes_box = ui.column().classes("w-full").style("gap:5px;margin-top:2px;")
+
+            def _paint_contact_notes():
+                _notes_box.clear()
+                with _notes_box:
+                    items = _cmod.contact_notes(_note_cid)
+                    if not items:
+                        ui.label("No notes yet — add the first one below.").style(
+                            f"color:{COLORS['text_muted']};font-size:12px;")
+                    for it in items:
+                        with ui.element("div").style(
+                                f"border-left:3px solid {COLORS['accent']};padding:1px 0 1px 9px;"):
+                            ui.label(" · ".join(x for x in (it.get("ts"), it.get("source"), it.get("by")) if x)).style(
+                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                            ui.label(it.get("note", "")).style(
+                                f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+
+            _cn_in = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full").style("margin-top:4px;")
+
+            def _add_contact_note():
+                txt = (_cn_in.value or "").strip()
+                if not txt:
+                    ui.notify("Nothing to save yet.", type="warning"); return
+                _cmod.add_contact_note(_contact["name"], name, txt, source="Account 360",
+                                       by=(CI().get("name") or "IR Team"),
+                                       email=(_contact.get("email") or None))
+                _cn_in.value = ""
+                _paint_contact_notes()
+                ui.notify(f"Note added to {pretty_name(_contact['name'])}.", type="positive")
+            ui.button("Add note", icon="add", on_click=_add_contact_note).props("dense color=primary").style("margin-top:4px;")
+            _paint_contact_notes()
+
         # ── Interactions (derived — touches & last contact are computed, not typed) ──
         _section("Interactions")
 
