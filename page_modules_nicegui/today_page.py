@@ -1044,6 +1044,17 @@ def _render_investor_pipeline():
                     if note:
                         _log_meeting({**_base_entry(), "Type": "Note (Today Pipeline)", "Notes": note})
                         activity_log.log_event("meeting_note", entity=nm, launched_from="Today · Investor Pipeline")
+                        # Wire the note onto the CONTACT record too: ensure the person exists in the
+                        # contacts CRM (so they show on House Contacts and carry the interaction),
+                        # not just the fund's meeting log. Only for a real, resolved contact — never
+                        # the "Contact" placeholder.
+                        if info.get("name") and info["name"] != "Contact":
+                            try:
+                                from core import contacts as _contacts
+                                _contacts.upsert_contact(info["name"], nm, email=(info.get("email") or None),
+                                                         source="today_pipeline_note")
+                            except Exception:
+                                pass
                         did.append("note")
                     if (fu_in.value or "").strip():
                         sched = db.load_json("scheduled_meetings.json", []) or []
@@ -1103,53 +1114,55 @@ def _render_investor_pipeline():
 
 
 def _render_earnings_readiness(days):
-    ui.label(f"Earnings readiness — {days} days out").classes("section-head")
+    from page_modules_nicegui.earnings_page import STAGES
+    ui.label("Earnings readiness").classes("section-head")   # countdown lives in the card, not here
 
-    # Earnings date/time from config, not a hardcoded "Aug 12" literal.
+    # Earnings date/time from config, not a hardcoded literal.
     edate = CE().get("earnings_date", "")
+    quarter = (CE().get("current_quarter", "") or "").strip()
     try:
         _dt = datetime.strptime(edate, "%Y-%m-%d")
-        date_lbl = f"{_dt.strftime('%b')} {_dt.day}"
+        date_lbl = f"{_dt.strftime('%b')} {_dt.day}, {_dt.year}"
     except ValueError:
-        date_lbl = edate or "—"
-    time_lbl = CE().get("earnings_time") or "4:30 PM ET"
-    with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};"):
-        ui.label(f"{days} days").classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
-        ui.label(f"{date_lbl} · {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:12px;")
+        date_lbl = edate or "date TBD"
+    time_lbl = CE().get("earnings_time") or CE().get("call_time") or "4:30 PM ET"
 
-    # REAL Script Generation stage status (script_workflow_state.json) — the one
-    # earnings-prep workflow this app actually tracks. The old version hardcoded a
-    # 6-row checklist (slides/Q&A/webcast "✓") that contradicted the real 40%
-    # script progress shown in Today's Story. If it isn't tracked, it isn't shown.
-    from page_modules_nicegui.earnings_page import STAGES
+    # One clear, LABELED header: what call, when, how far out — no repeated "30 days", and the date
+    # is explicitly the earnings call (not a bare, ambiguous date).
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};"):
+        with ui.row().classes("w-full justify-between items-baseline"):
+            ui.label(f"{quarter + ' ' if quarter else ''}earnings call".strip().capitalize()) \
+                .classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+            ui.label(f"in {days} days").style(f"color:{COLORS['accent_light']};font-size:13px;font-weight:700;")
+        ui.label(f"{date_lbl}  ·  {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:12.5px;")
+
+    # The 5-stage Script Generation workflow — ALWAYS show all five, NUMBERED, so it's clear these
+    # are the five stages whether or not the script has been started (the old version hid them
+    # entirely on an un-started script, so the "5 stages" weren't evident). Real status from
+    # script_workflow_state.json — nothing hardcoded.
     stages = (db.load_json("script_workflow_state.json", None) or {}).get("stages", {})
     _status = {
         "complete": ("Complete", COLORS["success"], "✓"),
         "active":   ("In progress", COLORS["warning"], "●"),
         "pending":  ("Not started", COLORS["text_muted"], "○"),
     }
-    if stages:
-        done = sum(1 for s in STAGES if stages.get(s["id"], {}).get("status") == "complete")
-        total = len(STAGES)
-        ui.label(f"Script generation — {done} of {total} stages complete ({done/total*100:.0f}%)") \
-            .classes("t-sec").style("margin-top:6px;")
-        for s in STAGES:
-            st = stages.get(s["id"], {}).get("status", "pending")
-            lbl, clr, glyph = _status.get(st, _status["pending"])
-            with ui.row().classes("w-full justify-between items-center").style(
-                    f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
-                ui.label(s["name"]).classes("t-body")
-                ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:12px;font-weight:600;")
-    else:
-        ui.label("Script Generation hasn't been started yet — open it to begin this quarter's script.") \
-            .classes("t-meta").style("margin-top:6px;")
+    done = sum(1 for s in STAGES if stages.get(s["id"], {}).get("status") == "complete")
+    total = len(STAGES)
+    ui.label(f"Script — {done} of {total} review stages complete").classes("t-sec").style("margin-top:8px;")
+    for i, s in enumerate(STAGES, 1):
+        st = stages.get(s["id"], {}).get("status", "pending")
+        lbl, clr, glyph = _status.get(st, _status["pending"])
+        with ui.row().classes("w-full justify-between items-center").style(
+                f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+            ui.label(f"{i}.  {s['name']}").classes("t-body")
+            ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:12px;font-weight:600;")
 
-    # Deep-link straight into the Script Generation tab by passing it as the
-    # explicit nav target, so the page opens there AND the sidebar highlights the
-    # matching sub-item. (The earlier earnings_tab="script" highlight opened the
-    # tab but left the sidebar on the first tab, so it looked like it "did
-    # nothing" / went to the wrong place.) See earnings_page.render_earnings_page.
-    ui.button("Open Script Generation →", on_click=lambda: nav.go_to("Earnings", "Script Generation")).props("flat").style("margin-top:8px;")
+    # A clear, purposeful CTA (not a vague "Open Script Generation" link): this is the action that
+    # advances the stages above. Primary/full-width when there's work to do; opens the right tab.
+    _cta = "Start the script →" if not stages else ("Finish the script →" if done < total else "Review the script →")
+    ui.button(_cta, icon="edit_note", on_click=lambda: nav.go_to("Earnings", "Script Generation")) \
+        .props("color=primary" if done < total else "outline").classes("w-full").style("margin-top:8px;")
 
 
 def _render_analyst_coverage():
