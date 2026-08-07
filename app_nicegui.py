@@ -1022,10 +1022,14 @@ def main_page(request: Request = None):
     # full page re-render. Orients the user through the sidebar → page → tab depth
     # (the ease-of-use audit's P1: four levels deep with no "you are here").
     breadcrumb = ui.row().classes("w-full items-center").style(
-        "padding: 10px 48px 0 24px; max-width: 1050px; margin: 0 auto; gap: 7px; min-height: 20px;")
+        "padding: 10px 48px 0 24px; max-width: 1275px; margin: 0 auto; gap: 7px; min-height: 20px;")
 
     content = ui.column().classes("w-full app-content").style(
-        "padding: 12px 48px 24px 24px; max-width: 1050px; margin: 0 auto; gap: 12px;"
+        # 1180 max-width, magnified to ~1274 effective by the desktop-only .app-content zoom below —
+        # rebalances the canvas: the old 1050px cap + 11-13px body type read tiny next to the 17px
+        # nav and left a lot of empty space on a wide monitor. Mobile is excluded from the zoom
+        # (@media min-width:641px) so it can't overflow the viewport into a horizontal scroll.
+        "padding: 12px 48px 24px 24px; max-width: 1180px; margin: 0 auto; gap: 12px;"
     )
 
     _PAGE_META = {p: (grp.title(), lbl.split("\n")[0])
@@ -1870,6 +1874,13 @@ ui.add_head_html(
     ".resp-wide{display:none !important;}"                # hide the wide table on phones...
     ".resp-stack{display:block !important;}"              # ...and show the stacked cards instead
     "}"
+    # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
+    # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
+    # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width
+    # together (1180 max-width -> ~1274 effective). Phones are excluded so the full-width mobile
+    # content can't zoom past the viewport into a horizontal scroll. Degrades gracefully where zoom
+    # is unsupported (the wider max-width still applies).
+    "@media (min-width:641px){.app-content{zoom:1.08;}}"
     "</style>",
     shared=True)
 
