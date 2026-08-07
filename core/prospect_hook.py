@@ -151,6 +151,7 @@ def _aggregate(holders):
         g = groups.get(gk)
         if not g:
             groups[gk] = {"name": fam or h.get("filer"), "is_family": bool(fam),
+                          "cik": None if fam else h.get("cik"),   # single-entity filer -> its CIK
                           "shares": sh, "value": val, "city": h.get("city"),
                           "state": h.get("state"), "_maxval": val}
         else:
@@ -173,6 +174,25 @@ def _direction(prior_sh, cur_sh):
     return "unchanged"
 
 
+def _coverage_false(cik, direction, cusip):
+    """Guard against a two-quarter bulk COVERAGE GAP masquerading as a real move. A holder marked
+    'new' or 'exited' by the diff may actually be a CONTINUING holder whose position in one of the
+    two quarters wasn't captured (a filer reporting a share-class CUSIP variant, a parse gap, etc.).
+    Confirm against the filer's OWN multi-quarter 13F filing history:
+      * a 'new' position is false if the filer has held the security across several recent filings;
+      * an 'exited' position is false if the filer's most recent filing still shows a position.
+    Returns True when the label is contradicted (so the caller drops it). Fails open (False)."""
+    try:
+        h = sec_filings.holder_history(int(cik), cusip=cusip, quarters=6)
+    except Exception:
+        return False
+    series = [x.get("shares") for x in (h.get("history") or [])]
+    real = [s for s in series if s]
+    if direction == "new":
+        return len(real) >= 2                       # an established holder, not a genuine initiation
+    return bool(series) and bool(series[0])         # 'exited' but the latest filing still holds
+
+
 def prepare(ticker, company, force=False, top_n=10, client_id=None):
     """Pull two quarters of 13F, diff, and cache the hook payload for `ticker`. Returns the
     payload dict (with 'error' set on failure). Idempotent: a cached payload for the current
@@ -193,6 +213,7 @@ def prepare(ticker, company, force=False, top_n=10, client_id=None):
     cur = sec_filings.refresh_13f_bulk_all([(ticker, company)], dataset=datasets[0], save=False)[ticker]
     prior = sec_filings.refresh_13f_bulk_all([(ticker, company)], dataset=datasets[1], save=False)[ticker]
     n_cur_raw, n_pri_raw = len(cur.get("holders") or []), len(prior.get("holders") or [])
+    cusip = cur.get("cusip") or prior.get("cusip")
     cur_g = _aggregate(cur.get("holders") or [])
     pri_g = _aggregate(prior.get("holders") or [])
     if not cur_g:
@@ -211,6 +232,7 @@ def prepare(ticker, company, force=False, top_n=10, client_id=None):
             "filer": _clean_filer(name),
             "family": bool(base.get("is_family")),
             "passive": _is_flow(name),
+            "cik": base.get("cik"),
             "city": base.get("city"), "state": base.get("state"),
             "metro": _metro(base.get("city"), base.get("state")),
             "shares": cur_sh, "prior_shares": pri_sh, "delta_shares": cur_sh - pri_sh,
@@ -220,8 +242,20 @@ def prepare(ticker, company, force=False, top_n=10, client_id=None):
     movers = [c for c in changes if c["direction"] != "unchanged"]
     # dollar impact desc; filer name as a stable tiebreaker so equal-impact moves don't reorder
     movers.sort(key=lambda c: (-abs(c["delta_value"]), (c["filer"] or "")))
-    top = movers[:top_n]
-    top_active = [c for c in movers if not c["passive"]][:top_n]   # conviction moves only
+
+    # Verify the 'new'/'exited' labels among the strongest movers against each filer's OWN 13F
+    # history — a bulk coverage gap in one quarter can fake an initiation or an exit (see the
+    # Whittier/USIO case). Drop the contradicted ones so they never reach a board or a prospect.
+    kept, dropped = [], 0
+    for m in movers[:max(2 * top_n, 20)]:
+        if (m["direction"] in ("new", "exited") and not m.get("family") and m.get("cik") and cusip
+                and _coverage_false(m["cik"], m["direction"], cusip)):
+            dropped += 1
+            continue
+        kept.append(m)
+    kept.extend(movers[max(2 * top_n, 20):])       # tail (rarely shown) left unverified
+    top = kept[:top_n]
+    top_active = [c for c in kept if not c["passive"]][:top_n]   # conviction moves only
 
     metro_counts = Counter(c["metro"] for c in top if c.get("metro"))
     trend = metro_counts.most_common(1)[0] if metro_counts else None
@@ -246,6 +280,7 @@ def prepare(ticker, company, force=False, top_n=10, client_id=None):
                                 "of": len(top_active)} if active_trend else None),
         "holders_by_metro": by_cnt.most_common(12),
         "value_by_metro": by_val.most_common(12),
+        "coverage_dropped": dropped,           # new/exited labels the filer's own history refuted
         "prepared_at": _now(), "error": None,
     }
     db.save_json(_CACHE_KEY_FMT.format(ticker=ticker), payload, client_id=tenant)

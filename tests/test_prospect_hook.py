@@ -185,6 +185,44 @@ def test_refresh_client_briefings_only_pulls_stale(monkeypatch):
     assert set(calls) == {"SARO", "AMKR"}                    # only the stale ones pulled; demo skipped
 
 
+def test_coverage_gap_false_new_is_dropped(mem_db, monkeypatch):
+    # A holder can look "new" only because the prior quarter's bulk line was missed (Whittier/USIO).
+    # The guard checks the filer's OWN history and drops the false initiation, keeps genuine ones.
+    cur = [
+        {"cik": "100", "filer": "Steady Trust CO", "city": "Boston", "state": "MA",
+         "shares": 2_700_000, "value": 3_200_000},          # falsely "new" (coverage gap)
+        {"cik": "200", "filer": "Real Buyer LP", "city": "New York", "state": "NY",
+         "shares": 1_000_000, "value": 40_000_000},         # genuinely new
+    ]
+    pri = [
+        {"cik": "300", "filer": "Old Holder LLC", "city": "Chicago", "state": "IL",
+         "shares": 500_000, "value": 20_000_000},           # genuinely exits next quarter
+    ]
+    monkeypatch.setattr(sec_filings, "_recent_13f_datasets",
+                        lambda n=2: [("u", "01mar2026-31may2026"), ("u2", "01dec2025-28feb2026")])
+    monkeypatch.setattr(sec_filings, "refresh_13f_bulk_all",
+                        lambda pairs, dataset=None, save=True: {pairs[0][0]: {"cusip": "12345",
+                            "holders": [dict(h) for h in (cur if dataset[1].startswith("01mar") else pri)]}})
+
+    def fake_hist(cik, cusip=None, issuer_token=None, quarters=6, **kw):
+        cik = int(cik)
+        if cik == 100:                                       # established across many filings
+            return {"history": [{"shares": 2_700_000}, {"shares": 2_800_000}, {"shares": 2_800_000}]}
+        if cik == 200:                                       # only the current filing -> genuine new
+            return {"history": [{"shares": 1_000_000}]}
+        if cik == 300:                                       # latest filing empty -> genuine exit
+            return {"history": [{"shares": None}, {"shares": 500_000}]}
+        return {"history": []}
+    monkeypatch.setattr(sec_filings, "holder_history", fake_hist)
+
+    d = ph.prepare("XX", "Example Inc")
+    filers = [c["filer"] for c in d["top_changes"]]
+    assert "Steady Trust CO" not in filers                   # false 'new' dropped
+    assert "Real Buyer LP" in filers                         # genuine new kept
+    assert "Old Holder LLC" in filers                        # genuine exit kept
+    assert d["coverage_dropped"] == 1
+
+
 def test_no_holders_returns_error(mem_db, monkeypatch):
     monkeypatch.setattr(sec_filings, "_recent_13f_datasets",
                         lambda n=2: [("u_cur", "01mar2026-31may2026"), ("u_pri", "01dec2025-28feb2026")])
