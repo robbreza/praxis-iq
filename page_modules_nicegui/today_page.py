@@ -1011,35 +1011,70 @@ def _render_investor_pipeline():
         # Defined before the card so the Details button — now INSIDE the card,
         # in its own bottom action row — can bind to it.
         def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
-            with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:380px;"):
+            with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);"):
                 ui.label(f"{pretty_name(nm)} — {hld} · Engagement {score}/100").classes("font-bold")
                 ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:13px;")
                 _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
 
-                def mark_sent(nm=nm, info=info):
+                ui.separator().style("margin:6px 0;")
+                # Capture what you learned + schedule the next touch — recorded to the fund's Meeting
+                # Log (the investor CRM interaction history) and the activity feed; a follow-up date
+                # also becomes a scheduled meeting (shows in the Meeting Hub and the Mobile "Your
+                # meetings" hero). No more dead-ending at "sent or nothing".
+                note_in = ui.textarea("Add a note — what did you learn or decide?") \
+                    .props("autogrow dense outlined").classes("w-full")
+                fu_in = ui.input("Schedule a follow-up (optional)") \
+                    .props("type=date dense outlined").classes("w-full")
+
+                def _log_meeting(entry):
                     log = load_meeting_log()
-                    log.append({
-                        "Fund": nm, "Date": datetime.now().strftime("%Y-%m-%d"),
-                        "Type": "Email outreach (Today's Pipeline)",
-                        "Attendees": info.get("name", ""),
-                        "Notes": "Quick outreach logged from Today's Investor Pipeline signal.",
-                        # Deliberately neutral (0 pts) — a just-sent email has no
-                        # outcome yet. It's still a real, dated, logged interaction
-                        # (so this card clears and the fund's Meeting Log shows it),
-                        # but it shouldn't move the Interaction Score until someone
-                        # logs what actually happened (a reply, a meeting, etc.) via
-                        # the full Meeting Log dialog in Investor Targeting.
-                        "Outcome": "No clear signal",
-                        "Logged By": CI().get("name") or "IR Team", "Source": "Today Pipeline",
-                    })
+                    log.append(entry)
                     save_meeting_log(log)
+
+                def _base_entry():
+                    return {"Fund": nm, "Date": datetime.now().strftime("%Y-%m-%d"),
+                            "Attendees": info.get("name", ""), "Outcome": "No clear signal",
+                            "Logged By": CI().get("name") or "IR Team", "Source": "Today Pipeline"}
+
+                def save_to_crm(nm=nm, info=info, note_in=note_in, fu_in=fu_in):
+                    import uuid
+                    from core import db
+                    did = []
+                    note = (note_in.value or "").strip()
+                    if note:
+                        _log_meeting({**_base_entry(), "Type": "Note (Today Pipeline)", "Notes": note})
+                        activity_log.log_event("meeting_note", entity=nm, launched_from="Today · Investor Pipeline")
+                        did.append("note")
+                    if (fu_in.value or "").strip():
+                        sched = db.load_json("scheduled_meetings.json", []) or []
+                        sched.append({"id": str(uuid.uuid4()), "Contact": info.get("name", ""),
+                                      "Firm": nm, "Side": "Buy-side", "Date": fu_in.value, "Time": "",
+                                      "Type": "Follow-up", "Topic": note or "Follow up on engagement signal",
+                                      "Status": "Planned", "Priority": "Medium"})
+                        db.save_json("scheduled_meetings.json", sched)
+                        _log_meeting({**_base_entry(), "Type": "Follow-up scheduled (Today Pipeline)",
+                                      "Notes": f"Follow-up set for {fu_in.value}" + (f": {note}" if note else "")})
+                        activity_log.log_event("followup_scheduled", entity=nm, launched_from="Today · Investor Pipeline")
+                        did.append(f"follow-up {fu_in.value}")
+                    if not did:
+                        ui.notify("Add a note or pick a follow-up date first.", type="warning")
+                        return
+                    ui.notify(f"Saved {' + '.join(did)} for {pretty_name(nm)} to the CRM.", type="positive")
+                    d.close()
+                    nav.go_to("Today")
+
+                def mark_sent(nm=nm, info=info):
+                    _log_meeting({**_base_entry(), "Type": "Email outreach (Today's Pipeline)",
+                                  "Notes": "Quick outreach logged from Today's Investor Pipeline signal."})
                     activity_log.log_event("email_sent", entity=nm, launched_from="Today · Investor Pipeline")
                     ui.notify(f"Logged outreach to {nm} — clearing this card from the pipeline.")
                     d.close()
                     nav.go_to("Today")
 
-                ui.button("Mark as sent", on_click=mark_sent).props("color=primary")
-                ui.button("Close", on_click=d.close).props("flat")
+                with ui.row().classes("w-full justify-end gap-2 items-center").style("margin-top:6px;"):
+                    ui.button("Close", on_click=d.close).props("flat")
+                    ui.button("Mark as sent", on_click=mark_sent).props("flat")
+                    ui.button("Save note / follow-up", on_click=save_to_crm).props("color=primary")
             d.open()
 
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
