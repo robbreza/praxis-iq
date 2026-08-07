@@ -444,11 +444,15 @@ def render_today_page():
     # trailing whitespace minimal.
     with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            _render_risk_signals(state, days, snap, pt_avg)
+            # Risk signals emphasized ~15% larger than its column-mates (the two top-priority
+            # cards on Today). width-compensated zoom — see .emph-15 in app_nicegui.py.
+            with ui.element("div").classes("emph-15"):
+                _render_risk_signals(state, days, snap, pt_avg)
             _render_earnings_readiness(days)
             _render_peer_watch()
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            _render_investor_pipeline()
+            with ui.element("div").classes("emph-15"):
+                _render_investor_pipeline()
             _render_analyst_coverage()
             _render_insider_activity()
             _render_activity_responses(state)

@@ -1929,6 +1929,11 @@ ui.add_head_html(
     # content can't zoom past the viewport into a horizontal scroll. Degrades gracefully where zoom
     # is unsupported (the wider max-width still applies).
     "@media (min-width:641px){.app-content{zoom:1.08;}}"
+    # Per-section emphasis: bump a specific dashboard section ~15% larger than its siblings.
+    # zoom scales type+cards+spacing together; the width:calc(100%/1.15) compensation keeps the
+    # zoomed block exactly one column wide so it can't overflow into a horizontal scroll. Nests
+    # on top of the .app-content 1.08 (so ~1.15x the current rendered size). Verified in-browser.
+    ".emph-15{zoom:1.15;width:calc(100% / 1.15);}"
     "</style>",
     shared=True)
 
