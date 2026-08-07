@@ -355,6 +355,23 @@ def seed():
     ], client_id=CID)
     print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips")
 
+    # 3d-bis. A few UPCOMING scheduled meetings so the Mobile "On the road → Your meetings" hero
+    # has something to lead with in the demo (illustrative buy-side names; the tenant stays fully
+    # illustrative). Shape matches investors_page's scheduled_meetings.json record.
+    _mtgs = [
+        (0,  "10:30", "Blue Harbor Capital",   "Dana Whitfield", "1x1",        "Q3 outlook + take-rate trajectory"),
+        (0,  "14:00", "Cedar Grove Advisors",  "Marcus Lin",     "Callback",   "Follow-up on interchange questions"),
+        (3,  "09:00", "Westline Asset Mgmt",   "Priya Nair",     "NDR meeting","Intro — new coverage"),
+        (8,  "11:15", "Kestrel Partners",      "Tom Alvarez",    "1x1",        "Prepaid float + capital allocation"),
+    ]
+    db.save_json("scheduled_meetings.json", [
+        {"id": f"mtg-{i+1}", "Contact": who, "Firm": firm, "Side": "Buy-side",
+         "Date": (TODAY + timedelta(days=d)).strftime("%Y-%m-%d"), "Time": t, "Type": typ,
+         "Topic": topic, "Status": "Confirmed", "Priority": "High" if d == 0 else "Medium"}
+        for i, (d, t, firm, who, typ, topic) in enumerate(_mtgs)
+    ], client_id=CID)
+    print(f"[demo] seeded {len(_mtgs)} upcoming scheduled meetings")
+
     # 3e. A curated target of this client's own, so the house book isn't the only entry.
     from core import curated_targets
     # Clear any client-scoped curated first so a reseed can't accumulate stale/imported
