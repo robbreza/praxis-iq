@@ -177,8 +177,8 @@ NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
     "Investors": ["Buy-Side Intelligence", "NDR Planner", "Meeting Hub",
                   "Target Database", "SEC Intelligence", "NOBO Ownership", "Peer Prospects",
-                  "Accounts (CRM)"],
-    "Earnings":  ["Prior Qtr Review", "Script Generation", "Narrative Momentum",
+                  "Accounts (CRM)", "Website", "Import list"],
+    "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
                   "Consensus Tracker", "Call Transcripts", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
                   "Peer & Market Analysis", "Reg FD & Compliance",
@@ -931,9 +931,32 @@ def main_page(request: Request = None):
     # every line of body text uncomfortably long to read. 1050px keeps
     # rows/cards at a scannable width; margin:0 auto centers the column in
     # the remaining space so it doesn't hug the drawer on the left.
+    # Breadcrumb — persistent (created BEFORE `content` so it sits above it and
+    # survives content.clear()), so it can update on in-page tab clicks without a
+    # full page re-render. Orients the user through the sidebar → page → tab depth
+    # (the ease-of-use audit's P1: four levels deep with no "you are here").
+    breadcrumb = ui.row().classes("w-full items-center").style(
+        "padding: 10px 48px 0 24px; max-width: 1050px; margin: 0 auto; gap: 7px; min-height: 20px;")
+
     content = ui.column().classes("w-full app-content").style(
-        "padding: 24px 48px 24px 24px; max-width: 1050px; margin: 0 auto; gap: 12px;"
+        "padding: 12px 48px 24px 24px; max-width: 1050px; margin: 0 auto; gap: 12px;"
     )
+
+    _PAGE_META = {p: (grp.title(), lbl.split("\n")[0])
+                  for grp, items in NAV_GROUPS for p, _ic, lbl, _tt in items}
+
+    def update_breadcrumb():
+        breadcrumb.clear()
+        grp, label = _PAGE_META.get(state["page"], ("", state["page"]))
+        crumbs = [c for c in (grp, label, state.get("active_tab")) if c]
+        with breadcrumb:
+            for i, txt in enumerate(crumbs):
+                if i:
+                    ui.label("›").style(f"color:{COLORS['text_muted']};font-size:12px;opacity:.55;")
+                last = i == len(crumbs) - 1
+                ui.label(txt).style(
+                    f"color:{COLORS['text_heading'] if last else COLORS['text_muted']};"
+                    f"font-size:12px;font-weight:{'700' if last else '500'};")
 
     def render_page():
         content.clear()
@@ -976,6 +999,7 @@ def main_page(request: Request = None):
                     f"Not ported to the new interface yet — still available in the original app "
                     f"(run app.py) while this section is being rebuilt."
                 ).style(f"color:{COLORS['text_muted']}")
+        update_breadcrumb()   # reflects the page just rendered (+ its opening tab)
 
     def go_to(section, tab=None):
         # RBAC guard: a role may only open pages its matrix permits. Applies
@@ -1001,10 +1025,11 @@ def main_page(request: Request = None):
 
     def on_tab_change(tab_name):
         # Page → sidebar sync: user switched a tab inside the current page, so
-        # move the sidebar's sub-item highlight to match.
+        # move the sidebar's sub-item highlight to match, and update the breadcrumb.
         if tab_name and tab_name != state["active_tab"]:
             state["active_tab"] = tab_name
             render_nav()
+            update_breadcrumb()
 
     def _on_role_change(e):
         state["role"] = e.value
