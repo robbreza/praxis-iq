@@ -1044,15 +1044,16 @@ def _render_investor_pipeline():
                     if note:
                         _log_meeting({**_base_entry(), "Type": "Note (Today Pipeline)", "Notes": note})
                         activity_log.log_event("meeting_note", entity=nm, launched_from="Today · Investor Pipeline")
-                        # Wire the note onto the CONTACT record too: ensure the person exists in the
-                        # contacts CRM (so they show on House Contacts and carry the interaction),
-                        # not just the fund's meeting log. Only for a real, resolved contact — never
-                        # the "Contact" placeholder.
+                        # Wire the note onto the CONTACT record too — the note text lands on the
+                        # person's own timeline (House Contacts), client-scoped, not just the fund's
+                        # meeting log. Only for a real, resolved contact — never the "Contact"
+                        # placeholder.
                         if info.get("name") and info["name"] != "Contact":
                             try:
                                 from core import contacts as _contacts
-                                _contacts.upsert_contact(info["name"], nm, email=(info.get("email") or None),
-                                                         source="today_pipeline_note")
+                                _contacts.add_contact_note(info["name"], nm, note, source="Today Pipeline",
+                                                           by=(CI().get("name") or "IR Team"),
+                                                           email=(info.get("email") or None))
                             except Exception:
                                 pass
                         did.append("note")

@@ -116,6 +116,51 @@ def upsert_contact(name, firm, cik=None, title=None, phone=None, email=None,
         conn.close()
 
 
+_NOTES_KEY = "contact_notes.json"
+
+
+def add_contact_note(name, firm, note, source="manual", by=None, client_id=None, cik=None, email=None):
+    """Log a free-text note against a person. The contact identity is global (upsert_contact), but
+    the NOTE is client-scoped — a note USIO's IR team took on a Vanguard VP is USIO's context, not
+    SARO's (see the module docstring: notes live in client-scoped JSON). Appends to that client's
+    contact_notes store keyed by the global contact_id. Returns the contact_id (or None)."""
+    note = (note or "").strip()
+    if not (name and firm and note):
+        return None
+    contact_id = upsert_contact(name, firm, cik=cik, email=email, source=source)
+    if not contact_id:
+        return None
+    from config.client_config import get_active_client_id
+    cl = client_id or get_active_client_id()
+    store = db.load_json(_NOTES_KEY, default={}, client_id=cl) or {}
+    store.setdefault(contact_id, []).append({
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "note": note[:4000], "source": source, "by": by or "IR Team",
+    })
+    db.save_json(_NOTES_KEY, store, client_id=cl)
+    return contact_id
+
+
+def contact_notes(contact_id, client_id=None):
+    """One client's notes on a contact, newest first."""
+    from config.client_config import get_active_client_id
+    cl = client_id or get_active_client_id()
+    store = db.load_json(_NOTES_KEY, default={}, client_id=cl) or {}
+    return sorted(store.get(contact_id, []), key=lambda n: n.get("ts", ""), reverse=True)
+
+
+def all_contact_notes(contact_id):
+    """Every note on a contact across ALL client tenants + the house scope (the staff/global view),
+    each tagged with the client it was taken under. Newest first."""
+    from config.client_config import CLIENT_REGISTRY
+    out = []
+    for cl in list(CLIENT_REGISTRY) + ["_house"]:
+        store = db.load_json(_NOTES_KEY, default={}, client_id=cl) or {}
+        for n in store.get(contact_id, []):
+            out.append({**n, "client": cl})
+    return sorted(out, key=lambda n: n.get("ts", ""), reverse=True)
+
+
 def set_email_result(contact_id, email, status, source="anymailfinder"):
     """Record an email-finder outcome — including a MISS. Storing not_found/risky (with a
     checked_at stamp) is what stops us re-querying the same person forever; only `valid` results

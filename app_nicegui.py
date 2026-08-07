@@ -923,8 +923,56 @@ def house_contacts_page():
                     {"name": "currency", "label": "13F currency", "field": "currency", "sortable": True, "align": "left"},
                     {"name": "conf", "label": "Conf", "field": "conf", "sortable": True, "align": "right"},
                 ]
-                ui.table(columns=columns, rows=rows, row_key="id", pagination=25).classes("w-full") \
-                    .style(f"background:{COLORS['surface_bg']};")
+                def _open_contact_detail(row):
+                    with ui.dialog() as d, ui.card().style("min-width:min(94vw,560px);max-width:640px;"):
+                        ui.label(row.get("name", "")).classes("text-lg font-bold").style(
+                            f"color:{COLORS['text_heading']};")
+                        sub = " · ".join(x for x in [row.get("firm"), row.get("role"),
+                                                     (row.get("email") if row.get("email") not in (None, "—") else None)] if x)
+                        if sub:
+                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+                        ui.separator().style("margin:6px 0;")
+                        _n = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full")
+                        _notes = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
+
+                        def _render_notes():
+                            _notes.clear()
+                            with _notes:
+                                items = C.all_contact_notes(row.get("id"))
+                                ui.label(f"Notes timeline ({len(items)})").style(
+                                    f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.04em;")
+                                if not items:
+                                    ui.label("No notes yet — add the first one above.").style(
+                                        f"color:{COLORS['text_muted']};font-size:12px;")
+                                for it in items:
+                                    tag = "House" if it.get("client") == "_house" else it.get("client", "")
+                                    with ui.element("div").style(
+                                            f"border-left:3px solid {COLORS['accent']};padding:2px 0 2px 9px;"):
+                                        ui.label(" · ".join(x for x in [it.get("ts"), tag, it.get("source"), it.get("by")] if x)).style(
+                                            f"color:{COLORS['text_muted']};font-size:10.5px;")
+                                        ui.label(it.get("note", "")).style(
+                                            f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+
+                        def _save_note():
+                            txt = (_n.value or "").strip()
+                            if not txt:
+                                ui.notify("Nothing to save yet.", type="warning"); return
+                            C.add_contact_note(row.get("name"), row.get("firm"), txt, source="House Contacts",
+                                               by=(user.get("display_name") or "Staff"), client_id="_house")
+                            _n.value = ""
+                            _render_notes()
+                            ui.notify("Note added to the contact.", type="positive")
+                        with ui.row().classes("w-full justify-end gap-2"):
+                            ui.button("Close", on_click=d.close).props("flat")
+                            ui.button("Add note", icon="add", on_click=_save_note).props("color=primary")
+                        _render_notes()
+                    d.open()
+
+                ui.label("Click a contact to see or add notes.").style(
+                    f"color:{COLORS['text_muted']};font-size:11px;")
+                _tbl = ui.table(columns=columns, rows=rows, row_key="id", pagination=25).classes("w-full") \
+                    .style(f"background:{COLORS['surface_bg']};cursor:pointer;")
+                _tbl.on("rowClick", lambda e: _open_contact_detail(e.args[1]))
             results()
 
 
