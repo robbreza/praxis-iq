@@ -1166,49 +1166,144 @@ def _render_earnings_readiness(days):
         .props("color=primary" if done < total else "outline").classes("w-full").style("margin-top:8px;")
 
 
+# ── Analyst-vs-guidance alignment ──────────────────────────────────────────────
+# Status → (colour token, glyph, word). "above"/"below" = the analyst's estimate is
+# out of line with the company's OWN guidance (a setup the IR team must manage);
+# "inline" = within tolerance; "none" = no model on file (NOT fabricated — many
+# small-cap analysts publish a rating/PT but no full model).
+_ALIGN_PILL = {
+    "above":  ("warning", "▲", "above"),   # ▲ analyst above our guide
+    "below":  ("danger",  "▼", "below"),   # ▼ analyst below our guide
+    "inline": ("success", "●", "in line"), # ● within tolerance
+    "none":   ("text_muted2", "–", "no model"),  # –
+}
+
+
+def _alignment_rows(analysts, period_guidance, period_estimates, period):
+    """Pure classifier (no I/O — unit-tested): for each analyst, compare their Revenue &
+    EPS estimate for `period` against the company's own guidance and label each metric
+    'above' / 'below' / 'inline' / 'none'. Rank OUT-OF-LINE analysts first (largest gap
+    first) so the ones who disagree with guidance are never buried. Tolerance: revenue
+    within 2% of guide is in line; EPS within max($0.01, 3%) (EPS guides can round to $0)."""
+    guide = (period_guidance or {}).get(period) or {}
+    g_rev, g_eps = guide.get("Revenue Est ($M)"), guide.get("EPS Est")
+    firm_est = (period_estimates or {}).get(period) or {}
+
+    def _classify(est, gv, rel, floor):
+        if est is None or gv is None:
+            return "none", None
+        diff = est - gv
+        band = max(floor, abs(gv) * rel)
+        pct = (diff / gv) if gv else None
+        if abs(diff) <= band:
+            return "inline", pct
+        return ("above" if diff > 0 else "below"), pct
+
+    rows = []
+    for a in analysts:
+        firm = a.get("firm", "")
+        est = firm_est.get(firm) or {}
+        rs, rp = _classify(est.get("Revenue Est ($M)"), g_rev, 0.02, 0.0)
+        es, ep = _classify(est.get("EPS Est"), g_eps, 0.03, 0.01)
+        out_of_line = rs in ("above", "below") or es in ("above", "below")
+        rows.append({
+            "firm": firm, "name": a.get("name", ""), "pt": a.get("pt"),
+            "rating": a.get("rating") or "—", "covering": a.get("covering", True),
+            "rev_status": rs, "rev_pct": rp, "eps_status": es, "eps_pct": ep,
+            "out_of_line": out_of_line, "has_model": (rs != "none" or es != "none"),
+            "divergence": max(abs(rp or 0), abs(ep or 0)) if out_of_line else 0.0,
+        })
+    # out-of-line first (biggest divergence), then modeled & in line, then no-model.
+    rows.sort(key=lambda r: (0 if r["out_of_line"] else (1 if r["has_model"] else 2), -r["divergence"]))
+    return rows, {"period": period, "guide_rev": g_rev, "guide_eps": g_eps,
+                  "has_guidance": (g_rev is not None or g_eps is not None)}
+
+
+def _analyst_alignment():
+    """Live wrapper: pull guidance + per-firm estimates for the guided FY the Street
+    ranks on, and classify every analyst on the registry against it."""
+    from core import consensus, guidance_engine
+    c = consensus.get_consensus(None)
+    pg = c.get("period_guidance") or {}
+    period = guidance_engine.reporting_fy_label()
+    if period not in pg:
+        period = next((p for p in pg if str(p).startswith("FY")), None) or next(iter(pg), None)
+    return _alignment_rows(CA(), pg, c.get("period_estimates") or {}, period)
+
+
 def _render_analyst_coverage():
     ui.label("Analyst coverage").classes("section-head")
-    # Real analyst registry (config.client_config.CA), not a hardcoded roster. The
-    # old literal wrongly marked Maxim/Litchfield/Barrington "Inactive" and dropped
-    # Barrington's real "Underperform" rating — all five actually cover (covering=True),
-    # they just don't all have a PT/model on file.
-    all_analysts = []
-    for a in CA():
-        firm, an = a.get("firm", ""), a.get("name", "")
-        pt, rating, covering = a.get("pt"), a.get("rating") or "—", a.get("covering", True)
-        if pt is not None:
-            pt_str, clr = f"${pt:.2f}", (COLORS["success"] if rating == "Buy" else COLORS["warning"])
-        elif covering:
-            pt_str, clr = "No PT", COLORS["warning"]
-        else:
-            pt_str, clr = "—", COLORS["text_muted"]
-        note = "covering" if pt is not None else ("model not on file" if covering else "not covering")
-        all_analysts.append((firm, an, pt_str, rating, note, clr))
+    # Real analyst registry (config.client_config.CA), not a hardcoded roster. Each card
+    # ranks and flags the analyst by whether their Rev & EPS estimates sit IN LINE with
+    # our own guidance — out-of-line analysts float to the top and stay visible.
+    rows, meta = _analyst_alignment()
+    if meta["has_guidance"]:
+        gp = []
+        if meta["guide_rev"] is not None:
+            gp.append(f"Rev ${meta['guide_rev']:.1f}M")
+        if meta["guide_eps"] is not None:
+            gp.append(f"EPS ${meta['guide_eps']:.2f}")
+        ui.label(f"vs {meta['period']} guidance ({' · '.join(gp)}) — out-of-line first").classes(
+            "t-eyebrow").style(f"color:{COLORS['text_muted']};margin-top:-2px;").tooltip(
+            "In line = estimate within tolerance of our guidance (rev 2% / EPS 3%). "
+            "Above / Below = the analyst is out of line with what we've guided.")
+
+    def _pill(label, status, pct):
+        tok, glyph, word = _ALIGN_PILL[status]
+        clr = COLORS[tok]
+        txt = f"{label} {glyph} {word}"
+        if pct is not None and status in ("above", "below"):
+            txt = f"{label} {glyph} {word} {abs(pct) * 100:.0f}%"
+        ui.label(txt).style(
+            f"font-size:10.5px;font-weight:700;letter-spacing:.02em;color:{clr};"
+            f"border:1px solid {clr};border-radius:9px;padding:1px 7px;white-space:nowrap;")
+
+    ool_rows = [r for r in rows if r["out_of_line"]]
+    rest = [r for r in rows if not r["out_of_line"]]
     container = ui.column().classes("w-full gap-2")
     expanded = {"value": False}
 
     def render_list():
         container.clear()
-        visible = all_analysts if expanded["value"] else all_analysts[:3]
+        fill = rest if expanded["value"] else rest[:max(0, 3 - len(ool_rows))]
+        visible = ool_rows + fill
+        hidden_ct = len(rest) - len(fill)
         with container:
-            for firm, an, pt, rt, chg, clr in visible:
-                with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
+            for r in visible:
+                pt, rating, covering = r["pt"], r["rating"], r["covering"]
+                if pt is not None:
+                    pt_str, clr = f"${pt:.2f}", (COLORS["success"] if rating == "Buy" else COLORS["warning"])
+                elif covering:
+                    pt_str, clr = "No PT", COLORS["warning"]
+                else:
+                    pt_str, clr = "—", COLORS["text_muted"]
+                # Out-of-line cards get a soft amber left-rail so they read as "attention".
+                rail = f"border-left:3px solid {COLORS['warning']};" if r["out_of_line"] else ""
+                with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};{rail}"):
                     with ui.row().classes("w-full justify-between items-center"):
-                        ui.label(firm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
-                        ui.label(pt).classes("font-bold").style(f"color:{clr};")
-                    ui.label(f"{an} · {rt} · {chg}").classes("t-meta")
+                        ui.label(r["firm"]).classes("font-bold").style(
+                            f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(pt_str).classes("font-bold").style(f"color:{clr};")
+                    ui.label(f"{r['name']} · {rating}").classes("t-meta")
+                    if meta["has_guidance"]:
+                        with ui.row().classes("items-center").style("gap:5px;flex-wrap:wrap;"):
+                            _pill("Rev", r["rev_status"], r["rev_pct"])
+                            _pill("EPS", r["eps_status"], r["eps_pct"])
+                    else:
+                        note = "model not on file" if covering else "not covering"
+                        ui.label(note).classes("t-meta").style(f"color:{COLORS['text_muted']};")
                     with _signal_actions():
                         # Deep-link straight to Consensus / Guidance with this analyst
                         # highlighted. Pass the tab explicitly (not just the highlight)
                         # so the sidebar's active-tab highlight matches the tab that
                         # opens; the `e=None` swallows the click event NiceGUI passes so
                         # it can't clobber the captured `firm`.
-                        ui.button("Consensus →", on_click=lambda e=None, firm=firm: nav.go_to(
+                        ui.button("Consensus →", on_click=lambda e=None, firm=r["firm"]: nav.go_to(
                             "Markets", "Consensus / Guidance", highlight_analyst=firm)).props("flat dense size=sm")
 
-            if not expanded["value"]:
-                ui.button(f"+ Load {len(all_analysts)-3} more", on_click=toggle).props("flat")
-            else:
+            if hidden_ct > 0:
+                ui.button(f"+ Load {hidden_ct} more", on_click=toggle).props("flat")
+            elif expanded["value"] and len(rest) > max(0, 3 - len(ool_rows)):
                 ui.button("Show fewer ↑", on_click=toggle).props("flat")
 
     def toggle():
