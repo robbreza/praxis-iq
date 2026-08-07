@@ -855,6 +855,22 @@ def _render_lookback_tab():
             ui.label("Upload the transcript PDF in the Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:12px;padding:8px;")
             ui.button("Go to Call Transcripts", on_click=lambda: nav.go_to("Earnings", "Call Transcripts")).props("flat dense")
 
+    # Everything below (reaction stats, section timing, Q&A topics, note alignment) is USIO's real,
+    # ingested Q1 2026 transcript analysis — one specific quarter's data, NOT per-tenant config. It
+    # must NOT render for another client: it would assert USIO's +24.22% / $25.47M as theirs. Until a
+    # client's own prior call is ingested, show an honest waiting state instead of someone else's data.
+    if CT("ticker") != "USIO":
+        from page_modules_nicegui.signals import waiting_signal
+        waiting_signal(
+            f"{prior_q} post-mortem",
+            f"Upload {CT('ticker')}'s {prior_q} earnings-call transcript (Call Transcripts tab) and its "
+            "after-hours reaction to populate the reaction stats, section timing, Q&A topics and "
+            "analyst-note alignment for this quarter.",
+            "what the last script taught you — reaction, timing, and what analysts actually asked")
+        return
+
+    ui.label("Q1 2026 · as reported (ingested transcript)").style(
+        f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.05em;margin-top:2px;")
     with ui.row().classes("w-full gap-3"):
         for val, lbl, sub, clr in [
             ("+24.22%", "AH Reaction", "May 13 · record session", "#15803D"),

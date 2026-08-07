@@ -60,6 +60,9 @@ def _render_platform_config():
         with ui.column().classes("flex-1"):
             earnings_date_in = ui.input("Next earnings date (YYYY-MM-DD)", value=settings.get("earnings_date", earnings.get("earnings_date", ""))).classes("w-full")
             quiet_start_in = ui.input("Quiet period start (YYYY-MM-DD)", value=settings.get("quiet_start", earnings.get("quiet_start", ""))).classes("w-full")
+            ui.label("⚠ Not yet wired — the app reads earnings/quiet dates from the client record; "
+                     "saving these two stores them but doesn't change app behavior yet.").style(
+                "color:#B45309;font-size:11px;line-height:1.4;")
 
     def save():
         _save_settings({
@@ -237,12 +240,29 @@ def _render_zoom_creds():
 
 
 def _render_data_sources():
+    # Honest status — DERIVED from config, not a hardcoded "active" badge. The old card claimed
+    # "IMAP+SMTP active" for every install regardless of whether any mailbox was connected.
+    from core import zoho_mail
+    try:
+        from core import mail_gateway
+        _imap = mail_gateway.is_configured()
+    except Exception:
+        _imap = False
+    _smtp = zoho_mail.is_configured()
+    if _smtp and _imap:
+        _mail = ("IRConnect mail", "SMTP send + IMAP inbox connected", True)
+    elif _smtp:
+        _mail = ("IRConnect mail", "SMTP send connected · IMAP inbox not set up", True)
+    else:
+        _mail = ("IRConnect mail", "Not connected — set ZOHO_SMTP_* (send) / MAIL_IMAP_* (inbox)", False)
     sources = [
-        ("IRConnect", "IMAP+SMTP active", True),
-        ("SEC EDGAR", "8-K/13F monitoring", True),
-        ("FactSet", "Manual — API not connected", False),
-        ("Bloomberg", "Manual — API not connected", False),
+        _mail,
+        ("SEC EDGAR", "8-K / 13F / 13D public data — always available", True),
+        ("FactSet", "Not integrated (manual)", False),
+        ("Bloomberg", "Not integrated (manual)", False),
     ]
+    ui.label("Integration status — reflects what's wired in configuration, not a live health check.").style(
+        f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:2px;")
     for name, desc, ok in sources:
         clr = "#15803D" if ok else "#B45309"
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
