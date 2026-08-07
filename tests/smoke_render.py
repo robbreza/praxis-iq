@@ -80,9 +80,11 @@ def _client_text(client):
 
 
 def render_one(module_path, render_fn_name, client_id, role="IR"):
-    """Render a single page for a single tenant. Returns (ok, detail, demo_hits)."""
+    """Render a single page for a single tenant. Returns (ok, detail, demo_hits, lazy) where
+    `lazy` is a list of (tab_name, ok, detail, hits) for the page's LAZY tab-panels — content that
+    only builds on tab-click and is otherwise invisible to this test (see core/lazy_tab_probe)."""
     from config.client_config import set_active_client_id
-    from core import ui_context
+    from core import lazy_tab_probe, ui_context
 
     set_active_client_id(client_id)
     ui_context.set_page_context(role, render_fn_name.replace("render_", "").replace("_page", "").title())
@@ -90,17 +92,34 @@ def render_one(module_path, render_fn_name, client_id, role="IR"):
     module = importlib.import_module(module_path)
     fn = getattr(module, render_fn_name, None)
     if fn is None:
-        return False, f"missing {render_fn_name}()", []
+        return False, f"missing {render_fn_name}()", [], []
 
+    lazy_tab_probe.set_capturing(True)
+    lazy_tab_probe.reset()
     try:
         client = Client(page("/"), request=None)
         with client:
             fn()
         text = _client_text(client)
         hits = sorted({tok for tok in DEMO_TOKENS if tok in text})
-        return True, "", hits
     except Exception:
-        return False, traceback.format_exc(), []
+        return False, traceback.format_exc(), [], []
+
+    # Now exercise each lazy tab this page registered — build its deferred content and check it the
+    # same way (render exception + demo leak). Each in its own client so one failure can't taint the
+    # next. The build_fn closures still reference the page state built above.
+    lazy = []
+    for _pg, tab, build_fn in lazy_tab_probe.captured():
+        try:
+            sub = Client(page("/"), request=None)
+            with sub:
+                build_fn()
+            th = sorted({tok for tok in DEMO_TOKENS if tok in _client_text(sub)})
+            lazy.append((tab, True, "", th))
+        except Exception:
+            lazy.append((tab, False, traceback.format_exc(), []))
+    lazy_tab_probe.reset()
+    return True, "", hits, lazy
 
 
 def main():
@@ -122,12 +141,12 @@ def main():
     clients = [args.client] if args.client else list(CLIENT_REGISTRY)
     pages = {args.page: ported[args.page]} if args.page else ported
 
-    render_fails, demo_fails, checked = [], [], 0
+    render_fails, demo_fails, checked, lazy_checked = [], [], 0, 0
     for cid in clients:
         print(f"\n=== {cid} ===")
         for name, module_path in pages.items():
             fn_name = f"render_{name.lower()}_page"
-            ok, detail, hits = render_one(module_path, fn_name, cid)
+            ok, detail, hits, lazy = render_one(module_path, fn_name, cid)
             checked += 1
             if not ok:
                 render_fails.append((cid, name, detail))
@@ -137,9 +156,21 @@ def main():
                 print(f"  DEMO LEAK    {name}  -> {', '.join(hits)}")
             else:
                 print(f"  PASS         {name}")
+            # lazy tab-panels this page deferred (built here, not at page render)
+            for tab, tok, tdetail, thits in lazy:
+                lazy_checked += 1
+                label = f"{name} › {tab}"
+                if not tok:
+                    render_fails.append((cid, label, tdetail))
+                    print(f"  RENDER FAIL  {label}  (lazy tab)")
+                elif thits:
+                    demo_fails.append((cid, label, thits))
+                    print(f"  DEMO LEAK    {label}  -> {', '.join(thits)}")
+                else:
+                    print(f"  PASS         {label}  (lazy tab)")
 
     print(f"\n{'-' * 64}")
-    print(f"rendered {checked} page/tenant combinations · "
+    print(f"rendered {checked} page/tenant combinations + {lazy_checked} lazy tab(s) · "
           f"{len(render_fails)} render failures · {len(demo_fails)} demo leaks")
     for cid, name, detail in render_fails:
         print(f"\nRENDER FAIL {cid} / {name}")

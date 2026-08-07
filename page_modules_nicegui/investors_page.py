@@ -1313,6 +1313,8 @@ def render_investors_page():
         t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
         t10.props["name"]: (p10, lambda: _render_import_verify_tab(client_id)),
     }
+    from core import lazy_tab_probe
+    lazy_tab_probe.register("Investors", lazy_panels)   # no-op unless smoke is capturing
     loaded_tabs = set()
     # A mode toggle also invalidates the two mode-dependent lazy tabs so they
     # rebuild with fresh scores next time they're opened (harmless no-op if
@@ -6521,7 +6523,15 @@ def _render_peer_universe_manager(institutions):
                             cur[idx]["weight"] = w
                             _save_peer_universe(cur)
 
-                        ui.select(["core", "close", "large"], value=p.get("tier", "close"),
+                        # Options are the Fit Score tiers, but a peer may carry a benchmarking
+                        # tier ("reference"/"primary") from peer discovery — include the current
+                        # value so the select never rejects it (crashed the Target DB tab) and the
+                        # stored tier isn't silently rewritten.
+                        _tier_opts = ["core", "close", "large"]
+                        _tier_val = p.get("tier", "close")
+                        if _tier_val not in _tier_opts:
+                            _tier_opts = _tier_opts + [_tier_val]
+                        ui.select(_tier_opts, value=_tier_val,
                                   on_change=set_tier).props("dense outlined").classes("min-w-[90px]")
                         ui.number(value=p.get("weight", 1.0), min=0.1, max=5.0, step=0.5,
                                   on_change=set_weight).props("dense outlined").classes("min-w-[70px]")

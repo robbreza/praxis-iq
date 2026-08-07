@@ -777,6 +777,8 @@ def render_earnings_page():
         t4.props["name"]: (p4, _render_transcripts_tab),
         t6.props["name"]: (p6, _render_morning_after_tab),
     }
+    from core import lazy_tab_probe
+    lazy_tab_probe.register("Earnings", lazy_panels)   # no-op unless smoke is capturing
     loaded_tabs = {default_tab.props["name"]}
 
     async def _load_tab_on_demand(e):
