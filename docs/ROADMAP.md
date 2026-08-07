@@ -4,9 +4,13 @@
 > Near-term roadmap for the Praxis Point IR platform after the 2026-07-15 demo. Entries are
 > reverse-chronological (newest first). `[[name]]` markers reference related working-memory notes.
 >
-> _Last synced from memory: 2026-08-06._
+> _Last synced from memory: 2026-08-07._
 
 ---
+
+## 2026-08-07 — UX/navigation audit + P1 quick wins — DONE (commit bb0778a)
+
+Independent ease-of-use study of IRconnect (delivered as an **artifact** — UX audit report). **Verdict B‑:** strong engine, real information-architecture debt; a first-time user gets lost in Investor Targeting. Key findings: sidebar↔tab DRIFT (hidden destinations), FOUR levels deep with no breadcrumb, SIX near-synonymous "who owns us" surfaces (Buy-Side Intel / Target DB / Peer Prospects / NOBO / SEC Intel / Accounts CRM), Consensus duplicated in 3 places, naming inconsistency, jargon w/o gloss (NOBO/NDR/Reg FD). **Recommended re-grouping (NOT yet built):** split the 10-tab Investor Targeting into 3 intents — **Ownership** (who owns us: 13F+NOBO+self-ID+site-visitors), **Targeting** (who should), **Engagement** (NDR+meetings+CRM); de-dupe Consensus; add jargon subtitles (the Lighthouse "Why is the stock moving?" pattern); Import list → Settings/Data Sources. **P1 quick wins BUILT this commit:** (1) fixed `NAV_SUBITEMS` drift in `app_nicegui.py` — Investor Targeting now surfaces all 10 tabs (was 8; Website + Import list were hidden), Earnings all 7 (was 6; Prep Brief hidden); **`tests/test_nav_subitems.py`** asserts each heavy page's sidebar sub-items == its real top-level tabs (via `lazy_tab_probe`) so it can't drift again. (2) **Breadcrumb** bar (Section › Page › Tab) above the content area — persistent (created before `content`, survives content.clear()), updates live on tab clicks via the existing `on_tab_change` hook. Full suite 167. **OPEN (from the audit, not yet done):** the Investor-Targeting 3-way re-grouping (bigger, P1); Consensus de-dup (P2); one-name-per-concept (P2); jargon subtitles (P3); multi-open sidebar on desktop (P3). Artifact URL is in the session; regenerate/point clients there as the pre-launch nav punch-list.
 
 ## 2026-08-06 — NDR reply loop verified live + NDR Planner crash fix — DONE (commit 848d415)
 
