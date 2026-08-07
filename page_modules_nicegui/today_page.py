@@ -442,20 +442,20 @@ def render_today_page():
     # anchors the left column with analyst coverage below; the three shorter
     # sections stack on the right. `items-start` + this grouping keeps the
     # trailing whitespace minimal.
-    with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
-        with ui.column().classes("w-full md:flex-1 gap-4"):
-            # Risk signals emphasized ~15% larger than its column-mates (the two top-priority
-            # cards on Today). width-compensated zoom — see .emph-15 in app_nicegui.py.
-            with ui.element("div").classes("emph-15"):
+    # The whole dashboard carries one ~15% emphasis (.emph-15): every section scales
+    # uniformly (no double-nesting), the width:calc(100%/1.15) keeping the block exactly
+    # one content-width wide so it can't overflow into a horizontal scroll. Verified in-browser.
+    with ui.element("div").classes("emph-15"):
+        with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
+            with ui.column().classes("w-full md:flex-1 gap-4"):
                 _render_risk_signals(state, days, snap, pt_avg)
-            _render_earnings_readiness(days)
-            _render_peer_watch()
-        with ui.column().classes("w-full md:flex-1 gap-4"):
-            with ui.element("div").classes("emph-15"):
+                _render_earnings_readiness(days)
+                _render_peer_watch()
+            with ui.column().classes("w-full md:flex-1 gap-4"):
                 _render_investor_pipeline()
-            _render_analyst_coverage()
-            _render_insider_activity()
-            _render_activity_responses(state)
+                _render_analyst_coverage()
+                _render_insider_activity()
+                _render_activity_responses(state)
 
 
 def _top_ownership_change():
