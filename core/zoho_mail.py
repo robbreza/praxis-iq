@@ -55,9 +55,32 @@ def verify_connection():
         return False, str(e)
 
 
-def send_email(to, subject, body):
+def _append_to_sent(msg, user, pw, smtp_host):
+    """Best-effort: file a copy of a just-sent message into the Zoho 'Sent' folder via IMAP, so
+    it shows up in the mailbox exactly like a normally-sent email. An SMTP send does NOT do this
+    on its own — that's why sends from the app never appeared in Sent. Non-fatal: any failure
+    here (IMAP disabled, wrong folder name) is swallowed by the caller; the email still went out
+    and the in-app correspondence trail is the authoritative record regardless."""
+    import imaplib
+    import time
+    imap_host = smtp_host.replace("smtp.", "imap.", 1) if smtp_host.startswith("smtp.") else "imap.zoho.com"
+    copy = EmailMessage()
+    for k in ("From", "To", "Subject"):
+        if msg[k]:
+            copy[k] = msg[k]
+    copy.set_content(msg.get_content())          # drop Bcc etc. from the filed copy
+    with imaplib.IMAP4_SSL(imap_host, 993) as im:
+        im.login(user, pw)
+        im.append("Sent", "\\Seen", imaplib.Time2Internaldate(time.time()), copy.as_bytes())
+
+
+def send_email(to, subject, body, bcc=None, save_to_sent=True):
     """Send one email from the configured Zoho account. Returns (ok, error). Blocking SMTP —
-    call from a worker thread (asyncio.to_thread) so the UI event loop isn't held."""
+    call from a worker thread (asyncio.to_thread) so the UI event loop isn't held.
+
+    `bcc` blind-copies an address (e.g. the sender itself) so there's always a durable record.
+    `save_to_sent` also files a copy into the Zoho 'Sent' folder via IMAP (best-effort) — since a
+    plain SMTP send otherwise leaves no trace in the mailbox's Sent folder."""
     user, pw, host, port, from_name = _cfg()
     if not (user and pw):
         return False, "Zoho isn't connected yet — set ZOHO_SMTP_USER and ZOHO_SMTP_PASS."
@@ -67,6 +90,8 @@ def send_email(to, subject, body):
     msg = EmailMessage()
     msg["From"] = f"{from_name} <{user}>" if from_name else user
     msg["To"] = to.strip()
+    if bcc:
+        msg["Bcc"] = bcc.strip() if isinstance(bcc, str) else ", ".join(bcc)
     msg["Subject"] = subject or ""
     msg.set_content(body or "")
     try:
@@ -80,9 +105,15 @@ def send_email(to, subject, body):
             with smtplib.SMTP_SSL(host, port, context=ctx, timeout=25) as s:
                 s.login(user, pw)
                 s.send_message(msg)
-        return True, None
     except smtplib.SMTPAuthenticationError:
         return False, ("Zoho rejected the login — check ZOHO_SMTP_USER is your full email and "
                        "ZOHO_SMTP_PASS is an app-specific password (not your normal password).")
     except Exception as e:
         return False, str(e)
+
+    if save_to_sent:
+        try:
+            _append_to_sent(msg, user, pw, host)
+        except Exception as e:
+            print(f"[zoho_mail] sent-folder copy skipped (non-fatal): {e}")
+    return True, None

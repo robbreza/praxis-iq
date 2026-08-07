@@ -4820,6 +4820,87 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
             _render_ndr_debrief_tab()
 
 
+async def _open_ndr_reply_dialog(req, on_done):
+    """Reply to an inbound NDR request FROM the app: a reviewed, human-sent email (Reg FD — never
+    auto-sent). On send it's logged onto the request's correspondence trail and the item flips to
+    'replied', and a copy is filed to the Zoho Sent folder — so 'did we get back to them?' is
+    answerable in-app instead of by digging through a mailbox."""
+    import asyncio
+    import json
+
+    from config.client_config import CT
+    from core import ndr_correspondence, zoho_mail
+    _zoho = zoho_mail.is_configured()
+    analyst = (req.get("analyst") or "there").strip()
+    first = analyst.split()[0] if analyst else "there"
+    company = CT("name") or "our"
+    city = req.get("city") or ""
+    subject = f"Re: your meeting request{f' — {city}' if city else ''}"
+    body = (f"Hi {first},\n\n"
+            f"Thanks for the request to meet with {company} management"
+            f"{f' in {city}' if city else ''}. We'd be glad to coordinate — could you share a "
+            f"couple of dates and times that work on your end, and whether you'd prefer a call or "
+            f"an in-person meeting?\n\nBest regards,\nInvestor Relations\n{company}")
+
+    with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
+        ui.label(f"Reply to {analyst}" + (f" ({req.get('firm')})" if req.get("firm") else "")).classes(
+            "font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+        ui.label(f"Their request: {req.get('reason') or '—'}").style(
+            f"color:{COLORS['text_muted']};font-size:11.5px;")
+        _to = ui.input("To", value=req.get("analyst_email") or req.get("sender_email") or "").props(
+            "outlined dense").classes("w-full").style("font-size:12px;")
+        _subj = ui.input("Subject", value=subject).props("outlined dense").classes("w-full").style("font-size:12px;")
+        _body = ui.textarea("Message", value=body).props("outlined autogrow dense").classes(
+            "w-full").style("font-size:12px;")
+        ui.label("Reviewed and sent by you — IRconnect never sends shareholder mail automatically "
+                 "(Reg FD). A copy is filed to your Sent folder and logged on this request.").style(
+            f"color:{COLORS['text_muted']};font-size:10.5px;")
+
+        def _log(via):
+            ndr_correspondence.record_reply(req["id"], _to.value, _subj.value or "", _body.value or "", via=via)
+
+        with ui.row().classes("justify-end w-full gap-2 items-center").style("margin-top:4px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat dense")
+
+            def _copy():
+                ui.run_javascript("navigator.clipboard.writeText(" + json.dumps(
+                    f"To: {_to.value}\nSubject: {_subj.value or ''}\n\n{_body.value or ''}") + ")")
+                ui.notify("Draft copied.", type="positive")
+            ui.button("Copy", icon="content_copy", on_click=_copy).props("flat dense")
+
+            def _openmail():
+                if not (_to.value or "").strip():
+                    ui.notify("Add the analyst's email first.", type="warning")
+                    return
+                href = f"mailto:{_to.value}?subject={quote(_subj.value or '')}&body={quote(_body.value or '')}"
+                ui.run_javascript(f"window.location.href = {json.dumps(href)}")
+                _log("email client")
+                ui.notify("Logged on the request (Replied).", type="positive")
+                dlg.close()
+                on_done()
+            ui.button("Open in email", icon="mail", on_click=_openmail).props(
+                "flat dense" if _zoho else "color=primary dense")
+
+            if _zoho:
+                async def _send():
+                    if not (_to.value or "").strip():
+                        ui.notify("Add the analyst's email first.", type="warning")
+                        return
+                    ui.notify("Sending via Zoho…", type="info")
+                    ok, err = await asyncio.to_thread(
+                        zoho_mail.send_email, _to.value, _subj.value or "", _body.value or "")
+                    if ok:
+                        _log("Zoho")
+                        ui.notify(f"Sent to {_to.value} — filed to Sent and logged on this request.",
+                                  type="positive")
+                        dlg.close()
+                        on_done()
+                    else:
+                        ui.notify(f"Zoho send failed: {err}", type="negative")
+                ui.button("Send via Zoho", icon="send", on_click=_send).props("color=primary dense")
+    dlg.open()
+
+
 def _render_ndr_requests_tab():
     ui.label("Inbound NDR / Meeting Requests").classes("font-bold")
     ui.label(
@@ -4867,11 +4948,37 @@ def _render_ndr_requests_tab():
     if not open_reqs:
         ui.label("No open requests.").style(f"color:{COLORS['text_muted']};")
     for r in open_reqs:
+        from core import ndr_correspondence
         seed_tag = " · example" if r.get("seeded") else ""
+        _replied = ndr_correspondence.status(r) == "replied"
         with ui.expansion(f"{r['analyst']} ({r['firm']}) → {r['city']}{seed_tag}",
                           caption=f"Received {r['received']}").classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
+            with ui.row().classes("items-center").style("gap:8px;"):
+                if _replied:
+                    ui.label(f"REPLIED · {r.get('replied_at','')}").style(
+                        "background:rgba(21,128,61,.14);color:#15803D;font-size:9.5px;font-weight:800;"
+                        "padding:2px 8px;border-radius:9px;")
+                else:
+                    ui.label("AWAITING REPLY").style(
+                        "background:rgba(180,83,9,.14);color:#B45309;font-size:9.5px;font-weight:800;"
+                        "padding:2px 8px;border-radius:9px;")
             ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:12px;")
+
+            # Correspondence trail — the sent (and any received) messages on this request.
+            trail = ndr_correspondence.trail(r)
+            if trail:
+                ui.label("Correspondence").style(
+                    f"color:{COLORS['text_muted']};font-size:10.5px;font-weight:700;margin-top:4px;")
+                for c in trail:
+                    out = c.get("direction") == "out"
+                    who = f"To {c.get('to')}" if out else f"From {c.get('from')}"
+                    with ui.row().classes("items-center").style("gap:6px;"):
+                        ui.icon("call_made" if out else "call_received").style(
+                            f"color:{'#15803D' if out else COLORS['accent']};font-size:13px;")
+                        ui.label(f"{c.get('ts')} · {who} · {c.get('subject') or ''}"
+                                 + (f"  ({c.get('via')})" if c.get('via') else "")).style(
+                            f"color:{COLORS['text_muted']};font-size:11px;")
 
             def mark_resolved(rid=r["id"]):
                 current = _load_ndr_requests()
@@ -4884,8 +4991,10 @@ def _render_ndr_requests_tab():
                 _refresh()
 
             with ui.row().classes("gap-2").style("margin-top:6px;"):
+                ui.button("Reply", icon="reply",
+                          on_click=lambda r=r: _open_ndr_reply_dialog(r, _refresh)).props("flat dense color=primary")
                 ui.button("Schedule into NDR", icon="event_available",
-                          on_click=lambda r=r: _open_schedule_request_dialog(r, _refresh)).props("flat dense color=primary")
+                          on_click=lambda r=r: _open_schedule_request_dialog(r, _refresh)).props("flat dense")
                 ui.button("Resolve without scheduling", on_click=mark_resolved).props("flat dense")
 
     if resolved_reqs:
