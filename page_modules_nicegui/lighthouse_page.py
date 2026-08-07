@@ -127,6 +127,11 @@ def render_lighthouse_page():
             _tel.record_view(client_id, "USIO", "lighthouse_page")
         except Exception:
             pass
+
+        # Lead with the ANSWER, not the instrumentation: this slot sits at the top of the page but
+        # is populated further down (once the engine has computed the verdicts + weekly context), so
+        # "why is it moving" renders above the shadow-mode / test / calibration diagnostics below.
+        _answer_slot = ui.column().classes("w-full").style("gap:8px;")
         try:
             from lighthouse import shadow as _shadow
             st = _shadow.shadow_status("usio", "USIO")
@@ -331,54 +336,57 @@ def render_lighthouse_page():
         ui.label(f"Lighthouse engine error: {e}").style("color:#B91C1C;")
         return
 
-    # ── THIS WEEK IN CONTEXT — the headline band. A drift number in isolation is uninterpretable, so
-    # it never travels alone here: the issuer's weekly move sits beside the peer basket, its size
-    # index, and the broad-market indices, each with USIO's relative performance in points.
-    if wk and not wk.get("empty"):
-        _render_week_in_context(wk, _weekly)
+    # ── THIS WEEK IN CONTEXT + recent-session verdicts — the ANSWER. Rendered into _answer_slot so
+    # it appears at the TOP of the page (above the shadow-mode / test / calibration diagnostics),
+    # even though the engine that computes it only finishes here.
+    with _answer_slot:
+        # A drift number in isolation is uninterpretable, so it never travels alone: the issuer's
+        # weekly move sits beside the peer basket, its size index, and the broad-market indices.
+        if wk and not wk.get("empty"):
+            _render_week_in_context(wk, _weekly)
 
-    ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
-    for v in verdicts:
-        day = v["day"]
-        up = v["actual"] >= 0
-        move_color = "#15803D" if up else "#B91C1C"
-        with ui.card().classes("w-full").style("border:1px solid #D3DBE4;margin-bottom:6px;"):
-            with ui.row().classes("items-center w-full justify-between"):
-                with ui.row().classes("items-baseline gap-3"):
-                    ui.label(str(day)).classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                    ui.label(f"{v['actual']*100:+.1f}%").style(f"color:{move_color};font-size:22px;font-weight:800;")
-                    ui.label(f"vs expected {v['expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                with ui.row().classes("gap-2"):
-                    _conf_badge("Abnormality", v["abnormality_conf"])
-                    _conf_badge("Explanation", v["explanation_conf"])
-            best = v["drivers"][0]["label"] if v["explanation_conf"] != "LOW" else "No confirmed cause identified"
-            ui.label(f"Unexplained residual {v['residual']*100:+.1f}%  ·  {int((v['rarity'] or 0)*100)}th-pctile rare  ·  best read: {best}") \
-                .style(f"color:{COLORS['text_body']};font-size:13px;margin-top:2px;")
-            if v.get("z") is not None:
-                _fdr = ""
-                if v.get("fdr_significant") is not None:
-                    _fdr = ("  ·  FDR: PASSES (genuine discovery)" if v["fdr_significant"]
-                            else f"  ·  FDR: gated (q={int((v.get('fdr_q') or 0.1)*100)}% — expected tail-noise, no phone alert)")
-                _vol = "GARCH(1,1)" if v.get("cond_vol_model") == "garch" else "EWMA"
-                ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
-                         f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), {_vol} vol-adjusted{_fdr}") \
-                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
-                if v.get("rvol") is not None:
-                    _liq = (f"⚠ on {v['rvol']:.1f}× 20-day volume — thin; possible microstructure, no phone alert"
-                            if v.get("thin_tape") else f"on {v['rvol']:.1f}× 20-day volume — tape supports the move")
-                    ui.label(f"Liquidity: {_liq}").style(
-                        f"color:{'#B45309' if v.get('thin_tape') else COLORS['text_muted']};font-size:11px;")
-            with ui.column().classes("gap-1").style("margin-top:6px;"):
-                for d in v["drivers"]:
-                    c = _ROLE_COLOR.get(d["cls"], "#64748B")
-                    with ui.row().classes("items-center gap-2"):
-                        ui.label(d["cls"].title()).style(f"color:{c};font-weight:700;font-size:11px;"
-                                                         f"border:1px solid {c}55;border-radius:4px;padding:0 6px;")
-                        ui.label(f"{d['label']} — {d['detail']}").style(f"color:{COLORS['text_body']};font-size:12px;")
-                        if d.get("link"):
-                            ui.link("evidence ↗", d["link"], new_tab=True).style("font-size:11px;")
-            if v.get("technical"):
-                ui.label(f"Technical (how, not why): {v['technical']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
-            if v["not_found"]:
-                ui.label("Checked but not found: " + " · ".join(v["not_found"])) \
-                    .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:2px;")
+        ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
+        for v in verdicts:
+            day = v["day"]
+            up = v["actual"] >= 0
+            move_color = "#15803D" if up else "#B91C1C"
+            with ui.card().classes("w-full").style("border:1px solid #D3DBE4;margin-bottom:6px;"):
+                with ui.row().classes("items-center w-full justify-between"):
+                    with ui.row().classes("items-baseline gap-3"):
+                        ui.label(str(day)).classes("font-bold").style(f"color:{COLORS['text_heading']};")
+                        ui.label(f"{v['actual']*100:+.1f}%").style(f"color:{move_color};font-size:22px;font-weight:800;")
+                        ui.label(f"vs expected {v['expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    with ui.row().classes("gap-2"):
+                        _conf_badge("Abnormality", v["abnormality_conf"])
+                        _conf_badge("Explanation", v["explanation_conf"])
+                best = v["drivers"][0]["label"] if v["explanation_conf"] != "LOW" else "No confirmed cause identified"
+                ui.label(f"Unexplained residual {v['residual']*100:+.1f}%  ·  {int((v['rarity'] or 0)*100)}th-pctile rare  ·  best read: {best}") \
+                    .style(f"color:{COLORS['text_body']};font-size:13px;margin-top:2px;")
+                if v.get("z") is not None:
+                    _fdr = ""
+                    if v.get("fdr_significant") is not None:
+                        _fdr = ("  ·  FDR: PASSES (genuine discovery)" if v["fdr_significant"]
+                                else f"  ·  FDR: gated (q={int((v.get('fdr_q') or 0.1)*100)}% — expected tail-noise, no phone alert)")
+                    _vol = "GARCH(1,1)" if v.get("cond_vol_model") == "garch" else "EWMA"
+                    ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
+                             f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), {_vol} vol-adjusted{_fdr}") \
+                        .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
+                    if v.get("rvol") is not None:
+                        _liq = (f"⚠ on {v['rvol']:.1f}× 20-day volume — thin; possible microstructure, no phone alert"
+                                if v.get("thin_tape") else f"on {v['rvol']:.1f}× 20-day volume — tape supports the move")
+                        ui.label(f"Liquidity: {_liq}").style(
+                            f"color:{'#B45309' if v.get('thin_tape') else COLORS['text_muted']};font-size:11px;")
+                with ui.column().classes("gap-1").style("margin-top:6px;"):
+                    for d in v["drivers"]:
+                        c = _ROLE_COLOR.get(d["cls"], "#64748B")
+                        with ui.row().classes("items-center gap-2"):
+                            ui.label(d["cls"].title()).style(f"color:{c};font-weight:700;font-size:11px;"
+                                                             f"border:1px solid {c}55;border-radius:4px;padding:0 6px;")
+                            ui.label(f"{d['label']} — {d['detail']}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            if d.get("link"):
+                                ui.link("evidence ↗", d["link"], new_tab=True).style("font-size:11px;")
+                if v.get("technical"):
+                    ui.label(f"Technical (how, not why): {v['technical']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+                if v["not_found"]:
+                    ui.label("Checked but not found: " + " · ".join(v["not_found"])) \
+                        .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:2px;")
