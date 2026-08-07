@@ -49,16 +49,25 @@ def _institutions(client_id):
         return []
 
 
-def _open_brief(fund, inst_by_fund, client_id):
+def _open_brief(fund, inst_by_fund, client_id, meeting=None):
     """One-screen meeting brief + note capture for a fund/holder. Kept lean and fast for a phone:
     it reads only the (already-loaded) holder row + the last note — no heavy CRM/contact resolution,
-    which is a desktop concern and was slow enough to risk a slow tap / oversized socket message."""
+    which is a desktop concern and was slow enough to risk a slow tap / oversized socket message.
+    `meeting` (an optional scheduled_meetings row) adds the who/when/agenda context at the top when
+    the brief is opened from an actual booked meeting rather than a bare holder lookup."""
     row = inst_by_fund.get(fund, {"Fund": fund})
     note = _last_note_for(fund)
 
     with ui.dialog() as dialog, ui.card().style(
             f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);border-radius:14px;"):
         ui.label(pretty_name(fund)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        if meeting:
+            ctx = " · ".join(x for x in [meeting.get("Date"), meeting.get("Time"),
+                                         meeting.get("Contact"), meeting.get("Type")] if x)
+            if ctx:
+                ui.label(ctx).style(f"color:{COLORS['accent']};font-size:12.5px;font-weight:600;")
+            if meeting.get("Topic"):
+                ui.label(f"Agenda: {meeting['Topic']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
         # holding / conviction / direction — only what we actually have
         bits = []
         if row.get("Position_Value"):
@@ -117,6 +126,24 @@ def _open_brief(fund, inst_by_fund, client_id):
     dialog.open()
 
 
+def _upcoming_meetings(client_id):
+    """This client's booked investor meetings (scheduled_meetings.json), today + future, soonest
+    first. String date compare is fine for ISO YYYY-MM-DD; undated rows sort last but still show."""
+    from core import db
+    rows = db.load_json("scheduled_meetings.json", default=[], client_id=client_id) or []
+    today = datetime.now().strftime("%Y-%m-%d")
+    upcoming = [m for m in rows if not (m.get("Date") or "") or (m.get("Date") or "") >= today]
+    upcoming.sort(key=lambda m: ((m.get("Date") or "9999-99-99"), (m.get("Time") or "")))
+    return upcoming, today
+
+
+def _fmt_date(d):
+    try:
+        return datetime.strptime(d, "%Y-%m-%d").strftime("%b %d")
+    except Exception:
+        return d or ""
+
+
 def render_home_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
@@ -124,12 +151,61 @@ def render_home_page():
         .style(f"color:{COLORS['accent_light2']};letter-spacing:.08em;font-size:12px;")
     ui.label("On the road").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
-    # ── 1. PULSE ──────────────────────────────────────────────────────────────
-    snap = market_data.get_snapshot(ticker)
+    insts = _institutions(client_id)
+    inst_by_fund = {r.get("Fund"): r for r in insts if r.get("Fund")}
+
+    # ── 1. YOUR MEETINGS (the hero — the one job a phone view has on the road) ──────────────────
+    meetings, today = _upcoming_meetings(client_id)
     with _card():
         with ui.row().classes("w-full justify-between items-center"):
-            ui.label(f"{ticker} · pulse").classes("section-head")
-            ui.button("Why moving? →", on_click=lambda: nav.go_to("Lighthouse")).props("flat dense size=sm")
+            ui.label("Your meetings").classes("section-head")
+            ui.button("Schedule →", on_click=lambda: nav.go_to("Investors", "Meeting Hub")) \
+                .props("flat dense size=sm")
+        if meetings:
+            for m in meetings[:6]:
+                firm = m.get("Firm") or m.get("Contact") or "—"
+                is_today = (m.get("Date") or "") == today
+                when = "Today" if is_today else _fmt_date(m.get("Date"))
+                with ui.row().classes("w-full items-center gap-3").style(
+                        f"padding:9px 0;border-top:1px solid {COLORS['border']};cursor:pointer;").on(
+                        "click", lambda m=m, f=firm: _open_brief(f, inst_by_fund, client_id, meeting=m)):
+                    with ui.column().classes("gap-0 items-center").style("min-width:52px;"):
+                        ui.label(when).style(
+                            f"font-size:11px;font-weight:700;"
+                            f"color:{COLORS['accent'] if is_today else COLORS['text_muted']};")
+                        if m.get("Time"):
+                            ui.label(m["Time"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                        ui.label(pretty_name(firm)).style(
+                            f"color:{COLORS['text_heading']};font-size:14px;font-weight:600;line-height:1.3;")
+                        sub = " · ".join(x for x in [m.get("Contact"), m.get("Type")] if x)
+                        if sub:
+                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:20px;")
+            ui.label("Tap a meeting for the brief + to capture a note.").style(
+                f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+        else:
+            ui.label("No meetings booked yet.").style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.button("Schedule a meeting →", on_click=lambda: nav.go_to("Investors", "Meeting Hub")) \
+                .props("flat dense").style(f"color:{COLORS['accent']};margin-top:2px;")
+        # Secondary: prep anyone who isn't booked (the old holder lookup, now clearly subordinate).
+        if inst_by_fund:
+            ranked = sorted(insts, key=lambda r: (r.get("Position_Value") or 0), reverse=True)
+            names = [r["Fund"] for r in ranked[:40] if r.get("Fund")]
+            ui.separator().style("margin:8px 0 4px;")
+            ui.label("Seeing someone not on the list? Look up any holder:").style(
+                f"color:{COLORS['text_muted']};font-size:11.5px;")
+            sel = ui.select(options=names, with_input=True, label="Search a holder") \
+                .props("outlined dense clearable").classes("w-full")
+            sel.on_value_change(lambda e: (e.value and _open_brief(e.value, inst_by_fund, client_id)))
+
+    # ── 2. PULSE (a glance — the whole card taps through to Lighthouse) ─────────────────────────
+    snap = market_data.get_snapshot(ticker)
+    pulse = _card().style(
+        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:14px;"
+        "cursor:pointer;").on("click", lambda: nav.go_to("Lighthouse"))
+    with pulse:
+        ui.label(f"{ticker} · pulse").classes("section-head")
         if snap and snap.get("last_price") is not None:
             chg = snap.get("pct_change") or 0
             clr = COLORS["success"] if chg >= 0 else COLORS["danger"]
@@ -142,7 +218,6 @@ def render_home_page():
                         f"color:{COLORS['text_muted']};font-size:12px;")
         else:
             ui.label("Market data refreshing…").style(f"color:{COLORS['text_muted']};font-size:13px;")
-        # weekly context one-liner (USIO — the cached Lighthouse context; never a naked number)
         if ticker == "USIO":
             try:
                 from lighthouse import weekly as _weekly
@@ -152,11 +227,15 @@ def render_home_page():
                         f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;line-height:1.5;")
             except Exception:
                 pass
+        # Prominent action, full-width — not a shrunk top-right link.
+        ui.button("Why is it moving? Open Lighthouse →",
+                  on_click=lambda: nav.go_to("Lighthouse")).props("flat dense").classes("w-full").style(
+            f"color:{COLORS['accent']};justify-content:flex-start;margin-top:6px;text-transform:none;")
 
-    # ── 2. SCHEDULE ───────────────────────────────────────────────────────────
+    # ── 3. UPCOMING EVENTS (conferences — each row taps through to the Calendar) ────────────────
     with _card():
         with ui.row().classes("w-full justify-between items-center"):
-            ui.label("Upcoming schedule").classes("section-head")
+            ui.label("Upcoming events").classes("section-head")
             ui.button("Full calendar →", on_click=lambda: nav.go_to("Calendar")).props("flat dense size=sm")
         confs = []
         try:
@@ -169,45 +248,16 @@ def render_home_page():
                 status = cf.get("Status", "") or ""
                 line = " · ".join(x for x in [cf.get("Date", ""), cf.get("Event", ""), cf.get("Location", "")] if x)
                 with ui.row().classes("w-full items-center gap-2").style(
-                        f"padding:6px 0;border-top:1px solid {COLORS['border']};"):
+                        f"padding:6px 0;border-top:1px solid {COLORS['border']};cursor:pointer;").on(
+                        "click", lambda: nav.go_to("Calendar")):
                     ui.icon("event").style(f"color:{COLORS['accent']};font-size:18px;")
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                         ui.label(line).style(f"color:{COLORS['text_body']};font-size:13px;line-height:1.4;")
                         if status:
                             ui.label(status).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:18px;")
         else:
             ui.label("No upcoming investor events on the calendar.").style(
-                f"color:{COLORS['text_muted']};font-size:13px;")
-
-    # ── 3. MEETING PREP & NOTES ───────────────────────────────────────────────
-    insts = _institutions(client_id)
-    inst_by_fund = {r.get("Fund"): r for r in insts if r.get("Fund")}
-    with _card():
-        ui.label("Meeting prep & notes").classes("section-head")
-        ui.label("Pick who you're seeing → brief + capture a note.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
-        if inst_by_fund:
-            # Cap the searchable list to the top holders by size — a phone doesn't need the full
-            # prospect universe, and a huge <select> option list blows the websocket payload limit.
-            ranked = sorted(insts, key=lambda r: (r.get("Position_Value") or 0), reverse=True)
-            names = [r["Fund"] for r in ranked[:40] if r.get("Fund")]
-            sel = ui.select(options=names, with_input=True, label="Search a holder") \
-                .props("outlined dense clearable").classes("w-full")
-            sel.on_value_change(lambda e: (e.value and _open_brief(e.value, inst_by_fund, client_id)))
-            # quick chips — top accounts to see (by held size)
-            top = ranked[:6]
-            if top:
-                ui.label("Top holders").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
-                with ui.row().classes("w-full").style("flex-wrap:wrap;gap:6px;"):
-                    for r in top:
-                        f = r["Fund"]
-                        ui.button(pretty_name(f)[:22],
-                                  on_click=lambda f=f: _open_brief(f, inst_by_fund, client_id)) \
-                            .props("flat dense size=sm").style(
-                                f"background:{COLORS['surface_hover_bg']};border-radius:8px;"
-                                f"color:{COLORS['text_body']};text-transform:none;font-size:12px;")
-        else:
-            ui.label("No holders loaded yet for this client.").style(
                 f"color:{COLORS['text_muted']};font-size:13px;")
 
     # ── 4. ALERTS ─────────────────────────────────────────────────────────────
