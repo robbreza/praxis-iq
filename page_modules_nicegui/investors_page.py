@@ -1206,7 +1206,7 @@ def render_investors_page():
     _enrich_peer_holdings_with_live_13f(raw_institutions, [p["ticker"] for p in _load_peer_universe()])
     institutions = _score_institutions(raw_institutions, mode, q2_listeners, meeting_log)
 
-    ui.label(f"{CT('name')} — Investor Pipeline & Engagement").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label(f"{CT('name')} — Investor Targeting").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
     # Mode-dependent sections re-render in place when the Pre/Post toggle
     # changes — no full page reload (which was fragile on a reconnecting tab
@@ -4103,7 +4103,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
     with ui.tabs().classes("w-full") as ndr_tabs:
         nt1 = ui.tab("Plan New NDR")
         nt2 = ui.tab("Active NDRs")
-        nt3 = ui.tab("Requests")
+        nt3 = ui.tab("Meeting Requests")
         nt4 = ui.tab("Prep Cards")
         nt5 = ui.tab("Post-NDR Debrief")
     with ui.tab_panels(ndr_tabs, value=nt1).classes("w-full"):

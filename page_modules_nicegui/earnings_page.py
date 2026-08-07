@@ -4497,6 +4497,17 @@ def _render_consensus_rollup():
     provisional fallback, a reconciliation vs that fallback, and the list of analysts still owed a
     model. This is the working surface for keeping the street in line."""
     GREEN, RED, AMBER, MUT = "#15803D", "#B91C1C", "#B45309", COLORS["text_muted"]
+    # De-dup the "which Consensus?" confusion: this is the canonical BUILD/maintain home; the
+    # analyst matrix vs. guidance lives in Markets → Consensus / Guidance.
+    with ui.row().classes("items-center w-full").style(
+            "gap:6px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.18);"
+            "border-radius:8px;padding:6px 10px;margin-bottom:8px;"):
+        ui.icon("tune").style(f"color:{COLORS['text_muted']};font-size:15px;")
+        ui.label("Build & maintain the Praxis consensus here.").style(
+            f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.button("See the analyst matrix in Markets → Consensus / Guidance →",
+                  on_click=lambda: nav.go_to("Markets", "Consensus / Guidance")).props(
+            "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:11.5px;")
     cid = get_active_client_id()
     cq = (CE().get("current_quarter") or "").strip()
     period = f"{cq}E" if cq else "Q2 2026E"

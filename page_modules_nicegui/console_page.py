@@ -1274,9 +1274,10 @@ def render_console_home(user):
                 ui.space()
                 ui.label(user.get("display_name") or user["user_id"]).style(
                     f"color:{COLORS['text_muted']};font-size:11.5px;")
-                ui.button("Calendar", icon="calendar_month",
+                ui.button("Portfolio Calendar", icon="calendar_month",
                           on_click=lambda: ui.navigate.to("/console/calendar")).props("flat dense") \
-                    .style(f"color:{COLORS['text_muted']};")
+                    .style(f"color:{COLORS['text_muted']};").tooltip(
+                    "Cross-client operator calendar — every tenant's events in one view")
                 ui.button("House Contacts", icon="contacts",
                           on_click=lambda: ui.navigate.to("/contacts")).props("flat dense") \
                     .style(f"color:{COLORS['text_muted']};")

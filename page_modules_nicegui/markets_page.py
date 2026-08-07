@@ -130,6 +130,17 @@ def render_markets_page():
         with ui.tab_panel(t1):
             _render_risk_dashboard(seed, days_to_earn, state)
         with ui.tab_panel(t2):
+            # De-dup the "which Consensus?" confusion: this tab is the READ view (the analyst
+            # matrix vs. guidance); the Earnings → Consensus Tracker is where you BUILD/maintain it.
+            with ui.row().classes("items-center w-full").style(
+                    "gap:6px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.18);"
+                    "border-radius:8px;padding:6px 10px;margin-bottom:8px;"):
+                ui.icon("insights").style(f"color:{COLORS['text_muted']};font-size:15px;")
+                ui.label("The read view — the Street's estimates vs. guidance.").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.button("Build & track it in Earnings → Consensus Tracker →",
+                          on_click=lambda: nav.go_to("Earnings", "Consensus Tracker")).props(
+                    "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:11.5px;")
             _render_consensus_matrix(seed, period_guidance, period_estimates, highlighted_analyst)
         with ui.tab_panel(t3):
             _render_pt_drift(seed)
