@@ -1426,6 +1426,30 @@ def _warm_cache():
         pass
 
 
+async def _kick_off_ndr_reply_poll():
+    """Poll the Zoho mailbox for analyst replies to NDR replies we sent, and thread them back onto
+    the originating request (core.ndr_inbound). Runs on a ~30-min loop while the app is up; inert
+    until Zoho is connected. Non-blocking, failure-tolerant, idempotent (dedupes on Message-ID)."""
+    import asyncio
+
+    from core import ndr_inbound, zoho_mail
+
+    async def _run():
+        await asyncio.sleep(90)
+        while True:
+            try:
+                if zoho_mail.is_configured():
+                    r = await asyncio.to_thread(ndr_inbound.poll_replies)
+                    if r.get("matched"):
+                        print(f"[startup] NDR replies: {r['matched']} threaded onto requests "
+                              f"({r.get('checked')} checked).")
+            except Exception as e:
+                print(f"[startup] NDR reply poll failed (non-fatal): {e}")
+            await asyncio.sleep(30 * 60)          # every 30 min — replies aren't time-critical
+
+    asyncio.create_task(_run())
+
+
 async def _kick_off_holder_moves_refresh():
     """Quarterly auto-refresh of the board holder-move briefings (core.prospect_hook). Checks on a
     ~24h loop but only runs the heavy two-quarter 13F pull when SEC posts a NEW quarter (the cached
@@ -1568,6 +1592,7 @@ app.on_startup(_kick_off_sec_refresh)
 app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
 app.on_startup(_kick_off_holder_moves_refresh)
+app.on_startup(_kick_off_ndr_reply_poll)
 app.on_startup(_kick_off_cache_warm)
 app.on_startup(_kick_off_lighthouse_shadow)
 app.on_startup(_kick_off_ir_inbox_poll)

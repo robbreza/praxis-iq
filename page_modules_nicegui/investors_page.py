@@ -4856,8 +4856,9 @@ async def _open_ndr_reply_dialog(req, on_done):
                  "(Reg FD). A copy is filed to your Sent folder and logged on this request.").style(
             f"color:{COLORS['text_muted']};font-size:10.5px;")
 
-        def _log(via):
-            ndr_correspondence.record_reply(req["id"], _to.value, _subj.value or "", _body.value or "", via=via)
+        def _log(via, message_id=None):
+            ndr_correspondence.record_reply(req["id"], _to.value, _subj.value or "", _body.value or "",
+                                            via=via, message_id=message_id)
 
         with ui.row().classes("justify-end w-full gap-2 items-center").style("margin-top:4px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat dense")
@@ -4887,10 +4888,13 @@ async def _open_ndr_reply_dialog(req, on_done):
                         ui.notify("Add the analyst's email first.", type="warning")
                         return
                     ui.notify("Sending via Zoho…", type="info")
+                    import email.utils
+                    msgid = email.utils.make_msgid()
                     ok, err = await asyncio.to_thread(
-                        zoho_mail.send_email, _to.value, _subj.value or "", _body.value or "")
+                        zoho_mail.send_email, _to.value, _subj.value or "", _body.value or "",
+                        None, True, msgid)
                     if ok:
-                        _log("Zoho")
+                        _log("Zoho", message_id=msgid)
                         ui.notify(f"Sent to {_to.value} — filed to Sent and logged on this request.",
                                   type="positive")
                         dlg.close()
@@ -4902,7 +4906,32 @@ async def _open_ndr_reply_dialog(req, on_done):
 
 
 def _render_ndr_requests_tab():
-    ui.label("Inbound NDR / Meeting Requests").classes("font-bold")
+    with ui.row().classes("w-full items-center").style("gap:10px;"):
+        ui.label("Inbound NDR / Meeting Requests").classes("font-bold")
+        ui.space()
+
+        async def _check_replies():
+            import asyncio
+
+            from core import ndr_inbound, zoho_mail
+            if not zoho_mail.is_configured():
+                ui.notify("Connect Zoho first to pull replies from the mailbox.", type="warning")
+                return
+            ui.notify("Checking the mailbox for analyst replies…", type="info")
+            try:
+                r = await asyncio.to_thread(ndr_inbound.poll_replies, [get_active_client_id()])
+            except Exception as e:
+                ui.notify(f"Reply check failed: {e}", type="negative")
+                return
+            if not r.get("ok"):
+                ui.notify(f"Couldn't check replies: {r.get('reason')}", type="warning")
+                return
+            ui.notify(f"Checked {r['checked']} message(s) — {r['matched']} threaded onto requests.",
+                      type="positive")
+            if r["matched"]:
+                _refresh()
+        ui.button("Check for replies", icon="mark_email_unread", on_click=_check_replies).props(
+            "flat dense").style(f"color:{COLORS['text_muted']};")
     ui.label(
         "Analyst requests to slot a management meeting into a city — feeds the Big Picture panel's Metro "
         "Priority scoring and 'This Week's Priority' recommendation above. Resolve a request once it's been "

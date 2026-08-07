@@ -55,26 +55,52 @@ def verify_connection():
         return False, str(e)
 
 
-def _append_to_sent(msg, user, pw, smtp_host):
+def _imap_host():
+    host = os.environ.get("ZOHO_SMTP_HOST", "smtp.zoho.com")
+    return host.replace("smtp.", "imap.", 1) if host.startswith("smtp.") else "imap.zoho.com"
+
+
+def imap_login():
+    """A logged-in imaplib.IMAP4_SSL to the Zoho account (same app password as SMTP), or
+    (None, error). Callers must close it. Used to file Sent copies and to poll for replies."""
+    import imaplib
+    user, pw, *_ = _cfg()
+    if not (user and pw):
+        return None, "Zoho isn't connected yet — set ZOHO_SMTP_USER and ZOHO_SMTP_PASS."
+    try:
+        im = imaplib.IMAP4_SSL(_imap_host(), 993)
+        im.login(user, pw)
+        return im, None
+    except Exception as e:
+        return None, str(e)
+
+
+def _append_to_sent(msg):
     """Best-effort: file a copy of a just-sent message into the Zoho 'Sent' folder via IMAP, so
     it shows up in the mailbox exactly like a normally-sent email. An SMTP send does NOT do this
     on its own — that's why sends from the app never appeared in Sent. Non-fatal: any failure
-    here (IMAP disabled, wrong folder name) is swallowed by the caller; the email still went out
-    and the in-app correspondence trail is the authoritative record regardless."""
+    (IMAP disabled, wrong folder name) is swallowed by the caller; the email still went out and
+    the in-app correspondence trail is the authoritative record regardless."""
     import imaplib
     import time
-    imap_host = smtp_host.replace("smtp.", "imap.", 1) if smtp_host.startswith("smtp.") else "imap.zoho.com"
     copy = EmailMessage()
-    for k in ("From", "To", "Subject"):
+    for k in ("From", "To", "Subject", "Message-ID"):
         if msg[k]:
             copy[k] = msg[k]
     copy.set_content(msg.get_content())          # drop Bcc etc. from the filed copy
-    with imaplib.IMAP4_SSL(imap_host, 993) as im:
-        im.login(user, pw)
+    im, err = imap_login()
+    if not im:
+        raise RuntimeError(err)
+    try:
         im.append("Sent", "\\Seen", imaplib.Time2Internaldate(time.time()), copy.as_bytes())
+    finally:
+        try:
+            im.logout()
+        except Exception:
+            pass
 
 
-def send_email(to, subject, body, bcc=None, save_to_sent=True):
+def send_email(to, subject, body, bcc=None, save_to_sent=True, message_id=None):
     """Send one email from the configured Zoho account. Returns (ok, error). Blocking SMTP —
     call from a worker thread (asyncio.to_thread) so the UI event loop isn't held.
 
@@ -93,6 +119,8 @@ def send_email(to, subject, body, bcc=None, save_to_sent=True):
     if bcc:
         msg["Bcc"] = bcc.strip() if isinstance(bcc, str) else ", ".join(bcc)
     msg["Subject"] = subject or ""
+    if message_id:                               # stable id so an inbound reply can be threaded back
+        msg["Message-ID"] = message_id
     msg.set_content(body or "")
     try:
         ctx = ssl.create_default_context()
@@ -113,7 +141,7 @@ def send_email(to, subject, body, bcc=None, save_to_sent=True):
 
     if save_to_sent:
         try:
-            _append_to_sent(msg, user, pw, host)
+            _append_to_sent(msg)
         except Exception as e:
             print(f"[zoho_mail] sent-folder copy skipped (non-fatal): {e}")
     return True, None

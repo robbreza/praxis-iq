@@ -36,9 +36,10 @@ def _find(rows, request_id):
     return next((r for r in rows if str(r.get("id")) == str(request_id)), None)
 
 
-def record_reply(request_id, to, subject, body, via="zoho", client_id=None):
+def record_reply(request_id, to, subject, body, via="zoho", message_id=None, client_id=None):
     """Log a sent reply onto the NDR request: append to its correspondence trail, flip it to
-    'replied', and record an activity event. Returns the updated request (or None if not found)."""
+    'replied', and record an activity event. `message_id` is the sent email's Message-ID, kept so
+    an inbound reply can be threaded back to this request. Returns the updated request (or None)."""
     cid = _cid(client_id)
     rows = _load(cid)
     req = _find(rows, request_id)
@@ -47,6 +48,7 @@ def record_reply(request_id, to, subject, body, via="zoho", client_id=None):
     entry = {
         "ts": datetime.now().strftime("%Y-%m-%d %H:%M"), "direction": "out",
         "to": to, "subject": subject, "body": (body or "")[:4000], "via": via,
+        "message_id": message_id,
     }
     req.setdefault("correspondence", []).append(entry)
     req["response_status"] = "replied"
@@ -57,21 +59,36 @@ def record_reply(request_id, to, subject, body, via="zoho", client_id=None):
     return req
 
 
-def record_inbound(request_id, sender, subject, body, client_id=None):
-    """Log an inbound reply from the analyst onto the request (for a future IMAP capture path).
-    Kept symmetric with record_reply so the trail can show both sides. Does not change
-    response_status (a reply from them doesn't mean WE responded)."""
+def record_inbound(request_id, sender, subject, body, message_id=None, client_id=None):
+    """Log an inbound reply from the analyst onto the request (the IMAP capture path). Kept
+    symmetric with record_reply so the trail shows both sides. Does NOT change response_status (a
+    reply from them isn't OUR response). Idempotent on message_id — a re-poll won't duplicate."""
     cid = _cid(client_id)
     rows = _load(cid)
     req = _find(rows, request_id)
     if req is None:
         return None
+    if message_id and any(c.get("message_id") == message_id
+                          for c in (req.get("correspondence") or [])):
+        return req                               # already recorded this inbound message
     req.setdefault("correspondence", []).append({
         "ts": datetime.now().strftime("%Y-%m-%d %H:%M"), "direction": "in",
         "from": sender, "subject": subject, "body": (body or "")[:4000], "via": "inbound",
+        "message_id": message_id,
     })
     _save(rows, cid)
     return req
+
+
+def seen_inbound_ids(client_id=None):
+    """All inbound Message-IDs already recorded across this client's requests (for poll dedupe)."""
+    cid = _cid(client_id)
+    ids = set()
+    for r in _load(cid):
+        for c in (r.get("correspondence") or []):
+            if c.get("direction") == "in" and c.get("message_id"):
+                ids.add(c["message_id"])
+    return ids
 
 
 def status(req):
