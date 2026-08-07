@@ -161,6 +161,30 @@ def test_active_moves_lead_over_passive(mem_db, monkeypatch):
     assert "Vanguard" not in t and "Morgan Stanley" not in t            # passive giants not in the lead
 
 
+def test_refresh_client_briefings_only_pulls_stale(monkeypatch):
+    # Quarterly auto-refresh: pull only clients whose cache is stale/missing; skip the demo tenant;
+    # never re-pull a briefing that's already on the latest quarter.
+    calls = []
+    monkeypatch.setattr(ph, "latest_quarter_label", lambda: "01mar2026-31may2026")
+    cache = {
+        "USIO": {"quarter": "01mar2026-31may2026"},          # current — must NOT pull
+        "SARO": {"quarter": "01dec2025-28feb2026"},          # stale (old quarter) — pull
+        # AMKR: no cache -> stale -> pull
+    }
+    monkeypatch.setattr(ph, "get_cached", lambda tk, client_id=None: cache.get(tk))
+
+    def fake_prepare(tk, name, force=False, top_n=10, client_id=None):
+        calls.append(tk)
+        return {"quarter": "01mar2026-31may2026", "error": None}
+    monkeypatch.setattr(ph, "prepare", fake_prepare)
+
+    clients = [("usio", "USIO", "Usio, Inc."), ("saro", "SARO", "StandardAero, Inc."),
+               ("ceva", "AMKR", "Amkor"), ("demo", "NLKP", "Northlake")]
+    by = {r["client"]: r["status"] for r in ph.refresh_client_briefings(clients)}
+    assert by == {"usio": "current", "saro": "refreshed", "ceva": "refreshed", "demo": "skipped"}
+    assert set(calls) == {"SARO", "AMKR"}                    # only the stale ones pulled; demo skipped
+
+
 def test_no_holders_returns_error(mem_db, monkeypatch):
     monkeypatch.setattr(sec_filings, "_recent_13f_datasets",
                         lambda n=2: [("u_cur", "01mar2026-31may2026"), ("u_pri", "01dec2025-28feb2026")])

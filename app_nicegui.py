@@ -1426,6 +1426,35 @@ def _warm_cache():
         pass
 
 
+async def _kick_off_holder_moves_refresh():
+    """Quarterly auto-refresh of the board holder-move briefings (core.prospect_hook). Checks on a
+    ~24h loop but only runs the heavy two-quarter 13F pull when SEC posts a NEW quarter (the cached
+    briefing goes stale) — so it does real work ~4x/year per client while staying current on a
+    long-running instance. Non-blocking, failure-tolerant, sequential (one ~100MB download at a
+    time), and skips the illustrative demo tenant. Same architecture as the hooks above; 13F is
+    heavy, so this is its 'own cadence' the _kick_off_sec_refresh docstring points to."""
+    import asyncio
+
+    from config.client_config import CLIENT_REGISTRY
+    from core import prospect_hook
+
+    async def _run():
+        await asyncio.sleep(120)          # well after the lighter startup refreshes settle
+        while True:
+            try:
+                clients = [(cid, rec.get("ticker"), rec.get("name"))
+                           for cid, rec in CLIENT_REGISTRY.items() if rec.get("ticker")]
+                log = await asyncio.to_thread(prospect_hook.refresh_client_briefings, clients)
+                did = sum(1 for r in log if r["status"] == "refreshed")
+                print(f"[startup] Holder-move briefings: {did} refreshed for the new quarter, "
+                      f"{len(log) - did} current/skipped.")
+            except Exception as e:
+                print(f"[startup] Holder-move briefing refresh failed (non-fatal): {e}")
+            await asyncio.sleep(24 * 3600)  # re-check daily; only pulls when a new 13F quarter posts
+
+    asyncio.create_task(_run())
+
+
 async def _kick_off_cache_warm():
     """Warm the JSON-store cache shortly after launch (in a worker thread so it
     never blocks the event loop), so the first heavy render is already fast."""
@@ -1538,6 +1567,7 @@ app.on_startup(_seed_auth)
 app.on_startup(_kick_off_sec_refresh)
 app.on_startup(_kick_off_market_data_refresh)
 app.on_startup(_kick_off_peer_watch)
+app.on_startup(_kick_off_holder_moves_refresh)
 app.on_startup(_kick_off_cache_warm)
 app.on_startup(_kick_off_lighthouse_shadow)
 app.on_startup(_kick_off_ir_inbox_poll)

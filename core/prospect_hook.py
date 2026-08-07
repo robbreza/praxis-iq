@@ -57,7 +57,11 @@ def _metro(city, state):
             return canon
     except Exception:
         pass
-    return f"{city.title()}, {state}" if state else city.title()
+    # Append the state ONLY for a US state code (2 letters); SEC uses digit-bearing codes like
+    # "X0"/"Q8" for non-US filers ("London, X0"), which read badly in a board briefing.
+    if state and len(state) == 2 and state.isalpha():
+        return f"{city.title()}, {state.upper()}"
+    return city.title()
 
 
 def _key(h):
@@ -251,6 +255,44 @@ def prepare(ticker, company, force=False, top_n=10, client_id=None):
 def get_cached(ticker, client_id=None):
     return db.load_json(_CACHE_KEY_FMT.format(ticker=(ticker or "").upper()),
                         default=None, client_id=client_id or _CACHE_TENANT)
+
+
+# Clients whose 13F briefing should NOT be auto-pulled — the illustrative demo tenant has a
+# fabricated ticker, so a real SEC pull for it is meaningless (mirrors the app-wide demo guard).
+_NO_AUTO = {"demo"}
+
+
+def latest_quarter_label():
+    """The label of the most recently posted 13F dataset — one cheap index-page fetch."""
+    ds = sec_filings._recent_13f_datasets(1)
+    return ds[0][1] if ds else None
+
+
+def refresh_client_briefings(clients, force=False, latest_label=None):
+    """Quarterly auto-refresh: for each (client_id, ticker, company), (re)prepare the holder-move
+    briefing ONLY when it's stale — i.e. a NEW 13F quarter has posted since the cache was written.
+    The staleness check is a cheap DB read; the ~90s SEC pull runs only for stale clients, so this
+    is safe to call daily and it does real work ~quarterly. Sequential (one heavy download at a
+    time). Returns a per-client status list. Never rejects — each client's failure is isolated."""
+    if latest_label is None:
+        latest_label = latest_quarter_label()
+    out = []
+    for cid, tk, name in clients:
+        if cid in _NO_AUTO or not tk:
+            out.append({"client": cid, "ticker": tk, "status": "skipped"})
+            continue
+        try:
+            cached = get_cached(tk, client_id=cid)
+            current = bool(cached and not cached.get("error") and cached.get("quarter") == latest_label)
+            if current and not force:
+                out.append({"client": cid, "ticker": tk, "status": "current", "quarter": latest_label})
+                continue
+            d = prepare(tk, name, force=True, client_id=cid)
+            out.append({"client": cid, "ticker": tk, "quarter": d.get("quarter"),
+                        "status": "error" if d.get("error") else "refreshed", "error": d.get("error")})
+        except Exception as e:
+            out.append({"client": cid, "ticker": tk, "status": "failed", "error": str(e)})
+    return out
 
 
 # ── deterministic hook copy ────────────────────────────────────────────────
