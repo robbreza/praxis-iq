@@ -11,11 +11,14 @@ prospectus and need the website/ADV path. Rule-first extraction (the common pros
 never guesses a name — an unparseable prospectus returns []. Reuses core/fund_lineup's global cache
 + core/sec_filings' throttled fetcher.
 """
+import json
 import re
+import urllib.request
 from datetime import timedelta
 
 from core import fund_lineup as _fl
 from core import sec_filings as sf
+from core.security import get_anthropic_api_key
 
 _PM_KEY = "sec_fund_pms_"          # per-registrant-CIK, GLOBAL scope (via fund_lineup._gload/_gsave)
 _PM_TTL = timedelta(days=30)
@@ -174,19 +177,148 @@ def parse_managers(text):
     return [{"name": nm, "title": _title_for(nm, text)} for nm in _dedupe(names)]
 
 
-def portfolio_managers(cik, force=False):
+# ── LLM fallback (for prospectus formats the rule-first patterns don't cover) ──────────────────
+def _pm_window(text, size=14000):
+    """Bound the prospectus to the region that names PMs, so the LLM reads a few KB, not 500.
+    Prefers the consolidated 'Management of the Fund(s)' section (names the whole complex's PMs
+    with bios — best for large families); else centres on the first 'portfolio manager' mention
+    with person-name context; else the first mention / doc head."""
+    def _win(pos):
+        start = max(0, pos - 300)
+        return text[start:start + size]
+    # 1. the real 'Management of the Fund(s)' section — one that names people, not the TOC line.
+    for m in re.finditer(r"[Mm]anagement of the [Ff]unds?\b", text):
+        seg = text[m.start():m.start() + 900]
+        if re.search(r"has (?:served|managed)|portfolio manager", seg, re.I) and re.search(r"[A-Z][a-z]+ [A-Z]\.?", seg):
+            return _win(m.start())
+    # 2. the first name-bearing 'portfolio manager' mention.
+    for m in re.finditer(r"[Pp]ortfolio [Mm]anager", text):
+        if re.search(r"has (?:served|managed|co-managed)|managed by|consists of|responsible for",
+                     text[m.start():m.start() + 300], re.I):
+            return _win(m.start())
+    m = re.search(r"[Pp]ortfolio [Mm]anager", text)
+    return _win(m.start()) if m else text[:size]
+
+
+def _looks_like_person(name):
+    """Guard on LLM output — a clean 2–4-token human name, no entity/fund words. The LLM can't
+    smuggle a fund or firm name through as a portfolio manager."""
+    toks = (name or "").split()
+    if not (2 <= len(toks) <= 4):
+        return False
+    if any(t.strip(".-'").lower() in _NONNAME for t in toks):
+        return False
+    return all(t[:1].isupper() and re.fullmatch(r"[A-Za-z.\-']+", t) for t in toks)
+
+
+def _claude(prompt, max_tokens=1024):
+    """Raw Messages-API call (same pattern as core.email_classifier). Returns text or None on any
+    failure — no key, no network, non-2xx, malformed. Isolated so tests monkeypatch it directly."""
+    api_key = get_anthropic_api_key()
+    if not api_key:
+        return None
+    try:
+        payload = json.dumps({
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages", data=payload,
+            headers={"Content-Type": "application/json", "x-api-key": api_key,
+                     "anthropic-version": "2023-06-01"}, method="POST")
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            return json.loads(resp.read())["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[fund_managers] Claude call failed: {e}")
+        return None
+
+
+_LLM_PROMPT = (
+    "You are extracting portfolio managers from a mutual-fund prospectus excerpt.\n"
+    "Return ONLY a JSON array: [{\"name\": \"First [Middle] Last\", \"title\": \"...\"}].\n"
+    "Rules:\n"
+    "- Include ONLY individuals explicitly named as a portfolio manager or co-portfolio manager of a fund.\n"
+    "- Use the person's real full name as written; drop nickname parentheticals and designations (CFA, CPA).\n"
+    "- title = their stated title (e.g. 'Vice President and Portfolio Manager'); if none is stated, use 'Portfolio Manager'.\n"
+    "- Do NOT include fund names, firm names, trusts, or anyone who is not a portfolio manager.\n"
+    "- If no portfolio managers are named, return [].\n\n"
+    "Excerpt:\n")
+
+
+def _parse_llm_array(raw):
+    """Fence-tolerant parse of the model's JSON array into validated [{'name','title'}]."""
+    if not raw:
+        return []
+    text = raw.strip()
+    fence = re.search(r"```(?:json)?\s*(\[.*\])\s*```", text, re.DOTALL)
+    if fence:
+        text = fence.group(1)
+    else:
+        arr = re.search(r"\[.*\]", text, re.DOTALL)
+        if arr:
+            text = arr.group(0)
+    try:
+        rows = json.loads(text)
+    except Exception:
+        return []
+    out, seen = [], set()
+    for r in rows if isinstance(rows, list) else []:
+        nm = _clean_name((r or {}).get("name", "")) or (r or {}).get("name", "").strip()
+        if not nm or not _looks_like_person(nm) or nm.lower() in seen:
+            continue
+        seen.add(nm.lower())
+        title = ((r or {}).get("title") or "").strip() or "Portfolio Manager"
+        out.append({"name": nm, "title": title[:80]})
+    return out
+
+
+def _llm_extract(text):
+    """Rule-first found nothing — ask the model to read the PM section. Two guards keep the model
+    honest: `_looks_like_person` (no fund/firm names) and — critically — the returned name's first
+    AND last token must actually APPEAR in the source excerpt, so the model can't invent a
+    plausible-sounding PM that isn't in the document (the app's never-guess rule)."""
+    window = _pm_window(text)
+    rows = _dedupe_rows(_parse_llm_array(_claude(_LLM_PROMPT + window)))
+    grounded = []
+    for r in rows:
+        toks = r["name"].split()
+        first, last = toks[0].strip(".-'"), toks[-1].strip(".-'")
+        # the first + last name must appear CONTIGUOUSLY in the source (optionally with a middle
+        # token between) — scattered tokens don't count, so a hallucinated name can't pass.
+        if len(first) >= 2 and len(last) >= 2 and re.search(
+                re.escape(first) + r"(?:\s+\w+\.?)?\s+" + re.escape(last), window, re.I):
+            grounded.append(r)
+    return grounded
+
+
+def _dedupe_rows(rows):
+    """Dedupe [{'name',...}] using the same person-key logic as the rule path."""
+    names = _dedupe([r["name"] for r in rows])
+    by_name = {r["name"]: r for r in rows}
+    return [by_name[n] for n in names if n in by_name]
+
+
+def portfolio_managers(cik, force=False, use_llm=True):
     """The portfolio managers named in a fund registrant's prospectus: [{'name','title'}].
-    Cached 30 days (global). [] if the registrant has no prospectus or none could be parsed."""
+    Rule-first (free, deterministic); falls back to the LLM only when the rules find nothing and a
+    key is configured. Cached 30 days (global). [] if no prospectus or none could be parsed."""
     cik = int(cik)
     ck = f"{_PM_KEY}{cik}"
     cached = _fl._gload(ck)
     if cached and not force and not sf._is_stale(cached.get("_fetched_at"), _PM_TTL):
         return cached.get("managers", [])
     text, acc = _prospectus_text(cik)
-    managers = parse_managers(text) if text else []
+    if not text:
+        return []
+    managers = parse_managers(text)                     # rule-first: free + deterministic
+    source = "rules"
+    if not managers and use_llm:                        # tail: formats the patterns don't cover
+        managers = _llm_extract(text)
+        source = "llm"
     if managers:                                        # only cache a positive result
         try:
-            _fl._gsave(ck, {"managers": managers, "accession": acc,
+            _fl._gsave(ck, {"managers": managers, "accession": acc, "source": source,
                             "_fetched_at": _fl._iso_now()})
         except Exception:
             pass

@@ -55,3 +55,57 @@ def test_extract_text_strips_markup():
 def test_empty_and_no_match_return_empty():
     assert parse_managers("") == []
     assert parse_managers("This prospectus discusses fees and risks only.") == []
+
+
+# ── LLM fallback ──────────────────────────────────────────────────────────────
+import core.fund_managers as FM
+
+
+def test_parse_llm_array_validates_and_dedupes():
+    # fenced JSON, a real PM, a hallucinated fund name (must be dropped), and a duplicate
+    raw = (
+        "```json\n"
+        '[{"name": "Gregory J. Cheng", "title": "Portfolio Manager"},'
+        ' {"name": "Global Growth Fund", "title": "Portfolio Manager"},'
+        ' {"name": "Mr. Gregory J. Cheng", "title": "Managing Partner"},'
+        ' {"name": "Ana R. Fuentes", "title": "Senior Analyst and Portfolio Manager"}]\n'
+        "```")
+    rows = FM._parse_llm_array(raw)
+    names = [r["name"] for r in rows]
+    assert "Gregory J. Cheng" in names and "Ana R. Fuentes" in names
+    assert "Global Growth Fund" not in names          # entity name rejected
+    assert names.count("Gregory J. Cheng") == 1        # honorific variant deduped
+
+
+def test_llm_extract_uses_claude_and_guards(monkeypatch):
+    src = ("MANAGEMENT OF THE FUND. Dana K. Reeves has served as a Portfolio Manager since 2019. "
+           "The Fund is managed by the team.")
+    monkeypatch.setattr(FM, "_claude", lambda prompt, **k:
+                        '[{"name":"Dana K. Reeves","title":"Portfolio Manager"},'
+                        ' {"name":"Acme Trust","title":"Portfolio Manager"}]')
+    out = FM._llm_extract(src)
+    assert [r["name"] for r in out] == ["Dana K. Reeves"]     # fund/trust filtered out
+
+
+def test_llm_extract_grounds_out_hallucinations(monkeypatch):
+    # a plausible-looking name NOT present in the source must be dropped (never-guess rule)
+    src = "MANAGEMENT OF THE FUND. Dana K. Reeves has served as a Portfolio Manager since 2019."
+    monkeypatch.setattr(FM, "_claude", lambda prompt, **k:
+                        '[{"name":"Ghost X. Person","title":"Portfolio Manager"},'
+                        ' {"name":"Dana K. Reeves","title":"Portfolio Manager"}]')
+    assert [r["name"] for r in FM._llm_extract(src)] == ["Dana K. Reeves"]
+
+
+def test_llm_extract_handles_bad_output(monkeypatch):
+    monkeypatch.setattr(FM, "_claude", lambda prompt, **k: None)          # no key / no network
+    assert FM._llm_extract("Portfolio Manager text") == []
+    monkeypatch.setattr(FM, "_claude", lambda prompt, **k: "not json at all")
+    assert FM._llm_extract("Portfolio Manager text") == []
+
+
+def test_pm_window_bounds_to_named_section():
+    head = "Fees and expenses. " * 400
+    body = ("The Fund is managed by a team which consists of Dana K. Reeves, who has served as a "
+            "Portfolio Manager since 2019. ")
+    win = FM._pm_window(head + body + ("More risk disclosure. " * 4000), size=2000)
+    assert "Dana K. Reeves" in win and len(win) <= 2000
