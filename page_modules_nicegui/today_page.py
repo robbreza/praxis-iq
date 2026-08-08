@@ -311,6 +311,20 @@ def _render_weekly_context_mirror():
                 ui.label(f"· {rarity_txt}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
 
+def _panel(render_fn):
+    """Render a dashboard section inside a grounded .today-panel card — but DROP the panel
+    if the section produced nothing (some sections early-return, e.g. Activity & responses when
+    no model requests are out). Without this, an empty section leaves a bare bordered box that
+    reads as a mystery button. Returns True if a panel was kept."""
+    panel = ui.element("div").classes("today-panel w-full")
+    with panel:
+        render_fn()
+    if not panel.default_slot.children:
+        panel.delete()
+        return False
+    return True
+
+
 def render_today_page():
     state = _load_state()
     today_d = datetime.now().date()
@@ -448,21 +462,14 @@ def render_today_page():
     # .emph-15 wrapper here or it would double-nest.
     with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            with ui.element("div").classes("today-panel w-full"):
-                _render_risk_signals(state, days, snap, pt_avg)
-            with ui.element("div").classes("today-panel w-full"):
-                _render_earnings_readiness(days)
-            with ui.element("div").classes("today-panel w-full"):
-                _render_peer_watch()
+            _panel(lambda: _render_risk_signals(state, days, snap, pt_avg))
+            _panel(lambda: _render_earnings_readiness(days))
+            _panel(_render_peer_watch)
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            with ui.element("div").classes("today-panel w-full"):
-                _render_investor_pipeline()
-            with ui.element("div").classes("today-panel w-full"):
-                _render_analyst_coverage()
-            with ui.element("div").classes("today-panel w-full"):
-                _render_insider_activity()
-            with ui.element("div").classes("today-panel w-full"):
-                _render_activity_responses(state)
+            _panel(_render_investor_pipeline)
+            _panel(_render_analyst_coverage)
+            _panel(_render_insider_activity)
+            _panel(lambda: _render_activity_responses(state))
 
 
 def _top_ownership_change():
