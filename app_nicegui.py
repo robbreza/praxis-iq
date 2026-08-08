@@ -1943,6 +1943,14 @@ ui.add_head_html(
     # zoomed block exactly one column wide so it can't overflow into a horizontal scroll. Nests
     # on top of the .app-content 1.08 (so ~1.15x the current rendered size). Verified in-browser.
     ".emph-15{zoom:1.15;width:calc(100% / 1.15);}"
+    # Dashboard section container: a grounded white panel (border + radius + soft shadow) so a
+    # section's heading and its contents read as one card instead of floating loose on the canvas.
+    # The light-grey inner tiles (#EEF2F7) nest cleanly inside it.
+    ".today-panel{background:#FFFFFF;border:1px solid #D3DBE4;border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}"
+    # Chevrons were near-white and vanished into the background: force the select dropdown arrow
+    # and the expansion toggle to a clear grey so they read as affordances.
+    ".q-select__dropdown-icon{color:#64748B !important;}"
+    ".q-expansion-item__toggle-icon{color:#475569 !important;}"
     "</style>",
     shared=True)
 

@@ -448,14 +448,21 @@ def render_today_page():
     # .emph-15 wrapper here or it would double-nest.
     with ui.row().classes("w-full gap-5 items-start flex-col md:flex-row").style("margin-top:4px;"):
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            _render_risk_signals(state, days, snap, pt_avg)
-            _render_earnings_readiness(days)
-            _render_peer_watch()
+            with ui.element("div").classes("today-panel w-full"):
+                _render_risk_signals(state, days, snap, pt_avg)
+            with ui.element("div").classes("today-panel w-full"):
+                _render_earnings_readiness(days)
+            with ui.element("div").classes("today-panel w-full"):
+                _render_peer_watch()
         with ui.column().classes("w-full md:flex-1 gap-4"):
-            _render_investor_pipeline()
-            _render_analyst_coverage()
-            _render_insider_activity()
-            _render_activity_responses(state)
+            with ui.element("div").classes("today-panel w-full"):
+                _render_investor_pipeline()
+            with ui.element("div").classes("today-panel w-full"):
+                _render_analyst_coverage()
+            with ui.element("div").classes("today-panel w-full"):
+                _render_insider_activity()
+            with ui.element("div").classes("today-panel w-full"):
+                _render_activity_responses(state)
 
 
 def _top_ownership_change():
@@ -1364,10 +1371,11 @@ def _collapsible_head(title, start_open=True):
     visibility toggles client-side (no re-fetch), so long front-page sections can be folded away."""
     with ui.row().classes("w-full items-center no-wrap").style("gap:6px;justify-content:space-between;"):
         ui.label(title).classes("section-head")
+        # Clear grey ring + grey chevron — the old near-white treatment vanished into the panel.
         btn = ui.button(icon="expand_less" if start_open else "expand_more").props(
             "flat dense round size=sm").style(
-            f"color:{COLORS['text_secondary']};border:1.5px solid {COLORS['text_secondary']};"
-            "background:rgba(0,0,0,0.02);").tooltip("Collapse / expand this section")
+            f"color:{COLORS['text_secondary']};border:1.5px solid {COLORS['text_muted2']};"
+            f"background:{COLORS['surface_hover_bg']};").tooltip("Collapse / expand this section")
     body = ui.column().classes("w-full").style("gap:4px;")
     body.set_visibility(start_open)
     state = {"open": start_open}
