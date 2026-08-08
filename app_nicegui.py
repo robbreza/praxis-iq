@@ -293,7 +293,7 @@ def apply_theme():
             margin-bottom: 16px;
         }}
         .section-eyebrow {{
-            font-size: 11px;
+            font-size:var(--fs-xs);
             color: {COLORS["text_muted"]};
             text-transform: uppercase;
             letter-spacing: .10em;
@@ -301,7 +301,7 @@ def apply_theme():
             margin-bottom: 4px;
         }}
         .section-title {{
-            font-size: 20px;
+            font-size:var(--fs-2xl);
             font-weight: 700;
             color: {COLORS["text_heading"]};
             margin-bottom: 16px;
@@ -310,14 +310,14 @@ def apply_theme():
            hierarchy on its own, replacing 11px uppercase eyebrows that were
            doing heading duty (see the hierarchy pass, 2026-07-13). */
         .section-head {{
-            font-size: 16px;
+            font-size:var(--fs-lg);
             font-weight: 600;
             color: {COLORS["text_heading"]};
             letter-spacing: -0.01em;
             margin: 18px 0 8px;
         }}
         .nav-section {{
-            font-size: 14px;
+            font-size:var(--fs-md);
             color: {COLORS["text_secondary"]};
             text-transform: uppercase;
             letter-spacing: .07em;
@@ -337,7 +337,7 @@ def apply_theme():
             align-items: flex-start !important;
         }}
         .nav-btn-line1 {{
-            font-size: 17px;
+            font-size:var(--fs-lg);
             font-weight: 600;
             text-align: left !important;
             width: 100%;
@@ -348,7 +348,7 @@ def apply_theme():
             color: {COLORS["text_body"]} !important;
         }}
         .nav-btn-line2 {{
-            font-size: 13.5px;
+            font-size:var(--fs-base);
             font-weight: 400;
             text-align: left !important;
             width: 100%;
@@ -366,14 +366,14 @@ def apply_theme():
             color: {COLORS["text_secondary"]};
         }}
         .nav-icon {{
-            font-size: 21px !important;
+            font-size:var(--fs-2xl) !important;
             color: {COLORS["text_secondary"]} !important;
         }}
         .nav-btn.active .nav-icon {{
             color: {COLORS["accent_strong"]} !important;
         }}
         .nav-chevron {{
-            font-size: 18px !important;
+            font-size:var(--fs-xl) !important;
             color: {COLORS["text_muted"]} !important;
             margin-left: auto;
             align-self: center;
@@ -394,7 +394,7 @@ def apply_theme():
             text-transform: none !important;
             color: {COLORS["text_secondary"]} !important;
             background: transparent !important;
-            font-size: 14.5px !important;
+            font-size:var(--fs-md) !important;
             font-weight: 500 !important;
             min-height: 32px !important;
         }}
@@ -408,7 +408,7 @@ def apply_theme():
         /* Sub-item label + optional plain-language gloss (jargon items only). */
         .nav-sub {{ min-height: 30px !important; padding-top: 3px !important; padding-bottom: 3px !important; }}
         .nav-sub-label {{
-            font-size: 14.5px;
+            font-size:var(--fs-md);
             font-weight: 500;
             line-height: 1.2;
             color: {COLORS["text_secondary"]};
@@ -418,7 +418,7 @@ def apply_theme():
             font-weight: 700;
         }}
         .nav-sub-gloss {{
-            font-size: 10.5px;
+            font-size:var(--fs-2xs);
             font-weight: 400;
             line-height: 1.15;
             color: {COLORS["text_muted"]};
@@ -426,7 +426,7 @@ def apply_theme():
         }}
         /* Intent header above each sub-item cluster (Ownership / Targeting / Engagement). */
         .nav-subgroup {{
-            font-size: 10.5px;
+            font-size:var(--fs-2xs);
             letter-spacing: .08em;
             text-transform: uppercase;
             color: {COLORS["text_secondary"]};
@@ -442,7 +442,7 @@ def apply_theme():
             text-transform: none;
             letter-spacing: 0;
             font-weight: 400;
-            font-size: 11px;
+            font-size:var(--fs-xs);
             color: {COLORS["text_muted"]};
         }}
         /* ─────────────────────────────────────────────────────────────
@@ -454,16 +454,16 @@ def apply_theme():
            Section vertical rhythm comes ONLY from .section-head — do not add
            ad-hoc margin-top overrides on it.
            ───────────────────────────────────────────────────────────── */
-        .t-title   {{ font-size:20px; font-weight:700; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
-        .t-head    {{ font-size:16px; font-weight:600; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
-        .t-subhead {{ font-size:13px; font-weight:700; color:{COLORS["text_body"]}; }}
-        .t-body    {{ font-size:13px; font-weight:400; color:{COLORS["text_body"]}; line-height:1.45; }}
-        .t-sec     {{ font-size:12px; font-weight:400; color:{COLORS["text_secondary"]}; line-height:1.45; }}
-        .t-meta    {{ font-size:12px; font-weight:400; color:{COLORS["text_muted"]}; }}
-        .t-fine    {{ font-size:10px; font-weight:400; color:{COLORS["text_muted"]}; }}
-        .t-eyebrow {{ font-size:11px; font-weight:600; color:{COLORS["text_muted"]};
+        .t-title   {{ font-size:var(--fs-2xl); font-weight:700; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
+        .t-head    {{ font-size:var(--fs-lg); font-weight:600; color:{COLORS["text_heading"]}; letter-spacing:-.01em; }}
+        .t-subhead {{ font-size:var(--fs-base); font-weight:700; color:{COLORS["text_body"]}; }}
+        .t-body    {{ font-size:var(--fs-base); font-weight:400; color:{COLORS["text_body"]}; line-height:1.45; }}
+        .t-sec     {{ font-size:var(--fs-sm); font-weight:400; color:{COLORS["text_secondary"]}; line-height:1.45; }}
+        .t-meta    {{ font-size:var(--fs-sm); font-weight:400; color:{COLORS["text_muted"]}; }}
+        .t-fine    {{ font-size:var(--fs-2xs); font-weight:400; color:{COLORS["text_muted"]}; }}
+        .t-eyebrow {{ font-size:var(--fs-xs); font-weight:600; color:{COLORS["text_muted"]};
                       text-transform:uppercase; letter-spacing:.08em; }}
-        .t-kpi     {{ font-size:20px; font-weight:700; line-height:1; }}
+        .t-kpi     {{ font-size:var(--fs-2xl); font-weight:700; line-height:1; }}
         /* Inner content tile (inside a section / .ir-card) — the compact card */
         .ir-tile    {{ background:{COLORS["surface_hover_bg"]}; border-radius:8px; padding:10px 12px; }}
         .ir-card-sm {{ background:{COLORS["surface_bg"]}; border:1px solid {COLORS["border"]};
@@ -495,7 +495,7 @@ def _auth_card(title, subtitle):
             f"border:1px solid {COLORS['border']};border-radius:10px;")
         with card:
             ui.label(title).classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
-            ui.label(subtitle).style(f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:8px;")
+            ui.label(subtitle).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:8px;")
     return card
 
 
@@ -509,7 +509,7 @@ def login_page():
     with _auth_card("IRconnect", "Sign in"):
         email = ui.input("Email").props("outlined dense autofocus").classes("w-full")
         pw = ui.input("Password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:16px;")
 
         def do_login():
             from core import auth
@@ -542,7 +542,7 @@ def change_password_page():
     with _auth_card("Set a new password", f"{user['user_id']} — first sign-in"):
         p1 = ui.input("New password", password=True, password_toggle_button=True).props("outlined dense autofocus").classes("w-full")
         p2 = ui.input("Confirm password", password=True, password_toggle_button=True).props("outlined dense").classes("w-full")
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:16px;")
 
         def do_change():
             from core import auth
@@ -603,7 +603,7 @@ def user_admin_page():
 
             ui.label(f"New logins are seeded with the shared default password "
                      f"(“{default_pw}”) and must change it on first sign-in.") \
-                .style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             # ── add-user card ───────────────────────────────────────────────
             with ui.card().classes("w-full").style(
@@ -668,7 +668,7 @@ def user_admin_page():
                          "inbound requests, scheduled meetings, meeting log, logged interactions, "
                          "confirmed speaker lineups, and call-opening edits — back to a clean slate. "
                          "Shared house data (fund lineups, relationship-quality notes) is not touched.") \
-                    .style(f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:8px;")
+                    .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:8px;")
                 with ui.row().classes("items-end").style("gap:12px;"):
                     r_tenant = ui.select(tenant_opts, value=next(iter(tenant_opts)), label="Tenant") \
                         .props("outlined dense").style("min-width:200px;")
@@ -684,12 +684,12 @@ def user_admin_page():
                                 .style(f"color:{COLORS['text_heading']};")
                             if prev:
                                 ui.label("This will permanently clear:").style(
-                                    f"color:{COLORS['text_muted']};font-size:12px;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                                 for lbl, n in prev.items():
-                                    ui.label(f"•  {n} {lbl}").style(f"color:{COLORS['text_body']};font-size:13px;")
+                                    ui.label(f"•  {n} {lbl}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                             else:
                                 ui.label("Nothing to clear — this tenant is already clean.").style(
-                                    f"color:{COLORS['text_muted']};font-size:13px;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
                             with ui.row().classes("w-full justify-end").style("gap:8px;margin-top:8px;"):
                                 ui.button("Cancel", on_click=d.close).props("flat")
 
@@ -717,7 +717,7 @@ def user_admin_page():
                     cols = "2.4fr 1.6fr 1fr 1fr .7fr 1.1fr 1.4fr"
                     with ui.element("div").style(
                             f"display:grid;grid-template-columns:{cols};gap:8px;padding:10px 14px;"
-                            f"background:{COLORS['canvas_bg']};font-size:11px;font-weight:700;"
+                            f"background:{COLORS['canvas_bg']};font-size:var(--fs-xs);font-weight:700;"
                             f"letter-spacing:.03em;color:{COLORS['text_muted']};"):
                         for h in ("EMAIL", "NAME", "TYPE", "TENANT", "ROLE", "STATUS", "ACTIONS"):
                             ui.label(h)
@@ -727,7 +727,7 @@ def user_admin_page():
                         tenant = "— all —" if staff else tenant_opts.get(u["home_client_id"], u["home_client_id"] or "—")
                         with ui.element("div").style(
                                 f"display:grid;grid-template-columns:{cols};gap:8px;padding:10px 14px;"
-                                f"align-items:center;border-top:1px solid {COLORS['border']};font-size:12.5px;"
+                                f"align-items:center;border-top:1px solid {COLORS['border']};font-size:var(--fs-sm);"
                                 f"color:{COLORS['text_body']};"):
                             ui.label(u["user_id"] + (" (you)" if is_self else "")).style("word-break:break-all;")
                             ui.label(u["display_name"] or "—")
@@ -744,7 +744,7 @@ def user_admin_page():
                                     .style(("color:#15803D;" if u["active"] else "color:#B91C1C;") + "font-weight:600;")
                                 if u["must_change_password"]:
                                     ui.label("• pw reset") \
-                                        .style("color:#B45309;font-size:10.5px;").tooltip(
+                                        .style("color:#B45309;font-size:var(--fs-2xs);").tooltip(
                                         "Must change password on next login")
                             # actions
                             with ui.row().style("gap:2px;"):
@@ -844,7 +844,7 @@ def house_contacts_page():
             with ui.row().classes("w-full items-center"):
                 ui.label("House Contacts").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
                 ui.label(f"Praxis Point CRM · {facets['_total']} contacts").style(
-                    f"color:{COLORS['text_muted']};font-size:13px;margin-left:8px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-left:8px;")
                 ui.space()
                 ui.button("Console", icon="arrow_back", on_click=lambda: ui.navigate.to("/console")) \
                     .props("flat dense").style(f"color:{COLORS['text_muted']};")
@@ -863,7 +863,7 @@ def house_contacts_page():
                             "border-radius:999px;padding:3px 11px;"):
                         ui.element("span").style(
                             f"width:8px;height:8px;border-radius:50%;background:{val_color.get(v, COLORS['text_muted'])};")
-                        ui.label(f"{v} · {n}").style(f"color:{COLORS['text_secondary']};font-size:12px;")
+                        ui.label(f"{v} · {n}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
 
             with ui.card().classes("w-full").style(
                     f"padding:12px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"):
@@ -894,7 +894,7 @@ def house_contacts_page():
                                                  "has_phone") if state.get(k)}
                 res = C.search_contacts(q=state.get("q") or None, filters=filters, limit=2000)
                 ui.label(f"{res['total']} matching" + (" · showing first 2000" if res["total"] > 2000 else "")) \
-                    .style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                 def role_disp(r):
                     prim = _ROLE_LABELS.get(r.get("primary_role"), r.get("primary_role") or "—")
@@ -930,7 +930,7 @@ def house_contacts_page():
                         sub = " · ".join(x for x in [row.get("firm"), row.get("role"),
                                                      (row.get("email") if row.get("email") not in (None, "—") else None)] if x)
                         if sub:
-                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         ui.separator().style("margin:6px 0;")
                         _n = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full")
                         _notes = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
@@ -940,18 +940,18 @@ def house_contacts_page():
                             with _notes:
                                 items = C.all_contact_notes(row.get("id"))
                                 ui.label(f"Notes timeline ({len(items)})").style(
-                                    f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.04em;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
                                 if not items:
                                     ui.label("No notes yet — add the first one above.").style(
-                                        f"color:{COLORS['text_muted']};font-size:12px;")
+                                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                                 for it in items:
                                     tag = "House" if it.get("client") == "_house" else it.get("client", "")
                                     with ui.element("div").style(
                                             f"border-left:3px solid {COLORS['accent']};padding:2px 0 2px 9px;"):
                                         ui.label(" · ".join(x for x in [it.get("ts"), tag, it.get("source"), it.get("by")] if x)).style(
-                                            f"color:{COLORS['text_muted']};font-size:10.5px;")
+                                            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                                         ui.label(it.get("note", "")).style(
-                                            f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+                                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);white-space:pre-wrap;")
 
                         def _save_note():
                             txt = (_n.value or "").strip()
@@ -969,7 +969,7 @@ def house_contacts_page():
                     d.open()
 
                 ui.label("Click a contact to see or add notes.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 _tbl = ui.table(columns=columns, rows=rows, row_key="id", pagination=25).classes("w-full") \
                     .style(f"background:{COLORS['surface_bg']};cursor:pointer;")
                 _tbl.on("rowClick", lambda e: _open_contact_detail(e.args[1]))
@@ -1100,11 +1100,11 @@ def main_page(request: Request = None):
         with breadcrumb:
             for i, txt in enumerate(crumbs):
                 if i:
-                    ui.label("›").style(f"color:{COLORS['text_muted']};font-size:12px;opacity:.55;")
+                    ui.label("›").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);opacity:.55;")
                 last = i == len(crumbs) - 1
                 ui.label(txt).style(
                     f"color:{COLORS['text_heading'] if last else COLORS['text_muted']};"
-                    f"font-size:12px;font-weight:{'700' if last else '500'};")
+                    f"font-size:var(--fs-sm);font-weight:{'700' if last else '500'};")
 
     def render_page():
         content.clear()
@@ -1269,10 +1269,10 @@ def main_page(request: Request = None):
         # Session identity + read-only badge + logout.
         if auth.is_readonly_user(user):
             ui.label("VIEW-ONLY").style(
-                "background:#B45309;color:white;font-size:9.5px;font-weight:700;letter-spacing:.05em;"
+                "background:#B45309;color:white;font-size:var(--fs-micro);font-weight:700;letter-spacing:.05em;"
                 "padding:2px 8px;border-radius:10px;")
         ui.label(user.get("display_name") or user["user_id"]).style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         # Staff-only: back up to the Console (portfolio home) + user administration.
         if auth.is_staff(user):
@@ -1333,7 +1333,7 @@ def main_page(request: Request = None):
             with sresults:
                 if not hits:
                     ui.label(f"No matches for “{q}”").style(
-                        "padding:10px 16px;color:#64748B;font-size:12.5px;")
+                        "padding:10px 16px;color:#64748B;font-size:var(--fs-sm);")
                 else:
                     grouped = {}
                     for r in hits:
@@ -1343,13 +1343,13 @@ def main_page(request: Request = None):
                         if not grp:
                             continue
                         ui.label(f"{label} ({len(grp)})").style(
-                            "padding:7px 16px 2px;font-size:10px;letter-spacing:.06em;"
+                            "padding:7px 16px 2px;font-size:var(--fs-2xs);letter-spacing:.06em;"
                             "color:#94A3B8;font-weight:700;text-transform:uppercase;")
                         for r in grp:
                             with ui.item(on_click=lambda r=r: _search_go(r)).props("clickable dense"):
                                 with ui.item_section():
-                                    ui.item_label(r["label"]).style("font-size:13px;font-weight:600;color:#0F172A;")
-                                    ui.item_label(r["sublabel"]).props("caption").style("font-size:11px;color:#64748B;")
+                                    ui.item_label(r["label"]).style("font-size:var(--fs-base);font-weight:600;color:#0F172A;")
+                                    ui.item_label(r["sublabel"]).props("caption").style("font-size:var(--fs-xs);color:#64748B;")
             smenu.open()
 
         search.on_value_change(lambda: _run_search())
@@ -1460,8 +1460,8 @@ def main_page(request: Request = None):
                         + (f"border-top:2px solid #1D4ED8;background:#1D4ED80D;"
                            if active else "border-top:2px solid transparent;")
                     ).on("click", lambda s=section, t=sub: go_to(s, t)):
-                        ui.icon(icon).style(f"color:{clr};font-size:22px;")
-                        ui.label(label).style(f"color:{clr};font-size:10px;font-weight:{'700' if active else '500'};")
+                        ui.icon(icon).style(f"color:{clr};font-size:var(--fs-3xl);")
+                        ui.label(label).style(f"color:{clr};font-size:var(--fs-2xs);font-weight:{'700' if active else '500'};")
 
     render_nav()
     render_page()
@@ -1930,6 +1930,25 @@ ui.add_head_html(
 # left_drawer above); this only reclaims horizontal space for the content on small screens.
 ui.add_head_html(
     "<style>"
+    # ── Type scale (single source of truth) ──────────────────────────────────────────────
+    # The app had ~18 ad-hoc inline font-sizes (9–26px). They're consolidated to these 11 steps,
+    # erring UP from the old clusters — the small/body text (where legibility matters most) gains
+    # ~1px each; larger display sizes lift slightly to keep proportion. Every inline font-size and
+    # the .t-* classes reference these vars, so the whole app's type is retuned from here. Nests on
+    # the desktop .app-content zoom (1.08), so effective sizes run ~8% larger again on desktop.
+    ":root{"
+    "--fs-micro:10px;"   # was 9 / 9.5      (footnote fine print)
+    "--fs-2xs:11px;"     # was 10 / 10.5    (fine)
+    "--fs-xs:12px;"      # was 11 / 11.5    (meta / eyebrow)
+    "--fs-sm:13px;"      # was 12 / 12.5    (body — the dominant size)
+    "--fs-base:14px;"    # was 13 / 13.5    (body-large / subhead)
+    "--fs-md:15px;"      # was 14 / 14.5 / 15 (lead)
+    "--fs-lg:17px;"      # was 16 / 17      (section head / card title)
+    "--fs-xl:19px;"      # was 18 / 19      (metric value)
+    "--fs-2xl:21px;"     # was 20 / 21      (page heading / KPI)
+    "--fs-3xl:23px;"     # was 22           (large heading)
+    "--fs-hero:26px;"    # was 24 / 26      (hero / greeting)
+    "}"
     ".mobile-only{display:none;}"
     ".mobile-tabbar{display:none;}"                       # bottom tab bar — phones only (shown below)
     # Responsive swap pair for our OWN content (wide table <-> stacked cards). Deliberately
@@ -1938,7 +1957,7 @@ ui.add_head_html(
     # query. Custom names like .mobile-tabbar are unaffected, so these are too.
     ".resp-wide{display:block;}"                          # e.g. a 5-column table: default (desktop)
     ".resp-stack{display:none;}"                          # its stacked-card equivalent: phones only
-    ".nav-desktop-hint{padding:10px 12px 4px;color:#94A3B8;font-size:11px;line-height:1.4;}"
+    ".nav-desktop-hint{padding:10px 12px 4px;color:#94A3B8;font-size:var(--fs-xs);line-height:1.4;}"
     "@media (max-width:640px){"
     ".app-content{padding:12px 14px 84px !important;}"   # reclaim phone width + clear the fixed tab bar
     ".nav-group--desktop-only{display:none !important;}"  # hide heavy authoring groups on phones

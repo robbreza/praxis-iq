@@ -54,7 +54,7 @@ def responsive_table(columns, rows, *, row_key=None, pagination=None,
                     "padding:8px 10px;margin:4px 0;"):
                 head = r.get(primary)
                 ui.label(str(head) if head not in (None, "") else "—").style(
-                    f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;")
                 for f, lbl in fields:
                     if f == primary:
                         continue
@@ -66,12 +66,12 @@ def responsive_table(columns, rows, *, row_key=None, pagination=None,
                         # Long text / unlabeled: label above (if any), value beneath, full width.
                         with ui.column().classes("w-full").style("gap:0;margin-top:2px;"):
                             if lbl:
-                                ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
-                            ui.label(v).style(f"color:{COLORS['text_body']};font-size:12px;line-height:1.4;")
+                                ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                            ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.4;")
                     else:
                         with ui.row().classes("w-full justify-between items-baseline").style("gap:10px;"):
                             ui.label(lbl).style(
-                                f"color:{COLORS['text_muted']};font-size:11px;white-space:nowrap;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);white-space:nowrap;")
                             ui.label(v).style(
-                                f"color:{COLORS['text_body']};font-size:12px;text-align:right;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);text-align:right;")
     return table

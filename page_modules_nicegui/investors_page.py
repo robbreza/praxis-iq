@@ -862,7 +862,7 @@ def _open_metro_select_dialog(metro, funds):
         with ui.row().classes("w-full items-end gap-2").style(
                 f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
             ui.label("Tick funds below, then add them to an NDR as shortlisted targets.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
             trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
             new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
             new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
@@ -951,7 +951,7 @@ def _open_shortlist_outreach(entry, contact, on_invited):
             _mailto(email, subject, body, f"✉ Open email to {contact.get('name', 'the contact')} ({email})")
         else:
             ui.label("No contact email on file — reach out via your own channel, then mark Invited below.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat")
 
@@ -1011,7 +1011,7 @@ def _open_schedule_request_dialog(request, on_done):
     with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(520px,94vw);"):
         ui.label(f"Schedule request — {request.get('analyst', '')} ({request.get('firm', '')}) → {request.get('city', '')}").classes("text-lg font-bold")
         ui.label("An inbound request is a confirmed meeting — it drops straight into the schedule at the "
-                 "next open slot.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                 "next open slot.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         sel = ui.select(opts, value=default, label="Add to NDR").props("dense outlined").classes("w-full")
         new_name = ui.input("New NDR name", value=f"{request.get('city', '')} NDR").props("dense outlined").classes("w-full")
         new_name.bind_visibility_from(sel, "value", backward=lambda v: v == "__new__")
@@ -1366,9 +1366,9 @@ def render_investors_page():
                 with container:
                     ui.label("This tab didn't finish loading.").style(
                         f"color:{COLORS['text_heading']};font-weight:600;")
-                    ui.label(str(ex)).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(str(ex)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     ui.label("If this persists, reload the page (Ctrl-R) — the server may "
-                             "have restarted.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                             "have restarted.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     ui.button("Reload page", on_click=lambda: ui.navigate.reload()).props("outline dense")
             except Exception:
                 pass  # client is truly gone; only a browser refresh can recover
@@ -1403,10 +1403,10 @@ def _render_import_verify_tab(client_id):
              "checked against SEC EDGAR as a real 13F filer (anything we can't confirm is flagged, never "
              "trusted), reconciled against what we already track, and the verified-new ones can be promoted "
              "into your curated target book. One firm per line.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     box = ui.textarea(placeholder="Whitebox Advisors, LLC\nCorsair Capital Management, L.P.\n1620 Investment Advisors").props(
-        "outlined autogrow").classes("w-full").style("font-size:12px;margin-top:6px;")
+        "outlined autogrow").classes("w-full").style("font-size:var(--fs-sm);margin-top:6px;")
     results = ui.column().classes("w-full").style("gap:6px;margin-top:6px;")
     state = {"checks": []}
 
@@ -1419,7 +1419,7 @@ def _render_import_verify_tab(client_id):
             new_real = [r for r in real if r["status"] == "new"]
             ui.label(f"{len(rows)} firms · {len(real)} verified real · {len(unconf)} unconfirmed · "
                      f"{len(new_real)} verified & new").classes("font-bold").style(
-                f"color:{COLORS['text_heading']};font-size:13px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
             _order = {"new": 0, "contacts": 1, "prospect": 2, "holder": 3}
             for r in sorted(rows, key=lambda x: (not x["is_real"], _order.get(x["status"], 9))):
                 clr = "#B91C1C" if not r["is_real"] else ("#B45309" if r["status"] == "new" else "#15803D")
@@ -1430,16 +1430,16 @@ def _render_import_verify_tab(client_id):
                         if r["is_real"]:
                             cb = ui.checkbox(value=(r["status"] == "new")).props("dense")
                             state["checks"].append((cb, r))
-                            ui.icon("check_circle").style("color:#15803D;font-size:16px;")
+                            ui.icon("check_circle").style("color:#15803D;font-size:var(--fs-lg);")
                         else:
-                            ui.icon("help_outline").style("color:#B91C1C;font-size:16px;")
-                        ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:12.5px;font-weight:600;")
+                            ui.icon("help_outline").style("color:#B91C1C;font-size:var(--fs-lg);")
+                        ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:600;")
                         ui.space()
                         if r["is_real"]:
-                            ui.label(f"CIK {r['cik'] or '—'}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label(f"CIK {r['cik'] or '—'}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         badge = ("#B91C1C", "unconfirmed — review") if not r["is_real"] else (clr, r["status_label"])
                         ui.label(badge[1]).style(
-                            f"background:{badge[0]}1a;color:{badge[0]};font-size:10px;font-weight:700;"
+                            f"background:{badge[0]}1a;color:{badge[0]};font-size:var(--fs-2xs);font-weight:700;"
                             "padding:1px 8px;border-radius:9px;white-space:nowrap;")
 
             if not real:
@@ -1456,7 +1456,7 @@ def _render_import_verify_tab(client_id):
             ui.button("Promote selected to targets", icon="playlist_add", on_click=_promote).props(
                 "color=primary dense").style("margin-top:6px;")
             ui.label("Only verified firms can be promoted — unconfirmed ones are never added.").style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
     async def _verify():
         names = [ln.strip() for ln in (box.value or "").splitlines() if ln.strip()]
@@ -1470,13 +1470,13 @@ def _render_import_verify_tab(client_id):
         with results:
             ui.spinner(size="lg")
             ui.label(f"Verifying {len(names)} firm(s) against SEC EDGAR…").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         try:
             rows = await asyncio.to_thread(list_verify.verify_and_reconcile, names, client_id)
         except Exception as exc:
             results.clear()
             with results:
-                ui.label(f"Verification failed: {exc}").style("color:#B91C1C;font-size:12px;")
+                ui.label(f"Verification failed: {exc}").style("color:#B91C1C;font-size:var(--fs-sm);")
             return
         _render_results(rows)
 
@@ -1495,7 +1495,7 @@ def _render_web_flow_tab(client_id):
     ui.label("Website Engagement").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Who comes to your IR site — and whether they DOWNLOAD material (deck, model, filings) or "
              "just READ. A download is a far stronger buy-side intent signal than a page skim, so the two "
-             "are scored separately.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+             "are scored separately.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # Capture read-only ONCE, here, where the page role/page context is bound. A rebuild
     # triggered from an upload or on_click callback runs with the ui_context slot unbound,
@@ -1523,15 +1523,15 @@ def _render_web_flow_tab(client_id):
         ui.label("Recognized columns (any subset): Organization · Category · Pages_Viewed · "
                  "Time_On_Site_Min · Visits · Date · Downloads (comma-separated assets) · Holder. "
                  "Works with a Google Analytics, Q4 or IRWIN export.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     def _stat(val, label, sub, color=None):
         with ui.card().classes("flex-1").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                 "min-width:120px;padding:10px 12px;"):
-            ui.label(str(val)).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:20px;")
-            ui.label(label).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label(str(val)).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:var(--fs-2xl);")
+            ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     def _build():
         _body.clear()
@@ -1547,13 +1547,13 @@ def _render_web_flow_tab(client_id):
                             "(non-holders downloading your deck or model).")
                 if not _read_only:
                     ui.label("Have an export? Drop it in:").style(
-                        f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:10px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;margin-top:10px;")
                     _upload_control()
                 return
 
             uploaded = d["source"] == "your uploaded web-analytics export"
             ui.label(f"Source: {d['source']}.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin:2px 0 6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;margin:2px 0 6px;")
 
             with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
                 _stat(d["n_visitors"], "Visitors", "orgs on the site")
@@ -1567,19 +1567,19 @@ def _render_web_flow_tab(client_id):
             ui.label(f"{d['download_pct']}% of site visitors downloaded material — {d['n_downloaders']} of "
                      f"{d['n_visitors']}. The rest read pages without pulling anything. Downloads skew to the "
                      f"{_top_assets}.").style(
-                f"color:{COLORS['text_body']};font-size:12.5px;font-weight:600;margin-top:10px;")
+                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;margin-top:10px;")
 
             if d["by_asset"]:
                 ui.label("Most-downloaded assets").classes("section-head").style("margin-top:12px;")
                 _maxc = d["by_asset"][0][1] or 1
                 for name, cnt in d["by_asset"]:
                     with ui.row().classes("w-full items-center").style("gap:10px;"):
-                        ui.label(name).style(f"color:{COLORS['text_body']};font-size:12px;min-width:150px;")
+                        ui.label(name).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);min-width:150px;")
                         with ui.element("div").style(
                                 f"flex:1;background:{COLORS['surface_hover_bg']};border-radius:6px;height:14px;"):
                             ui.element("div").style(
                                 f"width:{round(100*cnt/_maxc)}%;background:{COLORS['accent']};height:14px;border-radius:6px;")
-                        ui.label(f"{cnt}").style(f"color:{COLORS['text_muted']};font-size:12px;min-width:20px;")
+                        ui.label(f"{cnt}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:20px;")
 
             if d["hot_prospects"]:
                 ui.label("Hot prospects — high intent, not yet holders").classes(
@@ -1587,7 +1587,7 @@ def _render_web_flow_tab(client_id):
                 ui.label("These orgs pulled real diligence material (deck / model / filings) but don't own you "
                          "yet — the sharpest targets this view surfaces. Push one into the Target Database "
                          "pipeline (the same store the Peer Prospects Promote button feeds).").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 _hot_box = ui.column().classes("w-full gap-0")
 
                 def _render_hot():
@@ -1608,16 +1608,16 @@ def _render_web_flow_tab(client_id):
                                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                                     "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
                                 with ui.row().classes("w-full justify-between items-center").style("gap:8px;"):
-                                    ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                                    ui.label(v["org"]).style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;")
                                     ui.label(f"intent {v['intent']}").style(
                                         "background:#FEF3C7;color:#B45309;padding:1px 8px;border-radius:6px;"
-                                        "font-size:11px;font-weight:700;")
+                                        "font-size:var(--fs-xs);font-weight:700;")
                                 ui.label(f"{v['category']}  ·  pulled: {', '.join(v['downloads'])}  ·  "
                                          f"{v['pages']} pages / {v['minutes']} min  ·  last {v['last_visit']}").style(
-                                    f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
                                 if already:
                                     ui.label("✓ In target pipeline").style(
-                                        "color:#15803D;font-size:11px;font-weight:600;margin-top:4px;")
+                                        "color:#15803D;font-size:var(--fs-xs);font-weight:600;margin-top:4px;")
                                 elif not _read_only:
                                     def _add_one(v=v):
                                         if web_flow.add_to_target_queue(v, client_id):
@@ -1645,7 +1645,7 @@ def _render_web_flow_tab(client_id):
                 rows, table_classes="w-full dense-table", table_props="flat dense wrap-cells", primary="org")
             ui.label("Intent = downloads (weighted by asset — a model/deck pull counts most) + capped page/time "
                      "reading. Upload a fresh export any time to replace this with live numbers.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
 
             if not _read_only:
                 with ui.expansion("Replace or update this data (upload CSV)", icon="upload_file").classes(
@@ -1687,7 +1687,7 @@ def _render_curated_targets(client_id):
              "that don't hold a peer today — a Geneva/Lugano private bank, a relationship from a prior seat — "
              "go here by hand and appear in the metro view above, tagged 'Curated' (never 'holds a comp'). "
              "Client scope is this issuer's own book; Global is the house book, shared across every client and "
-             "growing as we scale.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "growing as we scale.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     @ui.refreshable
     def _panel():
@@ -1698,14 +1698,14 @@ def _render_curated_targets(client_id):
                                   ("Total in view", cc["total"], COLORS["text_secondary"])]:
                 with ui.card().classes("flex-1").style(
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:110px;"):
-                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:20px;")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:var(--fs-2xl);")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         # ── Add form ──────────────────────────────────────────────────────────
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};margin-top:6px;"):
             ui.label("Add a curated target").classes("font-bold").style(
-                f"color:{COLORS['text_heading']};font-size:13px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
             with ui.row().classes("w-full gap-2 items-end no-wrap").style("flex-wrap:wrap;"):
                 f_name = ui.input("Firm name").props("dense outlined").style("min-width:220px;flex:2;")
                 f_city = ui.input("City").props("dense outlined").style("min-width:120px;flex:1;")
@@ -1716,7 +1716,7 @@ def _render_curated_targets(client_id):
                 f_scope = ui.toggle({"client": "This client", "global": "Global (house book)"},
                                     value="client").props("dense no-caps")
                 # Live metro preview, so you see where it will cluster before saving.
-                _preview = ui.label("").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                _preview = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                 def _refresh_preview():
                     c, s = (f_city.value or "").strip(), (f_state.value or "").strip()
@@ -1750,19 +1750,19 @@ def _render_curated_targets(client_id):
                 with ui.column().classes("gap-0").style("min-width:0;"):
                     with ui.row().classes("items-center gap-2"):
                         ui.label(r.get("filer")).classes("font-bold").style(
-                            f"color:{COLORS['text_heading']};font-size:13px;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         ui.label("This client" if is_client else "Global").style(
                             f"background:{'rgba(30,64,175,.10)' if is_client else 'rgba(109,40,217,.10)'};"
-                            f"color:{badge_clr};border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;")
+                            f"color:{badge_clr};border-radius:6px;padding:1px 7px;font-size:var(--fs-2xs);font-weight:700;")
                         if r.get("seed"):
                             ui.label("default").style(
-                                f"color:{COLORS['text_muted']};font-size:10px;border:1px solid {COLORS['border']};"
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);border:1px solid {COLORS['border']};"
                                 "border-radius:6px;padding:0 6px;")
                     loc = _loc_line(r)
                     ui.label(f"{loc}  ·  metro: {metro}").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     if r.get("rationale"):
-                        ui.label(r["rationale"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
+                        ui.label(r["rationale"]).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-xs);")
                 # Actions in a bottom row set off by a thin divider — consistent with the
                 # peer-prospect, institution, and Today dashboard cards.
                 with ui.row().classes("w-full gap-1 items-center").style(
@@ -1797,7 +1797,7 @@ def _render_peer_prospects_tab(client_id):
              "ranked by conviction — position weight in their own book, focus on the tightest comps, active "
              "vs. index breadth, and size fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
              "passive/index and quasi-index books, is filtered out. Nothing hits the pipeline until you promote it.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     _size_calibration_note(client_id)
 
     # The roadshow-metro view (with click-to-select) is now the single "Where they are" table in
@@ -1806,7 +1806,7 @@ def _render_peer_prospects_tab(client_id):
     ui.label("📍 Roadshow metro view — with click-a-metro → select → Add to NDR — now lives in "
              "Buy-Side Intelligence → “Where they are”. The conviction-ranked prospects below feed the "
              "same pipeline.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;background:{COLORS['surface_hover_bg']};"
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);background:{COLORS['surface_hover_bg']};"
         "border-radius:8px;padding:8px 10px;")
     ui.markdown("---")
     _render_curated_targets(client_id)
@@ -1817,7 +1817,7 @@ def _render_peer_prospects_tab(client_id):
     # flipping it just re-ranks the list.
     _state = {"sort": "conviction", "show_all": False}
     with ui.row().classes("items-center gap-2").style("margin-top:6px;"):
-        ui.label("Rank by").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Rank by").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         _sort_toggle = ui.toggle(
             {"conviction": "Conviction", "size": "Position size", "concentration": "Concentration"},
             value="conviction").props("dense no-caps")
@@ -1838,13 +1838,13 @@ def _render_peer_prospects_tab(client_id):
                                   ("Dismissed", c["dismissed"], COLORS["text_muted"])]:
                 with ui.card().classes("flex-1").style(
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:110px;"):
-                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:20px;")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:var(--fs-2xl);")
+                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         if not cands:
             ui.label("No candidates to qualify. Run the SEC 13F refresh on the SEC Intelligence tab if you "
                      "haven't yet, or you've reviewed them all.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:8px;")
             return
 
         from core import contacts as _cmod
@@ -1858,25 +1858,25 @@ def _render_peer_prospects_tab(client_id):
                 with ui.row().classes("w-full items-start justify-between no-wrap"):
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                         _nm = pretty_name(r["filer"]) + ("  ✓ promoted" if promoted else "")
-                        ui.label(_nm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(_nm).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         loc = _loc_line(r)
                         conc = f"{r['concentration']*100:.1f}% of book" if r.get("concentration") is not None else "book n/a"
                         bp = f"{r['book_positions']} positions" if r.get("book_positions") else "breadth n/a"
                         pv = f"${r['peer_value']/1e6:.1f}M position" if r.get("peer_value") else ""
                         ui.label(f"{loc} · {conc} in payment comps{(' · ' + pv) if pv else ''} · {bp} · "
                                  f"filed {(r.get('file_date') or '—')}").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         with ui.row().classes("gap-1 flex-wrap").style("margin-top:3px;"):
                             for ct, cv in sorted(r["comps"].items(), key=lambda kv: -kv[1]["value"]):
                                 tight = cv["tight"]
                                 ui.label(ct + (" ◆" if tight else "")).style(
                                     f"background:{'rgba(30,64,175,.10)' if tight else COLORS['surface_hover_bg']};"
                                     f"color:{COLORS['accent_strong'] if tight else COLORS['text_secondary']};"
-                                    "border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600;")
+                                    "border-radius:6px;padding:1px 7px;font-size:var(--fs-xs);font-weight:600;")
                     with ui.column().classes("gap-0 items-end").style("flex-shrink:0;"):
                         ui.label(f"{r['conviction']:.0f}").classes("font-bold").style(
-                            f"color:{COLORS['accent']};font-size:20px;line-height:1;")
-                        ui.label("conviction").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                            f"color:{COLORS['accent']};font-size:var(--fs-2xl);line-height:1;")
+                        ui.label("conviction").style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                 # Actions in a bottom row set off by a thin divider — same treatment as the
                 # Today dashboard and institution cards.
                 with ui.row().classes("w-full gap-1 items-center").style(
@@ -1912,7 +1912,7 @@ def _render_peer_prospects_tab(client_id):
                       icon="expand_more", on_click=_showall).props("flat dense").style("margin-top:8px;")
         elif _state.get("show_all"):
             ui.label(f"Showing all {len(cands)} qualified peer-owners (funds holding a comp, not USIO).").style(
-                f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:8px;")
 
             def _showtop():
                 _state["show_all"] = False
@@ -1933,17 +1933,17 @@ def _render_peer_prospects_tab(client_id):
                 ui.label("Real positions in your peer set, but held through client accounts — no portfolio "
                          "manager to pitch. Video-call tier: an assistant can set these up, no management "
                          "travel. Ranked by position size; a large one can still be worth a call.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for r in _rias:
                     with ui.row().classes("w-full items-center justify-between no-wrap").style(
                             f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
-                                f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps}").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         with ui.row().classes("gap-1").style("flex-shrink:0;"):
                             if r.get("promoted"):
                                 ui.button("Undo", on_click=lambda r=r: (
@@ -1976,18 +1976,18 @@ def _render_peer_prospects_tab(client_id):
                          "(Capital Group, Fidelity, Clearbridge…). They run real fundamental strategies. "
                          "Worth a meeting when you're already in their city, when they own a comp, or "
                          "when they want industry colour on a name they don't own. Ranked by peer position.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for r in _div:
                     with ui.row().classes("w-full items-center justify-between no-wrap").style(
                             f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
-                                f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             why = "wide book" if r.get("broad_book") else "index / bank AM"
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps} · {why}").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         with ui.row().classes("gap-1").style("flex-shrink:0;"):
                             if r.get("promoted"):
                                 ui.button("Undo", on_click=lambda r=r: (
@@ -2017,12 +2017,12 @@ def _render_peer_prospects_tab(client_id):
                 ui.label("These hold your comps as trading inventory or index mechanics, not a "
                          "fundamental view — there is no portfolio manager to pitch. Listed for a "
                          "complete picture of who owns the peer set; not an NDR queue.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for r in sorted(_mm, key=lambda x: -(x.get("peer_value") or 0)):
                     loc = _loc_line(r)
                     comps = ", ".join(sorted(r["comps"].keys()))
                     ui.label(f"{r['filer']} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;border-bottom:1px solid {COLORS['border']};"
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);border-bottom:1px solid {COLORS['border']};"
                         "padding:4px 0;")
 
     _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
@@ -2050,7 +2050,7 @@ def _render_mode_description(mode):
         accent = COLORS["accent"]
         ui.html(
             f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {accent};"
-            f"border-radius:8px;padding:8px 14px;font-size:12px;color:{COLORS['text_body']};'>"
+            f"border-radius:8px;padding:8px 14px;font-size:var(--fs-sm);color:{COLORS['text_body']};'>"
             f"<b style='color:{accent};'>Pre-Earnings Mode</b> · Scoring weights: Call listener 40% · Peer holder 35% · "
             f"IR visits 25% · Goal: who already knows the story → send call invitation → close the loop</div>"
         )
@@ -2058,7 +2058,7 @@ def _render_mode_description(mode):
         accent = COLORS["positive"]
         ui.html(
             f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {accent};"
-            f"border-radius:8px;padding:8px 14px;font-size:12px;color:{COLORS['text_body']};'>"
+            f"border-radius:8px;padding:8px 14px;font-size:var(--fs-sm);color:{COLORS['text_body']};'>"
             f"<b style='color:{accent};'>Post-Earnings Prospecting Mode</b> · Scoring weights: Q2 call listener 40% · "
             f"Catalyst fit 35% · New IR activity 25% · Goal: who heard the beat → fits the upgrade thesis → call in first 5 days</div>"
         )
@@ -2108,7 +2108,7 @@ def _open_person_notes(person_name, firm):
     with ui.dialog() as d, ui.card().style("min-width:min(94vw,480px);max-width:560px;"):
         ui.label(f"Notes — {pretty_name(person_name)}").classes("text-lg font-bold").style(
             f"color:{COLORS['text_heading']};")
-        ui.label(firm).style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label(firm).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.separator().style("margin:6px 0;")
         _box = ui.column().classes("w-full").style("gap:5px;")
 
@@ -2118,14 +2118,14 @@ def _open_person_notes(person_name, firm):
                 items = _cmod.contact_notes(contact_id)
                 if not items:
                     ui.label("No notes yet — add the first one below.").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 for it in items:
                     with ui.element("div").style(
                             f"border-left:3px solid {COLORS['accent']};padding:1px 0 1px 9px;"):
                         ui.label(" · ".join(x for x in (it.get("ts"), it.get("source"), it.get("by")) if x)).style(
-                            f"color:{COLORS['text_muted']};font-size:10.5px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                         ui.label(it.get("note", "")).style(
-                            f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);white-space:pre-wrap;")
 
         _in = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full").style("margin-top:4px;")
 
@@ -2164,13 +2164,13 @@ def _open_account_profile(rec):
     score = rec.get("conviction") if is_cand else rec.get("Engagement_Score")
 
     def _section(title):
-        ui.label(title).style(f"color:{COLORS['text_muted']};font-size:11px;font-weight:600;"
+        ui.label(title).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;"
                               "letter-spacing:.04em;text-transform:uppercase;margin-top:10px;")
 
     def _kv(label, value):
         with ui.row().classes("w-full items-baseline gap-2").style("padding:1px 0;"):
-            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;")
-            ui.label(str(value)).style(f"color:{COLORS['text_secondary']};font-size:12px;")
+            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:130px;")
+            ui.label(str(value)).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
 
     acct_cik = rec.get("cik")
     acct = account_api.get_account(name=name, cik=acct_cik)   # one read: identity + both layers
@@ -2180,14 +2180,14 @@ def _open_account_profile(rec):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
                 ui.label(disp).classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
-                ui.label(f"{category} · {loc}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"{category} · {loc}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             with ui.row().classes("items-center gap-2"):
                 q = note.get("quality")
                 if q:
                     ui.label(account_api.QUALITY.get(q, q)).style(
                         f"background:{COLORS['positive'] if q in ('good','responsive') else COLORS['surface_hover_bg']};"
                         f"color:{'#fff' if q in ('good','responsive') else COLORS['text_secondary']};"
-                        "font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;")
+                        "font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:6px;")
                 ui.button(icon="close", on_click=dlg.close).props("flat round dense")
 
         # ── Ownership & filings (auto) ─────────────────────────────
@@ -2213,7 +2213,7 @@ def _open_account_profile(rec):
             _section(f"Fund lineup — {lu.get('registrant')}")
             names = [f["name"] for f in lu["funds"]]
             ui.label(" · ".join(names[:8]) + (f"  (+{len(names) - 8} more)" if len(names) > 8 else "")).style(
-                f"color:{COLORS['text_secondary']};font-size:12px;")
+                f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
 
         # ── Investment team — the named people to actually call ────
         # THE value-add: a peer-owner ("Firm X holds your peers") resolves to the real PMs/
@@ -2240,26 +2240,26 @@ def _open_account_profile(rec):
             _withemail = sum(1 for p in _team if p.get("email"))
             _section(f"Investment team — {len(_team)} on file · {_withemail} reachable")
             ui.label("The named PMs / analysts we hold at this firm — decision-makers first. Click Notes "
-                     "for a per-person timeline.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                     "for a per-person timeline.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             _pnotes = db.load_json("contact_notes.json", default={}) or {}   # one read for the counts
             with ui.column().classes("w-full gap-0").style("max-height:236px;overflow-y:auto;margin-top:2px;"):
                 for p in _team:
                     with ui.row().classes("w-full items-center gap-2").style(
                             f"padding:3px 0;border-bottom:1px solid {COLORS['border']};"):
                         ui.label(pretty_name(p["name"])).style(
-                            f"color:{COLORS['text_heading']};font-size:12px;font-weight:600;min-width:150px;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:600;min-width:150px;")
                         ui.label(_rlbl.get(p.get("primary_role"), "—")).style(
-                            f"color:{COLORS['accent_light']};font-size:11px;font-weight:600;min-width:82px;")
+                            f"color:{COLORS['accent_light']};font-size:var(--fs-xs);font-weight:600;min-width:82px;")
                         ui.label((p.get("title") or "")[:38]).style(
-                            f"color:{COLORS['text_muted']};font-size:11px;flex:1;min-width:0;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);flex:1;min-width:0;")
                         if p.get("phone"):
-                            ui.label(p["phone"]).style(f"color:{COLORS['text_secondary']};font-size:11px;")
+                            ui.label(p["phone"]).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-xs);")
                         if p.get("email"):
                             ui.button(icon="mail", on_click=lambda _=None, e=p["email"],
                                       f=pretty_name(p["name"]).split()[0]: _draft_to(e, f)) \
                                 .props("flat dense round size=sm").tooltip(f"Draft to {p['email']}")
                         else:
-                            ui.label("no email").style(f"color:{COLORS['text_muted']};font-size:10px;")
+                            ui.label("no email").style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                         _pcnt = len(_pnotes.get(_cmod.contact_id_for(None, p["name"], name), []))
                         ui.button(f"Notes{f' ({_pcnt})' if _pcnt else ''}", icon="sticky_note_2",
                                   on_click=lambda p=p: _open_person_notes(p["name"], name)) \
@@ -2293,7 +2293,7 @@ def _open_account_profile(rec):
             ui.button("Draft outreach email", icon="mail", on_click=_draft_outreach).props("dense color=primary")
         if not _contact.get("email"):
             ui.label("No contact on file — enter an email above to draft, or reach out via your own channel.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         # ── Contact notes (the per-person timeline, client-scoped) ─────────────────
         # The same notes surfaced on House Contacts, here on the client's own account view — this
@@ -2310,14 +2310,14 @@ def _open_account_profile(rec):
                     items = _cmod.contact_notes(_note_cid)
                     if not items:
                         ui.label("No notes yet — add the first one below.").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     for it in items:
                         with ui.element("div").style(
                                 f"border-left:3px solid {COLORS['accent']};padding:1px 0 1px 9px;"):
                             ui.label(" · ".join(x for x in (it.get("ts"), it.get("source"), it.get("by")) if x)).style(
-                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                             ui.label(it.get("note", "")).style(
-                                f"color:{COLORS['text_body']};font-size:12.5px;white-space:pre-wrap;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);white-space:pre-wrap;")
 
             _cn_in = ui.textarea("Add a note").props("autogrow dense outlined").classes("w-full").style("margin-top:4px;")
 
@@ -2342,19 +2342,19 @@ def _open_account_profile(rec):
             summ = account_api.get_account(name=name, cik=acct_cik)["interactions"]
             with ui.row().classes("items-baseline gap-4"):
                 ui.label(f"{summ['touches']} touch{'es' if summ['touches'] != 1 else ''}").style(
-                    f"color:{COLORS['text_heading']};font-weight:700;font-size:13px;")
+                    f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-base);")
                 ui.label(f"Last contact: {summ['last_contact'] or '—'}").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             for e in summ["events"][:6]:
                 src = " · NDR" if e.get("source") == "ndr" else ""
                 with ui.row().classes("w-full items-baseline gap-2").style("padding:1px 0;"):
                     ui.label(e.get("date") or "—").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;min-width:88px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);min-width:88px;")
                     ui.label(f"{account_api.TYPES.get(e.get('type'), e.get('type'))} — "
                              f"{e.get('summary') or ''}{src}").style(
-                        f"color:{COLORS['text_secondary']};font-size:12px;")
+                        f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
             if not summ["events"]:
-                ui.label("No interactions logged yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label("No interactions logged yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         _interactions()
         # log an event → appends (never overwrites); touches/last-contact recompute
@@ -2445,13 +2445,13 @@ def _open_lineup_crosswalk_dialog():
             f"color:{COLORS['text_heading']};margin-top:4px;")
         if not review:
             ui.label("Nothing waiting — every ambiguous match is resolved.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         for e in review:
             with ui.row().classes("w-full items-center gap-2").style(
                     f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
                 ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
                 if e.get("note"):
-                    ui.label(e["note"]).style(f"color:{COLORS['warning']};font-size:11px;max-width:200px;")
+                    ui.label(e["note"]).style(f"color:{COLORS['warning']};font-size:var(--fs-xs);max-width:200px;")
                 cands = fl.candidate_names(e.get("ciks", []))
                 opts = {str(c["cik"]): f"{pretty_name(c['name'])} (CIK {c['cik']})" for c in cands}
                 opts["__none__"] = "No registered fund family"
@@ -2469,7 +2469,7 @@ def _open_lineup_crosswalk_dialog():
         ui.label(f"Auto-matched — high confidence ({len(high)})").classes("text-md font-bold").style(
             f"color:{COLORS['text_heading']};margin-top:14px;")
         ui.label("Validated against the family's current SEC name. Skim for anything off.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         for e in high:
             reg = e.get("registrant") or fl._registrant_name(e.get("cik"))
             roster = fl.series_roster(e.get("cik"))
@@ -2478,7 +2478,7 @@ def _open_lineup_crosswalk_dialog():
                     f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
                 ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
                 ui.label(f"→ {pretty_name(reg or '—')}" + (f"  ·  {cnt} funds" if cnt else "")).style(
-                    f"color:{COLORS['text_secondary']};font-size:12px;flex:1;")
+                    f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);flex:1;")
                 ui.button("Looks right", on_click=lambda ev=None, n=e["norm"]: (
                     fl.confirm_entry(n), ui.notify("Locked in", type="positive"), _body.refresh())).props(
                     "dense flat color=positive")
@@ -2492,7 +2492,7 @@ def _open_lineup_crosswalk_dialog():
                     with ui.row().classes("w-full items-center gap-2"):
                         ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;")
                         ui.label(f"→ {pretty_name(e.get('registrant') or '—')}").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
                         ui.button("Undo", on_click=lambda ev=None, n=e["norm"]: (
                             fl.restore_entry(n), _body.refresh())).props("dense flat")
         if rejected:
@@ -2518,7 +2518,7 @@ def _open_lineup_crosswalk_dialog():
                 ui.button(icon="close", on_click=dlg.close).props("flat round dense")
         ui.label("These links are what let the drill-down name a holder's individual funds. Confirm the "
                  "ambiguous ones, reject any wrong auto-match — your decisions stick across re-scans.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         _body()
     dlg.open()
 
@@ -2688,7 +2688,7 @@ def _render_big_picture(institutions):
         ui.label("This view ranks where to spend roadshow time from your 13F holder book and any inbound "
                  "NDR requests. Neither is on file for this client yet — run a 13F refresh on the SEC "
                  "Intelligence tab, and log requests as they come in.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
     top_metro, _tp, top_d, top_visits, _tr = metro_priority[0]
     top_metro_request = next((r for r in ndr_requests if r["metro"] == top_metro), None)
@@ -2724,19 +2724,19 @@ def _render_big_picture(institutions):
                    [f"{c} — {dt} · {tm} · Sponsor: {sp} · {n} meetings" for c, dt, tm, sp, n in trip_rows] or ["No NDR trips logged yet"])
 
     ui.html(
-        f"<div style='font-size:13px;color:{COLORS['text_muted']};margin-top:6px;'>New vs. existing — where the pipeline is weighted right now</div>"
+        f"<div style='font-size:var(--fs-base);color:{COLORS['text_muted']};margin-top:6px;'>New vs. existing — where the pipeline is weighted right now</div>"
         f"<div style='display:flex;height:20px;border-radius:6px;overflow:hidden;'>"
         f"<div style='width:{new_pct}%;background:#3B82F6;'></div>"
         f"<div style='width:{100-new_pct}%;background:#475569;'></div></div>"
-        f"<div style='font-size:12px;color:{COLORS['text_muted']};margin-top:4px;'>New/prospective: {new_total} &nbsp; Existing holders: {holder_count}</div>"
-        f"<div style='font-size:12px;color:{mix_color};margin-top:4px;'>{mix_label} ({new_pct}% new / {100-new_pct}% existing)</div>"
-        + (f"<div style='font-size:11px;color:{COLORS['text_muted']};margin-top:2px;'>{recency_note}</div>" if recency_note else "")
+        f"<div style='font-size:var(--fs-sm);color:{COLORS['text_muted']};margin-top:4px;'>New/prospective: {new_total} &nbsp; Existing holders: {holder_count}</div>"
+        f"<div style='font-size:var(--fs-sm);color:{mix_color};margin-top:4px;'>{mix_label} ({new_pct}% new / {100-new_pct}% existing)</div>"
+        + (f"<div style='font-size:var(--fs-xs);color:{COLORS['text_muted']};margin-top:2px;'>{recency_note}</div>" if recency_note else "")
     )
 
     most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
     if most_visited and most_visited[1] >= 2 and most_visited[0] != top_metro:
         ui.html(
-            f"<div style='font-size:13px;color:#B45309;margin-top:10px;'>"
+            f"<div style='font-size:var(--fs-base);color:#B45309;margin-top:10px;'>"
             f"By contrast, <b>{most_visited[0]}</b> has had {most_visited[1]} trips already for only "
             f"{metro_summary.get(most_visited[0], {}).get('count', '?')} tracked institution(s) — before scheduling a third trip "
             f"there, weigh it against the untapped opportunity in {top_metro}.</div>"
@@ -2752,8 +2752,8 @@ def _render_big_picture(institutions):
     ui.html(
         f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid {COLORS['accent']};border-radius:12px;padding:18px 22px;'>"
         f"<div class='section-head' style='margin:0;'>Top opportunity — where to start</div>"
-        f"<div style='font-size:16px;font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>{top_metro}</div>"
-        f"<div style='font-size:13px;color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
+        f"<div style='font-size:var(--fs-lg);font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>{top_metro}</div>"
+        f"<div style='font-size:var(--fs-base);color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
         f"{top_d['count']} tracked institution(s) here"
         + (f", including <b>{top_d['top']}</b> (score {top_d['top_score']})" if top_d.get('top') else "")
         + f" — {top_d['tier1_nonholder']} non-holder(s) at Tier 1 ready to convert and {top_d['holders']} existing holder(s) to defend — "
@@ -2937,7 +2937,7 @@ def _render_big_picture(institutions):
                     with ui.row().classes("w-full items-end gap-2").style(
                             f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
                         ui.label("Tick names, then add them to an NDR as shortlisted targets.").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
                         trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
                         new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
                         new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
@@ -3013,7 +3013,7 @@ def _render_big_picture(institutions):
                              f"latest SEC N-CEN/485 filing) — the strategy sleeve a 13F hides. Shown for "
                              f"{_n_lineups} of {len(d_rows)} here; blank where the holder has no registered "
                              "fund family (hedge fund / SMA) or isn't yet confirmed in the crosswalk.").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
         _drill_dialog.open()
 
     # pagination=25 → the metro list itself pages 25 at a time; sortable headers sort the full set.
@@ -3059,18 +3059,18 @@ def _render_big_picture(institutions):
              f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
              "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
              "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     ui.button("Manage fund-lineup matches", icon="account_tree",
-              on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:11px;margin-top:2px;")
+              on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
 
 
 def _bp_metric(label, value, detail_lines):
     with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         with ui.expansion("Details", value=False).classes("w-full"):
             for line in detail_lines:
-                ui.label(line).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -3103,12 +3103,12 @@ def _size_calibration_note(client_id):
         ui.label(f"⚠ No market cap on record for {CT('name')} — peer targeting is defaulting to the strictest "
                  "micro-cap profile. Set the market cap at onboarding so the book is calibrated to the issuer's size.").style(
             f"background:#FBEFE1;color:{COLORS['warning']};border:1px solid {COLORS['warning']};"
-            "border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;margin:6px 0;")
+            "border-radius:8px;padding:6px 10px;font-size:var(--fs-sm);font-weight:600;margin:6px 0;")
         return
     ui.label(f"Sized as a {tier}-cap issuer ({cap_str}) — peer targeting is calibrated to this: {div}. "
              "Set at onboarding; a different size (e.g. a mid-cap like SARO) reshapes the whole book.").style(
         f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};border-radius:8px;"
-        "padding:6px 10px;font-size:12px;margin:6px 0;")
+        "padding:6px 10px;font-size:var(--fs-sm);margin:6px 0;")
 
 
 def _render_accounts_tab(client_id, institutions=None):
@@ -3117,7 +3117,7 @@ def _render_accounts_tab(client_id, institutions=None):
         f"color:{COLORS['text_heading']};")
     ui.label(f"Your {CT('ticker')} holders and every firm you've noted or logged an interaction with. Quality and "
              "notes are yours; touches and last contact are computed from logged + NDR activity. Click a name for the full 360.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     _size_calibration_note(client_id)
 
     # Start from the CRM book (noted/logged/seeded), then fold in the current holder book
@@ -3173,7 +3173,7 @@ def _render_accounts_tab(client_id, institutions=None):
                          ("Peer-owners", n_peers), ("Good to deal with", good)]:
             with ui.column().classes("gap-0"):
                 ui.label(str(val)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-                ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
         search = ui.input("Search name").props("dense outlined clearable").style("min-width:190px;")
@@ -3218,7 +3218,7 @@ def _render_accounts_tab(client_id, institutions=None):
             by_name[a["name"]] = a
         if not rows:
             ui.label("No accounts match — your book holds your holders, the peer-owner universe, and "
-                     "anything you note or log.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                     "anything you note or log.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             return
         cols = [{"name": k, "label": k, "field": k, "sortable": True,
                  "align": "right" if k == "Touches" else "left"}
@@ -3267,10 +3267,10 @@ def _render_buyside_tab(institutions, meeting_log, mode):
 
     if mode == "pre":
         ui.label("Buy-Side Intelligence — Pre-Earnings Engagement").classes("text-lg font-bold")
-        ui.label("Three-layer institutional targeting · Engagement score 0-100 · Prioritized by probability of buying into the re-rating story").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Three-layer institutional targeting · Engagement score 0-100 · Prioritized by probability of buying into the re-rating story").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     else:
         ui.label("Buy-Side Intelligence — Post-Earnings Prospecting").classes("text-lg font-bold")
-        ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     tier1 = [i for i in institutions if _score_val(i) >= 80]
     tier2 = [i for i in institutions if 40 <= _score_val(i) < 80]
@@ -3289,13 +3289,13 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     # right (justify-between) disconnected from anything.
     with ui.row().classes("items-baseline gap-2"):
         ui.label(f"{len(institutions)} institutions tracked").classes("font-bold")
-        ui.label(f"· {sum(1 for i in institutions if i['Call_Listener'])} were Q1 call listeners").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label(f"· {sum(1 for i in institutions if i['Call_Listener'])} were Q1 call listeners").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     with ui.expansion("Filter Criteria — Coverage Priority, Holder Status, Turnover, Metro, Intent, Ownership", value=False).classes("w-full"):
         ui.label("These narrow the institution list below — they don't affect the Engagement Funnel or metrics "
                  "above, which always show the complete tracked set. All defaults below are unfiltered (everything "
                  "shown), so the list you see with no filters applied matches the same ranked order Today's "
-                 "Investor Pipeline widget pulls from — narrow it from here if you want a subset.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                 "Investor Pipeline widget pulls from — narrow it from here if you want a subset.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         with ui.row().classes("w-full gap-4"):
             # Coverage Priority is a manually-assigned seed classification
             # (data/seed/buyside_institutions.py's "Coverage_Priority" field,
@@ -3335,7 +3335,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         ownership_filter = ui.toggle(["All", "Active only", "Passive only"], value="All")
         ui.label("Ownership Type is tagged per manager (not parsed from the 13F itself — filings don't carry an "
                  "active/passive flag). Excluding passive/index holders surfaces who can actually take a 1x1 meeting.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         filter_btn = ui.button("Apply filters")
 
     ui.markdown("---")
@@ -3352,7 +3352,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     with ui.row().classes("w-full items-end gap-2").style(
             f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin:6px 0;"):
         ui.label("Tick institutions below, then add them to an NDR as shortlisted targets.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;flex:1;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
         _bs_sel = ui.select(_bs_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
         _bs_name = ui.input("New NDR name", value="Buy-Side NDR").props("dense outlined").style("min-width:150px;")
         _bs_name.bind_visibility_from(_bs_sel, "value", backward=lambda v: v == "__new__")
@@ -3417,7 +3417,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             _render_repeat_alert_banner(filtered, meeting_log)
 
         with list_container:
-            ui.label(f"{len(filtered)} institutions matching filters").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"{len(filtered)} institutions matching filters").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if not filtered:
                 ui.label("No institutions match these filters.").style(f"color:{COLORS['text_muted']};")
             for inst in filtered:
@@ -3473,7 +3473,7 @@ def _render_repeat_alert_banner(filtered, meeting_log):
             f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
             f"<div style='color:{COLORS['text_heading']};'><b>{inst['Fund']}</b> requested a second meeting in <b>{gap} days</b> (within 45-day window)</div>"
             f"<span style='font-weight:600;color:{sig_clr};'>{sig_icon} {sig_txt}</span></div>"
-            f"<div style='font-size:13px;color:{COLORS['text_muted']};margin-top:4px;'>"
+            f"<div style='font-size:var(--fs-base);color:{COLORS['text_muted']};margin-top:4px;'>"
             f"First: {prev_m['Date']} ({prev_m['Type']}) · Last: {last_m['Date']} ({last_m['Type']}) · "
             f"Last outcome: {last_m.get('Outcome','—')}</div></div>"
         )
@@ -3495,7 +3495,7 @@ def _tier_card(institutions, label, action, accent_color):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
                 ui.label(label).style(f"color:{accent_color};font-weight:bold;")
-                ui.label(action).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(action).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             ui.label(str(len(institutions))).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
         ui.space()
         # Always render the disclosure — even when empty — so all three tier
@@ -3504,9 +3504,9 @@ def _tier_card(institutions, label, action, accent_color):
         with ui.expansion(f"Show {len(institutions)} institution(s)").classes("w-full"):
             if institutions:
                 for inst in institutions:
-                    ui.label(f"{pretty_name(inst['Fund'])} — {inst['Engagement_Score']}/100").style(f"color:{COLORS['text_body']};font-size:12px;")
+                    ui.label(f"{pretty_name(inst['Fund'])} — {inst['Engagement_Score']}/100").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
             else:
-                ui.label("No institutions currently in this tier.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label("No institutions currently in this tier.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _institution_card(inst, meeting_log, contacts):
@@ -3533,41 +3533,41 @@ def _institution_card(inst, meeting_log, contacts):
             with ui.column().classes("gap-0"):
                 ownership_badge = "Passive" if inst.get("Ownership_Style") == "Passive" else "Active"
                 with ui.row().classes("items-center gap-2"):
-                    ui.label(f"{pretty_name(inst['Fund'])}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+                    ui.label(f"{pretty_name(inst['Fund'])}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
                     _src = inst.get("Source", "Seed (demo)")
                     ui.label(_src).style(
                         f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:1px 6px;"
-                        "font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap;")
+                        "font-size:var(--fs-2xs);font-weight:700;letter-spacing:.02em;white-space:nowrap;")
                     _q = _rel.get("quality")
                     if _q:
                         ui.label(account_api.QUALITY.get(_q, _q)).style(
                             f"background:{COLORS['positive'] if _q in ('good', 'responsive') else COLORS['surface_hover_bg']};"
                             f"color:{'#fff' if _q in ('good', 'responsive') else COLORS['text_secondary']};"
-                            "border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap;")
-                ui.label(f"{inst['Metro']}  ·  {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            "border-radius:6px;padding:1px 7px;font-size:var(--fs-2xs);font-weight:700;white-space:nowrap;")
+                ui.label(f"{inst['Metro']}  ·  {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 if _ix.get("touches"):
                     ui.label(f"{_ix['touches']} touch{'es' if _ix['touches'] != 1 else ''} · last {_ix.get('last_contact') or '—'}").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 if repeat_gap is not None:
-                    ui.label(f"Repeat meeting in {repeat_gap}d").style(f"color:#B45309;font-size:12px;font-weight:bold;")
+                    ui.label(f"Repeat meeting in {repeat_gap}d").style(f"color:#B45309;font-size:var(--fs-sm);font-weight:bold;")
                 if days_contacted is not None and days_contacted <= 7:
                     ui.label(f"Contacted {days_contacted}d ago — off Today's Investor Pipeline until day 8").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
             with ui.column().classes("items-center gap-0"):
                 ui.label(str(score)).classes("text-2xl font-bold").style(f"color:{COLORS['accent_light']};")
                 with ui.row().classes("items-center gap-1 no-wrap"):
-                    ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label("/100").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     ui.icon("info").classes("cursor-help").style(
-                        f"font-size:13px;color:{COLORS['text_muted']};").tooltip(
+                        f"font-size:var(--fs-base);color:{COLORS['text_muted']};").tooltip(
                         "Engagement score, 0-100 — blends who already knows the story (call-listener), "
                         "peer-holding overlap, and recent IR visits; the weights shift with Pre-/Post-earnings "
                         "mode. Higher = readier to engage.")
 
         with ui.row().classes("w-full gap-6").style("margin-top:6px;"):
             ui.label(f"Shares: {shares_str}").classes("cursor-help").style(
-                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(f"Shares of {_tk} held (latest 13F)")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);").tooltip(f"Shares of {_tk} held (latest 13F)")
             ui.label(f"QoQ: {qoq_str}").classes("cursor-help").style(
-                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);").tooltip(
                 "Quarter-over-quarter change in shares held (+ adding · − trimming)")
             # None means UNKNOWN, not "no". There is no call-listener or website-analytics
             # integration, so rendering "Did not listen" / "None · None" for a real 13F holder
@@ -3581,11 +3581,11 @@ def _institution_card(inst, meeting_log, contacts):
             _visits_str = ("no visit data" if inst.get("IR_Visits_30d") is None
                            else f"{inst['IR_Visits_30d']} · {inst.get('Last_Visit') or '—'}")
             ui.label(f"Q1 call: {_call_str}").classes("cursor-help").style(
-                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);").tooltip(
                 "Whether they listened to the last earnings call (call-listener signal). "
                 "'no call data' = we didn't measure it, not a 'no'")
             ui.label(f"IR visits (30d): {_visits_str}").classes("cursor-help").style(
-                f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);").tooltip(
                 "IR-website visits in the last 30 days · last visit date. 'no visit data' = not measured")
         # marks a peer holding confirmed by a real SEC 13F filing (see
         # _enrich_peer_holdings_with_live_13f); an unmarked ticker is still
@@ -3604,11 +3604,11 @@ def _institution_card(inst, meeting_log, contacts):
             _peers = [_peers]
         _peer_labels = [t + (" " if _peer_src.get(t) == "live" else "") for t in _peers]
         ui.label(f"Peers held: {', '.join(_peer_labels) or '—'}").classes("cursor-help").style(
-            f"color:{COLORS['text_muted']};font-size:12px;").tooltip(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);").tooltip(
             f"Which of {_tk}'s comps this fund owns. A checkmark = confirmed by a live SEC 13F; "
             "unmarked = seed guess, not yet 13F-refreshed")
         ui.label(f"Action: {inst['Action']}").classes("cursor-help").style(
-            f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;").tooltip(
+            f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-weight:bold;").tooltip(
             "The suggested next move for this holder, read from its position change and signals")
 
         contact = contacts.get(inst["Fund"], {})
@@ -3657,7 +3657,7 @@ def _open_outreach_dialog(inst, contact):
         if to_email:
             _mailto(to_email, subject, body, f"Email {contact.get('name','Contact')}")
         else:
-            ui.label("No email on file for this contact yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No email on file for this contact yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -3668,22 +3668,22 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
         if repeat_gap is not None:
             qoq = inst.get("QoQ_Change", 0)
             if qoq > 0:
-                ui.label(f"Likely diligence — shares +{qoq:,} and repeat meeting in {repeat_gap}d. Escalate to CFO.").style("color:#15803D;font-size:12px;")
+                ui.label(f"Likely diligence — shares +{qoq:,} and repeat meeting in {repeat_gap}d. Escalate to CFO.").style("color:#15803D;font-size:var(--fs-sm);")
             elif qoq < 0:
-                ui.label(f"Flag — shares {qoq:,} and repeat meeting in {repeat_gap}d. Possible pre-exit diligence.").style("color:#B91C1C;font-size:12px;")
+                ui.label(f"Flag — shares {qoq:,} and repeat meeting in {repeat_gap}d. Possible pre-exit diligence.").style("color:#B91C1C;font-size:var(--fs-sm);")
             else:
-                ui.label(f"Intent unclear — repeat meeting in {repeat_gap}d, no share change. Ask directly.").style("color:#B45309;font-size:12px;")
+                ui.label(f"Intent unclear — repeat meeting in {repeat_gap}d, no share change. Ask directly.").style("color:#B45309;font-size:var(--fs-sm);")
 
         if fund_meetings:
             for mtg in fund_meetings:
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
-                    ui.label(f"{mtg['Date']} · {mtg['Type']} — {mtg.get('Outcome','—')}").classes("font-bold").style("font-size:13px;")
-                    ui.label(f"Attendees: {mtg.get('Attendees','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                    ui.label(f"Notes: {mtg.get('Notes','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{mtg['Date']} · {mtg['Type']} — {mtg.get('Outcome','—')}").classes("font-bold").style("font-size:var(--fs-base);")
+                    ui.label(f"Attendees: {mtg.get('Attendees','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                    ui.label(f"Notes: {mtg.get('Notes','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     if mtg.get("Logged By"):
-                        ui.label(f"Logged by: {mtg['Logged By']}").style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                        ui.label(f"Logged by: {mtg['Logged By']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
         else:
-            ui.label("No meetings logged yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No meetings logged yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         # Pre-fill attendees from the known contact on file for this
         # institution, if there is one — previously always blank, which
@@ -3709,8 +3709,8 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
                                label="Meeting Outcome (scored)", value="Positive — follow up").classes("w-full")
         ui.label(f"Outcome feeds this fund's Interaction Score (0–{INTERACTION_SCORE_MAX} pts of the 100-pt "
                  "Engagement Score) — a positive/CFO-escalation outcome raises it, a Flag lowers it.") \
-            .style(f"color:{COLORS['text_muted']};font-size:11px;")
-        ui.label(f"Logging as: {logged_by}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        ui.label(f"Logging as: {logged_by}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         def log_meeting():
             log = _load_meeting_log()
@@ -3998,18 +3998,18 @@ def _build_ndr_itinerary_html(trip, ticker):
         "<!doctype html><html><head><meta charset='utf-8'>"
         f"<title>{esc(ticker)} NDR — {esc(trip.get('name', ''))}</title><style>"
         "body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0F172A;margin:32px;}"
-        "h1{font-size:20px;margin:0 0 2px;}.sub{color:#475569;font-size:13px;margin-bottom:12px;}"
-        ".meta-block div{font-size:13px;margin:2px 0;color:#334155;}"
+        "h1{font-size:var(--fs-2xl);margin:0 0 2px;}.sub{color:#475569;font-size:var(--fs-base);margin-bottom:12px;}"
+        ".meta-block div{font-size:var(--fs-base);margin:2px 0;color:#334155;}"
         "table{width:100%;border-collapse:collapse;margin-top:14px;}"
-        "td{border-bottom:1px solid #E2E8F0;padding:8px 6px;vertical-align:top;font-size:13px;}"
+        "td{border-bottom:1px solid #E2E8F0;padding:8px 6px;vertical-align:top;font-size:var(--fs-base);}"
         "td.time{white-space:nowrap;width:90px;color:#475569;font-weight:600;}"
-        "td.firm{font-weight:600;}.meta{font-weight:400;color:#64748B;font-size:11px;margin-top:2px;}"
-        ".det{font-weight:400;color:#334155;font-size:12px;margin-top:4px;}"
-        "td.travel{border-bottom:none;color:#64748B;font-size:11px;font-style:italic;padding:2px 6px;}"
+        "td.firm{font-weight:600;}.meta{font-weight:400;color:#64748B;font-size:var(--fs-xs);margin-top:2px;}"
+        ".det{font-weight:400;color:#334155;font-size:var(--fs-sm);margin-top:4px;}"
+        "td.travel{border-bottom:none;color:#64748B;font-size:var(--fs-xs);font-style:italic;padding:2px 6px;}"
         "td.time.travel{text-align:right;color:#94A3B8;font-weight:400;}"
         ".tight{color:#B45309;font-style:normal;font-weight:600;}"
-        "td.day{background:#F1F5F9;font-weight:700;font-size:12px;letter-spacing:.03em;}"
-        ".foot{margin-top:18px;color:#94A3B8;font-size:11px;}"
+        "td.day{background:#F1F5F9;font-weight:700;font-size:var(--fs-sm);letter-spacing:.03em;}"
+        ".foot{margin-top:18px;color:#94A3B8;font-size:var(--fs-xs);}"
         "@media print{body{margin:12px;}}"
         "</style></head><body>"
         f"<h1>{esc(ticker)} — Non-Deal Roadshow Itinerary</h1>"
@@ -4145,14 +4145,14 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
     dialog = ui.dialog()
     with dialog, ui.card().style("min-width:380px;"):
         ui.label(f"Schedule {fund}").style(
-            f"color:{COLORS['text_heading']};font-weight:700;font-size:15px;")
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
         ui.label("Pick a meeting time — flexible, adjust later for travel.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         if _is_ria_fund:
             with ui.row().classes("items-center gap-1").style("margin-top:2px;"):
-                ui.icon("videocam").style("color:#B45309;font-size:15px;")
+                ui.icon("videocam").style("color:#B45309;font-size:var(--fs-md);")
                 ui.label("RIA / wealth manager — video call tier. An assistant can set this up; "
-                         "it doesn't need management travel.").style("color:#B45309;font-size:12px;")
+                         "it doesn't need management travel.").style("color:#B45309;font-size:var(--fs-sm);")
         with ui.row().classes("w-full gap-3 items-end").style("margin-top:6px;"):
             day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20")
             time_in = _time_picker_input()
@@ -4274,7 +4274,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
             ui.label("Recommended targets").classes("font-bold")
             targets_caption = ui.label(
                 "Geographically matched, non-holders prioritized. Pick a city/region above (or Virtual) to see candidates."
-            ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             target_checks = {}  # Fund name -> (checkbox, institution dict) — read by save_trip()
 
             def rebuild_targets(e=None):
@@ -4290,22 +4290,22 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         if prior:
                             ui.label(f"Last time in {location}: {prior.get('dates','—')} — \"{prior.get('name','')}\" "
                                       f"({len(prior.get('meetings', []))} meeting(s) scheduled).").style(
-                                f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:4px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
                         else:
                             ui.label(f"No prior NDR trip on file to {location} — this would be a first visit.").style(
-                                f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:4px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
                     candidates = _ndr_target_candidates(institutions, location, ndr_type)
                     if not candidates:
                         ui.label(f"No tracked institutions {'score >=40 for virtual outreach' if ndr_type == 'virtual' else f'in {location}'} yet — "
                                   "add prospects via Target Database or Buy-Side Intelligence first, or add meetings to this trip "
-                                  "by hand from the Active NDRs tab.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                  "by hand from the Active NDRs tab.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         return
                     n_non = sum(1 for i in candidates if not i["USIO_Holder"])
                     max_auto = int((days_in.value or 1) * (slots_in.value or 5))
                     ui.label(f"{len(candidates)} tracked institution(s) — {n_non} non-holder(s) prioritized, "
                               f"{len(candidates) - n_non} existing holder(s). Top {min(max_auto, n_non)} non-holder(s) pre-checked "
                               f"for {int(days_in.value or 1)} day(s) × {int(slots_in.value or 5)} meeting(s)/day.").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:6px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:6px;")
                     with ui.row().classes("w-full gap-3"):
                         col_a = ui.column().classes("flex-1 gap-2")
                         col_b = ui.column().classes("flex-1 gap-2")
@@ -4321,14 +4321,14 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 cb = ui.checkbox(value=default_check)
                                 with ui.column().classes("gap-0"):
                                     with ui.row().classes("items-center gap-2"):
-                                        ui.label(pretty_name(inst["Fund"])).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                                        ui.label(pretty_name(inst["Fund"])).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                                         ui.label(str(inst["Engagement_Score"])).style(
-                                            f"background:{border_clr}22;color:{border_clr};font-size:11px;font-weight:700;"
+                                            f"background:{border_clr}22;color:{border_clr};font-size:var(--fs-xs);font-weight:700;"
                                             f"padding:1px 6px;border-radius:6px;")
                                     ui.label(f"{inst['Metro']} · {'Holder' if inst['USIO_Holder'] else 'Non-holder'} · {inst.get('Type','—')}").style(
-                                        f"color:{COLORS['text_muted']};font-size:11px;")
+                                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                     ui.label(f"Contacted {days_since}d ago" if days_since is not None else "No prior contact logged").style(
-                                        f"color:{COLORS['text_muted']};font-size:11px;")
+                                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             target_checks[inst["Fund"]] = (cb, inst)
 
             targets_area = ui.column().classes("w-full")
@@ -4480,12 +4480,12 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             _ttype = "Virtual" if trip.get("ndr_type") == "virtual" else "In-Person"
                             _tsponsor = trip.get("sponsor_bank") or trip.get("sponsor") or "—"
                             ui.label(f"{status_icon} {_tname}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                            ui.label(f"{_tdates} · {trip.get('city','—')} · {_ttype} · Sponsor: {_tsponsor}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                            ui.label(f"Focus: {trip.get('focus','—')} · Attendees: {', '.join(trip.get('team',[])) or '—'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            ui.label(f"{_tdates} · {trip.get('city','—')} · {_ttype} · Sponsor: {_tsponsor}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                            ui.label(f"Focus: {trip.get('focus','—')} · Attendees: {', '.join(trip.get('team',[])) or '—'}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                             if trip.get("notes"):
-                                ui.label(f"Objectives: {trip['notes']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                ui.label(f"Objectives: {trip['notes']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         with ui.column().classes("items-end gap-1"):
-                            ui.label(f"{done_m}/{len(real_meetings)} completed · {non_h} non-holder(s)").style(f"color:{COLORS['accent_light']};font-size:12px;")
+                            ui.label(f"{done_m}/{len(real_meetings)} completed · {non_h} non-holder(s)").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
 
                             def set_trip_status(e, idx=idx):
                                 trips_ = _load_json("ndr_trips.json", [])
@@ -4502,14 +4502,14 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     _cap_d, _cap_p = _ndr_capacity(trip)
                     _filled = len([m for m in all_meetings if m.get("type") != "break"])
                     with ui.row().classes("w-full items-center gap-2").style("margin-top:4px;"):
-                        ui.label("Capacity").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label("Capacity").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         ui.number(value=_cap_d, min=1, max=10,
                                   on_change=lambda e, ti=idx: _set_capacity(ti, "days", e.value)).props("dense outlined").style("width:66px;").tooltip("Days")
-                        ui.label("days ×").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label("days ×").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         ui.number(value=_cap_p, min=1, max=12,
                                   on_change=lambda e, ti=idx: _set_capacity(ti, "slots_per_day", e.value)).props("dense outlined").style("width:66px;").tooltip("Meetings per day")
                         ui.label(f"/day  ·  {_filled} of {_cap_d * _cap_p} slots filled").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                     # NDR pipeline (Phase 2) — shortlisted → invited → confirmed → declined.
                     # Held in trip['shortlist'], separate from the slot schedule below (Phase 3
@@ -4533,13 +4533,13 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;"
                                         f"margin:2px 0;{'opacity:.55;' if st == 'declined' else ''}"):
                                     ui.label(lbl).style(f"background:{clr}22;color:{clr};border-radius:6px;"
-                                                        "padding:1px 8px;font-size:10px;font-weight:700;white-space:nowrap;")
+                                                        "padding:1px 8px;font-size:var(--fs-2xs);font-weight:700;white-space:nowrap;")
                                     ui.label(pretty_name(s.get("institution", ""))).classes("flex-1").style(
-                                        f"color:{COLORS['text_body']};font-size:13px;")
+                                        f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                                     _sl_loc = ", ".join(x for x in [s.get("city"), s.get("state")] if x) or s.get("metro", "—")
-                                    ui.label(_sl_loc).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    ui.label(_sl_loc).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                     if s.get("conviction") is not None:
-                                        ui.label(f"{s['conviction']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                        ui.label(f"{s['conviction']}/100").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                     # Per-status actions
                                     if st == "shortlisted":
                                         ui.button("Contact", icon="mail",
@@ -4559,7 +4559,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         ui.button("Restore", on_click=lambda ti=idx, si=si: _sl_set(ti, si, "shortlisted")).props("flat dense size=sm")
                             ui.label("Contact opens a draft you send yourself and marks the target Invited (logged). "
                                      "Confirm → automatic slot assignment arrives in Phase 3.").style(
-                                f"color:{COLORS['text_muted']};font-size:10.5px;margin-top:4px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:4px;")
 
                     meetings_with_idx = sorted(enumerate(all_meetings), key=lambda x: (x[1].get("day", 1), x[0]))
                     current_day = None
@@ -4568,19 +4568,19 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         if d != current_day:
                             current_day = d
                             ui.label(f"Day {d}" if len(meetings_with_idx) and any(mm.get("day", 1) != 1 for _, mm in meetings_with_idx) else "Meetings").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;margin-top:8px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;margin-top:8px;")
                         nh_badge = "" if m.get("non_holder", True) else ""
                         fmt_badge = "" if m.get("format") in ("Zoom", "Teams") else ""
                         with ui.row().classes("w-full items-center gap-2").style(
                                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
-                            ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;width:110px;")
+                            ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);width:110px;")
                             with ui.row().classes("flex-1 items-center gap-1").style("min-width:0;"):
-                                ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").style(f"color:{COLORS['text_body']};font-size:13px;")
+                                ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                                 if m.get("source") == "inbound":
                                     ui.label("inbound").style("background:#B4530922;color:#B45309;border-radius:6px;"
-                                                              "padding:0 6px;font-size:9.5px;font-weight:700;")
+                                                              "padding:0 6px;font-size:var(--fs-micro);font-weight:700;")
                             if m.get("score") is not None:
-                                ui.label(f"{m['score']}/100").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                ui.label(f"{m['score']}/100").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                             def set_meeting_status(e, idx=idx, flat_idx=flat_idx):
                                 trips_ = _load_json("ndr_trips.json", [])
@@ -4600,7 +4600,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             if _mc.get("phone"):
                                 with ui.link(target=_tel_href(_mc["phone"])).tooltip(
                                         f"Call {_mc.get('name', '')} · {_mc['phone']}"):
-                                    ui.icon("call").style(f"color:{COLORS['accent_light']};font-size:18px;")
+                                    ui.icon("call").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xl);")
                             if _mc.get("email"):
                                 _first = _mc.get("name", "").split()[0] if _mc.get("name") else ""
                                 _slot = f" for our {m.get('time')} slot" if m.get("time") and m.get("time") != "—" else ""
@@ -4610,7 +4610,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                           f"logistics{_slot} and share some materials ahead of time.\n\n")
                                 _href = f"mailto:{_mc['email']}?subject={quote(_subj)}&body={quote(_bodym)}"
                                 with ui.link(target=_href).tooltip(f"Email {_mc.get('name', '')} · {_mc['email']}"):
-                                    ui.icon("mail").style(f"color:{COLORS['accent_light']};font-size:18px;")
+                                    ui.icon("mail").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xl);")
 
                             # Per-meeting remove — confirmed, since it's
                             # destructive and there's no undo. flat_idx is the
@@ -4620,7 +4620,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             _m_name = m.get("institution") or "this meeting"
                             with ui.dialog() as _del_dialog, ui.card():
                                 ui.label(f"Remove {_m_name} from this trip?").classes("font-bold")
-                                ui.label("This can't be undone.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                ui.label("This can't be undone.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                                 with ui.row().classes("justify-end w-full"):
                                     ui.button("Cancel", on_click=_del_dialog.close).props("flat dense")
 
@@ -4750,21 +4750,21 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         _who = m.get("contact") or (
                             ", ".join(p for p in (_known_c.get("name"), _known_c.get("title")) if p))
                         if _who:
-                            ui.label(f"   Meeting with: {_who}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                            ui.label(f"   Meeting with: {_who}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:6px;")
                         if m.get("address"):
-                            ui.label(f"   Location: {m['address']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                            ui.label(f"   Location: {m['address']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:6px;")
                         if m.get("format", "In-person") != "In-person":
                             _lk = (m.get("meeting_link") or "").strip()
                             if _lk:
                                 with ui.row().classes("items-center gap-1").style("margin-left:6px;"):
-                                    ui.label(f"   Join ({m.get('format')}):").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    ui.label(f"   Join ({m.get('format')}):").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                     with ui.link(target=_lk, new_tab=True):
-                                        ui.label(_lk[:48] + ("…" if len(_lk) > 48 else "")).style(f"color:{COLORS['accent_light']};font-size:11px;")
+                                        ui.label(_lk[:48] + ("…" if len(_lk) > 48 else "")).style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
                             else:
                                 ui.label(f"   {m.get('format')} · link TBD — click ✎ to add").style(
-                                    f"color:#B45309;font-size:11px;margin-left:6px;")
+                                    f"color:#B45309;font-size:var(--fs-xs);margin-left:6px;")
                         if m.get("notes"):
-                            ui.label(f"   {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-left:6px;")
+                            ui.label(f"   {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:6px;")
 
                     # Filler-meeting finder — a light day (like 3 meetings)
                     # is the IR person's cue to fill open slots. Rather than
@@ -4788,24 +4788,24 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                      f"score — non-holders first ({_n_non} non-holder{'s' if _n_non != 1 else ''}, "
                                      f"{len(_all_cands) - _n_non} holder{'s' if (len(_all_cands) - _n_non) != 1 else ''}). "
                                      f"Call or email to invite, then add them to the trip.{_more}").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             for c in _fillers:
                                 cc = get_institution_contacts().get(c["Fund"], {})
                                 with ui.row().classes("w-full items-center gap-2").style(
                                         f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                                     ui.label(str(c["Engagement_Score"])).style(
-                                        f"color:{COLORS['accent_light']};font-size:12px;font-weight:700;width:34px;")
+                                        f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-weight:700;width:34px;")
                                     with ui.column().classes("gap-0 flex-1"):
-                                        ui.label(c["Fund"]).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                                        ui.label(c["Fund"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
                                         _bits = [c.get("Metro"), c.get("Type")]
                                         if cc.get("name"):
                                             _bits.append(f"{cc['name']} ({cc.get('title', '')})")
                                         _bits.append(cc.get("phone") or "no contact on file")
                                         ui.label(" · ".join(x for x in _bits if x)).style(
-                                            f"color:{COLORS['text_muted']};font-size:11px;")
+                                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                     if cc.get("phone"):
                                         ui.link("Call", _tel_href(cc["phone"])).style(
-                                            f"color:{COLORS['accent_light']};font-size:12px;")
+                                            f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
                                     if cc.get("email"):
                                         _first = cc.get("name", "").split()[0] if cc.get("name") else ""
                                         _mailto(cc["email"],
@@ -4957,17 +4957,17 @@ async def _open_ndr_reply_dialog(req, on_done):
 
     with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
         ui.label(f"Reply to {analyst}" + (f" ({req.get('firm')})" if req.get("firm") else "")).classes(
-            "font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+            "font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
         ui.label(f"Their request: {req.get('reason') or '—'}").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         _to = ui.input("To", value=req.get("analyst_email") or req.get("sender_email") or "").props(
-            "outlined dense").classes("w-full").style("font-size:12px;")
-        _subj = ui.input("Subject", value=subject).props("outlined dense").classes("w-full").style("font-size:12px;")
+            "outlined dense").classes("w-full").style("font-size:var(--fs-sm);")
+        _subj = ui.input("Subject", value=subject).props("outlined dense").classes("w-full").style("font-size:var(--fs-sm);")
         _body = ui.textarea("Message", value=body).props("outlined autogrow dense").classes(
-            "w-full").style("font-size:12px;")
+            "w-full").style("font-size:var(--fs-sm);")
         ui.label("Reviewed and sent by you — IRconnect never sends shareholder mail automatically "
                  "(Reg FD). A copy is filed to your Sent folder and logged on this request.").style(
-            f"color:{COLORS['text_muted']};font-size:10.5px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
         def _log(via, message_id=None):
             ndr_correspondence.record_reply(req["id"], _to.value, _subj.value or "", _body.value or "",
@@ -5049,7 +5049,7 @@ def _render_ndr_requests_tab():
         "Analyst requests to slot a management meeting into a city — feeds the Big Picture panel's Metro "
         "Priority scoring and 'This Week's Priority' recommendation above. Resolve a request once it's been "
         "scheduled (or declined) so it stops counting as open demand."
-    ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     with ui.expansion("Log a new request", value=False).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
@@ -5101,28 +5101,28 @@ def _render_ndr_requests_tab():
             with ui.row().classes("items-center").style("gap:8px;"):
                 if _replied:
                     ui.label(f"REPLIED · {r.get('replied_at','')}").style(
-                        "background:rgba(21,128,61,.14);color:#15803D;font-size:9.5px;font-weight:800;"
+                        "background:rgba(21,128,61,.14);color:#15803D;font-size:var(--fs-micro);font-weight:800;"
                         "padding:2px 8px;border-radius:9px;")
                 else:
                     ui.label("AWAITING REPLY").style(
-                        "background:rgba(180,83,9,.14);color:#B45309;font-size:9.5px;font-weight:800;"
+                        "background:rgba(180,83,9,.14);color:#B45309;font-size:var(--fs-micro);font-weight:800;"
                         "padding:2px 8px;border-radius:9px;")
-            ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:12px;")
+            ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
             # Correspondence trail — the sent (and any received) messages on this request.
             trail = ndr_correspondence.trail(r)
             if trail:
                 ui.label("Correspondence").style(
-                    f"color:{COLORS['text_muted']};font-size:10.5px;font-weight:700;margin-top:4px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-weight:700;margin-top:4px;")
                 for c in trail:
                     out = c.get("direction") == "out"
                     who = f"To {c.get('to')}" if out else f"From {c.get('from')}"
                     with ui.row().classes("items-center").style("gap:6px;"):
                         ui.icon("call_made" if out else "call_received").style(
-                            f"color:{'#15803D' if out else COLORS['accent']};font-size:13px;")
+                            f"color:{'#15803D' if out else COLORS['accent']};font-size:var(--fs-base);")
                         ui.label(f"{c.get('ts')} · {who} · {c.get('subject') or ''}"
                                  + (f"  ({c.get('via')})" if c.get('via') else "")).style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
             def mark_resolved(rid=r["id"]):
                 current = _load_ndr_requests()
@@ -5145,7 +5145,7 @@ def _render_ndr_requests_tab():
         with ui.expansion(f"{len(resolved_reqs)} resolved").classes("w-full").style("margin-top:8px;"):
             for r in resolved_reqs:
                 ui.label(f"{r['analyst']} ({r['firm']}) → {r['city']} · resolved {r.get('resolved_at','—')}").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -5168,7 +5168,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
 
     ui.label("Meeting Prep Cards").classes("font-bold")
     ui.label("Pick a trip to generate a prep card per meeting — pulled live from tracked institution data.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     trip_names = [t["name"] for t in trips]
     trip_sel = ui.select(trip_names, value=trip_names[-1], label="Trip").classes("w-full max-w-md")
@@ -5192,7 +5192,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                 d = m.get("day", 1)
                 if d != current_day:
                     current_day = d
-                    ui.label(f"Day {d}").style(f"color:{COLORS['text_muted']};font-size:12px;font-weight:700;margin-top:10px;")
+                    ui.label(f"Day {d}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-weight:700;margin-top:10px;")
                 inst = inst_by_name.get(m.get("institution", ""))
                 # Collapsed to a scannable agenda line (time — institution,
                 # with holder status + score in the caption); expand a meeting
@@ -5206,18 +5206,18 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
                     days_since = _days_since_last_contact(m.get("institution", ""), meeting_log) if inst else None
                     if days_since is not None:
-                        ui.label(f"Last contact: {days_since} day(s) ago").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label(f"Last contact: {days_since} day(s) ago").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                     if m.get("notes"):
-                        ui.label(f"Strategy note: {m['notes']}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                        ui.label(f"Strategy note: {m['notes']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
 
-                    ui.label("Talking points").style(f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;margin-top:6px;")
+                    ui.label("Talking points").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;margin-top:6px;")
                     if inst:
                         for pt in _ndr_talking_points(inst):
-                            ui.label(f"• {pt}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            ui.label(f"• {pt}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                     else:
                         ui.label("• No tracked signal on file — treat as a discovery meeting.").style(
-                            f"color:{COLORS['text_body']};font-size:12px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     trip_sel.on_value_change(rebuild_cards)
     rebuild_cards()
@@ -5271,7 +5271,7 @@ def _render_ndr_debrief_tab():
                     new_pos_in = ui.textarea("New positions initiated (if known)", value=debrief.get("new_positions", "")).classes("w-full")
 
             ui.markdown("---")
-            ui.label("Feeds the IR Risk Dashboard (Markets page) once saved:").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label("Feeds the IR Risk Dashboard (Markets page) once saved:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             with ui.row().classes("w-full gap-4"):
                 objection_in = ui.textarea("Key objection heard", value=debrief.get("key_objection", ""),
                                             placeholder="e.g. \"Concerned about customer concentration in top 3 accounts.\"").classes("flex-1")
@@ -5305,11 +5305,11 @@ def _render_ndr_debrief_tab():
                     _bp_metric("Effectiveness", f"{debrief.get('effectiveness', '—')}/100", [])
                     _bp_metric("Best meeting", debrief.get("best_meeting") or "—", [])
                 if debrief.get("key_objection"):
-                    ui.label(f"Key objection: {debrief['key_objection']}").style(f"color:{COLORS['warning']};font-size:12px;margin-top:6px;")
+                    ui.label(f"Key objection: {debrief['key_objection']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);margin-top:6px;")
                 if debrief.get("narrative_gap"):
-                    ui.label(f"Narrative gap: {debrief['narrative_gap']}").style(f"color:{COLORS['warning']};font-size:12px;")
+                    ui.label(f"Narrative gap: {debrief['narrative_gap']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);")
                 if debrief.get("next_targets"):
-                    ui.label(f"Next targets: {debrief['next_targets']}").style(f"color:{COLORS['accent_light']};font-size:12px;")
+                    ui.label(f"Next targets: {debrief['next_targets']}").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
 
     trip_sel.on_value_change(rebuild_form)
     rebuild_form()
@@ -5421,11 +5421,11 @@ def _render_meeting_hub_tab():
                     _refresh()
 
             ui.button("Sync IR Inbox", on_click=sync_inbox).props("flat dense").style(
-                f"color:{COLORS['accent_light']};font-size:12px;margin-top:4px;")
+                f"color:{COLORS['accent_light']};font-size:var(--fs-sm);margin-top:4px;")
             if not mail_gateway.is_configured():
                 ui.label("Email sync isn't configured yet (no IMAP credentials in .env) — this button will "
                           "explain that rather than pretend to have fetched anything.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
             _render_pending_inbox_items()
 
@@ -5438,7 +5438,7 @@ def _render_meeting_hub_tab():
                     label = {"all": "Upcoming", "sell": "Sell-side", "buy": "Buy-side"}[_hub_filter["mode"]]
                     clear = "" if _hub_filter["mode"] == "all" else "  ·  click Upcoming to clear"
                     ui.label(f"Showing {len(shown)} meeting(s) — {label}{clear}").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     if not shown:
                         ui.label("No upcoming meetings in this view.").style(f"color:{COLORS['text_muted']};")
                     for mtg in shown:
@@ -5446,9 +5446,9 @@ def _render_meeting_hub_tab():
                         with ui.expansion(f"{mtg['Contact']} ({mtg['Firm']})", caption=cap).classes("w-full").style(
                                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
                             ui.label(f"{mtg['Type']} · Priority: {mtg.get('Priority','—')}").style(
-                                f"color:{COLORS['text_secondary']};font-size:13px;")
+                                f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
                             if mtg.get("Topic"):
-                                ui.label(f"Topic: {mtg['Topic']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                ui.label(f"Topic: {mtg['Topic']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                             _render_linked_documents(mtg["Contact"], mtg["Firm"])
 
             render_hub_list()
@@ -5475,17 +5475,17 @@ def _render_meeting_hub_tab():
             # creates the meeting record, so the saved document can be
             # linked to that meeting's id rather than floating unattached.
             pending_upload = {"filename": None, "content_type": None, "bytes": None}
-            upload_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            upload_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             async def handle_model_upload(e):
                 pending_upload["bytes"] = await e.file.read()
                 pending_upload["filename"] = e.file.name
                 pending_upload["content_type"] = e.file.type
                 upload_status.text = f"Attached: {e.file.name} — will be saved when you add this to the queue."
-                upload_status.style(f"color:#15803D;font-size:12px;")
+                upload_status.style(f"color:#15803D;font-size:var(--fs-sm);")
 
             ui.label("Attach the analyst's model or agenda doc (optional):").style(
-                f"color:{COLORS['text_muted']};font-size:12px;margin-top:6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:6px;")
             ui.upload(on_upload=handle_model_upload, auto_upload=True).props("flat").classes("w-full")
 
             def add_meeting():
@@ -5513,7 +5513,7 @@ def _render_meeting_hub_tab():
 
         with ui.tab_panel(h3):
             ui.label("Post-Meeting Note Capture — AI Structures Your Raw Notes").classes("font-bold")
-            ui.label("Type your raw notes immediately after the call — an AI model organizes them into questions, concerns, signals, and actions.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("Type your raw notes immediately after the call — an AI model organizes them into questions, concerns, signals, and actions.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
                     n_contact = ui.input("Contact name").classes("w-full")
@@ -5534,27 +5534,27 @@ def _render_meeting_hub_tab():
                     # most, and the inserted headers also give the AI a much
                     # stronger signal to pull from than unlabeled prose.
                     ui.label("Click a topic to add it to your notes:").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
                     with ui.row().classes("gap-1.5").style("flex-wrap:wrap;"):
                         for topic in NOTE_TOPICS:
                             def _insert_topic(t=topic):
                                 prefix = "\n" if n_raw.value and not n_raw.value.endswith("\n") else ""
                                 n_raw.value = f"{n_raw.value}{prefix}{t}: "
                             ui.button(topic, on_click=_insert_topic).props("flat dense size=sm").style(
-                                f"background:{COLORS['surface_hover_bg']};font-size:11px;padding:2px 8px;")
+                                f"background:{COLORS['surface_hover_bg']};font-size:var(--fs-xs);padding:2px 8px;")
 
             n_pending_upload = {"filename": None, "content_type": None, "bytes": None}
-            n_upload_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            n_upload_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             async def handle_note_upload(e):
                 n_pending_upload["bytes"] = await e.file.read()
                 n_pending_upload["filename"] = e.file.name
                 n_pending_upload["content_type"] = e.file.type
                 n_upload_status.text = f"Attached: {e.file.name}"
-                n_upload_status.style("color:#15803D;font-size:12px;")
+                n_upload_status.style("color:#15803D;font-size:var(--fs-sm);")
 
             ui.label("Attach anything that came with this note (updated model, PDF, etc.) — optional:").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             ui.upload(on_upload=handle_note_upload, auto_upload=True).props("flat").classes("w-full")
 
             result_area = ui.column().classes("w-full")
@@ -5600,16 +5600,16 @@ def _render_structured_note(structured):
     sent_clr = "#15803D" if sent == "Positive" else "#B91C1C" if sent == "Negative" else "#B45309"
     ui.label(f"Sentiment: {sent}").style(f"color:{sent_clr};font-weight:bold;")
     if structured.get("summary"):
-        ui.label(structured["summary"]).style(f"color:{COLORS['text_body']};font-size:13px;")
+        ui.label(structured["summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
     for key, title in [("financial_kpi_takeaways", "Financial/KPI takeaways"),
                         ("key_questions", "Key questions"), ("positive_signals", "Positive signals"),
                         ("concerns_raised", "Concerns raised"), ("follow_up_actions", "Follow-up actions"),
                         ("commitments_made", "Commitments made")]:
         items = structured.get(key)
         if items:
-            ui.label(title).style("font-weight:bold;font-size:13px;margin-top:4px;")
+            ui.label(title).style("font-weight:bold;font-size:var(--fs-base);margin-top:4px;")
             for it in items:
-                ui.label(f"- {it}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"- {it}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 _CATEGORY_LABELS = {
@@ -5654,9 +5654,9 @@ def _open_attachment_preview(doc_id, filename):
         fname, ctype, raw = result
         ext = (fname or "").lower().rsplit(".", 1)[-1]
         with ui.row().classes("w-full items-center justify-between no-wrap"):
-            ui.label(fname).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+            ui.label(fname).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
             ui.label("Parsed from the analyst's emailed model" if ext in ("xlsx", "xlsm", "xls")
-                     else "Attachment preview").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                     else "Attachment preview").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         body = ui.column().classes("w-full").style("max-height:70vh;overflow:auto;margin-top:6px;")
         rendered = False
@@ -5706,7 +5706,7 @@ def _open_attachment_preview(doc_id, filename):
                                                f"{_cell_style(c, numeric, False)}'>{txt}</td>")
                                 rows_html.append("<tr>" + "".join(tds) + "</tr>")
                         ui.html(
-                            "<table style='border-collapse:collapse;font-size:12px;width:100%;"
+                            "<table style='border-collapse:collapse;font-size:var(--fs-sm);width:100%;"
                             "border:1px solid #E2E8F0;'>" + "".join(rows_html) + "</table>")
                         rendered = True
             elif ext == "csv":
@@ -5717,7 +5717,7 @@ def _open_attachment_preview(doc_id, filename):
                         "<tr>" + "".join(f"<td style='padding:3px 8px;border-bottom:1px solid #EEF;'>"
                                          f"{_html.escape(str(x))}</td>" for x in row) + "</tr>"
                         for row in rows)
-                    ui.html(f"<table style='border-collapse:collapse;font-size:12px;'>{cells}</table>")
+                    ui.html(f"<table style='border-collapse:collapse;font-size:var(--fs-sm);'>{cells}</table>")
                     rendered = True
             elif ext == "pdf":
                 import base64
@@ -5729,7 +5729,7 @@ def _open_attachment_preview(doc_id, filename):
             elif ext in ("ics", "txt", "eml", "md", "json"):
                 text = raw.decode("utf-8", errors="replace")
                 with body:
-                    ui.html(f"<pre style='white-space:pre-wrap;font-size:12px;color:#334155;'>"
+                    ui.html(f"<pre style='white-space:pre-wrap;font-size:var(--fs-sm);color:#334155;'>"
                             f"{_html.escape(text)}</pre>")
                     rendered = True
         except Exception:
@@ -5738,7 +5738,7 @@ def _open_attachment_preview(doc_id, filename):
         if not rendered:
             with body:
                 ui.label("No inline preview for this file type — use Download to open it in its native app.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         def _download(fname=fname, raw=raw):
             ui.download(raw, filename=fname)
@@ -5784,7 +5784,7 @@ def _render_pending_inbox_items():
         ui.label(f"Pending Inbox Items ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Classified and pre-filled from the email by AI where possible — review, correct if needed, "
                   "and confirm to send it where it belongs, or dismiss if it was mis-tagged.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         for item in pending:
             extracted = item.get("extracted") or {}
@@ -5795,14 +5795,14 @@ def _render_pending_inbox_items():
                     _hdr += f" ({item['firm']})" if item.get("firm") else (
                         " (individual investor)" if category == "shareholder_inquiry" else "")
                     ui.label(_hdr).classes("font-bold").style(f"color:{COLORS['accent_light']};")
-                    ui.label(f"received {item['received_at']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                ui.label(f"Subject: {item.get('subject') or '(no subject)'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"received {item['received_at']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                ui.label(f"Subject: {item.get('subject') or '(no subject)'}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                 if item.get("doc_id") is not None:
                     def _preview(doc_id=item["doc_id"], fname=item.get("filename")):
                         _open_attachment_preview(doc_id, fname)
                     ui.button(f"{item['filename']}", icon="visibility", on_click=_preview).props(
-                        "flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;").tooltip(
+                        "flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);").tooltip(
                         "Open a legible preview in the app (Download original inside)")
 
                 def dismiss(item_id=item["id"]):
@@ -5826,7 +5826,7 @@ def _render_pending_inbox_items():
                         r_ebd = ui.number("EBITDA Est ($M)", value=extracted.get("ebitda_est") or existing.get("EBITDA Est ($M)") or 0.0, step=0.1).classes("flex-1")
                     if extracted:
                         ui.label("Numbers pre-filled by AI from the attached file — check them before confirming.").style(
-                            f"color:{COLORS['warning']};font-size:11px;")
+                            f"color:{COLORS['warning']};font-size:var(--fs-xs);")
 
                     def confirm(item_id=item["id"], firm=item["firm"], r_period=r_period, r_rating=r_rating,
                                 r_pt=r_pt, r_eps=r_eps, r_rev=r_rev, r_ebd=r_ebd):
@@ -5851,7 +5851,7 @@ def _render_pending_inbox_items():
                     # sharper read than a generic AI summary would.
                     with ui.column().classes("w-full gap-1").style("margin-top:6px;"):
                         if extracted.get("thesis_summary"):
-                            ui.label(extracted["thesis_summary"]).style(f"color:{COLORS['text_body']};font-size:13px;")
+                            ui.label(extracted["thesis_summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                         meta_bits = []
                         if extracted.get("sentiment"):
                             meta_bits.append(f"Sentiment: {extracted['sentiment']}")
@@ -5860,14 +5860,14 @@ def _render_pending_inbox_items():
                         if extracted.get("valuation_method"):
                             meta_bits.append(f"Method: {extracted['valuation_method']}")
                         if meta_bits:
-                            ui.label(" · ".join(meta_bits)).style(f"color:{COLORS['accent_light']};font-size:12px;font-weight:bold;")
+                            ui.label(" · ".join(meta_bits)).style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-weight:bold;")
                         if extracted.get("key_assumptions"):
-                            ui.label(f"Key assumptions: {extracted['key_assumptions']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            ui.label(f"Key assumptions: {extracted['key_assumptions']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         if extracted.get("catalysts_risks"):
-                            ui.label(f"Catalysts/risks to watch: {extracted['catalysts_risks']}").style(f"color:{COLORS['warning']};font-size:12px;")
+                            ui.label(f"Catalysts/risks to watch: {extracted['catalysts_risks']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);")
                         if extracted.get("prior_price_target") and extracted.get("price_target"):
                             ui.label(f"PT change: ${extracted['prior_price_target']} → ${extracted['price_target']}").style(
-                                f"color:{COLORS['text_body']};font-size:12px;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
                     has_rating_or_pt = bool(extracted.get("rating") or extracted.get("price_target"))
                     if has_rating_or_pt:
@@ -5948,7 +5948,7 @@ def _render_pending_inbox_items():
                     _roster = sorted(_role_roster() or [],
                                      key=lambda r: {"CEO": 0, "CFO": 1, "IR": 2}.get(r.get("role_key"), 3))
                     ui.label("Who from management is available?").style(
-                        f"color:{COLORS['text_body']};font-size:12px;font-weight:600;margin-top:8px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;margin-top:8px;")
                     _attend_cbs = {}
                     _avail_box = ui.column().classes("w-full gap-0")
 
@@ -5964,7 +5964,7 @@ def _render_pending_inbox_items():
                         with _avail_box:
                             if not _roster:
                                 ui.label("No management roster on file for this client.").style(
-                                    f"color:{COLORS['text_muted']};font-size:11px;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                 return
                             for _r in _roster:
                                 _nm, _rk = _r.get("name"), _r.get("role_key")
@@ -5973,11 +5973,11 @@ def _render_pending_inbox_items():
                                     _attend_cbs[_nm] = ui.checkbox(
                                         value=_prev.get(_nm, _rk in ("CEO", "CFO"))).props("dense")
                                     ui.label(f"{_r.get('label')} — {_nm}").style(
-                                        f"color:{COLORS['text_body']};font-size:12px;")
+                                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                                     if _conflict:
-                                        ui.label(f"⚠ already booked: {_conflict}").style("color:#B45309;font-size:11px;")
+                                        ui.label(f"⚠ already booked: {_conflict}").style("color:#B45309;font-size:var(--fs-xs);")
                                     else:
-                                        ui.label("available").style("color:#15803D;font-size:11px;")
+                                        ui.label("available").style("color:#15803D;font-size:var(--fs-xs);")
 
                     _render_avail()
                     # Re-check availability when the date changes: immediately on a complete/empty
@@ -6054,10 +6054,10 @@ def _render_pending_inbox_items():
                 elif category == "shareholder_inquiry":
                     from core import shareholder_reply
                     ui.label(f"Topic: {extracted.get('topic') or item.get('subject') or 'shareholder question'}").style(
-                        f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
                     _bits = " · ".join(b for b in (extracted.get("sub_type"), extracted.get("sentiment")) if b)
                     if _bits:
-                        ui.label(_bits).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label(_bits).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                     # Regulation FD compliance flag — the point of this view. A shareholder fishing
                     # for undisclosed/forward info, or a live quiet period, is surfaced up front.
@@ -6067,8 +6067,8 @@ def _render_pending_inbox_items():
                                 "background:#FEF3C7;border:1px solid #B45309;border-left:4px solid #B45309;"
                                 "padding:6px 10px;margin-top:6px;"):
                             ui.label("⚠ Regulation FD — review before replying").style(
-                                "color:#8A5A0B;font-size:12px;font-weight:700;")
-                            ui.label(_note).style("color:#7A5310;font-size:11px;line-height:1.4;")
+                                "color:#8A5A0B;font-size:var(--fs-sm);font-weight:700;")
+                            ui.label(_note).style("color:#7A5310;font-size:var(--fs-xs);line-height:1.4;")
 
                     _draft_box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
 
@@ -6078,7 +6078,7 @@ def _render_pending_inbox_items():
                         _box.clear()
                         with _box:
                             _ta = ui.textarea("Draft reply — public info only; edit before sending", value=d["draft"]).props(
-                                'outlined autogrow input-style="min-height:150px"').classes("w-full").style("font-size:12px;")
+                                'outlined autogrow input-style="min-height:150px"').classes("w-full").style("font-size:var(--fs-sm);")
                             with ui.row().classes("gap-2"):
                                 if _reply_to:
                                     def _reply(_ta=_ta, _to=_reply_to, _subj=subject or ""):
@@ -6095,14 +6095,14 @@ def _render_pending_inbox_items():
                                     ("flat dense" if _reply_to else "flat dense color=primary"))
                                 ui.button("Re-draft", icon="refresh", on_click=_generate_draft).props("flat dense")
                             ui.label("IRconnect never sends on your behalf — you review, edit, and send this yourself.").style(
-                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
                     with _draft_box:
                         ui.button("Draft a compliant reply", icon="smart_toy",
                                   on_click=_generate_draft).props("color=primary dense outline")
                         ui.label("Uses only public facts (next earnings date, filing locations, quiet-period "
                                  "status) — never guidance or unreleased numbers.").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                     def confirm(item_id=item["id"], contact=item["contact"]):
                         inbox_queue.mark_confirmed(item_id, outcome=f"Handled shareholder inquiry from {contact}")
@@ -6144,11 +6144,11 @@ def _render_linked_documents(contact, firm):
         if model_doc:
             ui.button(f"Latest model — {model_doc['filename']}",
                       on_click=lambda doc_id=model_doc["id"]: _download(doc_id)) \
-                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
+                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
         if note_doc:
             ui.button(f"Latest note attachment — {note_doc['filename']}",
                       on_click=lambda doc_id=note_doc["id"]: _download(doc_id)) \
-                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;")
+                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
 
 
 def _hub_metric(label, value, hint="", active=False, on_click=None):
@@ -6164,9 +6164,9 @@ def _hub_metric(label, value, hint="", active=False, on_click=None):
         f"background:{bg};border:1px solid {border};border-top:3px solid {edge};")
     with card:
         ui.label(str(value)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:12px;font-weight:600;")
+        ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);font-weight:600;")
         if hint:
-            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if on_click:
         card.on("click", on_click)
     return card
@@ -6189,7 +6189,7 @@ def _render_target_db_tab(institutions, client_id):
     ui.label("Search and filter the tracked institution universe, plus manually-added prospects. The automated "
              "prospecting pipeline below (Analyst Coverage Network, live-13F auto-generation, NOBO cross-reference, "
              "bulk paste) is ported and rebuilt on the live SEC 13F fetcher — see each section for details.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _db_filter = {"mode": "all"}
     db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
@@ -6235,14 +6235,14 @@ def _render_target_db_tab(institutions, client_id):
                        "nonholders": "Non-holders", "prospects": "Prospects"}
             clear = "" if mode == "all" else "  ·  click All targets to clear"
             ui.label(f"{len(combined)} result(s) — {_labels[mode]}{clear}").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if not combined:
                 ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
             for c in combined:
                 with ui.row().classes("w-full items-center justify-between").style(
                         f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-                    ui.label(f"{c['Fund']} ({c['Source']})").style(f"color:{COLORS['text_body']};font-size:13px;")
-                    ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{c['Fund']} ({c['Source']})").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
+                    ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     # Outcome marker — only for prospects that were added WITH a
                     # stored Fit Score breakdown (see run_fit_score_ranking's
                     # add_scored_prospect), since that's what
@@ -6317,7 +6317,7 @@ def _render_target_db_tab(institutions, client_id):
         ui.label("Some sites (WhaleWisdom in particular) render holder tables as styled grids, not plain HTML "
                   "tables — copy/paste from those won't preserve columns cleanly through a file upload. Paste raw "
                   "text here instead; it's parsed by tab or by runs of 2+ spaces.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         bp_raw = ui.textarea("Paste table here", placeholder="Paste tab-separated or space-aligned rows here...").classes("w-full")
         bp_preview = ui.column().classes("w-full")
         bp_state = {"columns": [], "rows": [], "fund_col_idx": 0}
@@ -6331,7 +6331,7 @@ def _render_target_db_tab(institutions, client_id):
                     ui.label("Nothing parsed yet — paste some rows above.").style(f"color:{COLORS['text_muted']};")
                     return
                 ui.label(f"Parsed {len(rows)} row(s) — check this looks right before adding.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 fund_col_sel = ui.select(columns, value=columns[0], label="Which column is the fund/investor name?").classes("w-full")
 
                 def set_fund_col():
@@ -6340,9 +6340,9 @@ def _render_target_db_tab(institutions, client_id):
 
                 with ui.column().classes("w-full").style(f"max-height:220px;overflow-y:auto;border:1px solid {COLORS['border']};border-radius:6px;padding:6px;"):
                     for r in rows[:30]:
-                        ui.label(" | ".join(r)).style(f"color:{COLORS['text_body']};font-size:11px;")
+                        ui.label(" | ".join(r)).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                     if len(rows) > 30:
-                        ui.label(f"... + {len(rows) - 30} more rows").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label(f"... + {len(rows) - 30} more rows").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                 def add_all():
                     plist = _load_json("prospects.json", [])
@@ -6377,7 +6377,7 @@ def _render_target_db_tab(institutions, client_id):
         ui.label("Institutions already owning other stocks a covering analyst rates Buy have demonstrated they "
                   "trust that analyst's research and understand the surrounding sector thesis — the "
                   "highest-probability prospects once that analyst raises this client's target.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         coverage = analyst_coverage.get_coverage(client_id)
         if not coverage:
@@ -6396,21 +6396,21 @@ def _render_target_db_tab(institutions, client_id):
                 with coverage_list:
                     ui.label(f"{data['analyst']} — {data['firm']} · {data['email']} · "
                               f"{len(data['coverage'])} stocks in coverage universe").classes("font-bold").style(
-                        f"color:{COLORS['text_heading']};font-size:13px;")
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                     for stock in sorted(data["coverage"], key=lambda s: -s.get("relevance", 0)):
                         rel = stock.get("relevance", 0)
                         rel_clr = "#15803D" if rel >= 80 else "#B45309" if rel >= 50 else "#94A3B8"
                         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};margin-top:4px;"):
                             with ui.row().classes("w-full justify-between items-center"):
                                 ui.label(f"{stock['ticker']} — {stock['name']} · {stock.get('sector', '—')}").classes("font-bold").style(
-                                    f"color:{COLORS['text_heading']};font-size:13px;")
+                                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                                 ui.label(f"{stock.get('rating', '—')} · PT ${stock.get('pt', 0):.2f} · Relevance {rel}/100").style(
-                                    f"color:{rel_clr};font-size:12px;font-weight:bold;")
+                                    f"color:{rel_clr};font-size:var(--fs-sm);font-weight:bold;")
                             if stock.get("bridge"):
-                                ui.label(stock["bridge"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                ui.label(stock["bridge"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             if stock.get("shared_dna"):
                                 ui.label(" · ".join(t.strip() for t in stock["shared_dna"].split("·") if t.strip())).style(
-                                    f"color:{COLORS['accent_light']};font-size:11px;")
+                                    f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
 
             analyst_sel.on_value_change(render_coverage_list)
             render_coverage_list()
@@ -6447,7 +6447,7 @@ def _render_target_db_tab(institutions, client_id):
                   "SEC 13F institutional holders (already fetched via the SEC Intelligence tab's 'Refresh 13F "
                   "Institutional Holders' button — this does not trigger a new download itself), excludes anyone "
                   "already tracked or already in the prospect queue, and ranks the rest.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         coverage2 = analyst_coverage.get_coverage(client_id)
         if not coverage2:
@@ -6455,7 +6455,7 @@ def _render_target_db_tab(institutions, client_id):
         else:
             analyst_keys2 = list(coverage2.keys())
             auto_analyst = ui.select(analyst_keys2, value=analyst_keys2[0], label="Analyst coverage network").classes("w-full")
-            ui.label("Minimum USIO relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label("Minimum USIO relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             auto_threshold = ui.slider(min=0, max=100, value=50, step=5).props("label-always")
             auto_results = ui.column().classes("w-full")
 
@@ -6470,7 +6470,7 @@ def _render_target_db_tab(institutions, client_id):
                     if result["not_fetched_tickers"]:
                         ui.label(f"No live 13F data cached yet for: {', '.join(result['not_fetched_tickers'])} — "
                                   f"add them to the Peer Universe below and refresh 13F on the SEC Intelligence tab "
-                                  f"to include their holders here.").style(f"color:{COLORS['warning']};font-size:11px;")
+                                  f"to include their holders here.").style(f"color:{COLORS['warning']};font-size:var(--fs-xs);")
                     # Show what the quality gates removed, so a short (or empty) list
                     # reads as "the filter worked", not "the pipeline is broken".
                     _filt = result.get("filtered_passive", 0) + result.get("filtered_breadth", 0)
@@ -6480,7 +6480,7 @@ def _render_target_db_tab(institutions, client_id):
                                f"No qualifying institutional prospects — {_filt} holder(s) were found but "
                                "filtered out as index/passive books, market makers, banks, or ETF issuers. "
                                "Lower the relevance threshold or add more coverage tickers to widen the net.")
-                        ui.label(msg).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label(msg).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         # NB: no early return — the RIA bucket below must still render;
                         # "no institutional targets, but 6 RIAs own it" is a real answer.
                     # Deliberately NOT called "prospects found" — that collided with the
@@ -6494,14 +6494,14 @@ def _render_target_db_tab(institutions, client_id):
                                   if _filt else "")
                         ui.label("Already-tracked funds and prospects you've added are filtered out of this list. "
                                  f"Click ADD to move one into the Prospects count on the cards above.{_fnote}").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     for p in result["prospects"][:25]:
                         with ui.row().classes("w-full items-start justify-between").style(
                                 f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
                             with ui.column().classes("flex-1"):
                                 ui.label(f"{pretty_name(p['fund'])} — via {p['source_ticker']} ({p['source_name']})").classes("font-bold").style(
-                                    f"color:{COLORS['text_heading']};font-size:13px;")
-                                ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
+                                ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                                 # size_known=False means this holder came from the EDGAR full-text-search
                                 # path (sec_filings._search_holders_for_ticker) — confirmed to hold a
                                 # position, but exact share/dollar size wasn't fetched (see that
@@ -6510,7 +6510,7 @@ def _render_target_db_tab(institutions, client_id):
                                 size_line = (f"{p['shares']:,} shares · ${p['value']:,} reported · relevance {p['relevance']}/100"
                                              if p.get("size_known", True)
                                              else f"confirmed holder (position size not available) · relevance {p['relevance']}/100")
-                                ui.label(size_line).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                ui.label(size_line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                             def add_this(p=p):
                                 plist = _load_json("prospects.json", [])
@@ -6542,16 +6542,16 @@ def _render_target_db_tab(institutions, client_id):
                                      "manager to pitch, so these aren't NDR targets. Video-call tier: an "
                                      "assistant can set these up, no management travel needed. Add one and the "
                                      "NDR scheduler defaults it to a video call. Ranked by position size.").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             for r in _rias[:25]:
                                 with ui.row().classes("w-full items-center justify-between").style(
                                         f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
                                     with ui.column().classes("gap-0 flex-1"):
                                         ui.label(r["fund"]).style(
-                                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                                         ui.label(f"{r['shares']:,} shares of {r['source_ticker']} "
                                                  f"({r['source_name']})").style(
-                                            f"color:{COLORS['text_muted']};font-size:11px;")
+                                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                                     def add_ria(r=r):
                                         plist = _load_json("prospects.json", [])
@@ -6587,9 +6587,9 @@ def _render_target_db_tab(institutions, client_id):
                   "and shares. Compares a list of names (the prospect queue, tracked institutions, the call "
                   "listener log, the IR website visitor log, or a pasted list) against this client's actual NOBO "
                   "shareholder file — matches are already-identified shareholders; everyone else is a real, "
-                  "unconfirmed prospect.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                  "unconfirmed prospect.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-        nobo_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        nobo_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         def refresh_nobo_status():
             cur = prospecting.get_nobo_list(client_id)
@@ -6683,20 +6683,20 @@ def _render_target_db_tab(institutions, client_id):
                           f"prospects, not already-known shareholders").classes("font-bold")
                 with ui.row().classes("w-full gap-4"):
                     with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
-                        ui.label("Identified shareholders").classes("font-bold").style("color:#15803D;font-size:12px;")
+                        ui.label("Identified shareholders").classes("font-bold").style("color:#15803D;font-size:var(--fs-sm);")
                         if matched:
                             for nm, mn, sh in matched:
-                                ui.label(f"{nm} → {mn} — {sh:,} shares").style(f"color:{COLORS['text_body']};font-size:11px;")
+                                ui.label(f"{nm} → {mn} — {sh:,} shares").style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                         else:
-                            ui.label("None matched.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label("None matched.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     with ui.column().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px;"):
                         ui.label("Not on the NOBO file (genuine prospects)").classes("font-bold").style(
-                            f"color:{COLORS['text_heading']};font-size:12px;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);")
                         if unmatched:
                             for nm in unmatched:
-                                ui.label(nm).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                ui.label(nm).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         else:
-                            ui.label("Everything compared matched the NOBO file.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label("Everything compared matched the NOBO file.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         ui.button("Compare", on_click=run_nobo_compare).props("dense")
 
@@ -6710,7 +6710,7 @@ def _render_peer_universe_manager(institutions):
 
     with ui.expansion("Manage Peer Universe — Add or Remove Tickers", value=False).classes("w-full"):
         ui.label(f"Custom peer group saved to peer_universe.csv · Persists across restarts · {len(peers)} peers currently tracked").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         manage_list = ui.column().classes("w-full")
 
@@ -6721,7 +6721,7 @@ def _render_peer_universe_manager(institutions):
                 for idx, p in enumerate(current):
                     with ui.row().classes("w-full items-center justify-between").style(f"border-bottom:1px solid {COLORS['border']};padding:4px 0;"):
                         ev = f"{p['ev_rev']}x" if p.get("ev_rev") else "no EV/Rev on file"
-                        ui.label(f"{p['ticker']} — {p['name']} · {p.get('sector','—')} · {ev}").style(f"color:{COLORS['text_body']};font-size:13px;")
+                        ui.label(f"{p['ticker']} — {p['name']} · {p.get('sector','—')} · {ev}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
 
                         def do_delete(idx=idx):
                             cur = _load_peer_universe()
@@ -6768,10 +6768,10 @@ def _render_peer_universe_manager(institutions):
         ui.label("Tier: \"core\" = closest-size direct comp (full Fit Score points, +5 conviction bonus) · "
                  "\"close\" = real but less-comparable peer (default) · \"large\" = mega-cap/weak-signal peer. "
                  "Weight scales Peer Conviction — higher for peers closest to this client's own size.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
         ui.markdown("---")
 
-        ui.label("Add a new peer ticker:").classes("font-bold").style("font-size:13px;")
+        ui.label("Add a new peer ticker:").classes("font-bold").style("font-size:var(--fs-base);")
         with ui.row().classes("w-full gap-2"):
             new_ticker = ui.input("Ticker", placeholder="e.g. PAYO").classes("flex-1")
             new_name = ui.input("Company name", placeholder="e.g. Payoneer Global").classes("flex-1")
@@ -6810,10 +6810,10 @@ def _render_peer_universe_manager(institutions):
         if missing_ev:
             ui.label(f"No EV/Revenue multiple on file for: {', '.join(missing_ev)} — these won't get a specific "
                      f"valuation comparison in outreach drafts until a multiple is added here.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         ui.markdown("---")
-        ui.label("Quick-add common fintech peers:").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Quick-add common fintech peers:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         quick_peers = [("PAYO", "Payoneer", "Cross-Border"), ("FLYW", "Flywire", "Ed/Healthcare Payments"),
                        ("RELY", "Remitly", "Digital Remittance"), ("EVTC", "EVERTEC", "LatAm Payments"),
                        ("I", "Inpay", "B2B Cross-Border")]
@@ -6830,7 +6830,7 @@ def _render_peer_universe_manager(institutions):
                     _refresh()
 
                 if qt in existing_tickers:
-                    ui.label(f"{qt}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{qt}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 else:
                     ui.button(f"+ {qt}", on_click=add_quick).props("flat dense")
 
@@ -6852,10 +6852,10 @@ def _render_peer_universe_manager(institutions):
         _freshness_bits.append(f"Live SEC 13F data: {', '.join(_live_tickers)}")
     if _seed_tickers:
         _freshness_bits.append(f"Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
-    ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:11px;")
+    ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if _seed_tickers:
         ui.label("Refresh a ticker from the SEC Intelligence tab's \"Refresh 13F Institutional Holders\" "
-                  "button to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                  "button to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
     with ui.row().classes("w-full gap-4"):
         peer_select = ui.select(all_tickers, multiple=True, value=all_tickers,
@@ -6885,7 +6885,7 @@ def _render_peer_universe_manager(institutions):
             for t in sel:
                 info = next((p for p in peers if p["ticker"] == t), None)
                 if info:
-                    ui.label(f"{t} — {info['name']} · {info.get('sector','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{t} — {info['name']} · {info.get('sector','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             cross_targets = [i for i in institutions
                               if not i["USIO_Holder"]
@@ -6913,11 +6913,11 @@ def _render_peer_universe_manager(institutions):
                 score_clr = "#15803D" if score >= 80 else "#B45309" if score >= 50 else "#94A3B8"
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
                     with ui.row().classes("w-full justify-between items-center"):
-                        ui.label(f"{ct['Fund']} — {ct['Type']} · AUM {ct['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(f"{ct['Fund']} — {ct['Type']} · AUM {ct['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         ui.label(f"Score: {score}").style(f"color:{score_clr};font-weight:bold;")
                     ui.label(f"Owns: {', '.join(overlap_labels)} · IR visits (30d): {ct['IR_Visits_30d']} · "
                              f"Q1 call: {'Yes' if ct['Call_Listener'] else 'No'} · Does NOT own this client").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if from_click:
                 ui.notify(f"Cross-targeting run — {len(cross_targets)} institution(s) found.", type="positive")
 
@@ -6936,7 +6936,7 @@ def _render_peer_universe_manager(institutions):
         "the first time it appears in a top result (falls back to a neutral placeholder until then). Turnover and "
         "Contactability are rough automated heuristics (name-pattern + existing-relationship matching) until "
         "real outcomes accumulate — see \"Which score signals are converting?\" below."
-    ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     fit_results_area = ui.column().classes("w-full")
 
@@ -6996,13 +6996,13 @@ def _render_peer_universe_manager(institutions):
 
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};"):
                     with ui.row().classes("w-full justify-between items-center"):
-                        ui.label(r["fund"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+                        ui.label(r["fund"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         with ui.row().classes("items-center gap-2"):
-                            ui.label(f"{r['tier_label']} · {r['composite']}/100").style(f"color:{tier_clr};font-weight:bold;font-size:13px;")
+                            ui.label(f"{r['tier_label']} · {r['composite']}/100").style(f"color:{tier_clr};font-weight:bold;font-size:var(--fs-base);")
                             ui.button("Add", on_click=add_scored_prospect).props("flat dense")
                     ui.label(f"Holds: {', '.join(r['peers_held'])}" +
                              (" · NEW buyer this quarter" if r["newbuyer_pts"] else "")).style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     with ui.row().classes("w-full gap-2").style("margin-top:2px;flex-wrap:wrap;"):
                         for label, val, maxv in [
                             ("Conviction", r["conviction"], 30), ("New-buyer", r["newbuyer_pts"], 20),
@@ -7010,12 +7010,12 @@ def _render_peer_universe_manager(institutions):
                             ("Purch. power", r["pp_pts"], 10), ("Contact", r["contact_pts"], 10),
                         ]:
                             ui.label(f"{label} {val}/{maxv}").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;background:{COLORS['surface_bg']};"
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);background:{COLORS['surface_bg']};"
                                 f"padding:1px 6px;border-radius:6px;")
                     ui.label(f"Turnover: {r['turnover_class']} ({r['turnover_why']}) · "
                               f"Purchasing power: {r['pp_class']} ({r['pp_why']}) · "
                               f"Contactability: {r['contact_class']} ({r['contact_why']})").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:2px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;margin-top:2px;")
             if from_click:
                 ui.notify(f"Fit Score ranking run — {len(scored)} institution(s) scored.", type="positive")
 
@@ -7024,7 +7024,7 @@ def _render_peer_universe_manager(institutions):
     with ui.expansion("Fit Score Weights — Re-weight the Components", value=False).classes("w-full"):
         ui.label("Current weights (must sum to 100). Same 'transparent, re-weightable' design as the source — "
                   "every component always shows in its own column, the composite is never a black box.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         current_weights = fit_score.get_weights(get_active_client_id())
         weight_inputs = {}
         with ui.row().classes("w-full gap-2"):
@@ -7045,7 +7045,7 @@ def _render_peer_universe_manager(institutions):
         ui.button("Save weights", on_click=save_weight_changes).props("dense")
 
         ui.markdown("---")
-        ui.label("Which score signals are converting? Re-weight the score:").classes("font-bold").style("font-size:13px;")
+        ui.label("Which score signals are converting? Re-weight the score:").classes("font-bold").style("font-size:var(--fs-base);")
         reweight_area = ui.column().classes("w-full")
 
         def run_reweight_suggestion():
@@ -7053,16 +7053,16 @@ def _render_peer_universe_manager(institutions):
             result = fit_score.suggest_reweight(get_active_client_id())
             with reweight_area:
                 if result["mode"] == "insufficient":
-                    ui.label(result["message"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(result["message"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     return
                 ui.label(f"From {result['n_pos']} positive (met/owns) and {result['n_neg']} pass outcomes:").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 for c in result["components"]:
                     move_str = f"+{c['move']}" if c["move"] > 0 else str(c["move"])
                     move_clr = "#15803D" if c["move"] > 0 else "#B91C1C" if c["move"] < 0 else COLORS["text_muted"]
                     ui.label(f"{c['label']}: current {c['cur']} → suggested {c['suggested']} ({move_str}) · "
                               f"lift {c['lift']} (avg {c['mean_pos']} converters vs {c['mean_neg']} passes)").style(
-                        f"color:{move_clr};font-size:12px;")
+                        f"color:{move_clr};font-size:var(--fs-sm);")
 
         ui.button("Check for a re-weight suggestion", on_click=run_reweight_suggestion).props("dense")
 
@@ -7083,17 +7083,17 @@ def _render_sec_intelligence_tab():
         "Ownership-stake filings (13D/13G) and institutional holders (13F) for this client and its full peer "
         "universe — tracked tickers come straight from the Peer Cross-Targeting list in Target Database, so "
         "adding a competitor there adds it here too."
-    ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     log = sec_filings.get_last_refresh_log()
     with ui.row().classes("w-full items-center gap-3").style("margin-top:6px;"):
         if log:
             ui.label(f"Last 13D/13G refresh: {log.get('finished_at', '—')[:19].replace('T', ' ')}").style(
-                f"color:{COLORS['text_muted']};font-size:12px;"
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);"
             )
         else:
             ui.label("No refresh has run yet — the app's startup hook kicks one off automatically each launch, "
-                      "or trigger one now:").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                      "or trigger one now:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # Surface a top-level 13F failure explicitly. Real bug found 2026-07-10:
     # if the SEC bulk download/unzip/parse itself fails (network error, SEC
@@ -7124,7 +7124,7 @@ def _render_sec_intelligence_tab():
                     f"13F refresh failed for all {len(_13f_errors)} tracked ticker(s) — the SEC bulk "
                     f"download/parse itself errored before any institutional-holder data could be saved. "
                     f"This is not \"no data exists\"; it's a failed fetch. Error: {_sample_err}"
-                ).style(f"color:{COLORS['text_body']};font-size:12px;")
+                ).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     # At-a-glance summary of what's cached across the tracked universe.
     _sec_tickers = sec_filings.tracked_tickers()
@@ -7152,12 +7152,12 @@ def _render_sec_intelligence_tab():
     ui.label("Universe by data source").classes("font-bold").style("margin-top:12px;")
     ui.label(f"{len(_merged)} distinct names in the tracked universe · plus {_nobo_inst} institutional NOBO "
              "holders (Market Intelligence → NOBO). Hand-typed seed today; refresh below to grow the real "
-             "SEC-sourced names live from EDGAR.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+             "SEC-sourced names live from EDGAR.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     with ui.row().classes("w-full gap-2 flex-wrap").style("margin-top:4px;"):
         for _src, _n in _by_src.most_common():
             ui.label(f"{_src}: {_n}").style(
                 f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:2px 10px;"
-                "font-size:12px;font-weight:600;")
+                "font-size:var(--fs-sm);font-weight:600;")
 
     sec_container = ui.column().classes("w-full gap-2").style("margin-top:8px;")
 
@@ -7174,21 +7174,21 @@ def _render_sec_intelligence_tab():
                     label += f" · {len(holders)} institutional holders ({f13['quarter']})"
                 with ui.expansion(label).classes("w-full"):
                     if d13.get("_error"):
-                        ui.label(f"13D/13G fetch error: {d13['_error']}").style(f"color:{COLORS['warning']};font-size:12px;")
+                        ui.label(f"13D/13G fetch error: {d13['_error']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);")
                     if not filings:
-                        ui.label("No 13D/13G filings cached yet for this ticker.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label("No 13D/13G filings cached yet for this ticker.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     else:
                         for f in filings[:10]:
-                            ui.label(f"{f['date']} · {f['form']} · {f['title']}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            ui.label(f"{f['date']} · {f['form']} · {f['title']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                             if f.get("link"):
-                                ui.link("View on EDGAR ↗", f["link"], new_tab=True).style("font-size:12px;")
+                                ui.link("View on EDGAR ↗", f["link"], new_tab=True).style("font-size:var(--fs-sm);")
 
                     ui.markdown("---")
                     if f13.get("_error") and f13["_error"] != "not yet fetched":
-                        ui.label(f"13F fetch error: {f13['_error']}").style(f"color:{COLORS['warning']};font-size:12px;")
+                        ui.label(f"13F fetch error: {f13['_error']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);")
                     if not holders:
                         ui.label("No 13F institutional-holder data cached yet — use 'Refresh 13F Institutional "
-                                 "Holders' below.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                                 "Holders' below.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     else:
                         for h in holders[:10]:
                             # size_known=False: confirmed via EDGAR full-text search, but this holder's
@@ -7198,7 +7198,7 @@ def _render_sec_intelligence_tab():
                             size_text = f"{h['shares']:,} shares (${h['value']:,} reported)" if h.get("size_known", True) \
                                 else "position size not available"
                             ui.label(f"{h['filer']} — {size_text}").style(
-                                f"color:{COLORS['text_body']};font-size:12px;"
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);"
                             )
 
     render_sec_list()
@@ -7281,10 +7281,10 @@ def _render_sec_intelligence_tab():
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:4px solid {COLORS['accent']};"):
         ui.label("Data pulls live in Settings").classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:13px;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
         ui.label("Refreshing SEC 13F / 13D-G data hits the network and can take minutes, so it's kicked off only "
                  "from Settings → Data Sources — never by navigating here.").style(
-            f"color:{COLORS['text_secondary']};font-size:12px;")
+            f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
         ui.button("Open Settings → Data Sources", icon="settings",
                   on_click=lambda: nav.go_to("Settings", "Data Sources")).props(
             "flat dense color=primary").style("margin-top:4px;")
@@ -7293,4 +7293,4 @@ def _render_sec_intelligence_tab():
     ui.label(
         "If a ticker fails to resolve to a SEC CIK (rare — recent IPOs, ADRs, or a ticker change), add a manual "
         "override in core/sec_filings.py's MANUAL_CIK_OVERRIDES dict."
-    ).style(f"color:{COLORS['text_muted']};font-size:11px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")

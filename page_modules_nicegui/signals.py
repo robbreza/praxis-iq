@@ -30,14 +30,14 @@ def waiting_signal(what, detail=None, unlocks=None, compact=False):
             f"border-left:4px solid {_AMBER};border-radius:8px;"
             f"padding:{'8px 12px' if compact else '12px 16px'};gap:2px;"):
         with ui.row().classes("items-center").style("gap:8px;"):
-            ui.label("⏳").style("font-size:15px;line-height:1;")
+            ui.label("⏳").style("font-size:var(--fs-md);line-height:1;")
             ui.label(f"Waiting for {what}").style(
                 f"color:{_AMBER};font-weight:700;font-size:{'12px' if compact else '13px'};")
         if detail:
-            ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+            ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         if unlocks:
             ui.label(f"Unlocks: {unlocks}").style(
-                f"color:{COLORS['text_muted']};font-size:10.5px;font-style:italic;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-style:italic;")
 
 
 def fallback_banner():
@@ -55,17 +55,17 @@ def fallback_banner():
     with ui.element("div").style(
             "width:100%;background:#B91C1C;color:#fff;padding:9px 18px;display:flex;align-items:center;"
             "gap:12px;box-shadow:0 1px 6px rgba(0,0,0,.28);z-index:6;"):
-        ui.label("⚠").style("font-size:19px;line-height:1;")
+        ui.label("⚠").style("font-size:var(--fs-xl);line-height:1;")
         with ui.column().classes("gap-0"):
             ui.label("Database offline — running on a local fallback").style(
-                "font-weight:700;font-size:13px;")
+                "font-weight:700;font-size:var(--fs-base);")
             ui.label("Live tenants aren't loading and changes are NOT saved to your database. Check "
                      "DATABASE_URL / your Neon plan, then restart the app to reconnect.").style(
-                "font-size:11.5px;opacity:.93;")
+                "font-size:var(--fs-xs);opacity:.93;")
 
 
 def waiting_chip(what):
     """A one-line inline chip version — for a table cell / metric row where a full card is too big."""
     ui.label(f"⏳ waiting for {what}").style(
-        f"background:{_AMBER_BG};color:{_AMBER};font-size:10px;font-weight:700;"
+        f"background:{_AMBER_BG};color:{_AMBER};font-size:var(--fs-2xs);font-weight:700;"
         "padding:2px 8px;border-radius:9px;white-space:nowrap;")

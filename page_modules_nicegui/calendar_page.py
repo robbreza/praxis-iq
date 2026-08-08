@@ -95,8 +95,8 @@ def _metric_card(label, value, hint, active, on_click):
     )
     with card:
         ui.label(str(value)).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']}")
-        ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:12px;font-weight:600;")
-        ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);font-weight:600;")
+        ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     card.on("click", on_click)
     return card
 
@@ -233,7 +233,7 @@ def render_calendar_page():
             f"color:{COLORS['text_muted']};"
         )
         if not shown:
-            ui.label("No events match this filter.").style(f"color:{COLORS['text_muted']};font-size:13px;")
+            ui.label("No events match this filter.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
         for ev in shown:
             is_high = ev.get("Priority") == "High"
             caption = f"{ev['Date']} · {ev.get('Location','—')} · {ev['Status']}" + (
@@ -242,15 +242,15 @@ def render_calendar_page():
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
             ):
                 ui.label(f"Type: {ev.get('Type','—')}  ·  Organizer: {ev.get('Organizer','—')}").style(
-                    f"color:{COLORS['text_secondary']};font-size:13px;")
+                    f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
                 ui.label(f"Attending: {ev.get('Attending','TBD')}").style(
-                    f"color:{COLORS['text_secondary']};font-size:13px;")
+                    f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
                 if ev.get("Deadline"):
                     ui.label(f"Registration deadline: {ev['Deadline']}").style(
-                        f"color:{COLORS['text_secondary']};font-size:13px;")
+                        f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
                 if ev.get("Notes"):
                     ui.label(ev["Notes"]).style(
-                        f"color:{COLORS['text_muted']};font-size:12px;margin-top:4px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:4px;")
                 with ui.row().classes("gap-2").style("margin-top:8px;"):
                     # Export is read-only-safe, so it's available to every role.
                     ui.button("Add to my calendar (.ics)", icon="event",
@@ -271,18 +271,18 @@ def render_calendar_page():
         ):
             ui.label(str(day)).style(
                 f"color:{COLORS['text_heading'] if is_today else COLORS['text_secondary']};"
-                f"font-size:12px;font-weight:{'700' if is_today else '500'};")
+                f"font-size:var(--fs-sm);font-weight:{'700' if is_today else '500'};")
             for ev in day_events[:3]:
                 clr = COLORS["danger"] if ev.get("Priority") == "High" else COLORS["accent"]
                 chip = ui.label(ev["Event"]).classes("cursor-pointer").style(
-                    f"background:{clr}22;color:{clr};font-size:10px;font-weight:600;border-radius:6px;"
+                    f"background:{clr}22;color:{clr};font-size:var(--fs-2xs);font-weight:600;border-radius:6px;"
                     f"padding:1px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;"
                     f"text-overflow:ellipsis;max-width:100%;")
                 chip.tooltip(f"{ev['Event']} · {ev.get('Status','')}")
                 chip.on("click", lambda e=ev: open_edit_dialog(e))
             if len(day_events) > 3:
                 ui.label(f"+{len(day_events) - 3} more").style(
-                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:2px;")
 
     def _render_calendar(shown):
         import calendar as _calmod
@@ -303,7 +303,7 @@ def render_calendar_page():
         with ui.grid(columns=7).classes("w-full gap-1"):
             for wd in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
                 ui.label(wd).style(
-                    f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;text-align:center;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;text-align:center;")
             for week in _calmod.Calendar(firstweekday=6).monthdayscalendar(m.year, m.month):
                 for day in week:
                     if day == 0:
@@ -312,7 +312,7 @@ def render_calendar_page():
                         _day_cell(m, day, by_day.get(day, []))
         if not shown:
             ui.label("No events match this filter.").style(
-                f"color:{COLORS['text_muted']};font-size:13px;margin-top:6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-top:6px;")
 
     def render_view():
         view_body.clear()
@@ -325,7 +325,7 @@ def render_calendar_page():
                 _render_list(shown, label)
 
     with ui.row().classes("items-center gap-3").style("margin-top:16px;"):
-        ui.label("View").style(f"color:{COLORS['text_muted']};font-size:12px;font-weight:600;")
+        ui.label("View").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-weight:600;")
         _view_toggle = ui.toggle({"list": "List", "calendar": "Calendar"}, value="list")
 
         def _on_view():
@@ -396,7 +396,7 @@ def render_calendar_page():
         ui.button("Download calendar (.ics)", icon="event", on_click=export_ics).props("flat")
         ui.button("Export as CSV", icon="download", on_click=export_csv).props("flat")
         ui.label("Saved · updates persist across restarts").style(
-            f"color:{COLORS['text_muted']};font-size:12px;margin-left:auto;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-left:auto;")
 
     # Live subscription — the real "integration into an existing email/calendar" piece:
     # subscribe once and every confirmed event (incl. email-parsed conference invites)
@@ -409,7 +409,7 @@ def render_calendar_page():
             "w-full").style("margin-top:10px;"):
         ui.label("Subscribe once and every confirmed conference, earnings date and roadshow appears in "
                  "your own calendar — and updates automatically as the IR team adds or confirms events.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.input("Calendar feed URL", value=(_base + _feed_path) if _base else _feed_path).props(
             "readonly outlined dense").classes("w-full").style("margin-top:6px;")
 
@@ -421,6 +421,6 @@ def render_calendar_page():
             ui.button("Copy subscribe link", icon="content_copy", on_click=_copy_feed).props("flat dense")
         ui.label("Google Calendar → Other calendars → From URL.   Outlook → Add calendar → Subscribe from web.   "
                  "Apple Calendar → File → New Calendar Subscription.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
         ui.label("This link is private to this client — anyone with it can view (never edit) the calendar.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")

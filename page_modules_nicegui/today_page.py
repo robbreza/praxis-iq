@@ -292,7 +292,7 @@ def _render_weekly_context_mirror():
             ui.button("Full band on Lighthouse →", on_click=_open_lighthouse).props("flat dense size=sm")
         # the punchline — the number with its comparison, never alone
         ui.label(f"USIO {wk['context_read']}").style(
-            f"color:{COLORS['text_heading']};font-size:15px;font-weight:600;line-height:1.5;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.5;")
         # the two comps the model actually uses, as compact inline chips
         with ui.row().classes("items-center gap-2").style("flex-wrap:wrap;margin-top:2px;"):
             for c in comps:
@@ -300,15 +300,15 @@ def _render_weekly_context_mirror():
                 rc = COLORS["danger"] if rel < 0 else COLORS["success"]
                 with ui.row().classes("items-baseline gap-1").style(
                         f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:3px 10px;"):
-                    ui.label(f"{c['label']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-                    ui.label(f"{c['ret']*100:+.1f}%").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                    ui.label(f"· USIO {rel*100:+.1f} pts").style(f"color:{rc};font-size:12px;")
+                    ui.label(f"{c['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                    ui.label(f"{c['ret']*100:+.1f}%").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                    ui.label(f"· USIO {rel*100:+.1f} pts").style(f"color:{rc};font-size:var(--fs-sm);")
         # the drift, stated only after the yardstick
         with ui.row().classes("items-baseline gap-2").style("margin-top:2px;"):
-            ui.label("After market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"{drift*100:+.1f}% unexplained drift").style(f"color:{drift_clr};font-size:14px;font-weight:800;")
+            ui.label("After market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            ui.label(f"{drift*100:+.1f}% unexplained drift").style(f"color:{drift_clr};font-size:var(--fs-md);font-weight:800;")
             if rarity_txt:
-                ui.label(f"· {rarity_txt}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"· {rarity_txt}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _panel(render_fn):
@@ -333,7 +333,7 @@ def render_today_page():
     days = max((earnings_date - today_d).days, 0)
     td = datetime.now().strftime("%A, %B %d, %Y")
 
-    ui.label(td).style(f"color:{COLORS['accent_light2']};text-transform:uppercase;letter-spacing:.08em;font-size:13px;")
+    ui.label(td).style(f"color:{COLORS['accent_light2']};text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-base);")
     # Greet the persona currently selected in the "Logged in as" switcher (IR / CEO / CFO / CRO) so
     # the picker and the greeting stay aligned — the person for that role comes from the client
     # profile (role_roster), never a hardcoded name. Falls back to the signed-in account, then a
@@ -400,10 +400,10 @@ def render_today_page():
     with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
         with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;"):
             ui.label("Today's story").classes("section-head")
-            ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:15px;line-height:1.7;")
+            ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
             ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
             for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
-                ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
+                ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
 
         with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"):
             with ui.row().classes("w-full justify-between items-center"):
@@ -417,7 +417,7 @@ def render_today_page():
 
             def _kpi_value(text, color=None):
                 ui.label(text).classes("font-bold").style(
-                    f"color:{color or COLORS['text_heading']};font-size:18px;line-height:1.15;")
+                    f"color:{color or COLORS['text_heading']};font-size:var(--fs-xl);line-height:1.15;")
 
             if snap and snap.get("last_price") is not None:
                 chg = snap.get("pct_change") or 0
@@ -425,9 +425,9 @@ def render_today_page():
                 _kpi_label("Last price", top=False)
                 with ui.row().classes("items-baseline gap-2"):
                     _kpi_value(f"${snap['last_price']:.2f}")
-                    ui.label("*").style(f"color:{COLORS['text_muted']};font-size:12px;") \
+                    ui.label("*").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);") \
                         .tooltip("Delayed quote — see note below")
-                    ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{chg_clr};font-size:12px;")
+                    ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{chg_clr};font-size:var(--fs-sm);")
                 _kpi_label("Volume vs 10-day avg")
                 vol = (f"{snap['volume']/snap['avg_volume_10d']:.1f}x"
                        if (snap.get("volume") and snap.get("avg_volume_10d")) else "—")
@@ -444,7 +444,7 @@ def render_today_page():
                         upside = (pt_avg / snap["last_price"] - 1) * 100
                         up_clr = COLORS["success"] if upside >= 0 else COLORS["danger"]
                         ui.label(f"{upside:+.0f}% {'upside' if upside >= 0 else 'downside'}").classes(
-                            "font-bold").style(f"color:{up_clr};font-size:12px;")
+                            "font-bold").style(f"color:{up_clr};font-size:var(--fs-sm);")
             else:
                 ui.label("No active-analyst price targets on file.").classes("t-meta")
 
@@ -716,8 +716,8 @@ def _mute_button(state, key, launched_from):
 def _open_models_dialog(state, missing_model_analysts):
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Resolve Missing Models").classes("text-lg font-bold")
-        ui.label("HIGH PRIORITY").style(f"background:{COLORS['warning']};color:white;padding:2px 8px;border-radius:8px;font-size:11px;")
-        ui.label("Recipients — uncheck anyone you don't want to include:").style(f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
+        ui.label("HIGH PRIORITY").style(f"background:{COLORS['warning']};color:white;padding:2px 8px;border-radius:8px;font-size:var(--fs-xs);")
+        ui.label("Recipients — uncheck anyone you don't want to include:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:8px;")
         checks = {}
         for a in missing_model_analysts:
             checks[a["name"]] = ui.checkbox(f"{a['name']} — {a['firm']}", value=True)
@@ -769,12 +769,12 @@ def _open_guidance_dialog(state):
             delta = street - guide_mid
             ui.label(f"Guidance midpoint: {gm_str} · Street consensus: ${street:.1f}M · "
                      f"Delta: {delta:+.1f}M / {delta/guide_mid*100:+.1f}%").style(
-                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:13px;")
+                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:var(--fs-base);")
             street_line = f"We've noticed current Street consensus is modeling at ${street:.1f}M vs our {gm_str} midpoint."
         else:
             ui.label(f"Guidance midpoint: {gm_str} · No Street revenue consensus yet — no covering analyst "
                      f"has a revenue model on file.").style(
-                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:13px;")
+                f"background:{COLORS['surface_hover_bg']};padding:8px 12px;border-radius:8px;font-size:var(--fs-base);")
             street_line = ("We don't yet have Street revenue models on file, and want to make sure covering "
                            "analysts are building to our guidance.")
         memo = (f"Hi [Analyst],\n\nAhead of our upcoming earnings release, I'm reaching out to ensure all covering "
@@ -816,7 +816,7 @@ def _open_guidance_dialog(state):
 def _open_checkin_dialog(state, missing_model_analysts, checkin_days):
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label("Propose Analyst Check-In").classes("text-lg font-bold")
-        ui.label("No live calendar integration — these are suggested slots to confirm manually.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("No live calendar integration — these are suggested slots to confirm manually.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         slot_dates = [datetime.now().date() + timedelta(days=d) for d in (2, 3, 4)]
         slots = [f"{d.strftime('%A, %b %d')} at {t}" for d, t in zip(slot_dates, ["10:00 AM EST", "2:30 PM EST", "11:00 AM EST"])]
         for s in slots:
@@ -868,9 +868,9 @@ def _open_disconnect_dialog(snap=None, pt_avg=None):
         ui.label("Disconnect Drivers").classes("text-lg font-bold")
         ui.label("This app has no short-interest or sector-index data source — the drivers below use only "
                  "what's actually tracked here (model coverage, active PT count, volume), not a full quant "
-                 "correlation.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                 "correlation.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.html(
-            "<div style='background:#EEF2F7;border-radius:8px;padding:10px 14px;font-size:13px;color:#1E293B;line-height:1.6;'>"
+            "<div style='background:#EEF2F7;border-radius:8px;padding:10px 14px;font-size:var(--fs-base);color:#1E293B;line-height:1.6;'>"
             "<b>Likely contributors, from data on file:</b><br>"
             f"• <b>Thin coverage</b> — only {active_n} of {total_n} covering analysts have a current PT on file; {pt_line}<br>"
             f"• <b>Volume signal</b> — {vol_line}<br>"
@@ -898,7 +898,7 @@ def _open_target_list_dialog():
         ui.label("No confirmed attendee list exists for the H.C. Wainwright conference — this app doesn't have "
                  "RSVP data. Below is a same-profile candidate list from the Target Database (New York route, "
                  "small-cap value/growth mandate), not a verified roster of who's actually attending.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         candidates = [
             ("Royce Investment Partners", "Small-cap value", 82),
             ("Kennedy Capital Management", "Small-cap growth", 76),
@@ -906,7 +906,7 @@ def _open_target_list_dialog():
             ("Robotti & Company", "Deep value / special situations", 68),
         ]
         for name, mandate, fit in candidates:
-            ui.label(f"• {name} — {mandate} · Fit {fit:.0f}").style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.label(f"• {name} — {mandate} · Fit {fit:.0f}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -920,7 +920,7 @@ def _render_activity_responses(state):
         return
     ui.label("Activity & responses — model requests").classes("section-head")
     ui.label("You mark status yourself as replies come in — this app has no email inbox connected, so nothing "
-             "here is auto-detected.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "here is auto-detected.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     sent_names = state.get("models_sent_names", [])
     tracked_analysts = [a for a in CA() if a["name"] in sent_names] or [a for a in CA() if a.get("pt") is None]
@@ -932,9 +932,9 @@ def _render_activity_row(state, a):
     status_key = f"activity_status_{a['name']}"
     with ui.row().classes("w-full items-start justify-between gap-4"):
         with ui.column().classes("flex-[2] gap-0"):
-            ui.label(f"{a['name']} — {a['firm']}").classes("font-bold").style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.label(f"{a['name']} — {a['firm']}").classes("font-bold").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
             status_sel = ui.select(["Sent", "Replied", "Model Received"], value=state.get(status_key, "Sent")).classes("w-full")
-        ui.label(f"Sent {state.get('models_request_sent_date','')}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(f"Sent {state.get('models_request_sent_date','')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     detail_area = ui.column().classes("w-full")
 
@@ -960,7 +960,7 @@ def _render_activity_row(state, a):
             elif status_sel.value == "Model Received":
                 ui.label("Upload the file you actually received (Metric,Value CSV — e.g. Revenue,24.8 / EPS,0.06). "
                          "This app can't intelligently parse an arbitrary analyst spreadsheet format, so it needs "
-                         "a simple structure to read reliably.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                         "a simple structure to read reliably.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 result_area = ui.column().classes("w-full")
 
                 async def handle_upload(e, a=a, result_area=result_area):
@@ -975,12 +975,12 @@ def _render_activity_row(state, a):
                             with ui.row().classes("w-full gap-3"):
                                 ui.html(
                                     f"<div style='background:#EEF2F7;border-radius:8px;padding:8px 12px;'>"
-                                    f"<span style='font-size:11px;color:#64748B;'>OLD MODEL</span><br>"
+                                    f"<span style='font-size:var(--fs-xs);color:#64748B;'>OLD MODEL</span><br>"
                                     f"<b style='color:#1E293B;'>Revenue: ${old_rev}M</b></div>"
                                 )
                                 ui.html(
                                     f"<div style='background:#E9F6EF;border-radius:8px;padding:8px 12px;'>"
-                                    f"<span style='font-size:11px;color:#64748B;'>NEW MODEL</span><br>"
+                                    f"<span style='font-size:var(--fs-xs);color:#64748B;'>NEW MODEL</span><br>"
                                     f"<b style='color:#15803D;'>Revenue: ${new_rev}M</b></div>"
                                 )
 
@@ -995,7 +995,7 @@ def _render_activity_row(state, a):
                     except Exception:
                         with result_area:
                             ui.label("Couldn't read that file as a two-column Metric,Value CSV — check the format "
-                                     "and try again.").style("color:#B91C1C;font-size:12px;")
+                                     "and try again.").style("color:#B91C1C;font-size:var(--fs-sm);")
 
                 ui.upload(on_upload=handle_upload, auto_upload=True).props("accept=.csv").classes("w-full")
 
@@ -1023,7 +1023,7 @@ def _render_investor_pipeline():
     if not targets:
         ui.label("No open signals right now — every tracked institution has a recent logged interaction. "
                  "Check back once one ages out, or a new signal moves a fund's score.").style(
-            f"color:{COLORS['text_muted']};font-size:13px;"
+            f"color:{COLORS['text_muted']};font-size:var(--fs-base);"
         )
     contacts = get_institution_contacts()
     for inst in targets:
@@ -1041,7 +1041,7 @@ def _render_investor_pipeline():
         def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
             with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);"):
                 ui.label(f"{pretty_name(nm)} — {hld} · Engagement {score}/100").classes("font-bold")
-                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:13px;")
+                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
                 _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
 
                 ui.separator().style("margin:6px 0;")
@@ -1119,7 +1119,7 @@ def _render_investor_pipeline():
 
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
             with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"{dot} {pretty_name(nm)}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:13px;")
+                ui.label(f"{dot} {pretty_name(nm)}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-base);")
                 ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
             ui.label(f"{hld} · {nt}").classes("t-meta")
             with _signal_actions():
@@ -1139,7 +1139,7 @@ def _render_investor_pipeline():
                   on_click=lambda: nav.go_to("Investors", "Target Database")).props("color=primary")
     else:
         ui.label("The full pipeline lives in Investor Targeting — your current role doesn't have access to "
-                 "that page.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                 "that page.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _render_earnings_readiness(days):
@@ -1162,9 +1162,9 @@ def _render_earnings_readiness(days):
             f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};"):
         with ui.row().classes("w-full justify-between items-baseline"):
             ui.label(f"{quarter + ' ' if quarter else ''}earnings call".strip().capitalize()) \
-                .classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
-            ui.label(f"in {days} days").style(f"color:{COLORS['accent_light']};font-size:13px;font-weight:700;")
-        ui.label(f"{date_lbl}  ·  {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:12.5px;")
+                .classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
+            ui.label(f"in {days} days").style(f"color:{COLORS['accent_light']};font-size:var(--fs-base);font-weight:700;")
+        ui.label(f"{date_lbl}  ·  {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:var(--fs-sm);")
 
     # The 5-stage Script Generation workflow — ALWAYS show all five, NUMBERED, so it's clear these
     # are the five stages whether or not the script has been started (the old version hid them
@@ -1185,7 +1185,7 @@ def _render_earnings_readiness(days):
         with ui.row().classes("w-full justify-between items-center").style(
                 f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
             ui.label(f"{i}.  {s['name']}").classes("t-body")
-            ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:12px;font-weight:600;")
+            ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:var(--fs-sm);font-weight:600;")
 
     # A clear, purposeful CTA (not a vague "Open Script Generation" link): this is the action that
     # advances the stages above. Primary/full-width when there's work to do; opens the right tab.
@@ -1283,7 +1283,7 @@ def _render_analyst_coverage():
         if pct is not None and status in ("above", "below"):
             txt = f"{label} {glyph} {word} {abs(pct) * 100:.0f}%"
         ui.label(txt).style(
-            f"font-size:10.5px;font-weight:700;letter-spacing:.02em;color:{clr};"
+            f"font-size:var(--fs-2xs);font-weight:700;letter-spacing:.02em;color:{clr};"
             f"border:1px solid {clr};border-radius:9px;padding:1px 7px;white-space:nowrap;")
 
     ool_rows = [r for r in rows if r["out_of_line"]]
@@ -1310,7 +1310,7 @@ def _render_analyst_coverage():
                 with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};{rail}"):
                     with ui.row().classes("w-full justify-between items-center"):
                         ui.label(r["firm"]).classes("font-bold").style(
-                            f"color:{COLORS['text_heading']};font-size:13px;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         ui.label(pt_str).classes("font-bold").style(f"color:{clr};")
                     ui.label(f"{r['name']} · {rating}").classes("t-meta")
                     if meta["has_guidance"]:
@@ -1363,7 +1363,7 @@ def _render_top_story():
         ui.label(eyebrow).classes("t-eyebrow").style(f"color:{accent};")
         def _story_title():
             ui.label(top.get("title", "")).classes("font-bold").style(
-                f"color:{COLORS['text_heading']};font-size:15px;line-height:1.25;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-md);line-height:1.25;")
         # Only wrap in a link when there's a real URL — a None target makes NiceGUI's
         # link component throw (compute_href on undefined). Illustrative peer news
         # can carry no URL.
@@ -1373,14 +1373,14 @@ def _render_top_story():
         else:
             _story_title()
         ui.label(f"{top.get('provider', '')} · {(top.get('pub') or '')[:10]}").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         if peer:
             def _to_peer_news():
                 ui.run_javascript(
                     "document.getElementById('peer-news-anchor')?."
                     "scrollIntoView({behavior:'smooth', block:'start'});")
             ui.button(f"More peer & competitor news ({len(peer)}) ↓", on_click=_to_peer_news) \
-                .props("flat dense no-caps").style(f"color:{accent};font-size:12px;margin-top:2px;")
+                .props("flat dense no-caps").style(f"color:{accent};font-size:var(--fs-sm);margin-top:2px;")
 
 
 def _collapsible_head(title, start_open=True):
@@ -1415,7 +1415,7 @@ def _render_insider_activity():
     with body:
         if not txns:
             ui.label("No Form 4 filings on file yet — a data refresh pulls insider transactions from EDGAR.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             return
 
         n = insider_feed.net_open_market()
@@ -1423,10 +1423,10 @@ def _render_insider_activity():
             tone_clr = COLORS["success"] if n["net_shares"] > 0 else COLORS["danger"] if n["net_shares"] < 0 else COLORS["text_muted"]
             tone = "net buying" if n["net_shares"] > 0 else "net selling" if n["net_shares"] < 0 else "flat"
             ui.label(f"Open-market: {n['buy_shares']:,.0f} bought vs {n['sell_shares']:,.0f} sold — {tone}").style(
-                f"color:{tone_clr};font-size:12px;font-weight:600;")
+                f"color:{tone_clr};font-size:var(--fs-sm);font-weight:600;")
         else:
             ui.label("No open-market buys/sells on file — recent Form 4s are routine grants/exercises.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         _tone = {"P": COLORS["success"], "S": COLORS["danger"]}
         for t in txns[:6]:
@@ -1436,9 +1436,9 @@ def _render_insider_activity():
             # not under the bullet (previously the row wrapped and the dot floated above).
             with ui.row().classes("w-full items-start no-wrap").style("gap:8px;"):
                 ui.label(insider_feed.glyph(t)).style(
-                    f"color:{col};font-weight:800;font-size:12px;line-height:1.45;flex-shrink:0;")
+                    f"color:{col};font-weight:800;font-size:var(--fs-sm);line-height:1.45;flex-shrink:0;")
                 ui.label(insider_feed.describe(t)).classes("flex-1").style(
-                    f"color:{COLORS['text_secondary']};font-size:12px;line-height:1.45;")
+                    f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);line-height:1.45;")
 
 
 def _render_peer_watch():
@@ -1451,16 +1451,16 @@ def _render_peer_watch():
     body = _collapsible_head("Peer watch")
     with body:
         ui.label("Daily monitor of the segmented peer group — price moves and SEC filings.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         movers = s["movers"] or s["all_movers"][:4]
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
             if not movers:
                 ui.label("Peer market data refreshing — check back shortly.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             else:
                 ui.label("Today's moves").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:12px;")
+                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                 for m in movers[:5]:
                     clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
                     tag = ("  ◆ closest analog" if m.get("closest_analog")
@@ -1469,22 +1469,22 @@ def _render_peer_watch():
                     with ui.row().classes("w-full items-center justify-between").style("padding:1px 0;"):
                         with ui.row().classes("items-baseline gap-1").style("min-width:0;"):
                             ui.label(m["ticker"]).classes("font-bold").style(
-                                f"color:{COLORS['text_body']};font-size:13px;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                             ui.label(f"{m.get('segment', '') or ''}{tag}").style(
-                                f"color:{COLORS['text_muted']};font-size:10px;")
-                        ui.label(f"{m['pct']:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:13px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
+                        ui.label(f"{m['pct']:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:var(--fs-base);")
 
         if s["filings"]:
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
                 ui.label("Recent peer SEC filings").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:12px;")
+                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                 for f in s["filings"][:5]:
                     who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
                     def _filing_line():
                         with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
-                            ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:11px;width:42px;")
+                            ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);width:42px;")
                             ui.label(f"{who} · {f['form']}").style(
-                                f"color:{COLORS['text_secondary']};font-size:12px;")
+                                f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
                     # Link only when a real URL is present — target=None crashes the link component.
                     if f.get("url"):
                         with ui.link(target=f["url"], new_tab=True).style("text-decoration:none;"):
@@ -1498,18 +1498,18 @@ def _render_peer_watch():
         own = news_feed.recent(ticker=_tk, limit=6)
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
             ui.label(f"{_tk} headlines · rolling 7 days").classes("font-bold").style(
-                f"color:{COLORS['text_body']};font-size:12px;")
+                f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
             if own:
                 for n in own:
                     with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
                         with ui.column().classes("gap-0").style("padding:2px 0;"):
                             ui.label(f"{n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
-                                f"color:{COLORS['text_muted']};font-size:10px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                             ui.label(n["title"]).style(
-                                f"color:{COLORS['text_secondary']};font-size:12px;line-height:1.35;")
+                                f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);line-height:1.35;")
             else:
                 ui.label(f"No {_tk} headlines in the last 7 days — the feed is watching.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
         # Anchor for the "More peer news ↓" jump from the top-story card.
         ui.html('<div id="peer-news-anchor"></div>')
@@ -1517,15 +1517,15 @@ def _render_peer_watch():
         if peer_news:
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
                 ui.label("Peer & competitor news · rolling 7 days").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:12px;")
+                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                 for n in peer_news:
                     with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
                         with ui.column().classes("gap-0").style("padding:2px 0;"):
                             ui.label(f"{n['ticker']} · {n.get('provider', '')} · {(n.get('pub') or '')[:10]}").style(
-                                f"color:{COLORS['text_muted']};font-size:10px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                             ui.label(n["title"]).style(
-                                f"color:{COLORS['text_secondary']};font-size:12px;line-height:1.35;")
+                                f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);line-height:1.35;")
 
         ui.label("Prices & news via Yahoo (≤60-min delay); filings via SEC EDGAR. A licensed feed would add breaking "
                  "speed and deeper M&A/press-wire coverage.").style(
-            f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:2px;")

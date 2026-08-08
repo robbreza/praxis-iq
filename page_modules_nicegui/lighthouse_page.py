@@ -19,8 +19,8 @@ def _conf_badge(label, value):
     color = {"HIGH": "#B91C1C", "MODERATE": "#B45309", "LOW": "#64748B", "ROUTINE": "#64748B"}.get(value, "#64748B")
     with ui.element("div").style(f"display:inline-flex;gap:6px;align-items:center;"
                                  f"border:1px solid {color}55;border-radius:999px;padding:2px 10px;background:{color}11;"):
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11px;")
-        ui.label(value).style(f"color:{color};font-weight:700;font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        ui.label(value).style(f"color:{color};font-weight:700;font-size:var(--fs-xs);")
 
 
 def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=None):
@@ -37,7 +37,7 @@ def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=N
         with ui.row().classes("items-center justify-end").style("width:150px;gap:6px;flex:none;"):
             ui.element("div").style(f"width:7px;height:7px;border-radius:999px;flex:none;"
                                     f"background:{'#0F172A' if is_issuer else '#1D4ED8' if is_comp else '#CBD5E1'};")
-            ui.label(label).style(f"color:{lab_color};font-weight:{weight};font-size:12px;text-align:right;")
+            ui.label(label).style(f"color:{lab_color};font-weight:{weight};font-size:var(--fs-sm);text-align:right;")
         # bar track with a centre zero line
         with ui.element("div").style(f"position:relative;width:{half*2}px;height:16px;flex:none;"
                                      f"background:{COLORS.get('surface_alt', '#F1F5F9')};border-radius:4px;"):
@@ -50,9 +50,9 @@ def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=N
             rc = red if rel < 0 else green
             rel_txt = f"  ·  USIO {rel*100:+.1f} pts"
         with ui.row().classes("items-baseline").style("width:150px;gap:0;flex:none;"):
-            ui.label(val).style(f"color:{color};font-weight:{weight};font-size:12px;")
+            ui.label(val).style(f"color:{color};font-weight:{weight};font-size:var(--fs-sm);")
             if rel is not None:
-                ui.label(rel_txt).style(f"color:{(red if rel < 0 else green)};font-size:11px;")
+                ui.label(rel_txt).style(f"color:{(red if rel < 0 else green)};font-size:var(--fs-xs);")
     if note:
         pass
 
@@ -63,30 +63,30 @@ def _render_week_in_context(wk, _weekly):
     scale = max([abs(wk["car_actual"])] + [abs(c["ret"]) for c in ctx] + [0.005])
     with ui.card().classes("w-full").style("border:1px solid #B4530955;background:#FFFDF7;margin-bottom:12px;padding:14px 16px;"):
         with ui.row().classes("items-center w-full justify-between"):
-            ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").style("color:#B45309;font-weight:800;font-size:11px;letter-spacing:.04em;")
+            ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);letter-spacing:.04em;")
             ui.label(f"{_weekly.ordinal(wk['weekly_rarity']*100)}-percentile week") \
-                .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         # punchline sentence — the number never appears without its comparison
         if wk.get("context_read"):
-            ui.label(f"USIO {wk['context_read']}").style(f"color:{COLORS['text_heading']};font-size:14px;font-weight:600;margin:6px 0 2px;")
+            ui.label(f"USIO {wk['context_read']}").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;margin:6px 0 2px;")
         # the shared-axis comparison
         with ui.column().classes("w-full").style("gap:0;margin:8px 0 4px;"):
             _bar_row("USIO", "", wk["car_actual"], scale, is_issuer=True)
             for c in ctx:
                 _bar_row(c["label"], c["note"], c["ret"], scale, is_comp=c["relevant"], rel=c["rel"])
         ui.label("● comp = the peer basket & size index the attribution model uses · lighter bars are broad-market reference") \
-            .style(f"color:{COLORS['text_muted']};font-size:10px;margin-top:2px;")
+            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:2px;")
         # the drift + honest read
         ui.element("div").style("height:1px;background:#E2E8F0;margin:8px 0;")
         with ui.row().classes("items-baseline gap-2"):
-            ui.label("After stripping market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label(f"{wk['resid_sum']*100:+.1f}% unexplained drift").style(f"color:{drift_color};font-size:15px;font-weight:800;")
-            ui.label(f"· {wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
-        ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:2px;")
+            ui.label("After stripping market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            ui.label(f"{wk['resid_sum']*100:+.1f}% unexplained drift").style(f"color:{drift_color};font-size:var(--fs-md);font-weight:800;")
+            ui.label(f"· {wk['abnormal_days']} abnormal day(s) of {wk['trading_days']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        ui.label(f"Read: {wk['driver']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")
         if wk.get("holders") and wk["holders"].get("lines"):
             ui.label("Holder lens (" + str(wk["holders"]["quarter"]) + "): " +
                      "; ".join(wk["holders"]["lines"][:3]) + " — " + wk["holders"]["note"] + ".") \
-                .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
 
 
 def _render_peer_synthesis(s):
@@ -96,22 +96,22 @@ def _render_peer_synthesis(s):
     tier_color = {"trading": "#0EA5E9", "narrative": "#7C3AED", "fundamental": "#B45309"}
     with ui.card().classes("w-full").style("border:1px solid #CBD5E1;margin-bottom:12px;padding:14px 16px;"):
         ui.label("PEER INTELLIGENCE — three definitions of “peer”") \
-            .style("color:#0F172A;font-weight:800;font-size:12px;letter-spacing:.04em;")
-        ui.label(s.get("headline", "")).style(f"color:{COLORS['text_body']};font-size:13px;font-style:italic;margin-bottom:6px;")
+            .style("color:#0F172A;font-weight:800;font-size:var(--fs-sm);letter-spacing:.04em;")
+        ui.label(s.get("headline", "")).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-style:italic;margin-bottom:6px;")
         with ui.row().classes("w-full").style("gap:12px;flex-wrap:wrap;"):
             for t in s["tiers"]:
                 c = tier_color.get(t["key"], "#64748B")
                 with ui.column().style(f"flex:1;min-width:200px;border-top:3px solid {c};padding-top:6px;gap:2px;"):
-                    ui.label(t["label"]).style(f"color:{c};font-weight:800;font-size:12px;")
-                    ui.label(t["subtitle"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(t["label"]).style(f"color:{c};font-weight:800;font-size:var(--fs-sm);")
+                    ui.label(t["subtitle"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     with ui.row().style("flex-wrap:wrap;gap:4px;margin:4px 0;"):
                         for m in t["members"]:
-                            ui.label(m).style(f"background:{c}18;color:{c};border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;")
+                            ui.label(m).style(f"background:{c}18;color:{c};border-radius:4px;padding:1px 7px;font-size:var(--fs-xs);font-weight:600;")
                         if not t["members"]:
-                            ui.label("—").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                    ui.label(t["note"]).style(f"color:{COLORS['text_muted']};font-size:11px;line-height:1.4;")
+                            ui.label("—").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                    ui.label(t["note"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
         for i in s["insights"]:
-            ui.label("• " + i).style(f"color:{COLORS['text_body']};font-size:11px;margin-top:2px;")
+            ui.label("• " + i).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);margin-top:2px;")
 
 
 def render_lighthouse_page():
@@ -136,11 +136,11 @@ def render_lighthouse_page():
             from lighthouse import shadow as _shadow
             st = _shadow.shadow_status("usio", "USIO")
             with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-                ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:11px;"
+                ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
                     "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
                 ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
                          f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
-                         f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                         f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         except Exception:
             pass
 
@@ -173,7 +173,7 @@ def render_lighthouse_page():
             ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
                 .props("outline size=sm color=primary")
             ui.label("sends the daily digest to your configured address and shows the result here — "
-                     "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                     "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
         # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
         # it sends a real notification on demand — so delivery can be proven without waiting for a
@@ -218,7 +218,7 @@ def render_lighthouse_page():
                 if eng["last_engaged"]:
                     bits.append(f"last engaged {eng['last_engaged']}")
                 ui.label("Engagement (30d): " + " · ".join(bits)) \
-                    .style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
+                    .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
         except Exception:
             pass
         try:                                            # live calibration (cached; scheduler-refreshed)
@@ -230,14 +230,14 @@ def render_lighthouse_page():
                     ui.label(f"{cc['days']} sessions · FDR alerts ~{cc.get('fdr_per_year', 0):.0f}/yr, "
                              f"{(cc.get('fdr_precision') or 0)*100:.0f}% with an identifiable catalyst · "
                              f"top-decile move recall {(cc.get('big_move_recall') or 0)*100:.0f}%") \
-                        .style(f"color:{COLORS['text_body']};font-size:12px;")
+                        .style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                     for t in cc.get("reliability", []):
                         if not t.get("n"):
                             continue
                         er = f"{t['event_rate']*100:.0f}% w/ catalyst" if t.get("event_rate") is not None else "—"
                         ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
                         ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
-                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         except Exception:
             pass
         try:                                            # Spec-14 capstone: the three-peer synthesis card
@@ -253,17 +253,17 @@ def render_lighthouse_page():
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label(f"{co['n_holders']} holders · {co['n_focused']} focused/fundamental · "
                              f"{co['n_mechanical']} quant/passive ({co.get('quarter','')})") \
-                        .style(f"color:{COLORS['text_body']};font-size:12px;")
+                        .style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                     if not co.get("peers"):
                         ui.label("No concentrated active holders with clear co-holdings — owned via broad/"
                                  "quant/wealth vehicles, i.e. USIO trades on small-cap FLOW, not a peer complex.") \
-                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     else:
                         ui.label("Co-held by USIO's concentrated active managers — note these are NOT the "
-                                 "payments peers we defined:").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                 "payments peers we defined:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         for p in co["peers"][:8]:
                             ui.label(f"{p['issuer']} · held by {p['holders']} · avg wt {p['avg_weight']*100:.1f}%") \
-                                .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         except Exception:
             pass
         try:                                            # market-revealed peers via co-movement (cached)
@@ -273,17 +273,17 @@ def render_lighthouse_page():
                 with ui.expansion("Market-revealed peers — who USIO actually co-moves with", icon="insights") \
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label("Top daily-return co-movers (broad universe):") \
-                        .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     for t in cm.get("top_correlates", [])[:6]:
                         tag = " · our peer" if t["defined_peer"] else ""
                         ui.label(f"{t['ticker']} {t['corr']:+.2f} · {t['category']}{tag}") \
-                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     ui.label(f"Data-selected explainers: {', '.join(p['name'] for p in cm.get('sparse', [])) or '—'} · "
                              f"revealed R² {cm.get('sparse_r2', 0):.2f} vs our-peers R² {(cm.get('defined_basket_r2') or 0):.2f}") \
-                        .style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                        .style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
                     ui.label("Read: USIO co-moves with the small-cap complex / fintech, not the payments "
                              "peers we defined — it trades as small-cap flow.") \
-                        .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
         except Exception:
             pass
         try:                                            # sell-side coverage-overlap peers (cached)
@@ -294,19 +294,19 @@ def render_lighthouse_page():
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label(f"{cvg['n_analysts']} covering analysts · {cvg['n_specialists']} payments specialist(s). "
                              "This is the NARRATIVE peer group (whose upgrade lands in the same inboxes), distinct "
-                             "from the trading peers above.").style(f"color:{COLORS['text_body']};font-size:12px;")
+                             "from the trading peers above.").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                     for p in cvg.get("payments_coverage_peers", [])[:6]:
                         tag = "our peer" if p["defined_peer"] else "NEW"
                         ui.label(f"{p['ticker']} · {p['name']} · {p['sector']} [{tag}]") \
-                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     if cvg.get("new_payments_peers"):
                         ui.label(f"Payments peers the sell-side brackets that we DIDN'T define: "
                                  f"{', '.join(cvg['new_payments_peers'])}") \
-                            .style(f"color:{COLORS['text_body']};font-size:11px;margin-top:3px;")
+                            .style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);margin-top:3px;")
                     if cvg.get("defined_not_covered"):
                         ui.label(f"Our defined peers USIO's analysts don't cover: "
                                  f"{', '.join(cvg['defined_not_covered'])}") \
-                            .style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         except Exception:
             pass
 
@@ -314,7 +314,7 @@ def render_lighthouse_page():
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
             ui.label(f"Lighthouse is wired for USIO in this MVP.").classes("font-bold")
             ui.label(f"A new client is a config file + a historical data load — {ticker} isn't loaded yet.") \
-                .style(f"color:{COLORS['text_muted']};font-size:12px;")
+                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
 
     try:
@@ -354,14 +354,14 @@ def render_lighthouse_page():
                 with ui.row().classes("items-center w-full justify-between"):
                     with ui.row().classes("items-baseline gap-3"):
                         ui.label(str(day)).classes("font-bold").style(f"color:{COLORS['text_heading']};")
-                        ui.label(f"{v['actual']*100:+.1f}%").style(f"color:{move_color};font-size:22px;font-weight:800;")
-                        ui.label(f"vs expected {v['expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label(f"{v['actual']*100:+.1f}%").style(f"color:{move_color};font-size:var(--fs-3xl);font-weight:800;")
+                        ui.label(f"vs expected {v['expected']*100:+.1f}%").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     with ui.row().classes("gap-2"):
                         _conf_badge("Abnormality", v["abnormality_conf"])
                         _conf_badge("Explanation", v["explanation_conf"])
                 best = v["drivers"][0]["label"] if v["explanation_conf"] != "LOW" else "No confirmed cause identified"
                 ui.label(f"Unexplained residual {v['residual']*100:+.1f}%  ·  {int((v['rarity'] or 0)*100)}th-pctile rare  ·  best read: {best}") \
-                    .style(f"color:{COLORS['text_body']};font-size:13px;margin-top:2px;")
+                    .style(f"color:{COLORS['text_body']};font-size:var(--fs-base);margin-top:2px;")
                 if v.get("z") is not None:
                     _fdr = ""
                     if v.get("fdr_significant") is not None:
@@ -370,23 +370,23 @@ def render_lighthouse_page():
                     _vol = "GARCH(1,1)" if v.get("cond_vol_model") == "garch" else "EWMA"
                     ui.label(f"{int(v.get('n_factors') or 0)}-factor risk model · R² {(v.get('r2') or 0)*100:.0f}% · "
                              f"residual {v['z']:+.1f}σ (t {v.get('t_stat') or 0:+.1f}), {_vol} vol-adjusted{_fdr}") \
-                        .style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:1px;")
+                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:1px;")
                     if v.get("rvol") is not None:
                         _liq = (f"⚠ on {v['rvol']:.1f}× 20-day volume — thin; possible microstructure, no phone alert"
                                 if v.get("thin_tape") else f"on {v['rvol']:.1f}× 20-day volume — tape supports the move")
                         ui.label(f"Liquidity: {_liq}").style(
-                            f"color:{'#B45309' if v.get('thin_tape') else COLORS['text_muted']};font-size:11px;")
+                            f"color:{'#B45309' if v.get('thin_tape') else COLORS['text_muted']};font-size:var(--fs-xs);")
                 with ui.column().classes("gap-1").style("margin-top:6px;"):
                     for d in v["drivers"]:
                         c = _ROLE_COLOR.get(d["cls"], "#64748B")
                         with ui.row().classes("items-center gap-2"):
-                            ui.label(d["cls"].title()).style(f"color:{c};font-weight:700;font-size:11px;"
+                            ui.label(d["cls"].title()).style(f"color:{c};font-weight:700;font-size:var(--fs-xs);"
                                                              f"border:1px solid {c}55;border-radius:4px;padding:0 6px;")
-                            ui.label(f"{d['label']} — {d['detail']}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            ui.label(f"{d['label']} — {d['detail']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                             if d.get("link"):
-                                ui.link("evidence ↗", d["link"], new_tab=True).style("font-size:11px;")
+                                ui.link("evidence ↗", d["link"], new_tab=True).style("font-size:var(--fs-xs);")
                 if v.get("technical"):
-                    ui.label(f"Technical (how, not why): {v['technical']}").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+                    ui.label(f"Technical (how, not why): {v['technical']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
                 if v["not_found"]:
                     ui.label("Checked but not found: " + " · ".join(v["not_found"])) \
-                        .style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;margin-top:2px;")
+                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;margin-top:2px;")

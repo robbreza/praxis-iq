@@ -65,9 +65,9 @@ def _open_brief(fund, inst_by_fund, client_id, meeting=None):
             ctx = " · ".join(x for x in [meeting.get("Date"), meeting.get("Time"),
                                          meeting.get("Contact"), meeting.get("Type")] if x)
             if ctx:
-                ui.label(ctx).style(f"color:{COLORS['accent']};font-size:12.5px;font-weight:600;")
+                ui.label(ctx).style(f"color:{COLORS['accent']};font-size:var(--fs-sm);font-weight:600;")
             if meeting.get("Topic"):
-                ui.label(f"Agenda: {meeting['Topic']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"Agenda: {meeting['Topic']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         # holding / conviction / direction — only what we actually have
         bits = []
         if row.get("Position_Value"):
@@ -79,19 +79,19 @@ def _open_brief(fund, inst_by_fund, client_id, meeting=None):
         if row.get("Metro"):
             bits.append(str(row["Metro"]))
         ui.label(" · ".join(bits) if bits else "No 13F position on file — prospect.") \
-            .style(f"color:{COLORS['text_body']};font-size:13px;")
+            .style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
         if row.get("Coverage_Priority"):
             ui.label(f"Coverage priority: {row['Coverage_Priority']}").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         # last note
         if note:
             with ui.element("div").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-top:6px;"):
-                ui.label(f"Last note ({note.get('Date','')})").style(f"color:{COLORS['text_muted']};font-size:11px;")
-                ui.label(note.get("Notes", "")).style(f"color:{COLORS['text_body']};font-size:13px;")
+                ui.label(f"Last note ({note.get('Date','')})").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                ui.label(note.get("Notes", "")).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
 
         ui.separator().style("margin:8px 0;")
-        ui.label("Capture a note").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:13px;")
+        ui.label("Capture a note").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
         note_in = ui.textarea(placeholder="What did they say? Objections, follow-ups, buy signal…") \
             .props("autogrow").classes("w-full")
 
@@ -148,7 +148,7 @@ def render_home_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
     ui.label(datetime.now().strftime("%A, %B %d").upper()) \
-        .style(f"color:{COLORS['accent_light2']};letter-spacing:.08em;font-size:12px;")
+        .style(f"color:{COLORS['accent_light2']};letter-spacing:.08em;font-size:var(--fs-sm);")
     ui.label("On the road").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
     insts = _institutions(client_id)
@@ -171,21 +171,21 @@ def render_home_page():
                         "click", lambda m=m, f=firm: _open_brief(f, inst_by_fund, client_id, meeting=m)):
                     with ui.column().classes("gap-0 items-center").style("min-width:52px;"):
                         ui.label(when).style(
-                            f"font-size:11px;font-weight:700;"
+                            f"font-size:var(--fs-xs);font-weight:700;"
                             f"color:{COLORS['accent'] if is_today else COLORS['text_muted']};")
                         if m.get("Time"):
-                            ui.label(m["Time"]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label(m["Time"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                         ui.label(pretty_name(firm)).style(
-                            f"color:{COLORS['text_heading']};font-size:14px;font-weight:600;line-height:1.3;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.3;")
                         sub = " · ".join(x for x in [m.get("Contact"), m.get("Type")] if x)
                         if sub:
-                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:12px;")
-                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:20px;")
+                            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xl);")
             ui.label("Tap a meeting for the brief + to capture a note.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
         else:
-            ui.label("No meetings booked yet.").style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.label("No meetings booked yet.").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
             ui.button("Schedule a meeting →", on_click=lambda: nav.go_to("Investors", "Meeting Hub")) \
                 .props("flat dense").style(f"color:{COLORS['accent']};margin-top:2px;")
         # Secondary: prep anyone who isn't booked (the old holder lookup, now clearly subordinate).
@@ -194,7 +194,7 @@ def render_home_page():
             names = [r["Fund"] for r in ranked[:40] if r.get("Fund")]
             ui.separator().style("margin:8px 0 4px;")
             ui.label("Seeing someone not on the list? Look up any holder:").style(
-                f"color:{COLORS['text_muted']};font-size:11.5px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             sel = ui.select(options=names, with_input=True, label="Search a holder") \
                 .props("outlined dense clearable").classes("w-full")
             sel.on_value_change(lambda e: (e.value and _open_brief(e.value, inst_by_fund, client_id)))
@@ -211,20 +211,20 @@ def render_home_page():
             clr = COLORS["success"] if chg >= 0 else COLORS["danger"]
             with ui.row().classes("items-baseline gap-3"):
                 ui.label(f"${snap['last_price']:.2f}").classes("font-bold").style(
-                    f"color:{COLORS['text_heading']};font-size:26px;")
-                ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:15px;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-hero);")
+                ui.label(f"{chg:+.1f}%").classes("font-bold").style(f"color:{clr};font-size:var(--fs-md);")
                 if snap.get("volume") and snap.get("avg_volume_10d"):
                     ui.label(f"{snap['volume']/snap['avg_volume_10d']:.1f}× vol").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         else:
-            ui.label("Market data refreshing…").style(f"color:{COLORS['text_muted']};font-size:13px;")
+            ui.label("Market data refreshing…").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
         if ticker == "USIO":
             try:
                 from lighthouse import weekly as _weekly
                 wk = _weekly.load_context_cache(client_id, "USIO")
                 if wk and wk.get("context_read"):
                     ui.label(f"This week: USIO {wk['context_read']}").style(
-                        f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;line-height:1.5;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
             except Exception:
                 pass
         # Prominent action, full-width — not a shrunk top-right link.
@@ -250,22 +250,22 @@ def render_home_page():
                 with ui.row().classes("w-full items-center gap-2").style(
                         f"padding:6px 0;border-top:1px solid {COLORS['border']};cursor:pointer;").on(
                         "click", lambda: nav.go_to("Calendar")):
-                    ui.icon("event").style(f"color:{COLORS['accent']};font-size:18px;")
+                    ui.icon("event").style(f"color:{COLORS['accent']};font-size:var(--fs-xl);")
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        ui.label(line).style(f"color:{COLORS['text_body']};font-size:13px;line-height:1.4;")
+                        ui.label(line).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);line-height:1.4;")
                         if status:
-                            ui.label(status).style(f"color:{COLORS['text_muted']};font-size:11px;")
-                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:18px;")
+                            ui.label(status).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                    ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xl);")
         else:
             ui.label("No upcoming investor events on the calendar.").style(
-                f"color:{COLORS['text_muted']};font-size:13px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
     # ── 4. ALERTS ─────────────────────────────────────────────────────────────
     if ticker == "USIO":
         with _card():
             ui.label("Alerts").classes("section-head")
             ui.label("Get a phone notification when the stock makes an abnormal move.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             # No inline onclick — NiceGUI/Vue strips it from ui.html, leaving the button dead. Instead a
             # document-level delegated listener (in app_nicegui's body script) fires on [data-ir-enable],
             # which keeps the handler INSIDE the tap gesture that Notification.requestPermission needs.

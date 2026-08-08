@@ -62,7 +62,7 @@ def _render_platform_config():
             quiet_start_in = ui.input("Quiet period start (YYYY-MM-DD)", value=settings.get("quiet_start", earnings.get("quiet_start", ""))).classes("w-full")
             ui.label("⚠ Not yet wired — the app reads earnings/quiet dates from the client record; "
                      "saving these two stores them but doesn't change app behavior yet.").style(
-                "color:#B45309;font-size:11px;line-height:1.4;")
+                "color:#B45309;font-size:var(--fs-xs);line-height:1.4;")
 
     def save():
         _save_settings({
@@ -74,7 +74,7 @@ def _render_platform_config():
     ui.button("Save Configuration", on_click=save).props("color=primary")
     ui.label("Note: this saves platform-level settings to this client's config file. Core earnings-date/quiet-period "
              "values used throughout the rest of the app still come from the client registry "
-             "(config/client_config.py) until this is wired all the way through.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+             "(config/client_config.py) until this is wired all the way through.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
 
 
 def _render_routing_key():
@@ -92,19 +92,19 @@ def _render_routing_key():
     ui.markdown("---")
     with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
         ui.icon("check_circle" if configured else "error_outline").style(
-            f"color:{'#15803D' if configured else '#B45309'};font-size:18px;")
+            f"color:{'#15803D' if configured else '#B45309'};font-size:var(--fs-xl);")
         ui.label("NDR routing — OpenRouteService (driving miles & time)").style(
-            f"color:{COLORS['text_heading']};font-weight:700;font-size:14px;")
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
     ui.label("Turns the NDR itinerary's travel legs from straight-line estimates into real "
              "routed driving distance and time. Free key at openrouteservice.org — no credit "
              "card. Leave blank to keep offline estimates.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     key_in = ui.input("OpenRouteService API key",
                       value=settings.get("routing_api_key", ""),
                       password=True, placeholder="paste your ORS token").classes("w-full").props(
         "autocomplete=off")
-    result_lbl = ui.label("").style("font-size:12px;margin-top:2px;")
+    result_lbl = ui.label("").style("font-size:var(--fs-sm);margin-top:2px;")
 
     def save():
         s = _load_settings()
@@ -122,7 +122,7 @@ def _render_routing_key():
         except Exception as e:
             ok, msg = False, f"Test error: {e}"
         result_lbl.set_text(("✓ " if ok else "✗ ") + msg)
-        result_lbl.style(f"color:{'#15803D' if ok else '#B45309'};font-size:12px;margin-top:2px;")
+        result_lbl.style(f"color:{'#15803D' if ok else '#B45309'};font-size:var(--fs-sm);margin-top:2px;")
 
     with ui.row().classes("gap-2"):
         ui.button("Save key", on_click=save).props("color=primary dense")
@@ -144,30 +144,30 @@ def _render_lexicon_licence():
     ok = current in ("commercial", "academic")
     with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
         ui.icon("check_circle" if ok else "gpp_maybe").style(
-            f"color:{'#15803D' if ok else '#B45309'};font-size:18px;")
+            f"color:{'#15803D' if ok else '#B45309'};font-size:var(--fs-xl);")
         ui.label("Script hedging analytics — Loughran-McDonald dictionary").style(
-            f"color:{COLORS['text_heading']};font-weight:700;font-size:14px;")
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
     ui.label("Measures whether the script commits or qualifies (Weak-Modal + Uncertainty vs "
              "Strong-Modal), using the finance-specific dictionary from Loughran & McDonald (2011), "
              "J. Finance 66(1). General sentiment lists misread financial prose — they score "
              "'liability', 'cost', 'tax' and 'capital' as negative when they're neutral accounting "
-             "vocabulary.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+             "vocabulary.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid #B45309;"
             "border-left:3px solid #B45309;padding:8px 10px;margin-top:4px;"):
         ui.label("Licence required before this ships to a client").style(
-            "color:#B45309;font-size:12px;font-weight:700;")
+            "color:#B45309;font-size:var(--fs-sm);font-weight:700;")
         ui.label("The dictionary is free for ACADEMIC research. Commercial use requires a licence "
                  "(loughranmcdonald@gmail.com). Praxis Point IR is commercial. Leave this "
                  "Unlicensed until terms are agreed — the analytics stay disabled and nothing "
                  "derived from the dictionary can reach a client deliverable.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     sel = ui.select({"unlicensed": "Unlicensed — analytics disabled (default)",
                      "commercial": "Commercial licence agreed",
                      "academic": "Academic use only"},
                     value=current, label="Licence status").props("dense outlined").classes("w-full")
-    status = ui.label("").style("font-size:11.5px;margin-top:2px;")
+    status = ui.label("").style("font-size:var(--fs-xs);margin-top:2px;")
 
     def save():
         s = _load_settings()
@@ -180,7 +180,7 @@ def _render_lexicon_licence():
         status.set_text(("✓ Hedging analytics ENABLED — " + sel.value) if avail
                         else "Analytics disabled. (Unlicensed, or the dictionary file is missing "
                              "from vendor/loughran_mcdonald/.)")
-        status.style(f"color:{'#15803D' if avail else COLORS['text_muted']};font-size:11.5px;")
+        status.style(f"color:{'#15803D' if avail else COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.notify("Licence status saved.")
 
     ui.button("Save licence status", on_click=save).props("color=primary dense")
@@ -200,19 +200,19 @@ def _render_zoom_creds():
     ui.markdown("---")
     with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
         ui.icon("check_circle" if configured else "error_outline").style(
-            f"color:{'#15803D' if configured else '#B45309'};font-size:18px;")
+            f"color:{'#15803D' if configured else '#B45309'};font-size:var(--fs-xl);")
         ui.label("Zoom meetings — auto-create join links").style(
-            f"color:{COLORS['text_heading']};font-weight:700;font-size:14px;")
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
     ui.label("Server-to-Server OAuth app credentials (free with your Zoom account). Lets "
              "'Create Zoom meeting' on a virtual NDR stop mint the join link automatically. "
              "Leave blank to keep pasting links by hand.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     acct_in = ui.input("Account ID", value=settings.get("zoom_account_id", "")).classes("w-full").props("autocomplete=off")
     cid_in = ui.input("Client ID", value=settings.get("zoom_client_id", "")).classes("w-full").props("autocomplete=off")
     sec_in = ui.input("Client Secret", value=settings.get("zoom_client_secret", ""),
                       password=True).classes("w-full").props("autocomplete=off")
-    result_lbl = ui.label("").style("font-size:12px;margin-top:2px;")
+    result_lbl = ui.label("").style("font-size:var(--fs-sm);margin-top:2px;")
 
     def save():
         s = _load_settings()
@@ -226,13 +226,13 @@ def _render_zoom_creds():
     async def test():
         save()
         result_lbl.set_text("Testing…")
-        result_lbl.style(f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+        result_lbl.style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
         try:
             ok, msg = await asyncio.to_thread(zoom_meetings.test)
         except Exception as e:
             ok, msg = False, f"Test error: {e}"
         result_lbl.set_text(("✓ " if ok else "✗ ") + msg)
-        result_lbl.style(f"color:{'#15803D' if ok else '#B45309'};font-size:12px;margin-top:2px;")
+        result_lbl.style(f"color:{'#15803D' if ok else '#B45309'};font-size:var(--fs-sm);margin-top:2px;")
 
     with ui.row().classes("gap-2"):
         ui.button("Save Zoom credentials", on_click=save).props("color=primary dense")
@@ -262,13 +262,13 @@ def _render_data_sources():
         ("Bloomberg", "Not integrated (manual)", False),
     ]
     ui.label("Integration status — reflects what's wired in configuration, not a live health check.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:2px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
     for name, desc, ok in sources:
         clr = "#15803D" if ok else "#B45309"
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
             with ui.row().classes("items-center gap-2"):
-                ui.icon("check_circle" if ok else "error_outline").style(f"color:{clr};font-size:18px;")
-                ui.label(f"{name} — {desc}").style(f"color:{clr};font-weight:600;font-size:13px;")
+                ui.icon("check_circle" if ok else "error_outline").style(f"color:{clr};font-size:var(--fs-xl);")
+                ui.label(f"{name} — {desc}").style(f"color:{clr};font-weight:600;font-size:var(--fs-base);")
 
     _render_routing_key()
     _render_zoom_creds()
@@ -285,9 +285,9 @@ def _render_data_sources():
 
     ui.markdown("---")
     ui.label("Data pulls").style(
-        f"color:{COLORS['text_heading']};font-weight:700;font-size:14px;margin-top:4px;")
+        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);margin-top:4px;")
     ui.label("Manual refreshes that hit the network. Consolidated here so opening a tab never kicks off a pull.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     async def _pull_full_universe():
         ui.notify("Refreshing from SEC EDGAR — ~100MB quarterly 13F bulk (complete, by CUSIP) + 13D/13G. "
@@ -361,8 +361,8 @@ def _render_data_sources():
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
                 "padding:8px 12px;margin-top:4px;"):
             with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                ui.label(label).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
-                ui.label(desc).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
+                ui.label(desc).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             ui.button("Run", on_click=handler).props("color=primary dense" if primary else "flat dense")
 
     _pull_row("Full investor universe (SEC 13F, complete by CUSIP)",
@@ -383,7 +383,7 @@ def _render_about():
     client = get_client()
     ir = CI()
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-        ui.label(f"{CT('name').upper()} ENTERPRISE IR PLATFORM").style(f"color:{COLORS['text_muted']};font-size:11px;text-transform:uppercase;letter-spacing:.05em;")
-        ui.label("Praxis Point IR · v2.0").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:16px;")
+        ui.label(f"{CT('name').upper()} ENTERPRISE IR PLATFORM").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;")
+        ui.label("Praxis Point IR · v2.0").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
         ui.label(f"Built for {ir.get('name','')}, {ir.get('title','')}, {client.get('name','')} ({client.get('ticker','')}) "
-                 "· Praxis Point IR Advisory").style(f"color:{COLORS['text_muted']};font-size:13px;")
+                 "· Praxis Point IR Advisory").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")

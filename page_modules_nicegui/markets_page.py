@@ -135,12 +135,12 @@ def render_markets_page():
             with ui.row().classes("items-center w-full").style(
                     "gap:6px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.18);"
                     "border-radius:8px;padding:6px 10px;margin-bottom:8px;"):
-                ui.icon("insights").style(f"color:{COLORS['text_muted']};font-size:15px;")
+                ui.icon("insights").style(f"color:{COLORS['text_muted']};font-size:var(--fs-md);")
                 ui.label("The read view — the Street's estimates vs. guidance.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 ui.button("Build & track it in Earnings → Consensus Tracker →",
                           on_click=lambda: nav.go_to("Earnings", "Consensus Tracker")).props(
-                    "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:11.5px;")
+                    "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
             _render_consensus_matrix(seed, period_guidance, period_estimates, highlighted_analyst)
         with ui.tab_panel(t3):
             _render_pt_drift(seed)
@@ -179,14 +179,14 @@ def _render_risk_dashboard(seed, days_to_earn, state):
     ui.label("IR Risk Dashboard").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
     last_price_str = f"${last_price:.2f}" if isinstance(last_price, (int, float)) else f"${last_price}"
     ui.label(f"{CT('ticker')} · Last trade {last_price_str} · Earnings {CE().get('earnings_date','')} · "
-             f"{days_to_earn} days to consensus lock").style(f"color:{COLORS['text_muted']};font-size:12px;")
+             f"{days_to_earn} days to consensus lock").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
     ui.label("Actionable IR signals — what to do this week").classes("font-bold")
     ui.label(
         "Closed loop: click into any signal to resolve it or log it as reviewed-but-not-pursued — "
         "these cards track a decision, not just a readout."
-    ).style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:4px;")
 
     level_colors = {"red": ("#FDECEC", "#B91C1C"), "amber": ("#FCF0E0", "#B45309"),
                      "green": ("#E9F6EF", "#15803D"), "gray": ("#EEF2F7", "#475569")}
@@ -207,32 +207,32 @@ def _render_risk_dashboard(seed, days_to_earn, state):
             with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
                 with ui.row().classes("w-full items-center justify-between"):
                     with ui.column().classes("gap-0"):
-                        ui.label(f"{sig['title']} — muted").classes("font-bold").style("color:#0F172A;font-size:14px;")
-                        ui.label(f"Snoozed until {signals.muted_until_label(state, m_key)} — still unresolved, just hidden till then.").style("color:#475569;font-size:12px;")
+                        ui.label(f"{sig['title']} — muted").classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")
+                        ui.label(f"Snoozed until {signals.muted_until_label(state, m_key)} — still unresolved, just hidden till then.").style("color:#475569;font-size:var(--fs-sm);")
                     ui.button("Unmute now", on_click=lambda i=i, m_key=m_key: _unmute_signal(state, m_key)).props("flat dense")
         elif state.get(r_key):
             with ui.card().classes("w-full").style("background:#E9F6EF;border:1px solid #15803D55;"):
                 with ui.row().classes("w-full items-center justify-between"):
                     with ui.column().classes("gap-0"):
-                        ui.label(f"{sig['title']}").classes("font-bold").style("color:#0F172A;font-size:14px;")
-                        ui.label(f"Resolved {state.get(d_key,'')}").style("color:#15803D;font-size:12px;")
+                        ui.label(f"{sig['title']}").classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")
+                        ui.label(f"Resolved {state.get(d_key,'')}").style("color:#15803D;font-size:var(--fs-sm);")
                     ui.button("Reset", on_click=lambda i=i: _reset_signal(state, i)).props("flat dense")
         elif state.get(n_key):
             reason = f" — {state[rs_key]}" if state.get(rs_key) else ""
             with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
                 with ui.row().classes("w-full items-center justify-between"):
                     with ui.column().classes("gap-0"):
-                        ui.label(f"{sig['title']}").classes("font-bold").style("color:#0F172A;font-size:14px;")
-                        ui.label(f"Noted — not pursued {state.get(d_key,'')}{reason}").style("color:#475569;font-size:12px;")
+                        ui.label(f"{sig['title']}").classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")
+                        ui.label(f"Noted — not pursued {state.get(d_key,'')}{reason}").style("color:#475569;font-size:var(--fs-sm);")
                     ui.button("Reset", on_click=lambda i=i: _reset_signal(state, i)).props("flat dense")
         else:
             with ui.card().classes("w-full").style(f"background:{bg};border:1px solid {tc}55;"):
                 with ui.row().classes("items-start gap-2"):
-                    ui.label(sig["icon"]).style("font-size:18px;")
+                    ui.label(sig["icon"]).style("font-size:var(--fs-xl);")
                     with ui.column().classes("gap-0"):
-                        ui.label(sig["title"]).classes("font-bold").style("color:#0F172A;font-size:14px;")
-                        ui.label(sig["desc"]).style(f"color:{COLORS['text_secondary']};font-size:13px;")
-                        ui.label(f"→ {sig['action']}").style(f"color:{tc};font-size:13px;font-weight:600;")
+                        ui.label(sig["title"]).classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")
+                        ui.label(sig["desc"]).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
+                        ui.label(f"→ {sig['action']}").style(f"color:{tc};font-size:var(--fs-base);font-weight:600;")
                 # Actions left-justified in a row beneath the text (not floated
                 # to the far right, which read as disconnected on wide cards).
                 with ui.row().classes("items-center gap-2").style("margin-top:8px;"):
@@ -243,7 +243,7 @@ def _render_risk_dashboard(seed, days_to_earn, state):
                     _mute_button(state, m_key, f"Markets · IR Risk Dashboard · {sig['title']}")
 
     ui.markdown("---")
-    ui.label("Problem — act this week · Watch — monitor · In line — no action · Blind spot — not tracked").style(f"color:{COLORS['text_muted']};font-size:11px;")
+    ui.label("Problem — act this week · Watch — monitor · In line — no action · Blind spot — not tracked").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     # Computed from real data (core.risk_scorecard) — see that module's
     # docstring for exactly which of the 24 indicators are grounded in a
@@ -260,11 +260,11 @@ def _render_risk_dashboard(seed, days_to_earn, state):
     oc = risk_colors[overall_level]
 
     with ui.card().classes("w-full text-center").style(f"background:{oc}22;border:1px solid {oc};"):
-        ui.label("OVERALL IR RISK SCORE").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label("OVERALL IR RISK SCORE").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.label(f"{overall_score} / 100 — {overall_level}").classes("text-2xl font-bold").style(f"color:{oc};")
         ui.label(f"{len(tracked_items)} of {len(all_items)} indicators actually tracked · "
                   f"{len(all_items)-len(tracked_items)} marked Not Tracked, excluded rather than guessed at").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     ui.markdown("---")
     with ui.expansion("Show the 6 risk categories (24 indicators)", value=False).classes("w-full"):
@@ -278,9 +278,9 @@ def _render_risk_dashboard(seed, days_to_earn, state):
                             sc = risk_colors[status]
                             with ui.card().classes("w-full").style(f"background:{sc}18;border-left:3px solid {sc};"):
                                 with ui.row().classes("w-full justify-between"):
-                                    ui.label(label).style(f"color:{COLORS['text_body']};font-size:12px;")
-                                    ui.label(status if status != "GRAY" else "N/T").style(f"color:{sc};font-size:11px;font-weight:bold;")
-                                ui.label(reason).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                                    ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                                    ui.label(status if status != "GRAY" else "N/T").style(f"color:{sc};font-size:var(--fs-xs);font-weight:bold;")
+                                ui.label(reason).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 def _last_price():
@@ -298,12 +298,12 @@ def _last_price():
 def _metric(label, value, sub, delta=None):
     with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
-        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         # Optional beat/miss chip (text, colour) — makes Street-vs-guidance explicit
         # instead of leaving the reader to spot the difference.
         if delta and delta[0]:
-            ui.label(delta[0]).style(f"color:{delta[1]};font-size:11px;font-weight:700;")
+            ui.label(delta[0]).style(f"color:{delta[1]};font-size:var(--fs-xs);font-weight:700;")
 
 
 # Beat / miss / in-line of Street vs Guidance, WITH a colour — the platform's job
@@ -353,9 +353,9 @@ def _open_signal_dialog(state, i, sig):
     r_key, n_key, d_key, rs_key = f"risk_{i}_resolved", f"risk_{i}_noted", f"risk_{i}_date", f"risk_{i}_reason"
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:420px;"):
         ui.label(sig["title"]).classes("text-lg font-bold")
-        ui.label(sig["desc"]).style(f"color:{COLORS['text_muted']};font-size:13px;")
+        ui.label(sig["desc"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
         ui.label(f"Suggested action: {sig['action']}").style(
-            f"color:{COLORS['accent_light']};font-size:13px;font-weight:600;margin-top:6px;"
+            f"color:{COLORS['accent_light']};font-size:var(--fs-base);font-weight:600;margin-top:6px;"
         )
 
         # Email action — for signals that carry recipients (e.g. the missing-model
@@ -370,7 +370,7 @@ def _open_signal_dialog(state, i, sig):
                 ui.button("Draft the email", icon="mail").props("color=primary")
             _rcpt = (f"Opens a draft to: {', '.join(em['to'])}" if em.get("to")
                      else "Opens a draft — add your recipient(s)")
-            ui.label(_rcpt).style(f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+            ui.label(_rcpt).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
 
         def mark_resolved():
             state[r_key] = True
@@ -498,10 +498,10 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
                 f"border-bottom:1px solid {COLORS['border']};padding:3px 0;"):
             for text, clr, w in cells:
                 mw = f"min-width:{w}px;" if w else ""
-                ui.label(text).style(f"color:{clr};font-size:12px;{mw}")
+                ui.label(text).style(f"color:{clr};font-size:var(--fs-sm);{mw}")
 
     def _head(t):
-        ui.label(t).style(f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;"
+        ui.label(t).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;"
                           f"letter-spacing:.03em;margin:8px 0 2px;")
 
     # ── Shared numbers, computed once via core.guidance_engine (no local
@@ -531,13 +531,13 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
                 f"border-left:6px solid {COLORS['accent']};border-radius:12px;"
                 f"padding:12px 16px;margin-bottom:10px;"):
             ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
-                f"color:{COLORS['accent_strong']};font-size:11px;font-weight:700;letter-spacing:.04em;")
+                f"color:{COLORS['accent_strong']};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
             ui.label(" ".join(parts)).style(
-                f"color:{COLORS['text_heading']};font-size:13px;line-height:1.65;font-weight:500;margin-top:4px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.65;font-weight:500;margin-top:4px;")
 
     # ── Supporting breakdown (the math behind the headline) ──
     ui.label("Supporting breakdown").style(
-        f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.05em;margin-top:2px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;margin-top:2px;")
 
     _head(f"{period} guide vs Street consensus")
     for lbl, nv, field, money in [("Revenue", new_rev, "Revenue Est ($M)", True),
@@ -552,7 +552,7 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
 
     if not is_quarter:
         ui.label("Full-year roll-up shows when guiding a specific quarter.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
         return
 
     _head(f"Effect on {fy_label} (implied from the four quarters)")
@@ -579,7 +579,7 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
             ui.label(f"Reconciliation gap: your quarterly path implies ${abs(divergence):.1f}M {side} the H1 "
                      f"run-rate extrapolation — the Street will read your H2 guide as "
                      f"{'aggressive' if divergence > 0 else 'conservative'} versus the pace you've set.").style(
-                f"color:{dclr};font-size:12px;margin-top:4px;line-height:1.5;")
+                f"color:{dclr};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
 
     if backend:
         if backend["level"] == "heavy":
@@ -593,7 +593,7 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
         else:
             msg, clr = (f"Implied H2 = ${backend['h2_rev']:.1f}M = {backend['h2_pct']:.0f}% of FY — in line with the "
                         f"{backend['seasonal_h2']:.0f}% seasonal norm. Normal cadence.", "#475569")
-        ui.label(msg).style(f"color:{clr};font-size:12px;margin-top:6px;line-height:1.5;")
+        ui.label(msg).style(f"color:{clr};font-size:var(--fs-sm);margin-top:6px;line-height:1.5;")
 
     next_year = _next_year_suffix(year)
     nfy_label = f"FY {next_year}" if next_year else None
@@ -613,7 +613,7 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
             ui.label(f"Street already models {yoy:+.0f}% revenue growth into {nfy_label} "
                      f"(${nfy_street_rev:.0f}M vs your implied {fy_label} ${implied_fy_rev:.0f}M) — this quarter "
                      f"re-bases that starting point.").style(
-                f"color:{COLORS['text_secondary']};font-size:12px;margin-top:4px;line-height:1.5;")
+                f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
 
 
 def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighted_analyst=None):
@@ -627,7 +627,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
         "<b style='color:#15803D;'>Cushion</b> = Street below guide · "
         "<b>In line</b> = Street matches guide · "
         "Flag = models missing, or the gap is wide enough to matter in a call.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     horizon_periods = ["Q2 2026E", "Q3 2026E", "FY 2026E", "FY 2027E"]
     with ui.row().classes("w-full gap-3"):
@@ -667,18 +667,18 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
             _geps = "—" if geps is None else f"${geps:.2f}"
             upside_pct = round((con_pt - last_price) / last_price * 100, 1) if con_pt else None
             with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {bc};"):
-                ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:12px;font-weight:600;")
-                ui.label(label).style(f"color:{bc};font-size:12px;font-weight:700;")
-                ui.label(f"Models: {models_in}/{models_total}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
+                ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:var(--fs-sm);font-weight:600;")
+                ui.label(label).style(f"color:{bc};font-size:var(--fs-sm);font-weight:700;")
+                ui.label(f"Models: {models_in}/{models_total}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
                 # Revenue: Street vs Guidance on one line, then the coloured beat/miss call.
-                ui.label(f"Rev — Street {_srev} · Guide {_grev}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                ui.label(f"Rev — Street {_srev} · Guide {_grev}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
                 if _rev_tag:
-                    ui.label(_rev_tag).style(f"color:{_rev_clr};font-size:11px;font-weight:700;")
-                ui.label(f"EPS — Street {_seps} · Guide {_geps}").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:4px;")
+                    ui.label(_rev_tag).style(f"color:{_rev_clr};font-size:var(--fs-xs);font-weight:700;")
+                ui.label(f"EPS — Street {_seps} · Guide {_geps}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
                 if _eps_tag:
-                    ui.label(_eps_tag).style(f"color:{_eps_clr};font-size:11px;font-weight:700;")
+                    ui.label(_eps_tag).style(f"color:{_eps_clr};font-size:var(--fs-xs);font-weight:700;")
                 if con_pt:
-                    ui.label(f"Consensus PT: ${con_pt:.2f} ({upside_pct:+.0f}%)").style("color:#15803D;font-size:12px;font-weight:600;")
+                    ui.label(f"Consensus PT: ${con_pt:.2f} ({upside_pct:+.0f}%)").style("color:#15803D;font-size:var(--fs-sm);font-weight:600;")
 
     ui.markdown("---")
 
@@ -698,7 +698,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
         with table_container:
             if period in DERIVED_PERIODS:
                 ui.label(f"{period} is derived from FY guidance via seasonal split — not a directly published "
-                         "analyst quarterly estimate.").style("color:#B45309;font-size:12px;")
+                         "analyst quarterly estimate.").style("color:#B45309;font-size:var(--fs-sm);")
 
             ingested_ests = {f: v for f, v in est_data.items() if v.get("Rating") is not None}
             con_pt = _safe_avg([v.get("Price Target") for v in ingested_ests.values()])
@@ -754,7 +754,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                 if deep_linked:
                     ui.html(
                         f"<div style='background:#E8EEF7;border:1px solid #1E40AF55;border-radius:8px;"
-                        f"padding:8px 12px;margin-bottom:10px;font-size:13px;color:#1E293B;'>"
+                        f"padding:8px 12px;margin-bottom:10px;font-size:var(--fs-base);color:#1E293B;'>"
                         f"Jumped here from Today's Analyst Coverage — showing "
                         f"<b style='color:#1E3A8A;'>{analyst_name_by_firm.get(highlighted_analyst, highlighted_analyst)}</b></div>"
                     )
@@ -819,10 +819,10 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                             total = len(eps_vals)
                             if above >= total * 0.7 and total >= 2:
                                 ui.label(f"Pattern: {firm} has been above guidance EPS in {above}/{total} periods on file "
-                                         "— historically runs hot on EPS relative to guidance.").style("color:#B45309;font-size:12px;")
+                                         "— historically runs hot on EPS relative to guidance.").style("color:#B45309;font-size:var(--fs-sm);")
                             elif below >= total * 0.7 and total >= 2:
                                 ui.label(f"Pattern: {firm} has been below guidance EPS in {below}/{total} periods on file "
-                                         "— historically conservative relative to guidance.").style(f"color:{COLORS['accent_light']};font-size:12px;")
+                                         "— historically conservative relative to guidance.").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
 
                 an_select.on_value_change(render_analyst)
                 render_analyst()
@@ -883,19 +883,19 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                         f"border-left:4px solid {_sc_clr};margin-bottom:6px;"):
                     ui.label("GUIDANCE DECISION READ — reporting quarter").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;font-weight:700;letter-spacing:.04em;")
-                    ui.label(_gm["scenario_label"]).classes("font-bold").style(f"color:{_sc_clr};font-size:13px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
+                    ui.label(_gm["scenario_label"]).classes("font-bold").style(f"color:{_sc_clr};font-size:var(--fs-base);")
                     _dec = guidance_engine.current_decision()
                     if _dec:
                         _rng = (f" → FY ${_dec['new_low']:.1f}–{_dec['new_hi']:.1f}M"
                                 if _dec.get("new_low") is not None else "")
                         ui.label(f"On record: {_dec['label']}{_rng} — decided in the Decision Engine and written "
                                  f"through to the FY guidance below.").style(
-                            f"color:{COLORS['accent_strong']};font-size:12px;font-weight:600;")
+                            f"color:{COLORS['accent_strong']};font-size:var(--fs-sm);font-weight:600;")
                     ui.label(f"YTD ${_gm['ytd_rev']:.1f}M ({_gm['ytd_pct_of_mid']:.0f}% of ${_gm['fy_mid']:.1f}M "
                              f"midpoint) · pace {_gm['pace_vs_seasonal']:+.1f}pp vs seasonal · H2 needs "
                              f"{_gm['h2_growth_needed']:+.0f}% YoY · beat vs Street {_gm['beat_vs_street']:+.1f}M").style(
-                        f"color:{COLORS['text_secondary']};font-size:12px;")
+                        f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
 
                     # The full Guidance & Outlook Decision Engine, INLINE — the
                     # CFO sets the decision right here (action → range → drafted
@@ -916,7 +916,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                     ui.label("The seasonality-adjusted guidance decision read — pace vs seasonal, per-quarter H2 "
                              "targets, and the raise/reiterate/narrow recommendation — lives in the full engine. "
                              "Enter this quarter's actuals there to light it up.").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     ui.button("Open the Guidance Decision Engine →",
                               on_click=lambda: nav.go_to("Earnings", "Script Generation", earnings_tab="guidance")).props("flat dense")
 
@@ -976,7 +976,7 @@ def _render_narrative_momentum(seed, compact=False):
     ui.label("Narrative Momentum").classes("text-lg font-bold")
     ui.label("Guidance is only guidance — this reads the story behind the numbers: named catalysts in play, "
              "where analyst conviction is heading, and whether the stock has paid for the narrative yet.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     r = narrative_engine.narrative_read(seed)
     sig, sig_clr, thesis = r["signal"], r["color"], r["thesis"]
@@ -987,8 +987,8 @@ def _render_narrative_momentum(seed, compact=False):
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:5px solid {sig_clr};margin-top:8px;"):
-        ui.label(f"NARRATIVE MOMENTUM: {sig}").classes("font-bold").style(f"color:{sig_clr};font-size:15px;")
-        ui.label(thesis).style(f"color:{COLORS['text_secondary']};font-size:13px;line-height:1.6;")
+        ui.label(f"NARRATIVE MOMENTUM: {sig}").classes("font-bold").style(f"color:{sig_clr};font-size:var(--fs-md);")
+        ui.label(thesis).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
 
     if compact:
         # Light Markets glance — the full read (analyst-PT breakdown, catalyst
@@ -996,7 +996,7 @@ def _render_narrative_momentum(seed, compact=False):
         # the narrative it grades, in Script Generation.
         ui.label("Full read — analyst-PT breakdown, the named catalyst drivers, and the morning-after guidance "
                  "read alongside it — lives in Script Generation → Tomorrow's Setup, with the narrative it grades.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:8px;")
         return
 
     with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
@@ -1008,11 +1008,11 @@ def _render_narrative_momentum(seed, compact=False):
     if catalysts:
         with ui.expansion(f"H2 narrative drivers ({n_cat})").classes("w-full").style("margin-top:6px;"):
             for c in catalysts:
-                ui.label(f"• {c}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"• {c}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     ui.label("Momentum = guidance stance + net analyst-PT direction + catalyst depth. A held/raised range with "
              "catalysts and a lagging stock is the setup where IR effort moves the price the most.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;margin-top:8px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:8px;")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1025,7 +1025,7 @@ def _render_pt_drift(seed):
 
     ui.label("Price Target Drift Tracker").classes("text-lg font-bold")
     ui.label("Sell-side coverage · current price targets · drift history accumulates as PTs are logged each quarter").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # Real coverage, from the registry. The 8-quarter "drift" chart + direction table that used to
     # sit here were fabricated seed data — invented quarter-by-quarter PT trajectories. The platform
@@ -1057,9 +1057,9 @@ def _render_pt_drift(seed):
             pts = [a["pt"] for a in with_pt]
             ui.label(f"PT range ${min(pts):.2f}–${max(pts):.2f} · {len(with_pt)} of {len(analysts)} covering "
                      f"analysts with a PT logged vs ${last_price:.2f} last").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         else:
-            ui.label("No analyst price targets logged yet.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No analyst price targets logged yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     if without_pt:
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
@@ -1074,17 +1074,17 @@ def _render_pt_drift(seed):
                 return f"{a.get('firm')} ({a.get('name')} — {', '.join(bits)}{tail})"
 
             ui.label(", ".join(_cov_line(a) for a in without_pt if a.get('name'))).style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if any(a.get("provisional") for a in without_pt):
                 _srcs = "; ".join(f"{a.get('firm')}: {a['rating_source']}"
                                   for a in without_pt if a.get("provisional") and a.get("rating_source"))
                 ui.label(f"Provisional = from public aggregators, not folded into the range/median above — confirm "
                          f"with each desk, then log via Model Intake. Sources — {_srcs}.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
             else:
                 ui.label("These analysts cover the name; log their latest PT (and rating) via Model Intake to bring "
                          "them into the range above and the drift history.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
     _render_pt_drift_chart(seed)
 
@@ -1112,7 +1112,7 @@ def _render_pt_drift_chart(seed):
 
     ui.label("Live from the analyst rating-action feed (Yahoo) — each desk's published PT on its actual "
              "revision dates. Sell-side only; quant/aggregator PTs aren't included.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _palette = ["#1E40AF", "#15803D", "#B45309", "#7C3AED", "#B91C1C", "#0E7490", "#9333EA"]
     fig = go.Figure()
@@ -1140,7 +1140,7 @@ def _render_pt_drift_chart(seed):
     ui.plotly(fig).classes("w-full")
 
     if drift_rows:
-        ui.label("Direction of travel per desk").classes("font-bold").style("margin-top:8px;font-size:13px;")
+        ui.label("Direction of travel per desk").classes("font-bold").style("margin-top:8px;font-size:var(--fs-base);")
         responsive_table([{"name": k, "label": k, "field": k, "align": "left"} for k in drift_rows[0].keys()],
                          drift_rows, row_key="Firm", table_classes="w-full", table_props="dense flat", primary="Firm")
 
@@ -1156,29 +1156,29 @@ def _render_rating_actions():
     ui.label("Analyst rating changes — upgrades, downgrades & PT moves").classes("font-bold")
     ui.label("Named sell-side desk actions over time, live from Yahoo (free). Quant/aggregator wire items "
              "(Verus, Zacks) ride a paid feed and aren't shown here.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     items = rating_actions.recent(limit=8)
     if not items:
         ui.label("No rating actions on file yet — a data refresh pulls the full Yahoo history for this "
                  "ticker (Console ↻, or the startup refresh).").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
 
     _tone = {"up": "#15803D", "down": "#B91C1C", "init": "#1E40AF"}
     for it in items:
         col = _tone.get(it.get("action"), COLORS["text_muted"])
         with ui.row().classes("w-full items-center").style("gap:10px;"):
-            ui.label(rating_actions.glyph(it)).style(f"color:{col};font-weight:800;font-size:13px;")
-            ui.label(it.get("date") or "—").style(f"color:{COLORS['text_muted']};font-size:12px;min-width:82px;")
-            ui.label(rating_actions.describe(it)).style(f"color:{COLORS['text_body']};font-size:13px;")
+            ui.label(rating_actions.glyph(it)).style(f"color:{col};font-weight:800;font-size:var(--fs-base);")
+            ui.label(it.get("date") or "—").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:82px;")
+            ui.label(rating_actions.describe(it)).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
 
     ui.markdown("---")
     ui.label("PT Justification & Valuation Methodology").classes("font-bold")
     ui.label("Reverse-engineering each analyst's implied multiple (their PT against our real share "
              "count and net debt) shows whether they're applying a premium, discount, or in-line "
              "multiple — and flags a PT that has drifted too far above the tape to stay credible.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     # GATED (2026-07-21): the per-firm justification cards + PT Credibility Watchlist that used to
     # render here were built from seed `pt_justification`, whose PT-set dates, stock-at-set prices,
     # FY-basis revenue estimates and methodology prose were fabricated demo precision — exactly the
@@ -1219,7 +1219,7 @@ def _render_rating_actions():
     ui.button("Generate PT Drift Board Slide (.pptx)", on_click=_export_board_slide).props("color=primary")
     ui.label("Exports the current price targets on file; the multi-quarter drift chart is added once PT "
              "history accrues (no fabricated trajectories).").style(
-        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1274,7 +1274,7 @@ def _render_nobo():
                     "margin-top:6px;")
                 ui.label("Your institutional base out of the box, sourced from EDGAR 13F. NOBO (below) adds the "
                          "retail & beneficial owners that 13F never captures.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 with ui.row().classes("w-full gap-3"):
                     _metric("13F holders", f"{len(sized)}", "institutions on file")
                     _metric("Institutional $ held", _fmtv(total_val), f"{total_sh:,} shares")
@@ -1284,7 +1284,7 @@ def _render_nobo():
                 if n_acc or n_dist:
                     _tone = "net accumulation" if n_acc > n_dist else "net distribution" if n_dist > n_acc else "mixed"
                     ui.label(f"Position momentum — {n_acc} accumulating (new / adding) vs {n_dist} trimming / exited: "
-                             f"{_tone}.").style(f"color:{COLORS['text_muted']};font-size:12px;margin-top:2px;")
+                             f"{_tone}.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
                 _rows = [{
                     "Holder": (h.get("Fund") or "—").title(),
                     "Value": _fmtv(h.get("Position_Value")),
@@ -1300,7 +1300,7 @@ def _render_nobo():
                     _top = ", ".join(f["fund"].title() for f in _funds[:4])
                     ui.label(f"Plus {len(_funds)} mutual fund / ETF holder(s) via N-PORT — {_top}… — the "
                              "'40-Act fund lens 13F doesn't surface.").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
                 ui.markdown("---")
 
             waiting_signal(
@@ -1313,10 +1313,10 @@ def _render_nobo():
                         "and the two-pull flow read (who's accumulating vs trimming).")
             with ui.card().classes("w-full").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:8px;margin-top:8px;"):
-                ui.label("Upload a NOBO pull").classes("font-bold").style("font-size:12px;")
+                ui.label("Upload a NOBO pull").classes("font-bold").style("font-size:var(--fs-sm);")
                 ui.label("Columns detected flexibly: holder name, shares/position, optionally city/state/type. "
                          "Upload two dated pulls to unlock the flow read.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 with ui.row().classes("w-full gap-4 items-end"):
                     _rd = ui.input("Record date (YYYY-MM-DD)").props("dense outlined").classes("w-48")
                     _so = ui.number("Shares outstanding", value=so).props("dense outlined").classes("w-48")
@@ -1348,21 +1348,21 @@ def _render_nobo():
         _vs = f" · vs prior pull {pre['record_date']}" if pre else " · single pull (snapshot)"
         ui.label(f"Non-Objecting Beneficial Owners · record date {cur['record_date']}{_vs} · "
                  f"{CT('ticker')} {so:,} shares outstanding").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         _src_txt = {"demo": "Demo data", "uploaded": f"Uploaded · {pulls['n_pulls']} pulls",
                     "uploaded-single": "Uploaded · 1 pull"}.get(source, source)
         _src_clr = "#B45309" if source == "demo" else "#15803D"
-        ui.label(f"● Data source: {_src_txt}").style(f"color:{_src_clr};font-size:11px;font-weight:700;")
+        ui.label(f"● Data source: {_src_txt}").style(f"color:{_src_clr};font-size:var(--fs-xs);font-weight:700;")
 
         # BLUF — the CEO's read, up top (same pattern as the guidance morning-after).
         with ui.card().classes("w-full").style(
                 "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
                 "border-radius:8px;margin-top:8px;"):
             ui.label("THE CEO'S NOBO READ — what the ownership base is telling you").style(
-                "color:#1E3A8A;font-size:11px;font-weight:700;letter-spacing:.04em;")
+                "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
             for p in nobo_engine.ceo_read(cur, pre, fl, alerts):
                 ui.label("• " + p).style(
-                    f"color:{COLORS['text_heading']};font-size:13px;line-height:1.6;font-weight:500;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
         # Composition & concentration
         ui.label("Composition & concentration").classes("font-bold").style("margin-top:10px;")
@@ -1379,7 +1379,7 @@ def _render_nobo():
         ui.label("Coverage of shares outstanding").classes("font-bold").style("margin-top:10px;")
         ui.html(
             "<div style='display:flex;width:100%;height:26px;border-radius:6px;overflow:hidden;"
-            "font-size:11px;font-weight:600;'>"
+            "font-size:var(--fs-xs);font-weight:600;'>"
             f"<div style='width:{_visible:.1f}%;background:#1E40AF;color:#fff;display:flex;align-items:center;"
             f"justify-content:center;white-space:nowrap;'>NOBO visible {_visible:.0f}%</div>"
             f"<div style='width:{_rest:.1f}%;background:#E2E8F0;color:#475569;display:flex;align-items:center;"
@@ -1391,7 +1391,7 @@ def _render_nobo():
         if not fl:
             ui.label("Only one pull loaded — upload an earlier NOBO pull below to unlock the flow read "
                      "(accumulators, distributors, new, and exited holders).").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         else:
             with ui.row().classes("w-full gap-3"):
                 _metric("Net change", f"{fl['net_change']:+,}", "NOBO shares vs prior pull")
@@ -1400,41 +1400,41 @@ def _render_nobo():
                 _metric("New / exited", f"{fl['n_new']} / {fl['n_exit']}", "holders")
             with ui.row().classes("w-full gap-6 items-start").style("margin-top:6px;"):
                 with ui.column().classes("flex-1").style("min-width:240px;"):
-                    ui.label("Top accumulators").style("color:#15803D;font-size:12px;font-weight:700;")
+                    ui.label("Top accumulators").style("color:#15803D;font-size:var(--fs-sm);font-weight:700;")
                     for h, d in fl["accumulators"][:6]:
                         ui.label(f"+{d:,} · {h['name']} ({h['type'][:4]})").style(
-                            f"color:{COLORS['text_body']};font-size:12px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                 with ui.column().classes("flex-1").style("min-width:240px;"):
-                    ui.label("Top distributors").style("color:#B45309;font-size:12px;font-weight:700;")
+                    ui.label("Top distributors").style("color:#B45309;font-size:var(--fs-sm);font-weight:700;")
                     for h, d in fl["distributors"][:6]:
                         ui.label(f"{d:,} · {h['name']} ({h['type'][:4]})").style(
-                            f"color:{COLORS['text_body']};font-size:12px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
             if fl["new"]:
                 _nl = ", ".join(f"{h['name']} ({s:,})" for h, s in fl["new"][:5])
                 ui.label(f"New holders ({fl['n_new']}): {_nl}{' …' if fl['n_new'] > 5 else ''}").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
 
         # Threshold watch
         ui.label("Ownership threshold watch (13D / 13G)").classes("font-bold").style("margin-top:12px;")
         if not alerts:
             ui.label("No holder is within range of a 5% filing threshold.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         for a in alerts:
             h = a["holder"]
             with ui.card().classes("w-full").style(
                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                     f"border-left:4px solid {a['color']};padding:6px 10px;"):
                 ui.label(f"{h['name']} — {a['pct']:.2f}% of shares outstanding · {a['level']}").style(
-                    f"color:{a['color']};font-size:13px;font-weight:600;")
+                    f"color:{a['color']};font-size:var(--fs-base);font-weight:600;")
                 ui.label(f"{h['shares']:,} shares · {h['type']} · {h.get('city','')}, {h.get('state','')}").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         # Cross-reference with the tracked book — contactable holders are
         # actionable: Call / Email / Log outreach into the IR pipeline.
         ui.label("Cross-reference with your book").classes("font-bold").style("margin-top:12px;")
         ui.label(f"{len(xref['contactable'])} NOBO institutions are in your tracked universe — reach them "
                  "directly and log the touch into your pipeline activity.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
         def _tel(phone):
             return "tel:" + "".join(c for c in str(phone) if c.isdigit() or c == "+")
@@ -1445,16 +1445,16 @@ def _render_nobo():
             with ui.row().classes("w-full items-center gap-2").style(
                     f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                 with ui.column().classes("gap-0 flex-1"):
-                    ui.label(pretty_name(h["name"])).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                    ui.label(pretty_name(h["name"])).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
                     _sub = f"{h['shares']:,} sh · {pct:.2f}% of S/O"
                     if cc.get("name"):
                         _sub += f" · {cc['name']} ({cc.get('title','')})"
                     if cc.get("phone"):
                         _sub += f" · {cc['phone']}"
-                    ui.label(_sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(_sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 if cc.get("phone"):
                     with ui.link(target=_tel(cc["phone"])).tooltip(f"Call {cc['phone']}"):
-                        ui.icon("call").style(f"color:{COLORS['accent_light']};font-size:18px;")
+                        ui.icon("call").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xl);")
                 if cc.get("email"):
                     _first = cc.get("name", "").split()[0] if cc.get("name") else ""
                     _subj = f"{CT('ticker')} — connecting with a valued holder"
@@ -1463,7 +1463,7 @@ def _render_nobo():
                              f"Would you have time for a call or meeting?\n\n")
                     _href = f"mailto:{cc['email']}?subject={quote(_subj)}&body={quote(_body)}"
                     with ui.link(target=_href).tooltip(f"Email {cc['email']}"):
-                        ui.icon("mail").style(f"color:{COLORS['accent_light']};font-size:18px;")
+                        ui.icon("mail").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xl);")
 
                 def _log(h=h):
                     activity_log.log_event("nobo_outreach", entity=h["name"],
@@ -1477,10 +1477,10 @@ def _render_nobo():
             "flat dense").style("margin-top:2px;")
         if xref["untracked"]:
             _ut = ", ".join(f"{h['name']} ({h['shares']:,})" for h in xref["untracked"])
-            ui.label(f"Not in your tracked book: {_ut}").style("color:#B45309;font-size:12px;margin-top:4px;")
+            ui.label(f"Not in your tracked book: {_ut}").style("color:#B45309;font-size:var(--fs-sm);margin-top:4px;")
         else:
             ui.label("Every institutional NOBO holder is already in your tracked book — no blind spots this pull.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;margin-top:2px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
 
         # Top holders
         with ui.expansion(f"Top {len(cur['top_holders'])} NOBO holders").classes("w-full").style("margin-top:10px;"):
@@ -1496,11 +1496,11 @@ def _render_nobo():
         with ui.expansion("Load a Broadridge NOBO file (CSV)").classes("w-full").style("margin-top:10px;"):
             if ui_context.is_read_only():
                 ui.label("Read-only role — NOBO file upload is disabled.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             else:
                 ui.label("Columns are detected flexibly: holder name, shares/position, and optionally city, "
                          "state, and type (inferred from the name when absent). Upload two dated pulls to unlock "
-                         "the flow read.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                         "the flow read.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 with ui.row().classes("w-full gap-4 items-end"):
                     rd = ui.input("Record date (YYYY-MM-DD)").props("dense outlined").classes("w-48")
                     so_in = ui.number("Shares outstanding", value=so).props("dense outlined").classes("w-48")
@@ -1531,6 +1531,6 @@ def _render_nobo():
         ui.label("A NOBO list captures only Non-Objecting Beneficial Owners as of the record date — Objecting "
                  "holders (OBO) and shares in registered/insider hands aren't shown, so read it alongside your 13F "
                  "and directly-registered lists.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-top:10px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:10px;")
 
     _panel()

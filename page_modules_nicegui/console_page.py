@@ -37,11 +37,11 @@ def _open_add_client_dialog(prefill=None, on_created=None):
         ui.label("Add a client").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Creates the tenant and its two standard IR logins "
                  "(directorofir@ / irassistant@).").style(
-            f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:6px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:6px;")
         if prefill.get("from_lead"):
             ui.label(f"Onboarding {prefill.get('name') or 'this lead'} from the sales pipeline — "
                      "confirm the details below.").style(
-                f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
+                f"color:{COLORS['accent']};font-size:var(--fs-xs);font-weight:600;")
         name_in = ui.input("Company name", value=prefill.get("name") or "").props(
             "outlined dense autofocus").classes("w-full")
         ticker_in = ui.input("Ticker", value=prefill.get("ticker") or "").props(
@@ -58,8 +58,8 @@ def _open_add_client_dialog(prefill=None, on_created=None):
         ui.label("Market cap sizes investor-targeting gates (micro <$300M · small <$2B · mid <$10B "
                  "· large). Left blank ⇒ microcap gates until set. Client ID is the permanent tenant "
                  "key. Mail-gateway identity will be irconnect@<domain>.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:16px;")
 
         def _create():
             from config.client_config import CLIENT_REGISTRY, reload_registry
@@ -115,7 +115,7 @@ def _eng_badge(r):
     mrr = r.get("eng_mrr")
     txt = label + (f" · ${mrr:,.0f}/mo" if mrr else "")
     ui.label(txt).style(
-        f"background:{bg};color:{color};font-size:9.5px;font-weight:700;letter-spacing:.02em;"
+        f"background:{bg};color:{color};font-size:var(--fs-micro);font-weight:700;letter-spacing:.02em;"
         "padding:2px 8px;border-radius:10px;cursor:pointer;width:fit-content;") \
         .on("click.stop", lambda _e=None, cid=r["cid"]: _open_engagement_dialog(cid)) \
         .tooltip("Edit engagement / billing")
@@ -131,7 +131,7 @@ def _open_engagement_dialog(cid):
             f"border:1px solid {COLORS['border']};border-radius:10px;gap:6px;"):
         ui.label(f"Engagement — {cid}").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Praxis Point engagement & billing terms for this client.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:4px;")
         status_in = ui.select(_ENG_STATUSES, value=eng.get("status") or "active", label="Status") \
             .props("outlined dense").classes("w-full")
         plan_in = ui.input("Plan / tier", value=eng.get("plan") or "").props("outlined dense").classes("w-full")
@@ -204,7 +204,7 @@ def _open_edit_client_dialog(cid):
         ui.label(f"Edit client — {cid}").classes("text-lg font-bold").style(
             f"color:{COLORS['text_heading']};")
         ui.label("Client ID is permanent and can't be changed.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:4px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:4px;")
         name_in = ui.input("Company name", value=rec.get("name", "")).props("outlined dense autofocus").classes("w-full")
         ticker_in = ui.input("Ticker", value=rec.get("ticker", "")).props("outlined dense").classes("w-full")
         _cur_exch = rec.get("exchange", "") or "NASDAQ"
@@ -214,11 +214,11 @@ def _open_edit_client_dialog(cid):
         mcap_in = ui.number("Market cap ($M)", value=rec.get("market_cap_m"), step=10, min=0) \
             .props("outlined dense").classes("w-full")
         ui.label("Market cap sizes the investor-targeting gates; blank ⇒ microcap gates.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         domain_in = ui.input("Email domain", value=rec.get("email_domain", "")) \
             .props("outlined dense").classes("w-full")
         active_sw = ui.switch("Active (unchecking hides the tenant everywhere)", value=True)
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:16px;")
 
         def _save():
             from config.client_config import reload_registry, CLIENT_REGISTRY, DEFAULT_CLIENT_ID
@@ -354,10 +354,10 @@ def _nobo_cell(r):
 
 def _metric(label, value, value_color=None):
     with ui.row().classes("w-full items-center").style("gap:8px;"):
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.space()
         ui.label(value).style(
-            f"color:{value_color or COLORS['text_body']};font-size:12.5px;font-weight:600;"
+            f"color:{value_color or COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;"
             "text-align:right;")
 
 
@@ -366,8 +366,8 @@ def _stat_tile(label, value, amber=False):
             f"padding:10px 16px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             "border-radius:10px;min-width:120px;gap:1px;box-shadow:0 1px 2px rgba(15,23,42,.05);"):
         ui.label(value).style(
-            f"color:{'#B45309' if amber else COLORS['text_heading']};font-size:18px;font-weight:800;")
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:10.5px;letter-spacing:.03em;")
+            f"color:{'#B45309' if amber else COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);letter-spacing:.03em;")
 
 
 def _drill_in(cid):
@@ -483,15 +483,15 @@ def _client_card(r):
                 ui.label(r["name"]).classes("text-base font-bold").style(
                     f"color:{COLORS['text_heading']};line-height:1.2;")
                 ui.label(f"{r['exchange']}: {r['ticker']}" if r["exchange"] else r["ticker"]).style(
-                    f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.02em;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);letter-spacing:.02em;")
                 _eng_badge(r)
             ui.space()
             with ui.column().style("align-items:flex-end;gap:2px;"):
                 ptxt, pcolor = _price_text(r)
-                ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:12.5px;white-space:nowrap;")
+                ui.label(ptxt).style(f"color:{pcolor};font-weight:700;font-size:var(--fs-sm);white-space:nowrap;")
                 if r.get("px_age_min") is not None:
                     ui.label(f"px {_fmt_age(r['px_age_min'])}").style(
-                        f"color:{COLORS['text_muted']};font-size:9.5px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
                 # action icons — click.stop so they don't also trigger the card's drill-in.
                 # Distinct topic icons (price / holders / consensus) each REFRESH that source.
                 _mut = f"color:{COLORS['text_muted']};"
@@ -525,7 +525,7 @@ def _client_card(r):
             with ui.row().style("gap:6px;flex-wrap:wrap;margin-top:6px;"):
                 for a in r["attention"]:
                     ui.label(a).style(
-                        f"background:{_AMBER_BG};color:{_AMBER};font-size:10px;font-weight:700;"
+                        f"background:{_AMBER_BG};color:{_AMBER};font-size:var(--fs-2xs);font-weight:700;"
                         "padding:2px 8px;border-radius:10px;")
 
 
@@ -570,7 +570,7 @@ def render_console_calendar(user):
             with ui.row().classes("w-full items-center").style("gap:10px;"):
                 ui.label("Praxis Point").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
                 ui.label("CALENDAR").style(
-                    f"background:{COLORS['text_heading']};color:white;font-size:10px;font-weight:800;"
+                    f"background:{COLORS['text_heading']};color:white;font-size:var(--fs-2xs);font-weight:800;"
                     "letter-spacing:.08em;padding:3px 9px;border-radius:6px;")
                 ui.space()
                 ui.button("Back to Console", icon="arrow_back",
@@ -578,11 +578,11 @@ def render_console_calendar(user):
                 ui.button("Sign out", icon="logout", on_click=_logout).props("flat dense").style(f"color:{COLORS['text_muted']};")
 
             ui.label(f"{len(events)} upcoming across {len(rows)} clients").style(
-                f"color:{COLORS['text_muted']};font-size:13px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
             if not events:
                 ui.label("Nothing scheduled yet. Set earnings dates and engagement renewals to "
-                         "populate this.").style(f"color:{COLORS['text_muted']};font-size:12.5px;")
+                         "populate this.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 return
             with ui.card().classes("w-full").style(
                     f"padding:0;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
@@ -595,13 +595,13 @@ def render_console_calendar(user):
                             "gap:12px;padding:11px 16px;"
                             + (f"border-top:1px solid {COLORS['border']};" if i else "")):
                         ui.label(d.strftime("%b %d")).style(
-                            f"color:{COLORS['text_heading']};font-weight:700;font-size:12.5px;min-width:60px;")
+                            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);min-width:60px;")
                         ui.label(typ).style(
-                            f"background:{bg};color:{color};font-size:9.5px;font-weight:700;"
+                            f"background:{bg};color:{color};font-size:var(--fs-micro);font-weight:700;"
                             "padding:2px 8px;border-radius:9px;min-width:86px;text-align:center;")
-                        ui.label(label).style(f"color:{COLORS['text_body']};font-size:12.5px;")
+                        ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                         ui.space()
-                        ui.label(when).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                        ui.label(when).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 async def _open_lead_email_dialog(v):
@@ -624,7 +624,7 @@ async def _open_lead_email_dialog(v):
 
     with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
         ui.label(f"Email {v.get('org') or 'lead'}").classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:14px;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
         bits = []
         if v.get("ticker"):
             bits.append(v["ticker"])
@@ -632,14 +632,14 @@ async def _open_lead_email_dialog(v):
             bits.append(v["device"])
         bits.append(f"intent {v.get('intent', 0)}")
         dls = ", ".join(v.get("downloads") or []) or "no downloads"
-        ui.label(" · ".join(bits) + " · " + dls).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+        ui.label(" · ".join(bits) + " · " + dls).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.link("Find on LinkedIn ↗", lead_outreach.linkedin_search_url(v), new_tab=True).style(
-            f"color:{COLORS['accent']};font-size:12px;")
+            f"color:{COLORS['accent']};font-size:var(--fs-sm);")
 
-        _subj = ui.input("Subject").props("outlined dense").classes("w-full").style("font-size:12px;")
-        _body = ui.textarea("Message").props("outlined autogrow dense").classes("w-full").style("font-size:12px;")
+        _subj = ui.input("Subject").props("outlined dense").classes("w-full").style("font-size:var(--fs-sm);")
+        _body = ui.textarea("Message").props("outlined autogrow dense").classes("w-full").style("font-size:var(--fs-sm);")
         _status = ui.label("Drafting from the lead's activity…").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         with ui.row().classes("justify-end w-full gap-2 items-center").style("margin-top:4px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat dense")
 
@@ -709,16 +709,16 @@ async def _open_pipeline_email_dialog(lead, on_sent=None):
                                 "analysts": None})
     with ui.dialog() as dlg, ui.card().style("min-width:480px;max-width:620px;"):
         ui.label(f"Email {lead.get('company') or 'lead'}").classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:14px;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
         who = " · ".join(x for x in [lead.get("contact_name"), lead.get("contact_title")] if x)
         if who:
-            ui.label(who).style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+            ui.label(who).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         _to = ui.input("To", value=lead.get("email") or "").props("outlined dense").classes(
-            "w-full").style("font-size:12px;")
+            "w-full").style("font-size:var(--fs-sm);")
         _subj = ui.input("Subject", value=d["subject"]).props("outlined dense").classes(
-            "w-full").style("font-size:12px;")
+            "w-full").style("font-size:var(--fs-sm);")
         _body = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
-            "w-full").style("font-size:12px;")
+            "w-full").style("font-size:var(--fs-sm);")
 
         def _logged(note):
             sales_pipeline.log_touch(lead["id"], kind="email", note=note)
@@ -774,7 +774,7 @@ def _render_sales_pipeline_panel():
     def _stage_chip(stage):
         clr, bg = _STAGE_STYLE.get(stage, ("#64748B", "rgba(100,116,139,.14)"))
         ui.label(stage.upper()).style(
-            f"background:{bg};color:{clr};font-size:9px;font-weight:800;letter-spacing:.04em;"
+            f"background:{bg};color:{clr};font-size:var(--fs-micro);font-weight:800;letter-spacing:.04em;"
             "padding:2px 8px;border-radius:9px;")
 
     def _lead_card(lead, overdue):
@@ -786,31 +786,31 @@ def _render_sales_pipeline_panel():
                 f"border-left:4px solid {border};padding:6px 10px;"):
             with ui.row().classes("w-full items-center").style("gap:7px;"):
                 ui.icon("call_received" if src == "inbound" else "search").style(
-                    f"color:{COLORS['text_muted']};font-size:14px;").tooltip(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-md);").tooltip(
                     "Inbound — came to us" if src == "inbound" else "Outbound — we found them")
                 ui.label(lead.get("company") or "—").style(
-                    f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;")
                 if lead.get("ticker"):
                     ui.label(lead["ticker"]).style(
-                        "background:#15803D;color:white;font-size:9.5px;font-weight:800;"
+                        "background:#15803D;color:white;font-size:var(--fs-micro);font-weight:800;"
                         "padding:1px 7px;border-radius:9px;")
                 if lead.get("demo_request"):
                     ui.label("DEMO REQUEST").style(
-                        "background:#B45309;color:white;font-size:9px;font-weight:800;"
+                        "background:#B45309;color:white;font-size:var(--fs-micro);font-weight:800;"
                         "padding:1px 7px;border-radius:9px;")
                 if overdue:
                     ui.label("FOLLOW-UP DUE").style(
-                        "background:#B91C1C;color:white;font-size:9px;font-weight:800;"
+                        "background:#B91C1C;color:white;font-size:var(--fs-micro);font-weight:800;"
                         "padding:1px 7px;border-radius:9px;")
                 ui.space()
                 _stage_chip(lead.get("stage"))
             who = " · ".join(x for x in [lead.get("contact_name"), lead.get("contact_title"),
                                          lead.get("email")] if x)
             if who:
-                ui.label(who).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(who).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             with ui.row().classes("w-full items-center").style("gap:8px;margin-top:2px;"):
                 sel = ui.select(sp.STAGES, value=lead.get("stage")).props("dense outlined").style(
-                    "font-size:11px;min-width:120px;")
+                    "font-size:var(--fs-xs);min-width:120px;")
 
                 def _on_stage(e, lid=lead["id"]):
                     sp.set_stage(lid, e.value)
@@ -818,7 +818,7 @@ def _render_sales_pipeline_panel():
                 sel.on("update:model-value", _on_stage)
 
                 nf = ui.input(value=lead.get("next_follow_up") or "").props(
-                    "type=date dense outlined").style("font-size:11px;max-width:150px;").tooltip(
+                    "type=date dense outlined").style("font-size:var(--fs-xs);max-width:150px;").tooltip(
                     "Next follow-up")
 
                 def _on_nf(e, lid=lead["id"], nf=nf):
@@ -830,18 +830,18 @@ def _render_sales_pipeline_panel():
                 if lead.get("stage") in ("contacted", "identified"):
                     ui.button("Mark replied", icon="mark_email_read",
                               on_click=lambda lid=lead["id"]: (sp.mark_replied(lid), _render())).props(
-                        "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-2xs);")
                 if lead.get("onboarded_cid"):
                     ui.label(f"Onboarded → {lead['onboarded_cid']}").style(
-                        "background:rgba(21,128,61,.14);color:#15803D;font-size:10px;font-weight:800;"
+                        "background:rgba(21,128,61,.14);color:#15803D;font-size:var(--fs-2xs);font-weight:800;"
                         "padding:2px 8px;border-radius:9px;")
                 elif lead.get("stage") == "won":
                     ui.button("Onboard as client", icon="rocket_launch",
                               on_click=lambda lead=lead: _onboard_won_lead(lead)).props(
-                        "dense").style("font-size:10.5px;")
+                        "dense").style("font-size:var(--fs-2xs);")
                 ui.button("Email", icon="send",
                           on_click=lambda lead=lead: _open_pipeline_email_dialog(lead, on_sent=_render)).props(
-                    "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                    "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-2xs);")
 
         def _onboard_won_lead(lead):
             """Hand a Won lead to the standard add-client onboarding, prefilled from the lead."""
@@ -875,7 +875,7 @@ def _render_sales_pipeline_panel():
                     "flat dense").style(f"color:{COLORS['text_muted']};")
             ui.label("One board for IRconnect prospects — inbound demo requests and overdue "
                      "follow-ups first. Reply-marking is manual; nothing auto-sends.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             s = sp.summary()
             with ui.row().style("gap:12px;flex-wrap:wrap;"):
@@ -896,11 +896,11 @@ def _render_sales_pipeline_panel():
             due = sp.due_followups()
             if due:
                 ui.label(f"Needs attention today — {len(due)}").style(
-                    f"color:#B45309;font-size:12px;font-weight:800;margin-top:4px;")
+                    f"color:#B45309;font-size:var(--fs-sm);font-weight:800;margin-top:4px;")
                 for lead in due:
                     _lead_card(lead, overdue=True)
                 ui.label("Pipeline").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;font-weight:700;margin-top:6px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-weight:700;margin-top:6px;")
             due_ids = {d["id"] for d in due}
             for lead in leads:
                 if lead["id"] in due_ids:
@@ -938,7 +938,7 @@ def _render_web_traffic_panel():
                     "flat dense").style(f"color:{COLORS['text_muted']};")
             ui.label("Our own marketing site through the web-flow analyzer — an identified visitor is a "
                      "prospective client (a lead), not an investor.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             d = web_flow.compose("praxis")
             if not d.get("available"):
@@ -962,25 +962,25 @@ def _render_web_traffic_panel():
                         with ui.row().classes("items-center").style("gap:6px;"):
                             if v.get("device") in ("mobile", "desktop"):
                                 ui.icon("smartphone" if v["device"] == "mobile" else "computer").style(
-                                    f"color:{COLORS['text_muted']};font-size:15px;").tooltip(v["device"])
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-md);").tooltip(v["device"])
                             ui.label(v["org"]).style(
-                                f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;")
                             if v.get("ticker"):
                                 ui.label(v["ticker"]).style(
-                                    "background:#15803D;color:white;font-size:10px;font-weight:800;"
+                                    "background:#15803D;color:white;font-size:var(--fs-2xs);font-weight:800;"
                                     "padding:1px 7px;border-radius:9px;")
                         ui.label(f"intent {v['intent']} · {v['intent_label']}").style(
-                            "color:#B45309;font-size:11px;font-weight:700;")
+                            "color:#B45309;font-size:var(--fs-xs);font-weight:700;")
                     ui.label(f"{v['pages']} pages · {v['minutes']} min · "
                              + (", ".join(v["downloads"]) or "no downloads")).style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     if v.get("email"):
                         with ui.row().classes("items-center").style("gap:6px;margin-top:3px;"):
-                            ui.icon("mail").style(f"color:{COLORS['text_muted']};font-size:13px;")
-                            ui.label(v["email"]).style(f"color:{COLORS['accent']};font-size:11.5px;font-weight:600;")
+                            ui.icon("mail").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+                            ui.label(v["email"]).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);font-weight:600;")
                             ui.button("Email", icon="send",
                                       on_click=lambda v=v: _open_lead_email_dialog(v)).props(
-                                "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
 
     _render()
 
@@ -1001,7 +1001,7 @@ def _render_prospect_screener():
         ui.label("More than 5 sell-side analysts signals a growing IR pain point (a prime prospect); more "
                  "than 15 and they likely already run a competing tool. Coverage counts from Yahoo. Metro "
                  "universe is curated + growable (add tickers below).").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         _all = ps.metros()
         _default = "Phoenix / Arizona" if "Phoenix / Arizona" in _all else (_all[0] if _all else None)
         with ui.row().classes("items-end").style("gap:10px;flex-wrap:wrap;margin-top:4px;"):
@@ -1019,9 +1019,9 @@ def _render_prospect_screener():
             _zoho = zoho_mail.is_configured()
             with ui.dialog() as dlg, ui.card().style("min-width:520px;max-width:640px;"):
                 ui.label(f"{company} · {ticker}").classes("font-bold").style(
-                    f"color:{COLORS['text_heading']};font-size:14px;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
                 _busy = ui.label("Looking up the IR contact on Yahoo…").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 _det = ui.column().classes("w-full").style("gap:4px;")
             dlg.open()
             try:
@@ -1033,50 +1033,50 @@ def _render_prospect_screener():
             with _det:
                 bits = [f"{e['analysts']} analysts" if e.get("analysts") is not None else None,
                         _mcap(e.get("market_cap")), e.get("city"), e.get("industry") or e.get("sector")]
-                ui.label(" · ".join(x for x in bits if x)).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(" · ".join(x for x in bits if x)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 if e.get("summary"):
-                    ui.label(e["summary"]).style(f"color:{COLORS['text_body']};font-size:11.5px;")
+                    ui.label(e["summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                 ui.label("IR decision-maker").style(
-                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:4px;")
                 if e.get("ir_name"):
                     _clr = "#B45309" if e["ir_kind"] == "cfo" else ("#B91C1C" if e["ir_kind"] == "ceo" else "#15803D")
                     with ui.row().classes("items-center").style("gap:8px;"):
-                        ui.icon("badge").style(f"color:{_clr};font-size:16px;")
+                        ui.icon("badge").style(f"color:{_clr};font-size:var(--fs-lg);")
                         ui.label(e["ir_name"]).style(
-                            f"color:{COLORS['text_heading']};font-size:13px;font-weight:600;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;")
                         ui.label(ir_contact.contact_label(e)).style(
-                            f"background:{_clr}1a;color:{_clr};font-size:10px;font-weight:700;"
+                            f"background:{_clr}1a;color:{_clr};font-size:var(--fs-2xs);font-weight:700;"
                             "padding:1px 8px;border-radius:9px;")
                     if e.get("ceo_name") and e["ir_kind"] != "ceo":
-                        ui.label(f"CEO: {e['ceo_name']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label(f"CEO: {e['ceo_name']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 else:
                     ui.label("No IR/CFO listed on Yahoo — add the contact manually below.").style(
-                        f"color:{COLORS['text_muted']};font-size:11.5px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 with ui.row().classes("items-center").style("gap:12px;"):
                     if e.get("phone"):
-                        ui.label(f"☎ {e['phone']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label(f"☎ {e['phone']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     if e.get("website"):
-                        ui.link("Website ↗", e["website"], new_tab=True).style(f"color:{COLORS['accent']};font-size:11px;")
+                        ui.link("Website ↗", e["website"], new_tab=True).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
                     _q = quote(f"{e.get('ir_name') or ''} {company}".strip())
                     ui.link("Find on LinkedIn ↗",
                             f"https://www.linkedin.com/search/results/people/?keywords={_q}",
-                            new_tab=True).style(f"color:{COLORS['accent']};font-size:11px;")
+                            new_tab=True).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
 
                 d = ir_contact.draft_email(e)
                 ui.label("Email the prospect").style(
-                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:4px;")
                 _to = ui.input("To", value=e.get("suggested_email") or "").props("outlined dense").classes(
-                    "w-full").style("font-size:12px;")
+                    "w-full").style("font-size:var(--fs-sm);")
                 ui.label("Defaults to the company IR inbox (ir@domain) — confirm, or replace with the "
-                         "person's address.").style(f"color:{COLORS['text_muted']};font-size:10.5px;")
+                         "person's address.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                 _subj = ui.input("Subject", value=d["subject"]).props("outlined dense").classes(
-                    "w-full").style("font-size:12px;")
+                    "w-full").style("font-size:var(--fs-sm);")
                 _bt = ui.textarea("Message", value=d["body"]).props("outlined autogrow dense").classes(
-                    "w-full").style("font-size:12px;")
+                    "w-full").style("font-size:var(--fs-sm);")
 
                 # ── personalized 13F hook (two-quarter ownership diff + metro trend) ──
                 ui.label("Personalized hook — 13F ownership moves").style(
-                    f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:6px;")
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:6px;")
                 _hookwrap = ui.column().classes("w-full").style("gap:4px;")
 
                 def _paint_hook(data):
@@ -1085,16 +1085,16 @@ def _render_prospect_screener():
                         if not data or data.get("error"):
                             if data and data.get("error"):
                                 ui.label(data["error"]).style(
-                                    f"color:{COLORS['text_muted']};font-size:11px;")
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             return
                         txt = prospect_hook.hook_text(data)
                         if txt:
                             if txt not in (_bt.value or ""):
                                 _bt.value = txt + "\n\n" + (_bt.value or "")   # prepend into the email
                             ui.label("Added to the message above:").style(
-                                f"color:{COLORS['text_muted']};font-size:10.5px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                             ui.label(txt).style(
-                                f"color:{COLORS['text_body']};font-size:11.5px;"
+                                f"color:{COLORS['text_body']};font-size:var(--fs-xs);"
                                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                                 "border-radius:6px;padding:6px 8px;")
                         # the moves chart IS the visual of the hook; the metro chart answers "where to go"
@@ -1105,7 +1105,7 @@ def _render_prospect_screener():
                             ui.button("Download moves chart (PNG)", icon="download",
                                       on_click=lambda p=moves_png, tk=ticker: ui.download(
                                           p, f"{tk}_active_moves.png")).props(
-                                "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-2xs);")
                         png = prospect_hook.metro_chart_png(data)
                         if png:
                             uri = "data:image/png;base64," + base64.b64encode(png).decode()
@@ -1114,7 +1114,7 @@ def _render_prospect_screener():
                             ui.button("Download metro chart (PNG)", icon="download",
                                       on_click=lambda png=png, tk=ticker: ui.download(
                                           png, f"{tk}_holders_by_metro.png")).props(
-                                "flat dense").style(f"color:{COLORS['accent']};font-size:10.5px;")
+                                "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-2xs);")
 
                 async def _prepare_hook(_btn=None):
                     _hookstatus.text = "Pulling two quarters of 13F from SEC — this takes a couple minutes…"
@@ -1132,10 +1132,10 @@ def _render_prospect_screener():
 
                 with ui.row().classes("w-full items-center").style("gap:8px;"):
                     ui.button("Prepare hook", icon="insights", on_click=_prepare_hook).props(
-                        "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
                     _hookstatus = ui.label(
                         f"Pulls {company}'s last two 13F quarters (~2 min). Cached after the first run.").style(
-                        f"color:{COLORS['text_muted']};font-size:10.5px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
                 _cached_hook = prospect_hook.get_cached(ticker)
                 if _cached_hook and not _cached_hook.get("error"):
                     _paint_hook(_cached_hook)
@@ -1151,7 +1151,7 @@ def _render_prospect_screener():
                     ui.button("Add to pipeline", icon="add_task",
                               on_click=lambda: (_track(), ui.notify(
                                   f"{company} added to the sales pipeline.", type="positive"))).props(
-                        "flat dense").style(f"color:{COLORS['accent']};font-size:11px;")
+                        "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
                     ui.space()
                     ui.button("Cancel", on_click=dlg.close).props("flat dense")
 
@@ -1192,16 +1192,16 @@ def _render_prospect_screener():
                     "click", lambda r=r: _open_prospect_dialog(r["ticker"], r["name"])):
                 with ui.row().classes("w-full items-center").style("gap:8px;"):
                     ui.label(r["ticker"]).style(
-                        f"background:{clr};color:white;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;")
-                    ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:12.5px;font-weight:600;")
+                        f"background:{clr};color:white;font-size:var(--fs-2xs);font-weight:800;padding:1px 7px;border-radius:9px;")
+                    ui.label(r["name"]).style(f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:600;")
                     ui.space()
                     a = r.get("analysts")
                     ui.label(f"{a if a is not None else '—'} analysts").style(
-                        f"color:{clr};font-size:11.5px;font-weight:700;")
-                    ui.label(_mcap(r.get("market_cap"))).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{clr};font-size:var(--fs-xs);font-weight:700;")
+                    ui.label(_mcap(r.get("market_cap"))).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 sub = " · ".join(x for x in [r.get("city"), r.get("industry") or r.get("sector")] if x)
                 if sub:
-                    ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         def _render(res):
             out.clear()
@@ -1214,7 +1214,7 @@ def _render_prospect_screener():
                     _stat_tile("Too early", str(c["early"]))
                 if res["prime"]:
                     ui.label("Prime prospects — the growing pain point").style(
-                        f"color:{COLORS['text_heading']};font-size:12px;font-weight:700;margin-top:4px;")
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:4px;")
                     for r in res["prime"]:
                         _rowcard(r, "#B45309")
                 if res["tooled"]:
@@ -1246,7 +1246,7 @@ def _render_prospect_screener():
 
         with ui.expansion("Add companies to a metro's universe").classes("w-full").style("margin-top:4px;"):
             addt = ui.textarea("Tickers (comma or space separated)").props("dense outlined").classes(
-                "w-full").style("font-size:12px;")
+                "w-full").style("font-size:var(--fs-sm);")
 
             def _add(metro=metro, addt=addt):
                 import re as _re
@@ -1269,11 +1269,11 @@ def render_console_home(user):
                 ui.label("Praxis Point").classes("text-2xl font-bold").style(
                     f"color:{COLORS['text_heading']};")
                 ui.label("CONSOLE").style(
-                    f"background:{COLORS['text_heading']};color:white;font-size:10px;font-weight:800;"
+                    f"background:{COLORS['text_heading']};color:white;font-size:var(--fs-2xs);font-weight:800;"
                     "letter-spacing:.08em;padding:3px 9px;border-radius:6px;")
                 ui.space()
                 ui.label(user.get("display_name") or user["user_id"]).style(
-                    f"color:{COLORS['text_muted']};font-size:11.5px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 ui.button("Portfolio Calendar", icon="calendar_month",
                           on_click=lambda: ui.navigate.to("/console/calendar")).props("flat dense") \
                     .style(f"color:{COLORS['text_muted']};").tooltip(
@@ -1298,7 +1298,7 @@ def render_console_home(user):
             n = len(rows)
             summary = (f"{n} client{'' if n == 1 else 's'} · "
                        + (f"{needs} need{'s' if needs == 1 else ''} attention" if needs else "all clear"))
-            ui.label(summary).style(f"color:{COLORS['text_muted']};font-size:13px;")
+            ui.label(summary).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
             # ── engagement / billing roll-up ────────────────────────────────
             total_mrr = sum(r.get("eng_mrr") or 0 for r in rows)

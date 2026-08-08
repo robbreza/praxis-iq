@@ -411,12 +411,12 @@ def _render_call_opening(ss):
             "background:rgba(180,83,9,.06);border:2px solid #B45309;border-radius:8px;"
             "padding:12px 14px;margin-bottom:12px;"):
         ui.label("Call Opening — Operator intro · Welcome · Reg FD / Safe Harbor").classes("font-bold").style(
-            "color:#B45309;font-size:13px;")
+            "color:#B45309;font-size:var(--fs-base);")
         ui.label("Carried over from last quarter — edit or add as needed. Similar every quarter, never "
                  "identical: a lineup change (e.g. an IR head handing lines to the operator) is a common "
                  "pivot. Legal-approved wording — a material change to the safe-harbor paragraph should go "
                  "back to Legal. Always included at the very start of the assembled Full Script and every "
-                 "download.").style(f"color:{COLORS['text_muted']};font-size:11px;margin-bottom:8px;")
+                 "download.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
 
         @ui.refreshable
         def _body():
@@ -812,7 +812,7 @@ def render_earnings_page():
                 ui.label("This tab failed to load").classes("text-lg font-bold").style(f"color:{COLORS['danger']};")
                 ui.label("Something broke while rendering this tab. The exact error is in the server "
                          "console (the terminal window running app_nicegui.py) — copy it from there.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             ui.notify(f"{name} failed to load — see server console for the error.", type="negative")
 
     tabs.on_value_change(_load_tab_on_demand)
@@ -843,16 +843,16 @@ def _render_lookback_tab():
             call_meta = f"{_rec['call_date']} · Chorus Call archive"
 
     ui.label(f"{prior_q} Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
-    ui.label("Every Q2 script decision should start here. What worked, what was missed, and what analysts actually cared about.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ui.label("Every Q2 script decision should start here. What worked, what was missed, and what analysts actually cared about.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     with ui.row().classes("w-full gap-3 items-stretch"):
         with ui.card().classes("flex-[2]").style("background:#E8EEF7;border:1px solid #D3DBE4;border-radius:8px;"):
             ui.label(f"{prior_q} earnings call replay").classes("font-bold").style("color:#0F172A;")
-            ui.label(call_meta).style("color:#475569;font-size:12px;")
+            ui.label(call_meta).style("color:#475569;font-size:var(--fs-sm);")
         ui.link("Play on Chorus Call", "https://www.choruscall.com", new_tab=True).classes("flex-1 text-center").style(
             f"background:{COLORS['accent']};color:white;padding:10px;border-radius:8px;")
         with ui.column().classes("flex-1"):
-            ui.label("Upload the transcript PDF in the Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:12px;padding:8px;")
+            ui.label("Upload the transcript PDF in the Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);padding:8px;")
             ui.button("Go to Call Transcripts", on_click=lambda: nav.go_to("Earnings", "Call Transcripts")).props("flat dense")
 
     # Everything below (reaction stats, section timing, Q&A topics, note alignment) is USIO's real,
@@ -870,7 +870,7 @@ def _render_lookback_tab():
         return
 
     ui.label("Q1 2026 · as reported (ingested transcript)").style(
-        f"color:{COLORS['text_muted']};font-size:11px;letter-spacing:.05em;margin-top:2px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);letter-spacing:.05em;margin-top:2px;")
     with ui.row().classes("w-full gap-3"):
         for val, lbl, sub, clr in [
             ("+24.22%", "AH Reaction", "May 13 · record session", "#15803D"),
@@ -881,33 +881,33 @@ def _render_lookback_tab():
         ]:
             with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                 ui.label(val).classes("text-lg font-bold").style(f"color:{clr};")
-                ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
-                ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     with ui.row().classes("w-full gap-4 items-start"):
         with ui.column().classes("flex-[6]"):
             ui.label("Script Section Timing — Q1 2026 Actual").classes("font-bold")
-            ui.label("Compare against Q2 script once drafted. CEO historically runs long; CFO has tightened.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("Compare against Q2 script once drafted. CEO historically runs long; CFO has tightened.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             for sec, actual, hist, clr, note in _Q1_SECTION_TIMING:
                 delta = actual - hist
                 delta_str = f"+{delta:.0f} min" if delta > 0 else (f"{delta:.0f} min" if delta < 0 else "on time")
                 delta_clr = "#B91C1C" if delta > 0 else ("#15803D" if delta < 0 else COLORS["text_muted"])
                 with ui.row().classes("w-full items-center gap-3").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-                    ui.label(sec).style(f"color:{COLORS['text_body']};font-size:13px;min-width:150px;")
+                    ui.label(sec).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);min-width:150px;")
                     ui.label(f"{actual:.0f} min").style(f"color:{clr};font-weight:bold;min-width:60px;")
-                    ui.label(delta_str).style(f"color:{delta_clr};font-size:12px;min-width:70px;")
-                    ui.label(note).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(delta_str).style(f"color:{delta_clr};font-size:var(--fs-sm);min-width:70px;")
+                    ui.label(note).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             ui.label("Script Word Count — Q1 2026").classes("font-bold").style("margin-top:12px;")
             for sec, wc, hist_wc in _Q1_SECTION_WORDCOUNT:
                 pct = min(int(wc / 2500 * 100), 100)
                 vs_clr = "#B45309" if wc > hist_wc * 1.15 else COLORS["text_muted"]
                 with ui.row().classes("w-full items-center gap-2"):
-                    ui.label(sec).style(f"color:{COLORS['text_muted']};font-size:12px;min-width:150px;")
+                    ui.label(sec).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:150px;")
                     with ui.element("div").classes("flex-1").style(f"background:{COLORS['canvas_bg']};border-radius:4px;height:8px;overflow:hidden;"):
                         ui.element("div").style(f"width:{pct}%;height:100%;background:#3B82F6;")
-                    ui.label(f"{wc:,}").style(f"color:{COLORS['text_body']};font-size:12px;min-width:50px;")
-                    ui.label(f"vs {hist_wc:,} hist").style(f"color:{vs_clr};font-size:11px;min-width:70px;")
+                    ui.label(f"{wc:,}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);min-width:50px;")
+                    ui.label(f"vs {hist_wc:,} hist").style(f"color:{vs_clr};font-size:var(--fs-xs);min-width:70px;")
 
             # Moved up into this column (was previously its own full-width
             # section below the row) — the left column ran noticeably
@@ -919,25 +919,25 @@ def _render_lookback_tab():
             # 6/10-width column the way it did at full page width.
             ui.markdown("---")
             ui.label("Q1 → Q2 Script Actions").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-            ui.label("Each item below is a direct fix from Q1 post-mortem.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("Each item below is a direct fix from Q1 post-mortem.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             for a in _get_current_qa_actions():
                 with ui.row().classes("w-full items-start gap-3"):
-                    ui.label(a["icon"]).style("font-size:24px;")
+                    ui.label(a["icon"]).style("font-size:var(--fs-hero);")
                     with ui.column().classes("flex-1 gap-1"):
                         with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {a['clr']};"):
-                            ui.label(f"{a['priority']} · Q1 FINDING").style(f"color:{a['clr']};font-size:11px;font-weight:bold;text-transform:uppercase;")
-                            ui.label(a["q1_finding"]).style(f"color:{COLORS['text_muted']};font-size:12px;")
-                            ui.label(a["action"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
-                            ui.label(f"{a['where']}").style(f"color:{a['clr']};font-size:12px;")
-                        ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;padding:0 4px;")
+                            ui.label(f"{a['priority']} · Q1 FINDING").style(f"color:{a['clr']};font-size:var(--fs-xs);font-weight:bold;text-transform:uppercase;")
+                            ui.label(a["q1_finding"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                            ui.label(a["action"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
+                            ui.label(f"{a['where']}").style(f"color:{a['clr']};font-size:var(--fs-sm);")
+                        ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;padding:0 4px;")
             ui.label("These same items now auto-seed Step 2 of each relevant persona's Script Canvas tab — "
                       "click Script Generation above to see them there, pre-filled and editable.").style(
-                f"color:{COLORS['text_muted']};font-size:12px;margin-top:6px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:6px;")
 
         with ui.column().classes("flex-[4]"):
             ui.label("Q&A Analysis — What Did Analysts Ask?").classes("font-bold")
-            ui.label("Pre-emption score: was this addressed proactively in the script, or did it surface as a question?").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("Pre-emption score: was this addressed proactively in the script, or did it surface as a question?").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             qa_topics = _Q1_QA_TOPICS
             for topic, preempted, note in qa_topics:
                 clr = "#15803D" if preempted else "#B91C1C"
@@ -945,15 +945,15 @@ def _render_lookback_tab():
                 with ui.row().classes("w-full items-start gap-2").style(f"padding:4px 0;"):
                     ui.label(icon)
                     with ui.column().classes("gap-0"):
-                        ui.label(topic).style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                        ui.label(note).style(f"color:{clr};font-size:12px;")
+                        ui.label(topic).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                        ui.label(note).style(f"color:{clr};font-size:var(--fs-sm);")
 
             preempted_count = sum(1 for _, p, _ in qa_topics if p)
             score = round(preempted_count / len(qa_topics) * 100)
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-                ui.label("Pre-emption score — Q1 2026").style(f"color:{COLORS['text_muted']};font-size:11px;text-transform:uppercase;")
-                ui.label(f"{score}% · {preempted_count} of {len(qa_topics)} topics addressed proactively").classes("font-bold").style("color:#15803D;font-size:18px;")
-                ui.label("Target for Q2: 90%+ · Key fix: interest income bridge language").style("color:#B45309;font-size:12px;")
+                ui.label("Pre-emption score — Q1 2026").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;")
+                ui.label(f"{score}% · {preempted_count} of {len(qa_topics)} topics addressed proactively").classes("font-bold").style("color:#15803D;font-size:var(--fs-xl);")
+                ui.label("Target for Q2: 90%+ · Key fix: interest income bridge language").style("color:#B45309;font-size:var(--fs-sm);")
 
             ui.label("Post-Call Analyst Note Alignment").classes("font-bold").style("margin-top:10px;")
             alignment = [
@@ -966,15 +966,15 @@ def _render_lookback_tab():
             for takeaway, view, clr in alignment:
                 icon = "" if clr == "#15803D" else ("" if clr == "#B45309" else "")
                 with ui.column().classes("gap-0").style(f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
-                    ui.label(f"{icon} {takeaway}").style(f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
-                    ui.label(view).style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"{icon} {takeaway}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                    ui.label(view).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _metric(label, value, sub):
     with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
-        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 def _add_version(ss, tag, label, by):
@@ -1575,23 +1575,23 @@ def _render_prep_accuracy_trend(ss):
     ui.label("Prediction accuracy over time").classes("section-head").style("margin-top:14px;")
     ui.label("How often the adversarial pass predicted the questions analysts actually asked. It should climb "
              "as the house Q&A bank accrues each call's surprises and seeds the next pass.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     ui.label(f"{arrow} {abs(delta)} pts vs {prev['quarter']} — now {latest['rate']}% ({latest['hits']} of "
-             f"{latest['total']} predicted).").style(f"color:{dclr};font-size:12.5px;font-weight:600;margin-top:2px;")
+             f"{latest['total']} predicted).").style(f"color:{dclr};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
 
     for p in pts:
         is_latest = p is latest
         bar_clr = COLORS["accent"] if is_latest else COLORS["accent_light2"]
         with ui.row().classes("w-full items-center").style("gap:8px;margin-top:3px;"):
             ui.label(p["quarter"]).style(
-                f"color:{COLORS['text_body']};font-size:12px;width:84px;"
+                f"color:{COLORS['text_body']};font-size:var(--fs-sm);width:84px;"
                 f"font-weight:{'700' if is_latest else '400'};")
             with ui.element("div").style(
                     f"flex:1;height:12px;background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                     "border-radius:6px;overflow:hidden;"):
                 ui.element("div").style(f"height:100%;width:{max(2, min(100, p['rate']))}%;background:{bar_clr};")
             ui.label(f"{p['rate']}%  ·  {p['hits']}/{p['total']}").style(
-                f"color:{COLORS['text_muted']};font-size:11.5px;width:96px;text-align:right;"
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:96px;text-align:right;"
                 "font-variant-numeric:tabular-nums;")
 
 
@@ -1601,7 +1601,7 @@ def _render_prep_vs_actual(ss, quarter):
     ui.label("Prep vs. Actual — how good was our prep?").classes("section-head").style("margin-top:12px;")
     ui.label("Closes the loop: your drafted script and the tough questions you predicted, graded against what "
              "management actually said and what analysts actually asked on this call.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     box = ui.column().classes("w-full")
 
     def _paint(data):
@@ -1610,9 +1610,9 @@ def _render_prep_vs_actual(ss, quarter):
             if not data:
                 ui.label("Run it to compare your prep against the call. Needs a drafted script (Script "
                          "Generation) and this quarter's transcript; predicted questions come from the "
-                         "Adversarial analyst pass.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                         "Adversarial analyst pass.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 return
-            ui.label(f"Generated {data['generated_at']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+            ui.label(f"Generated {data['generated_at']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             sc = data["script"]
             with ui.row().classes("w-full gap-3").style("margin-top:4px;"):
                 _metric_card("Delivered", str(len(sc["delivered"])), "planned points that landed", "#15803D")
@@ -1627,8 +1627,8 @@ def _render_prep_vs_actual(ss, quarter):
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                             f"border-left:3px solid {clr};padding:5px 10px;margin-top:3px;"):
-                        ui.label(f"{title}").style(f"color:{clr};font-size:11px;font-weight:700;")
-                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:12px;")
+                        ui.label(f"{title}").style(f"color:{clr};font-size:var(--fs-xs);font-weight:700;")
+                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
             qa = data["qa"]
             if data.get("had_predictions"):
@@ -1648,33 +1648,33 @@ def _render_prep_vs_actual(ss, quarter):
                 if acc.get("new_global"):
                     ui.label(f"✓ {acc['new_global']} new surprise(s) added to the house Q&A bank — they'll seed "
                              "future adversarial passes for every client.").style(
-                        "color:#15803D;font-size:11px;font-weight:600;margin-top:2px;")
+                        "color:#15803D;font-size:var(--fs-xs);font-weight:600;margin-top:2px;")
                 elif acc.get("new_client"):
                     ui.label(f"✓ {acc['new_client']} new question(s) banked for this client — they'll seed future "
                              "adversarial passes here.").style(
-                        "color:#15803D;font-size:11px;font-weight:600;margin-top:2px;")
+                        "color:#15803D;font-size:var(--fs-xs);font-weight:600;margin-top:2px;")
                 for h in qa["hits"]:
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                             "border-left:3px solid #15803D;padding:5px 10px;margin-top:3px;"):
-                        ui.label(f"HIT · {h['pred']}").style("color:#15803D;font-size:12px;font-weight:600;")
+                        ui.label(f"HIT · {h['pred']}").style("color:#15803D;font-size:var(--fs-sm);font-weight:600;")
                         if h.get("actual"):
                             ui.label(f"Asked as: {h['actual']}").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
                 for s in qa["surprises"]:
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                             "border-left:3px solid #B91C1C;padding:5px 10px;margin-top:3px;"):
-                        ui.label(f"SURPRISE · {s}").style("color:#B91C1C;font-size:12px;font-weight:600;")
+                        ui.label(f"SURPRISE · {s}").style("color:#B91C1C;font-size:var(--fs-sm);font-weight:600;")
                         ui.label("Banked → seeds next quarter's adversarial pass.").style(
-                            f"color:{COLORS['text_muted']};font-size:11px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for mtext in qa["misses"]:
                     ui.label(f"Missed (predicted, not asked): {mtext}").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             else:
                 ui.label("No adversarial-Q&A predictions on file — run the Adversarial analyst pass on the "
                          "Script Generation tab to also grade Q&A prediction accuracy.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;margin-top:6px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
 
     _paint((ss.get("prep_vs_actual") or {}).get(quarter))
 
@@ -1707,18 +1707,18 @@ def _render_morning_after_tab():
              "analysts must ask something to be on record, and most questions fish for incremental "
              "colour you can't pre-empt. Only questions with evidence behind them — management "
              "couldn't answer, conceded something the script framed as upside, or the topic recurs — "
-             "count against the script.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+             "count against the script.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     quarters = [t["quarter"] for t in sorted((transcripts.list_transcripts() or []),
                                              key=lambda x: x.get("call_date") or "", reverse=True)]
     if not quarters:
         ui.label("No transcripts ingested yet — add one on the Call Transcripts tab.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;margin-top:8px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:8px;")
         return
 
     state = {"q": quarters[0]}
     with ui.row().classes("items-center gap-2").style("margin-top:6px;"):
-        ui.label("Quarter").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Quarter").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         sel = ui.select(quarters, value=quarters[0]).props("dense outlined").classes("min-w-[130px]")
 
     @ui.refreshable
@@ -1731,7 +1731,7 @@ def _render_morning_after_tab():
         try:
             c = morning_after.critique(state["q"])
         except Exception as e:
-            ui.label(f"Critique unavailable: {e}").style("color:#B45309;font-size:12px;")
+            ui.label(f"Critique unavailable: {e}").style("color:#B45309;font-size:var(--fs-sm);")
             return
         if not c:
             ui.label("Nothing to critique for that quarter.").style(f"color:{COLORS['text_muted']};")
@@ -1751,7 +1751,7 @@ def _render_morning_after_tab():
                              "digested through the session" if abs(drift) > abs(r["pct"]) else "verdict was at the bell")
             ui.label("Close-to-next-open. After-hours is excluded: on a micro-cap those are market-maker "
                      "quotes that print but can't be traded.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         # ── Delivery ────────────────────────────────────────────────────────
         if t:
@@ -1762,12 +1762,12 @@ def _render_morning_after_tab():
                         f"background:{COLORS['surface_bg']};border:1px solid #B45309;"
                         "border-left:3px solid #B45309;padding:6px 10px;"):
                     ui.label("Timing withheld — this transcript's labelling can't support it").style(
-                        "color:#B45309;font-size:12px;font-weight:700;")
+                        "color:#B45309;font-size:var(--fs-sm);font-weight:700;")
                     for w in t["warnings"]:
-                        ui.label("• " + w).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label("• " + w).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     ui.label("The tape and Q&A findings below are unaffected — they come from the text "
                              "and the market, not the speaker labels.").style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             else:
                 with ui.row().classes("w-full gap-3"):
                     _metric_card("Prepared", f"{t['prepared_minutes']} min", "management only")
@@ -1777,11 +1777,11 @@ def _render_morning_after_tab():
                     with ui.row().classes("w-full items-center gap-2").style(
                             f"border-bottom:1px solid {COLORS['border']};padding:3px 0;"):
                         ui.label(s["speaker"]).style(
-                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;width:110px;")
-                        ui.label(f"{s['minutes']} min").style(f"color:{COLORS['accent']};font-size:12px;width:70px;")
-                        ui.label(f"{s['wpm']} wpm").style(f"color:{COLORS['text_muted']};font-size:11px;width:70px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;width:110px;")
+                        ui.label(f"{s['minutes']} min").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);width:70px;")
+                        ui.label(f"{s['wpm']} wpm").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:70px;")
                         ui.label(", ".join(s.get("raw", []))[:70]).style(
-                            f"color:{COLORS['text_muted']};font-size:10px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
         # ── Non-answers (published classifier + base rate) ───────────────────
         na = c.get("non_answers")
@@ -1792,7 +1792,7 @@ def _render_morning_after_tab():
                      "classifier (78.9% out-of-sample true-positive, 89.2% accuracy). The number only "
                      "means something against their benchmark: ~11% of responses across all firms are "
                      "non-answers, stable over time and across industries. 11% is NORMAL.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             rate_pct = na["rate"] * 100
             if not na["labels_reliable"]:
                 rate_clr = "#B45309"
@@ -1814,22 +1814,22 @@ def _render_morning_after_tab():
             if not na["labels_reliable"]:
                 ui.label("⚠ Rate is indicative only — this transcript mis-attributes management turns, "
                          "so the denominator mixes speakers. The flagged phrases below are still real.").style(
-                    "color:#B45309;font-size:11px;")
-            ui.label(na["read"]).style(f"color:{COLORS['text_body']};font-size:12px;margin-top:2px;")
+                    "color:#B45309;font-size:var(--fs-xs);")
+            ui.label(na["read"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;")
             for f in na["flagged"]:
                 with ui.card().classes("w-full").style(
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                         "border-left:3px solid #B45309;padding:6px 10px;margin-top:3px;"):
                     ui.label(f"{' + '.join(f['types'])} · {f['speaker']}").style(
-                        "color:#B45309;font-size:12px;font-weight:700;")
+                        "color:#B45309;font-size:var(--fs-sm);font-weight:700;")
                     ui.label(f"flagged phrase: \"{f['hits'][0]['phrase']}\"").style(
-                        f"color:{COLORS['text_body']};font-size:11px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                     ui.label(f["excerpt"]).style(
-                        f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
             if not na["flagged"]:
                 ui.label("No non-answers detected — management engaged every question. Against an ~11% "
                          "norm that is genuinely unusual, and worth protecting.").style(
-                    "color:#15803D;font-size:11px;margin-top:2px;")
+                    "color:#15803D;font-size:var(--fs-xs);margin-top:2px;")
 
         # ── What the Q&A DEMANDED (number_frame) ────────────────────────────
         ui.label("What the Q&A demanded — and whether you delivered it").classes(
@@ -1839,7 +1839,7 @@ def _render_morning_after_tab():
                  "(run-rate or one-timer?); a BAD number needs CONTROL and TIMING (yours to fix, and "
                  "by when?); a CLAIM or guide needs BACKING (what's signed vs assumed?). A mismatch "
                  "isn't evasion — it's usually a good answer to a question nobody asked.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         fr = c.get("frames")
         fbox = ui.column().classes("w-full")
@@ -1850,7 +1850,7 @@ def _render_morning_after_tab():
                 if not f:
                     ui.label("Not analysed yet — this runs a model call per exchange, so it's on "
                              "demand and the result is stored.").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     return
                 with ui.row().classes("w-full gap-3").style("margin-top:4px;"):
                     _metric_card("Pressed & unmet", str(f.get("mismatches", 0)),
@@ -1867,7 +1867,7 @@ def _render_morning_after_tab():
                          "and every other holder is left without it. WITHHELD is competitively "
                          "sensitive and correct to refuse; the cost is market uncertainty, which is a "
                          "trade rather than a mistake.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 order = {"MISMATCH": 0, "DEFERRED": 1, "WITHHELD": 2, "DISCHARGED": 3, "NOT_NUMERIC": 4}
                 for x in sorted(f.get("frames", []), key=lambda z: order.get(z.get("verdict"), 9)):
                     if x.get("verdict") == "NOT_NUMERIC":
@@ -1880,25 +1880,25 @@ def _render_morning_after_tab():
                             f"border-left:3px solid {clr};padding:6px 10px;margin-top:3px;"):
                         ui.label(f"{v} · anchor: {x.get('anchor')} "
                                  f"({x.get('valence')} → owes {x.get('demand')})").style(
-                            f"color:{clr};font-size:12px;font-weight:700;")
+                            f"color:{clr};font-size:var(--fs-sm);font-weight:700;")
                         if v in ("MISMATCH", "DEFERRED") and x.get("missing"):
                             ui.label(f"OMITTED: {x['missing']}").style(
-                                f"color:{clr};font-size:12px;font-weight:600;")
+                                f"color:{clr};font-size:var(--fs-sm);font-weight:600;")
                         if v == "WITHHELD" and x.get("competitive_why"):
                             ui.label(f"Correctly withheld — {x['competitive_why']}").style(
-                                "color:#64748B;font-size:11px;")
+                                "color:#64748B;font-size:var(--fs-xs);")
                         ui.label(x.get("why") or "").style(
-                            f"color:{COLORS['text_body']};font-size:11px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                         # Evidence, so a verdict can be checked rather than trusted.
-                        with ui.expansion("show the exchange").classes("w-full").style("font-size:11px;"):
+                        with ui.expansion("show the exchange").classes("w-full").style("font-size:var(--fs-xs);"):
                             for lbl, key in (("Q", "question"), ("A", "answer"), ("Then", "reaction")):
                                 if x.get(key):
                                     ui.label(f"{lbl}: {x[key]}").style(
-                                        f"color:{COLORS['text_muted']};font-size:11px;")
+                                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 ui.label("Each verdict names the anchor, the demand and the omission so you can check "
                          "it against the transcript. No accuracy rate is claimed — it hasn't been "
                          "validated against human labels.").style(
-                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:4px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:4px;")
 
         async def _run_frames():
             ui.notify("Framing the Q&A — one model call per exchange, ~1 min…")
@@ -1916,7 +1916,7 @@ def _render_morning_after_tab():
 
         # ── What the Q&A exposed ────────────────────────────────────────────
         if p and p.get("error"):
-            ui.label(p["error"]).style("color:#B45309;font-size:12px;margin-top:10px;")
+            ui.label(p["error"]).style("color:#B45309;font-size:var(--fs-sm);margin-top:10px;")
         elif p:
             ui.label("What the Q&A exposed").classes("section-head").style("margin-top:12px;")
             with ui.row().classes("w-full gap-3"):
@@ -1936,15 +1936,15 @@ def _render_morning_after_tab():
                                                        ("pressed", x["pressed"]),
                                                        ("recurs", x["recurs"])] if on)
                     ui.label(f"{lbl} · {x['severity']} — {x['topic']}").style(
-                        f"color:{clr};font-size:12px;font-weight:700;")
+                        f"color:{clr};font-size:var(--fs-sm);font-weight:700;")
                     if flags:
-                        ui.label(flags).style(f"color:{clr};font-size:10px;")
-                    ui.label(x["read"]).style(f"color:{COLORS['text_body']};font-size:11px;")
+                        ui.label(flags).style(f"color:{clr};font-size:var(--fs-2xs);")
+                    ui.label(x["read"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                     if x.get("why"):
-                        ui.label(x["why"][:260]).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                        ui.label(x["why"][:260]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     if x.get("evidence"):
                         ui.label(f"Script said: {x['evidence'][:190]}").style(
-                            f"color:{COLORS['text_secondary']};font-size:10px;font-style:italic;")
+                            f"color:{COLORS['text_secondary']};font-size:var(--fs-2xs);font-style:italic;")
 
         # ── Written critique ────────────────────────────────────────────────
         ui.markdown("---")
@@ -1966,16 +1966,16 @@ def _render_morning_after_tab():
                             "background:#FEF2F2;border:1px solid #B91C1C;padding:6px 10px;"):
                         ui.label(f"{len(unverified)} number(s) in this draft could not be traced to the "
                                  "transcript or the measured facts — verify before using:").style(
-                            "color:#B91C1C;font-size:12px;font-weight:700;")
+                            "color:#B91C1C;font-size:var(--fs-sm);font-weight:700;")
                         for u in unverified:
                             ui.label(f"• {u['value']} — {u['context']}").style(
-                                "color:#B91C1C;font-size:11px;")
+                                "color:#B91C1C;font-size:var(--fs-xs);")
                 ui.markdown(text)
                 ui.label("Written from the measured facts above; every figure must carry the sentence it "
                          "came from. Numbers are auto-checked against the transcript — but that only "
                          "catches invention, not a real number attached to the wrong thing. Read it."
                          + ("" if was_ai else "  [model unavailable — deterministic summary]")).style(
-                    f"color:{COLORS['text_muted']};font-size:10px;margin-top:6px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:6px;")
 
         def _dl_pdf():
             from core import report_pdf
@@ -1993,7 +1993,7 @@ def _render_morning_after_tab():
         ui.label("The PDF is the script-writing report: what the tape did, how the call ran, whether "
                  "you answered, and what each question demanded — unmet demands first, because that's "
                  "what tells you what next quarter's script has to say.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         out["box"] = ui.column().classes("w-full")
 
     sel.on_value_change(lambda e: (state.update(q=e.value), _body.refresh()))
@@ -2004,10 +2004,10 @@ def _metric_card(label, value, sub="", color=None):
     with ui.card().classes("flex-1").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             "min-width:120px;padding:8px 10px;"):
-        ui.label(value).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:18px;")
-        ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
+        ui.label(value).classes("font-bold").style(f"color:{color or COLORS['accent']};font-size:var(--fs-xl);")
+        ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
         if sub:
-            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:10px;")
+            ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
 
 def _guidance_template_draft(action, new_low, new_hi, rationale):
@@ -2121,12 +2121,12 @@ def _render_guidance_decision(ss, context="script"):
     ui.html('<div id="guidance-engine-anchor" style="scroll-margin-top:80px"></div>')
 
     with ui.card().classes("w-full").style("background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);"):
-        ui.label("Workflow note").classes("font-bold").style("color:#92400E;font-size:13px;")
+        ui.label("Workflow note").classes("font-bold").style("color:#92400E;font-size:var(--fs-base);")
         _note_tail = ("finalizing the CEO narrative in Script Generation" if context == "markets"
                       else "drafting the CEO narrative below")
         ui.label(f"Complete this Guidance Decision before {_note_tail} — the tone, H2 "
                   "confidence language, and closing should all flow from whichever action you pick here.").style(
-            "color:#B45309;font-size:12px;")
+            "color:#B45309;font-size:var(--fs-sm);")
 
     # Framed as the same Step 1 (review) / Step 2 (decide) / Step 3 (generate)
     # flow the persona Script Canvases use (_render_persona_steps), so the
@@ -2134,10 +2134,10 @@ def _render_guidance_decision(ss, context="script"):
     # being a differently-shaped page.
     ui.label("Guidance & Outlook Decision Engine").classes("font-bold").style("margin-top:8px;")
     ui.label("CFO and CEO decide · Platform drafts language for each scenario · Every word signals to the Street").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.label("Guidance Step 1 — Review: What the Street Expects & Where Guidance Stands").classes("font-bold").style(
-        "font-size:13px;margin-top:8px;")
+        "font-size:var(--fs-base);margin-top:8px;")
     # The Street-expectations briefing renders FIRST — open by default — so the
     # CFO reads what the Street looks for before working the decision below
     # (moved above the metrics/action selector 2026-07-14 at the user's ask).
@@ -2186,13 +2186,13 @@ Every institutional investor on this call is doing the same math in real time. T
     if math_["comp_note"]:
         with ui.card().classes("w-full").style(
                 "background:rgba(180,83,9,.06);border:1px solid rgba(180,83,9,.28);margin-top:6px;"):
-            ui.label(f"Comp distortion — {math_['comp_note']}").style("color:#B45309;font-size:12px;")
+            ui.label(f"Comp distortion — {math_['comp_note']}").style("color:#B45309;font-size:var(--fs-sm);")
 
     with ui.card().classes("w-full").style("background:rgba(59,130,246,.08);border:2px solid rgba(59,130,246,.3);margin-top:6px;"):
         ui.label(f"RECOMMENDED ACTION: {math_['scenario_label']}").classes("font-bold").style("color:#1E3A8A;")
         ui.label("Based on YTD revenue as % of guidance midpoint, beat/miss vs Street, and H2 growth required vs "
                   "prior-year H2. CFO and CEO must confirm before finalizing script language.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # Morning-after read — the same synthesis the Markets 'Update guidance'
     # panel shows, built from the shared core.guidance_engine, so the CFO sees
@@ -2208,19 +2208,19 @@ Every institutional investor on this call is doing the same math in real time. T
                 "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
                 "border-radius:8px;margin-top:6px;"):
             ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
-                "color:#1E3A8A;font-size:11px;font-weight:700;letter-spacing:.04em;")
+                "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
             ui.label(" ".join(_dec_parts)).style(
-                f"color:{COLORS['text_heading']};font-size:13px;line-height:1.65;font-weight:500;margin-top:4px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.65;font-weight:500;margin-top:4px;")
 
     ui.label("Guidance Step 2 — Decide: Choose Your Guidance Action").classes("font-bold").style(
-        "margin-top:8px;font-size:13px;")
+        "margin-top:8px;font-size:var(--fs-base);")
     ui.label("The script adapts automatically to the action you pick.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     default_action = {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate")
     action_select = ui.radio({a: lbl for a, lbl in _GUIDANCE_ACTIONS},
                               value=gd.get("action", default_action)).classes("w-full")
     ack_label = ui.label(_GUIDANCE_ACK.get(action_select.value, "")).style(
-        f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+        f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-style:italic;")
 
     def on_action_change(e, ack_label=ack_label):
         ack_label.text = _GUIDANCE_ACK.get(e.value, "")
@@ -2242,10 +2242,10 @@ Every institutional investor on this call is doing the same math in real time. T
         draft_area.clear()
         with draft_area:
             ui.label("Guidance draft — edit as needed, then submit to script (all [FLS] blocks need Legal review):").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             box = ui.textarea(value=text).classes("w-full").props("rows=10")
             pace_note, pace_clr = _pacing_estimate(text, "guidance")
-            pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:11px;")
+            pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:var(--fs-xs);")
 
             def save_edit(e, pace_label=pace_label):
                 gd["text"] = e.value
@@ -2253,7 +2253,7 @@ Every institutional investor on this call is doing the same math in real time. T
                 _save_json("script_workflow_state.json", ss)
                 note, clr = _pacing_estimate(e.value, "guidance")
                 pace_label.text = note
-                pace_label.style(f"color:{clr};font-size:11px;")
+                pace_label.style(f"color:{clr};font-size:var(--fs-xs);")
 
             box.on_value_change(save_edit)
 
@@ -2291,7 +2291,7 @@ Every institutional investor on this call is doing the same math in real time. T
             ui.notify(f"Guidance draft generation failed: {exc}", type="negative")
             raise
 
-    ui.label("Guidance Step 3 — Generate Draft").classes("font-bold").style("font-size:13px;margin-top:8px;")
+    ui.label("Guidance Step 3 — Generate Draft").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
     ui.button("Draft Guidance Section with AI", on_click=generate_guidance).props("color=primary dense").style("margin-top:4px;")
 
     draft_area = ui.column().classes("w-full").style("margin-top:8px;")
@@ -2331,22 +2331,22 @@ def _render_persona_steps(ss, role, key):
     notes = ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};padding:10px;box-shadow:none;border:1px solid {COLORS['border']};"):
-        ui.label("Step 1 — Review: What Was Said Last Quarter").classes("font-bold").style("font-size:13px;")
+        ui.label("Step 1 — Review: What Was Said Last Quarter").classes("font-bold").style("font-size:var(--fs-base);")
         if ref.get("quote"):
-            ui.label(f"“{ref['quote']}”").style(f"color:{COLORS['text_body']};font-size:12px;font-style:italic;margin-top:4px;")
+            ui.label(f"“{ref['quote']}”").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:4px;")
         for q_label, q_text in ref.get("prior_quotes", []):
-            ui.label(f"{q_label}: “{q_text}”").style(f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;")
+            ui.label(f"{q_label}: “{q_text}”").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
         if ref.get("rows"):
             with ui.column().classes("w-full gap-0").style("margin-top:4px;"):
                 for r_label, r_val in ref["rows"]:
-                    ui.label(f"{r_label}: {r_val}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                    ui.label(f"{r_label}: {r_val}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
         for tag in ref.get("tags", []):
-            ui.label(f"• {tag}").style(f"color:{COLORS['accent_light']};font-size:11px;margin-top:2px;")
+            ui.label(f"• {tag}").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);margin-top:2px;")
         if not ref.get("quote") and not ref.get("rows"):
-            ui.label("No prior-quarter reference on file yet for this persona.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label("No prior-quarter reference on file yet for this persona.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     question, placeholder = _PERSONA_WHATS_NEW.get(role, ("What's new this quarter?", ""))
-    ui.label(f"Step 2 — {question}").classes("font-bold").style("font-size:13px;margin-top:8px;")
+    ui.label(f"Step 2 — {question}").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
 
     # Seed from the actual Q1 post-mortem critique for this persona's
     # section, instead of leaving Step 2 a blank box with just an
@@ -2367,12 +2367,12 @@ def _render_persona_steps(ss, role, key):
     critique_items = [a for a in _Q1_TO_Q2_ACTIONS if a.get("persona_role") == role]
     if critique_items:
         ui.label("From the Q1 post-mortem — carry forward unless already addressed:").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         for a in critique_items:
             with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {a['clr']};margin-bottom:4px;padding:6px 10px;"):
-                ui.label(f"{a['icon']} {a['priority']} · {a['q1_finding']}").style(f"color:{a['clr']};font-size:11px;font-weight:bold;")
-                ui.label(a["action"]).style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                ui.label(f"{a['icon']} {a['priority']} · {a['q1_finding']}").style(f"color:{a['clr']};font-size:var(--fs-xs);font-weight:bold;")
+                ui.label(a["action"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
         if not notes.get("whats_new") and not notes.get("whats_new_seeded"):
             notes["whats_new"] = "; ".join(a["action"] for a in critique_items)
             notes["whats_new_seeded"] = True
@@ -2386,10 +2386,10 @@ def _render_persona_steps(ss, role, key):
 
     whats_new_input.on_value_change(save_whats_new)
 
-    ui.label("Step 3 — Generate Draft").classes("font-bold").style("font-size:13px;margin-top:8px;")
+    ui.label("Step 3 — Generate Draft").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
     if role in ("IR", "CFO", "CEO"):
         tone = _tone_context(ss)
-        ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     final_notes_input = ui.input("Additional notes for this draft (optional)", value=notes.get("final_notes", "")).classes("w-full")
 
     def save_final_notes(e, notes=notes):
@@ -2412,17 +2412,17 @@ def _render_persona_steps(ss, role, key):
         draft_area.clear()
         with draft_area:
             ui.label("Draft — edit as needed, then submit it into the script:").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             box = ui.textarea(value=text).classes("w-full").props("rows=8")
             pace_note, pace_clr = _pacing_estimate(text, role)
-            pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:11px;")
+            pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:var(--fs-xs);")
 
             def save_edit(e, key=key, pace_label=pace_label, role=role):
                 ss["script_text"][key] = e.value
                 _save_json("script_workflow_state.json", ss)
                 note, clr = _pacing_estimate(e.value, role)
                 pace_label.text = note
-                pace_label.style(f"color:{clr};font-size:11px;")
+                pace_label.style(f"color:{clr};font-size:var(--fs-xs);")
 
             box.on_value_change(save_edit)
 
@@ -2458,7 +2458,7 @@ def _render_persona_steps(ss, role, key):
                         _save_json("script_workflow_state.json", ss)
                         note, clr = _pacing_estimate(revised, role)
                         pace_label.text = note
-                        pace_label.style(f"color:{clr};font-size:11px;")
+                        pace_label.style(f"color:{clr};font-size:var(--fs-xs);")
                         ui.notify("Refined — review above; refine again or Submit.", type="positive")
                     except Exception as exc:
                         ui.notify(f"Refine failed: {exc}", type="negative")
@@ -2506,7 +2506,7 @@ def _render_persona_steps(ss, role, key):
                     f"color:{COLORS['text_heading']};")
                 ui.label("This replaces the current draft — including your edits — with a fresh AI draft built "
                          "from the numbers and notes. To keep your text and adjust it instead, use “Refine” on "
-                         "the draft below.").style(f"color:{COLORS['text_muted']};font-size:12px;max-width:420px;")
+                         "the draft below.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);max-width:420px;")
                 with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
                     ui.button("Cancel", on_click=_dlg.close).props("flat dense")
 
@@ -2784,39 +2784,39 @@ def _render_number_tieout(ss):
         return
     ui.separator().style("margin:10px 0 4px;")
     ui.label("Number tie-out — does the script match the submitted numbers?").classes("font-bold").style(
-        f"color:{COLORS['text_heading']};font-size:13px;")
+        f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
     ui.label("Deterministic check (no AI, always on): every figure spoken in the assembled script tied back to "
              "the CFO's Stage-1 actuals and the recorded guidance range. A mismatch is a stated figure CLOSE to "
              "a headline number but not equal to it — the classic stale-number slip.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if t["mismatches"]:
         for m in t["mismatches"]:
             with ui.card().classes("w-full").style(
                     "background:rgba(185,28,28,.08);border:1px solid #B91C1C;border-left:4px solid #B91C1C;"
                     "margin:4px 0;"):
                 ui.label(f"⚠ Possible mismatch — {m['label']}").classes("font-bold").style(
-                    "color:#B91C1C;font-size:12px;")
+                    "color:#B91C1C;font-size:var(--fs-sm);")
                 ui.label(f"Script states {_fmt_val(m['script'], m['label'])}, but the submitted {m['label']} is "
-                         f"{_fmt_val(m['source'], m['label'])}.").style(f"color:{COLORS['text_body']};font-size:12px;")
-                ui.label(f"…{m['snippet']}…").style(f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                         f"{_fmt_val(m['source'], m['label'])}.").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                ui.label(f"…{m['snippet']}…").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
     else:
         ui.label("✓ No conflicting headline figures — every headline number stated ties to the submitted "
-                 "actuals.").style("color:#15803D;font-size:12px;font-weight:600;")
+                 "actuals.").style("color:#15803D;font-size:var(--fs-sm);font-weight:600;")
     if t["matched"]:
-        ui.label("Ties out: " + ", ".join(t["matched"])).style("color:#15803D;font-size:11.5px;")
+        ui.label("Ties out: " + ", ".join(t["matched"])).style("color:#15803D;font-size:var(--fs-xs);")
     if t["omitted"]:
         ui.label("Submitted but not stated in the script (informational): " + ", ".join(t["omitted"])).style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if t["unverified"]:
         with ui.expansion(f"{len(t['unverified'])} other figure(s) not tied to a submitted number — review",
                           icon="fact_check").classes("w-full").style("margin-top:4px;"):
             ui.label("Figures in the script (YoY %, prior-year, derived) that don't match a Stage-1 actual — "
                      "usually fine, just confirm each is right.").style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             for u in t["unverified"]:
                 unit = "%" if u["cls"] == "pct" else ""
                 ui.label(f"• {u['value']:g}{unit}  —  …{u['snippet']}…").style(
-                    f"color:{COLORS['text_body']};font-size:11.5px;")
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
 
 
 # Historical minutes per prepared-remarks section, from the Q1 2026 actuals
@@ -2860,10 +2860,10 @@ def _render_time_budget(ss):
         return
     ui.separator().style("margin:10px 0 4px;")
     ui.label("Call time budget — how long will this run?").classes("font-bold").style(
-        f"color:{COLORS['text_heading']};font-size:13px;")
+        f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
     ui.label(f"Estimated speaking time at the client's own Q1-derived pace (~{b['wpm']} words/min), each prepared "
              f"section against its historical minutes, rolled up with the historical ~{b['qa']:.0f}-min Q&A. "
-             "Deterministic — no AI.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "Deterministic — no AI.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     over = b["total"] - b["hist_total"]
     band = b["hist_total"] * 0.06
@@ -2872,10 +2872,10 @@ def _render_time_budget(ss):
     with ui.card().classes("w-full").style(
             f"background:rgba(0,0,0,.12);border:1px solid {hl_clr};border-left:4px solid {hl_clr};margin:4px 0;"):
         ui.label(f"Projected call ≈ {b['total']:.0f} min").classes("font-bold").style(
-            f"color:{hl_clr};font-size:14px;")
+            f"color:{hl_clr};font-size:var(--fs-md);")
         ui.label(f"Prepared remarks ≈ {b['prepared']:.1f} min  +  ~{b['qa']:.0f} min Q&A (historical). "
                  f"vs ~{b['hist_total']:.0f} min historical (Q1 2026) — {verdict} by {abs(over):.0f} min.").style(
-            f"color:{COLORS['text_body']};font-size:12px;")
+            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     for r in b["rows"]:
         if r["budget"]:
@@ -2885,10 +2885,10 @@ def _render_time_budget(ss):
         else:
             fclr, note = COLORS["text_muted"], "no historical budget"
         with ui.row().classes("w-full items-center").style("gap:8px;padding:1px 0;"):
-            ui.label(r["label"]).style(f"color:{COLORS['text_body']};font-size:12px;flex:1;")
+            ui.label(r["label"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);flex:1;")
             ui.label(f"≈ {r['est']:.1f} min ({r['words']}w)").style(
-                f"color:{COLORS['text_muted']};font-size:12px;min-width:130px;text-align:right;")
-            ui.label(note).style(f"color:{fclr};font-size:12px;min-width:150px;text-align:right;font-weight:600;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:130px;text-align:right;")
+            ui.label(note).style(f"color:{fclr};font-size:var(--fs-sm);min-width:150px;text-align:right;font-weight:600;")
 
 
 def _script_blocks(ss):
@@ -2927,8 +2927,8 @@ main{max-width:900px;margin:0 auto;padding:60px 28px 80vh;font-size:var(--fs)}
 section{margin:0}
 h2{position:sticky;top:42px;background:#0b0f14;margin:26px 0 12px;padding:8px 0;border-bottom:2px solid var(--accent);
  display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-family:system-ui}
-h2 .role{font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-h2 .who{font-size:15px;color:#8aa0b6;white-space:nowrap}
+h2 .role{font-size:var(--fs-md);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h2 .who{font-size:var(--fs-md);color:#8aa0b6;white-space:nowrap}
 p{margin:0 0 .7em}
 .handoff{text-align:center;color:#5f7488;font:600 15px system-ui;letter-spacing:.1em;margin:22px 0}
 @media print{.bar{display:none}body{background:#fff;color:#000}h2{background:#fff}main{padding-top:12px}}
@@ -2979,15 +2979,15 @@ def _promote_answer_to_kb(item):
 
     with ui.dialog() as dlg, ui.card().style("min-width:440px;max-width:560px;"):
         ui.label("Promote to approved answers").classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:14px;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
         ui.label("This becomes an APPROVED answer the shareholder-reply drafter may state directly to "
                  "shareholders. Promote it ONLY if the answer contains publicly disclosed information — never "
                  "anything unreleased or forward-looking that hasn't been said publicly.").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;max-width:520px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);max-width:520px;")
         _topic = ui.input("Topic (short label)", value=default_topic[:90]).props("outlined dense").classes(
-            "w-full").style("font-size:12px;")
+            "w-full").style("font-size:var(--fs-sm);")
         _ans = ui.textarea("Approved answer (public info only)", value=default_answer).props(
-            "outlined autogrow dense").classes("w-full").style("font-size:12px;")
+            "outlined autogrow dense").classes("w-full").style("font-size:var(--fs-sm);")
 
         # Active MNPI check — scan the answer for forward-looking / possibly-non-public
         # language and warn (live, as the text is edited) before it lands in the public KB.
@@ -3018,13 +3018,13 @@ def _promote_answer_to_kb(item):
                             "background:rgba(185,28,28,.08);border:1px solid #B91C1C;border-left:4px solid #B91C1C;"
                             "padding:6px 10px;"):
                         ui.label("⚠ Possible material non-public / forward-looking language").classes(
-                            "font-bold").style("color:#B91C1C;font-size:12px;")
+                            "font-bold").style("color:#B91C1C;font-size:var(--fs-sm);")
                         ui.label("The KB is public-facing. Confirm every statement here is ALREADY publicly "
                                  "disclosed before promoting — flagged: " + ", ".join(res["reasons"])).style(
-                            f"color:{COLORS['text_body']};font-size:11.5px;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
                         for p in res["phrases"][:6]:
                             ui.label(f"• “{p}”").style(
-                                f"color:{COLORS['text_muted']};font-size:11px;font-style:italic;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
             _confirm_btn.text = "Promote anyway" if res["flagged"] else "Add to approved answers"
             _confirm_btn.props(f'color={"warning" if res["flagged"] else "primary"}')
 
@@ -3161,20 +3161,20 @@ _QA_SHEET_CSS = """<style>
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
 .wrap{max-width:820px;margin:0 auto;padding:36px 30px 80px}
 header{border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:8px}
-header h1{margin:0;font-size:22px}
-header .meta{color:var(--muted);font-size:13px;margin-top:2px}
-.note{color:var(--muted);font-size:12.5px;margin:8px 0 20px}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 8px;
+header h1{margin:0;font-size:var(--fs-3xl)}
+header .meta{color:var(--muted);font-size:var(--fs-base);margin-top:2px}
+.note{color:var(--muted);font-size:var(--fs-sm);margin:8px 0 20px}
+h2{font-size:var(--fs-base);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 8px;
    border-bottom:1px solid var(--line);padding-bottom:5px}
 .qa{border-left:3px solid var(--line);padding:8px 0 10px 14px;margin:0 0 12px;break-inside:avoid}
 .qa.recurring{border-left-color:var(--teal)} .qa.ai{border-left-color:var(--amber)} .qa.manual{border-left-color:var(--blue)}
-.qa .q{font-weight:700;font-size:16px}
-.qa .resp{display:inline-block;font-size:11.5px;font-weight:600;color:var(--teal);
+.qa .q{font-weight:700;font-size:var(--fs-lg)}
+.qa .resp{display:inline-block;font-size:var(--fs-xs);font-weight:600;color:var(--teal);
    border:1px solid var(--teal);border-radius:10px;padding:0 8px;margin:4px 0 2px}
-.qa .why{color:var(--muted);font-size:12.5px;font-style:italic;margin:2px 0 6px}
-.qa .a{font-size:15px;white-space:pre-wrap}
+.qa .why{color:var(--muted);font-size:var(--fs-sm);font-style:italic;margin:2px 0 6px}
+.qa .a{font-size:var(--fs-md);white-space:pre-wrap}
 .qa .todo{color:#B91C1C;font-style:italic}
-footer{margin-top:34px;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);padding-top:8px}
+footer{margin-top:34px;color:var(--muted);font-size:var(--fs-xs);border-top:1px solid var(--line);padding-top:8px}
 @media print{body{background:#fff}.wrap{padding:0}}
 </style>"""
 
@@ -3223,7 +3223,7 @@ def _render_qa_prep_tab(ss):
     ui.label("One editable prep list from three sources: recurring questions (ingested research notes + last "
              "quarter's open topics), the AI adversarial pass over your script, and your own additions. Edit any "
              "answer, add your own, promote a good answer to the approved-answer KB, or export the sheet for the "
-             "call.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "call.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     # Unify the sources: fold the deterministic recurring questions into the single editable list.
     _sync_recurring_into_prep(ss)
 
@@ -3242,7 +3242,7 @@ def _render_qa_prep_tab(ss):
             if data.get("generated_at"):
                 ui.label(f"Generated {data['generated_at']} — the AI-drafted answers are editable; your own "
                          "Q&A and edits are kept when you re-run.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             for it in adv_items:
                 _src = _qa_item_source(it)
                 clr, tag_txt, _heading = _QA_SOURCES.get(_src, _QA_SOURCES["ai"])
@@ -3251,42 +3251,42 @@ def _render_qa_prep_tab(ss):
                         "margin-bottom:6px;"):
                     if _adv_ro:
                         ui.label("Q · " + it.get("question", "")).classes("font-bold").style(
-                            f"color:{COLORS['text_heading']};font-size:13px;")
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
                         _resp = (it.get("responder") or "").strip()
                         if _resp and _resp.lower() != "unassigned":
-                            ui.label("Responder: " + _resp).style(f"color:{clr};font-size:11.5px;font-weight:600;")
+                            ui.label("Responder: " + _resp).style(f"color:{clr};font-size:var(--fs-xs);font-weight:600;")
                         if it.get("why"):
                             ui.label("What invites it: " + it["why"]).style(
-                                f"color:{COLORS['text_muted']};font-size:12px;")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         if it.get("angle"):
                             ui.label("Prepared answer: " + it["angle"]).style(
-                                f"color:{COLORS['accent_light']};font-size:12px;font-style:italic;")
+                                f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-style:italic;")
                         continue
                     _q = ui.input("Question", value=it.get("question", "")).props("dense").classes(
-                        "w-full").style("font-size:12px;")
+                        "w-full").style("font-size:var(--fs-sm);")
                     _q.on_value_change(lambda e, it=it: (it.__setitem__("question", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
                     if it.get("why"):
                         ui.label("What invites it: " + it["why"]).style(
-                            f"color:{COLORS['text_muted']};font-size:11.5px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     _a = ui.textarea("Prepared answer (Reg FD-safe — public info only)",
                                      value=it.get("angle", "")).props("dense autogrow").classes(
-                        "w-full").style("font-size:12px;")
+                        "w-full").style("font-size:var(--fs-sm);")
                     _a.on_value_change(lambda e, it=it: (it.__setitem__("angle", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
                     with ui.row().classes("w-full items-center").style("gap:6px;"):
-                        ui.label(tag_txt).style(f"color:{clr};font-size:10px;font-weight:600;")
+                        ui.label(tag_txt).style(f"color:{clr};font-size:var(--fs-2xs);font-weight:600;")
                         _rchoices = ["Unassigned"] + _resp_opts
                         _rcur = (it.get("responder") or "Unassigned").strip() or "Unassigned"
                         if _rcur not in _rchoices:
                             _rchoices = _rchoices + [_rcur]  # keep a stale/departed responder selectable
                         _rsel = ui.select(_rchoices, value=_rcur, label="Responder").props(
-                            "dense outlined").classes("min-w-[210px]").style("font-size:12px;")
+                            "dense outlined").classes("min-w-[210px]").style("font-size:var(--fs-sm);")
                         _rsel.on_value_change(lambda e, it=it: (it.__setitem__("responder", e.value),
                                                                 _save_json("script_workflow_state.json", ss)))
                         ui.space()
                         if it.get("banked"):
-                            ui.label("Banked ✓").style("color:#15803D;font-size:11px;font-weight:600;")
+                            ui.label("Banked ✓").style("color:#15803D;font-size:var(--fs-xs);font-weight:600;")
                         else:
                             def _bank(it=it):
                                 if not (it.get("question") or "").strip():
@@ -3303,10 +3303,10 @@ def _render_qa_prep_tab(ss):
                                           type="positive")
                                 _render_adv()
                             ui.button("Bank", icon="savings", on_click=_bank).props("flat dense").style(
-                                f"color:{COLORS['accent']};font-size:11px;")
+                                f"color:{COLORS['accent']};font-size:var(--fs-xs);")
                         ui.button("Promote to KB", icon="menu_book",
                                   on_click=lambda it=it: _promote_answer_to_kb(it)).props("flat dense").style(
-                            f"color:{COLORS['accent']};font-size:11px;")
+                            f"color:{COLORS['accent']};font-size:var(--fs-xs);")
 
                         def _rm(it=it, adv_items=adv_items, data=data):
                             adv_items.remove(it)
@@ -3318,10 +3318,10 @@ def _render_qa_prep_tab(ss):
                             _save_json("script_workflow_state.json", ss)
                             _render_adv()
                         ui.button("Remove", icon="delete", on_click=_rm).props("flat dense").style(
-                            f"color:{COLORS['danger']};font-size:11px;")
+                            f"color:{COLORS['danger']};font-size:var(--fs-xs);")
             if not adv_items and data.get("generated_at"):
                 ui.label("No exposed questions surfaced — the script pre-empts the obvious ones.").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             # Add-your-own Q&A — a question you know will come up plus your prepared answer.
             if not _adv_ro:
@@ -3329,10 +3329,10 @@ def _render_qa_prep_tab(ss):
                         f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['accent']};"
                         "padding:8px 10px;margin-top:4px;"):
                     ui.label("Add your own Q&A").classes("font-bold").style(
-                        f"color:{COLORS['text_body']};font-size:12px;")
-                    _nq = ui.input("Question").props("dense").classes("w-full").style("font-size:12px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                    _nq = ui.input("Question").props("dense").classes("w-full").style("font-size:var(--fs-sm);")
                     _na = ui.textarea("Prepared answer (public info only)").props("dense autogrow").classes(
-                        "w-full").style("font-size:12px;")
+                        "w-full").style("font-size:var(--fs-sm);")
 
                     def _add_qa(_nq=_nq, _na=_na):
                         if not (_nq.value or "").strip():
@@ -3415,7 +3415,7 @@ def _render_qa_bank_editor():
                  f"surprises (tagged by the source client's sector) plus a seeded set of recurring asks. "
                  f"Every adversarial pass is seeded with the questions relevant to this client's sector "
                  f"(here: {_csec}) plus universal ones — so a payments question never seeds an aerospace "
-                 f"client.").style(f"color:{COLORS['text_muted']};font-size:11.5px;")
+                 f"client.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         _box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
 
         def _rebuild():
@@ -3423,7 +3423,7 @@ def _render_qa_bank_editor():
             with _box:
                 entries = qa_bank.merged(cid)
                 if not entries:
-                    ui.label("Bank is empty.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label("Bank is empty.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 for e in entries:
                     kind = e.get("kind") or "manual"
                     sector = e.get("sector") or "universal"
@@ -3434,11 +3434,11 @@ def _render_qa_bank_editor():
                             "padding:5px 10px;"):
                         with ui.row().classes("w-full items-center justify-between gap-2"):
                             ui.label(e.get("question", "")).style(
-                                f"color:{COLORS['text_body']};font-size:12px;flex:1;")
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);flex:1;")
                             tag_clr = "#B91C1C" if kind == "surprise" else (
                                 "#15803D" if kind == "asked" else COLORS["text_muted"])
                             ui.label(f"{kind} · {sector}{src}").style(
-                                f"color:{tag_clr};font-size:10px;white-space:nowrap;")
+                                f"color:{tag_clr};font-size:var(--fs-2xs);white-space:nowrap;")
                             if not _ro and not e.get("seed"):
                                 def _del(k=e.get("key")):
                                     # Remove from whichever scope holds it (client first, else global).
@@ -3539,7 +3539,7 @@ def _render_script_canvas(ss):
     ui.label("Script Canvas").classes("font-bold")
     ui.label("Every speaker's section, in order — scroll through IR, then CFO, then Business Operations, then "
               "CEO, then Q&A Prep and the assembled Full Script at the bottom. Nothing is behind a tab click.").style(
-        f"color:{COLORS['text_muted']};font-size:11px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     # Previously this was three levels of nested Quasar tabs deep (page tabs
     # -> 5-stage tabs -> these persona tabs), which on a normal window width
     # squeezed 6 tab labels into very little space — easy to only ever see
@@ -3558,11 +3558,11 @@ def _render_script_canvas(ss):
             f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['accent']};"
             f"border-radius:8px;margin:8px 0;"):
         ui.label("Refine every section at once").classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:13px;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
         ui.label("Apply one instruction across all speakers and the Guidance section together — same "
                  "guardrails as a single section (figures and consensus framing are protected; nothing is "
                  "invented). Sections without a draft yet are skipped. Runs one AI pass per section.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
             all_instr = ui.input(
                 label="Instruction for every section",
@@ -3613,14 +3613,14 @@ def _render_script_canvas(ss):
         ui.label("Editable — for final full-script-level tweaks (e.g. smoothing the handoff between two "
                   "speakers). Edits autosave as you type, but click Save for an explicit confirmation that "
                   "this exact text is the version moving forward to CFO/CEO review.").style(
-            f"color:{COLORS['text_muted']};font-size:11px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         full_box = ui.textarea("Full Script", value=_full_script_text(ss)).classes("w-full").props("rows=16")
 
         saved_at = ss.get("full_script_override_saved_at")
         status_label = ui.label(
             f"Saved {saved_at} — this is the version moving forward." if saved_at
             else "Not yet explicitly saved — click Save below."
-        ).style(f"color:{'#15803D' if saved_at else COLORS['text_muted']};font-size:11px;font-weight:{'600' if saved_at else '400'};")
+        ).style(f"color:{'#15803D' if saved_at else COLORS['text_muted']};font-size:var(--fs-xs);font-weight:{'600' if saved_at else '400'};")
 
         def save_full_edit(e):
             # Autosave on every change so nothing is lost if the tab closes,
@@ -3637,7 +3637,7 @@ def _render_script_canvas(ss):
             ss["full_script_override_saved_at"] = ts
             _save_json("script_workflow_state.json", ss)
             lbl.text = f"Saved {ts} — this is the version moving forward."
-            lbl.style("color:#15803D;font-size:11px;font-weight:600;")
+            lbl.style("color:#15803D;font-size:var(--fs-xs);font-weight:600;")
             ui.notify("Saved. This is the version that will go to CFO/CEO review.", type="positive")
 
         with ui.row().classes("w-full items-center gap-2").style("margin-top:6px;"):
@@ -3658,7 +3658,7 @@ def _render_script_canvas(ss):
 
             fp = ss.get("first_pass_complete")
             if fp:
-                ui.label(f"First Pass Completed — {fp}").style("color:#15803D;font-size:12px;font-weight:600;")
+                ui.label(f"First Pass Completed — {fp}").style("color:#15803D;font-size:var(--fs-sm);font-weight:600;")
             else:
                 def mark_first_pass(box=full_box, lbl=status_label):
                     ss["full_script_override"] = box.value
@@ -3682,25 +3682,25 @@ def _render_script_canvas(ss):
 # ─────────────────────────────────────────────────────────────────────────
 def _render_stage1(ss):
     ui.label("Stage 1 — CFO Final Numbers").classes("font-bold")
-    ui.label("CFO submits Q2 actuals. Submitting activates Stage 2 (IR Review).").style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ui.label("CFO submits Q2 actuals. Submitting activates Stage 2 (IR Review).").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     n = ss.get("q2_numbers", {})
     with ui.row().classes("w-full gap-4"):
         with ui.column().classes("flex-1"):
-            ui.label("REVENUE ($M)").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("REVENUE ($M)").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             fn_rev = ui.number("Total Revenue", value=n.get("rev"), step=0.1).classes("w-full")
             fn_ach = ui.number("ACH Revenue", value=n.get("ach"), step=0.1).classes("w-full")
             fn_card = ui.number("Card / PayFac", value=n.get("card"), step=0.1).classes("w-full")
             fn_prepaid = ui.number("Prepaid Revenue", value=n.get("prepaid"), step=0.1).classes("w-full")
             fn_output = ui.number("Output Solutions", value=n.get("output"), step=0.1).classes("w-full")
         with ui.column().classes("flex-1"):
-            ui.label("PROFITABILITY").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("PROFITABILITY").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             fn_gp = ui.number("Gross Profit ($M)", value=n.get("gp"), step=0.1).classes("w-full")
             fn_gm = ui.number("Gross Margin (%)", value=n.get("gm"), step=0.1).classes("w-full")
             fn_ebitda = ui.number("Adj. EBITDA ($M)", value=n.get("ebitda"), step=0.1).classes("w-full")
             fn_eps = ui.number("GAAP EPS ($)", value=n.get("eps"), step=0.01).classes("w-full")
             fn_sga = ui.number("Total SG&A ($M)", value=n.get("sga"), step=0.1).classes("w-full")
         with ui.column().classes("flex-1"):
-            ui.label("VOLUME & CASH").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("VOLUME & CASH").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             fn_vol = ui.number("Vol Processed ($B)", value=n.get("vol"), step=0.1).classes("w-full")
             fn_vol_yoy = ui.number("Volume YoY (%)", value=n.get("vol_yoy"), step=0.5).classes("w-full")
             fn_txn = ui.number("Transactions (M)", value=n.get("txn"), step=0.1).classes("w-full")
@@ -3762,10 +3762,10 @@ def _render_stage1(ss):
         _ensure_script_drafted(ss)
         ui.markdown("---")
         ui.label("Auto-Generated Script — one last look before it moves to IR").classes("font-bold").style(
-            f"color:{COLORS['accent_light']};font-size:14px;")
+            f"color:{COLORS['accent_light']};font-size:var(--fs-md);")
         ui.label("This is the draft that was just generated from the numbers above. You'll formally sign off "
                   "on it (with a notes box) on the \"3 · CEO+CFO Review\" tab after IR's pass.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly")
 
 
@@ -3798,20 +3798,20 @@ def _render_stage1b(ss):
     ui.label("Every metric disclosed last quarter should be disclosed again this quarter, or explicitly "
               "explained if it's being dropped — silence here is exactly what prompts analyst follow-up "
               "questions. This feeds the Business Operations draft below in addition to the gap check.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ops = ss.get("q2_ops_metrics", {})
 
     with ui.row().classes("w-full gap-4").style("margin-top:8px;"):
         with ui.column().classes("flex-1"):
-            ui.label("CARD REVENUE METRICS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("CARD REVENUE METRICS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             om_card_yoy = ui.number("Card Revenue YoY (%)", value=ops.get("card_yoy"), step=0.5).classes("w-full")
             om_payfac_pct = ui.number("PayFac % of Card Revenue", value=ops.get("payfac_pct"), step=0.5).classes("w-full")
             om_payfac_yoy = ui.number("PayFac Revenue YoY (%)", value=ops.get("payfac_yoy"), step=0.5).classes("w-full")
             om_card_txn_yoy = ui.number("Card Transactions YoY (%)", value=ops.get("card_txn_yoy"), step=0.5).classes("w-full")
             om_card_vol_yoy = ui.number("Card Dollar Volume YoY (%)", value=ops.get("card_vol_yoy"), step=0.5).classes("w-full")
         with ui.column().classes("flex-1"):
-            ui.label("PAYFAC PIPELINE & IMPLEMENTATIONS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("PAYFAC PIPELINE & IMPLEMENTATIONS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             om_isv_impl = ui.number("ISVs in Implementation", value=ops.get("isv_impl"), step=1.0).classes("w-full")
             om_new_enterprise = ui.number("New Enterprise Accounts (this qtr)", value=ops.get("new_enterprise"), step=1.0).classes("w-full")
             om_filtered_merchants = ui.number("Filtered Spend Merchants Live", value=ops.get("filtered_merchants"), step=100.0).classes("w-full")
@@ -3820,7 +3820,7 @@ def _render_stage1b(ss):
                 ["Growing >20% (consistent)", "Growing 15-20%", "Growing 10-15%", "Growing <10%", "Decelerating — explain in notes"],
                 value=ops.get("payfac_growth_rate"), label="PayFac Growth Rate Characterization").classes("w-full")
         with ui.column().classes("flex-1"):
-            ui.label("USIO ONE & CROSS-SELL").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+            ui.label("USIO ONE & CROSS-SELL").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
             om_usio_one_wins = ui.number("Usio ONE Cross-Sell Wins (this qtr)", value=ops.get("usio_one_wins"), step=1.0).classes("w-full")
             om_usio_one_example = ui.textarea("Usio ONE Case Study", value=ops.get("usio_one_example", "")).classes("w-full")
             om_new_leads = ui.select(
@@ -3829,7 +3829,7 @@ def _render_stage1b(ss):
                 value=ops.get("new_leads", []), label="New Lead Sources Active", multiple=True).classes("w-full")
 
     ui.markdown("---")
-    ui.label("ACH & Payments").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:12px;")
+    ui.label("ACH & Payments").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
     with ui.row().classes("w-full gap-4"):
         with ui.column().classes("flex-1"):
             om_ach_txn_yoy = ui.number("ACH Transactions YoY (%)", value=ops.get("ach_txn_yoy"), step=0.5).classes("w-full")
@@ -3847,9 +3847,9 @@ def _render_stage1b(ss):
         if missing:
             with ui.card().classes("w-full").style("background:rgba(252,211,77,.08);border:1px solid rgba(252,211,77,.25);margin-top:8px;"):
                 ui.label(f"{len(missing)} metric(s) disclosed last quarter aren't entered yet:").style(
-                    "color:#A16207;font-weight:bold;font-size:13px;")
+                    "color:#A16207;font-weight:bold;font-size:var(--fs-base);")
                 for m in missing:
-                    ui.label(f"• {m}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label(f"• {m}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     om_disclosure_notes = ui.textarea("Explain any intentional metric omissions (reviewed in Stage 2)",
                                        value=ops.get("disclosure_notes", "")).classes("w-full").style("margin-top:8px;")
@@ -3953,9 +3953,9 @@ def _render_stage2(ss):
         ui.markdown("---")
         with ui.card().classes("w-full").style("background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);"):
             ui.label("Consistency check — review before advancing to Stage 3").classes("font-bold").style(
-                "color:#A16207;font-size:13px;")
+                "color:#A16207;font-size:var(--fs-base);")
             for w in consistency_warnings:
-                ui.label(f"• {w}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                ui.label(f"• {w}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
     contacts = _contacts()
@@ -4039,11 +4039,11 @@ def _render_stage3(ss):
             c = contacts[role]
             with ui.column().classes("flex-1"):
                 ui.label(f"{role} — {c['name']}").classes("font-bold")
-                ui.label(c["email"]).style(f"color:{COLORS['accent_light']};font-size:12px;")
+                ui.label(c["email"]).style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
                 if rv["status"] == "complete":
                     ui.label("Review complete").style("color:#15803D;")
                     if rv.get("notes"):
-                        ui.label(f"Notes: {rv['notes']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label(f"Notes: {rv['notes']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 else:
                     # Notes box + Mark Complete are always available — "Send"
                     # is just an optional notification/overdue-timer, not a
@@ -4128,14 +4128,14 @@ def _render_stage5(ss):
             ui.label("Forward-Looking Statements Checklist").classes("font-bold")
             if not fls_items:
                 ui.label("No FLS checklist items configured for this client — add them to CLIENT_REGISTRY's "
-                          "\"fls_items\" in config/client_config.py.").style(f"color:{COLORS['text_muted']};font-size:12px;")
-            ui.label("Every item must be individually cleared by legal before the script is finalized.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                          "\"fls_items\" in config/client_config.py.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            ui.label("Every item must be individually cleared by legal before the script is finalized.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             for fls_id, fls_text in fls_items:
                 cleared = ss["fls_checklist"].get(fls_id, False)
                 with ui.row().classes("w-full items-center gap-2"):
                     ui.label("" if cleared else "")
                     ui.label(f"{fls_id} {fls_text}").classes("flex-1").style(
-                        f"color:{COLORS['text_body'] if cleared else COLORS['text_muted']};font-size:13px;")
+                        f"color:{COLORS['text_body'] if cleared else COLORS['text_muted']};font-size:var(--fs-base);")
                     if cleared:
                         def reopen(fls_id=fls_id):
                             ss["fls_checklist"][fls_id] = False
@@ -4176,15 +4176,15 @@ def _render_stage5(ss):
                         _refresh()
                     ui.button("MARK FINAL — Legal Cleared", on_click=finalize).props("color=primary")
                 else:
-                    ui.label(f"Clear all {len(fls_items)-cleared_n} remaining FLS items first").style(f"color:{COLORS['warning']};font-size:12px;")
+                    ui.label(f"Clear all {len(fls_items)-cleared_n} remaining FLS items first").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);")
             elif rv["status"] == "complete":
                 ui.label("FINAL — Legal Cleared").style("color:#15803D;")
-                ui.label(f"Cleared: {rv['received']}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"Cleared: {rv['received']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     if ss.get("current_stage") == "FINAL":
         ui.markdown("---")
         with ui.card().classes("w-full text-center").style("background:#E9F6EF;border:2px solid #15803D;"):
-            ui.label("Script finalized — legal cleared").classes("font-bold").style("color:#15803D;font-size:18px;")
-            ui.label("This is the approved earnings call script. Do not use any other version.").style("color:#15803D;font-size:13px;")
+            ui.label("Script finalized — legal cleared").classes("font-bold").style("color:#15803D;font-size:var(--fs-xl);")
+            ui.label("This is the approved earnings call script. Do not use any other version.").style("color:#15803D;font-size:var(--fs-base);")
 
 
 def _render_narrative_momentum_tab():
@@ -4210,7 +4210,7 @@ def _render_tomorrow_setup(ss):
         f"color:{COLORS['text_heading']};")
     ui.label("The forward bookend to Prior-Quarter Review. Given the guidance you've decided and the H2 "
              "catalysts you're naming above, here is the market setup the morning after the print.").style(
-        f"color:{COLORS['text_muted']};font-size:12px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # 1) Guidance morning-after read — same shared engine as the Decision
     #    Engine (above) and the Markets 'Update guidance' panel.
@@ -4226,9 +4226,9 @@ def _render_tomorrow_setup(ss):
                 "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
                 "border-radius:8px;margin-top:6px;"):
             ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
-                "color:#1E3A8A;font-size:11px;font-weight:700;letter-spacing:.04em;")
+                "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
             ui.label(" ".join(parts)).style(
-                f"color:{COLORS['text_heading']};font-size:13px;line-height:1.65;font-weight:500;margin-top:4px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.65;font-weight:500;margin-top:4px;")
 
     # 2) Narrative Momentum now has its own tab (promoted out of this synthesis
     #    view) — link to it instead of re-rendering the full read here.
@@ -4236,7 +4236,7 @@ def _render_tomorrow_setup(ss):
               on_click=lambda: nav.go_to("Earnings", "Narrative Momentum")).props(
         "flat dense color=primary").style("margin-top:10px;")
     ui.label("The full narrative read — signal, guidance stance, analyst-PT direction, and the named H2 "
-             "catalysts — is now its own tab.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+             "catalysts — is now its own tab.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 def _render_script_workflow_tab():
@@ -4293,8 +4293,8 @@ def _render_speaker_gate(period, on_done, editing=False):
                  "Confirm who is speaking before generating this quarter's script. Prepared-remarks "
                  "speakers drive the persona canvases and the Call Opening; uncheck 'speaking' for "
                  "someone who's on the call for Q&A only.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;margin-bottom:4px;")
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:15px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:15px;")
 
         @ui.refreshable
         def _rows():
@@ -4352,12 +4352,12 @@ def _render_confirmed_speaker_bar(period, on_edit):
     with ui.row().classes("w-full items-center").style(
             "gap:8px;background:rgba(21,128,61,.08);border:1px solid #15803D40;border-radius:8px;"
             "padding:6px 12px;margin-bottom:6px;"):
-        ui.label(f"✓ {period} speakers confirmed").style("color:#15803D;font-size:12px;font-weight:700;")
+        ui.label(f"✓ {period} speakers confirmed").style("color:#15803D;font-size:var(--fs-sm);font-weight:700;")
         names = " · ".join(f"{s['name']} ({s['role']})" for s in talking)
-        ui.label(names).style(f"color:{COLORS['text_body']};font-size:12px;")
+        ui.label(names).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
         if qa_only:
             ui.label("Q&A only: " + ", ".join(s["name"] for s in qa_only)).style(
-                f"color:{COLORS['text_muted']};font-size:11px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.space()
         ui.button("Edit lineup", icon="edit", on_click=on_edit).props("flat dense").style(
             f"color:{COLORS['text_muted']};")
@@ -4377,18 +4377,18 @@ def _render_loop_readiness(client_id=None):
     with ui.expansion(head, icon="checklist", value=not r["fully_lit"]).classes("w-full").style(
             f"border:1px solid {hclr}55;border-radius:8px;margin:6px 0;"):
         ui.label("What the full earnings-script / Q&A loop needs for this client — provide a waiting input to "
-                 "light up the next stage.").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                 "light up the next stage.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ready = [s for s in stages if s["ready"]]
         if ready:
             ui.label("✓ Ready: " + "  ·  ".join(f"{s['label']} ({s['detail']})" for s in ready)).style(
-                "color:#15803D;font-size:11.5px;font-weight:600;margin-top:2px;")
+                "color:#15803D;font-size:var(--fs-xs);font-weight:600;margin-top:2px;")
         for s in stages:
             if not s["ready"]:
                 what = s["waiting_for"] + (" (optional — enrichment)" if s.get("optional") else "")
                 waiting_signal(what, s["todo"], s["unlocks"], compact=True)
         if r["fully_lit"]:
             ui.label("Every input is in — the loop runs end to end: predict → grade → accrue → seed → "
-                     "promote → trend.").style("color:#15803D;font-size:11.5px;margin-top:2px;")
+                     "promote → trend.").style("color:#15803D;font-size:var(--fs-xs);margin-top:2px;")
 
 
 def _render_workflow_content():
@@ -4411,7 +4411,7 @@ def _render_workflow_content():
             ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
     ui.label("Earnings Script Approval Workflow").classes("text-lg font-bold")
-    ui.label("5-stage approval pipeline · CFO numbers in → IR → CFO+CEO+CRO → Consolidation → Legal sign-off").style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ui.label("5-stage approval pipeline · CFO numbers in → IR → CFO+CEO+CRO → Consolidation → Legal sign-off").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     with ui.row().classes("w-full gap-2"):
         for stage in STAGES:
@@ -4432,10 +4432,10 @@ def _render_workflow_content():
             else:
                 bc, tc, ico, label_tc, name_tc = COLORS["surface_bg"], COLORS["text_muted"], "", COLORS["accent_light2"], COLORS["text_heading"]
             with ui.card().classes("flex-1 text-center").style(f"background:{bc};border:1px solid {COLORS['border']};"):
-                ui.label(stage["icon"]).style("font-size:20px;")
-                ui.label(stage["label"]).style(f"color:{label_tc};font-size:11px;font-weight:bold;text-transform:uppercase;")
-                ui.label(stage["name"]).classes("font-bold").style(f"color:{name_tc};font-size:13px;")
-                ui.label(f"{ico} {status.capitalize()}").style(f"color:{tc};font-size:12px;font-weight:600;")
+                ui.label(stage["icon"]).style("font-size:var(--fs-2xl);")
+                ui.label(stage["label"]).style(f"color:{label_tc};font-size:var(--fs-xs);font-weight:bold;text-transform:uppercase;")
+                ui.label(stage["name"]).classes("font-bold").style(f"color:{name_tc};font-size:var(--fs-base);")
+                ui.label(f"{ico} {status.capitalize()}").style(f"color:{tc};font-size:var(--fs-sm);font-weight:600;")
 
     ui.markdown("---")
     with ui.tabs().classes("w-full") as sw_tabs:
@@ -4480,10 +4480,10 @@ def _render_workflow_content():
         for v in reversed(ss["versions"]):
             if "version" in v:
                 icon = "" if v["version"] == "FINAL" else ""
-                ui.label(f"{icon} {v['version']} — {v.get('label','')} · {v.get('created','')} · {v.get('by','—')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"{icon} {v['version']} — {v.get('label','')} · {v.get('created','')} · {v.get('by','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             else:
                 # Legacy shape from the earlier simplified port
-                ui.label(f"{v.get('completed','')} — {v.get('stage','')}").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                ui.label(f"{v.get('completed','')} — {v.get('stage','')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
     with ui.expansion("Reset Workflow — Start New Quarter").classes("w-full"):
@@ -4518,12 +4518,12 @@ def _render_consensus_rollup():
     with ui.row().classes("items-center w-full").style(
             "gap:6px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.18);"
             "border-radius:8px;padding:6px 10px;margin-bottom:8px;"):
-        ui.icon("tune").style(f"color:{COLORS['text_muted']};font-size:15px;")
+        ui.icon("tune").style(f"color:{COLORS['text_muted']};font-size:var(--fs-md);")
         ui.label("Build & maintain the Praxis consensus here.").style(
-            f"color:{COLORS['text_muted']};font-size:12px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         ui.button("See the analyst matrix in Markets → Consensus / Guidance →",
                   on_click=lambda: nav.go_to("Markets", "Consensus / Guidance")).props(
-            "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:11.5px;")
+            "flat dense no-caps").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);")
     cid = get_active_client_id()
     cq = (CE().get("current_quarter") or "").strip()
     period = f"{cq}E" if cq else "Q2 2026E"
@@ -4551,7 +4551,7 @@ def _render_consensus_rollup():
     else:  # override / none
         _sub = ("a curated street estimate on file. Collect your analysts' models to upgrade this into your own "
                 "vetted median — with dispersion, outlier flags, and drift to manage.")
-    ui.label(f"{CT('ticker')} · {period} · {_sub}").style(f"color:{MUT};font-size:12px;")
+    ui.label(f"{CT('ticker')} · {period} · {_sub}").style(f"color:{MUT};font-size:var(--fs-sm);")
 
     if auth:
         badge_txt, badge_col, badge_bg = "AUTHORITATIVE", GREEN, "rgba(21,128,61,.12)"
@@ -4569,23 +4569,23 @@ def _render_consensus_rollup():
             ui.label(_m(r["headline"])).classes("text-3xl font-bold").style(
                 f"color:{COLORS['text_heading']};")
             ui.label(badge_txt).style(
-                f"background:{badge_bg};color:{badge_col};font-size:10px;font-weight:800;"
+                f"background:{badge_bg};color:{badge_col};font-size:var(--fs-2xs);font-weight:800;"
                 "letter-spacing:.04em;padding:3px 9px;border-radius:6px;")
-            ui.label(src_label).style(f"color:{MUT};font-size:13px;")
+            ui.label(src_label).style(f"color:{MUT};font-size:var(--fs-base);")
             ui.space()
             if r["n_models"]:
                 ui.label(f"{r['n_models']} of {r['n_covering']} models · {r['coverage']:.0%} coverage").style(
-                    f"color:{MUT};font-size:12px;")
+                    f"color:{MUT};font-size:var(--fs-sm);")
             else:
                 ui.label(f"upgrade available — collect {r['n_covering']} analyst models").style(
-                    f"color:#1E40AF;font-size:12px;font-weight:600;")
+                    f"color:#1E40AF;font-size:var(--fs-sm);font-weight:600;")
         if r["median"] is not None:
             with ui.row().classes("w-full").style("gap:26px;margin-top:8px;"):
                 for lbl, val in [("Median", _m(r["median"])), ("Mean", _m(r["mean"])),
                                  ("Low", _m(r["low"])), ("High", _m(r["high"]))]:
                     with ui.column().style("gap:0;"):
-                        ui.label(val).style(f"color:{COLORS['text_body']};font-weight:700;font-size:14px;")
-                        ui.label(lbl).style(f"color:{MUT};font-size:10px;letter-spacing:.03em;")
+                        ui.label(val).style(f"color:{COLORS['text_body']};font-weight:700;font-size:var(--fs-md);")
+                        ui.label(lbl).style(f"color:{MUT};font-size:var(--fs-2xs);letter-spacing:.03em;")
 
     # ── reconciliation ──────────────────────────────────────────────────────
     rc = r["reconciliation"]
@@ -4595,13 +4595,13 @@ def _render_consensus_rollup():
         col = AMBER if abs(pct) >= 3 else MUT
         ui.label(f"Reconciliation — our median {_m(rc['model_median'])} vs {against} {_m(rc['ref'])}: "
                  f"{against} is {abs(pct):.1f}% {'above' if pct > 0 else 'below'} our models.").style(
-            f"color:{col};font-size:13px;font-weight:600;margin-top:8px;")
+            f"color:{col};font-size:var(--fs-base);font-weight:600;margin-top:8px;")
     elif r["fallback"]:
         fb = r["fallback"]
         extra = (f" · {fb['n']} analysts" if fb.get("n") else "") + (" · period-verified" if fb.get("verified") else "")
         ui.label(f"{'Live street' if fb['source'] == 'street' else 'IR override'} {_m(fb['value_m'])}{extra} — a real "
                  "public number today; collect your analysts' models to build your own vetted median from it.").style(
-            f"color:{MUT};font-size:13px;margin-top:8px;")
+            f"color:{MUT};font-size:var(--fs-base);margin-top:8px;")
 
     ui.markdown("---")
 
@@ -4611,15 +4611,15 @@ def _render_consensus_rollup():
         for f in r["per_firm"]:
             dv = (f["value"] - r["median"]) / r["median"] * 100 if r["median"] else 0
             with ui.row().classes("w-full items-center").style("gap:12px;"):
-                ui.label(f["firm"]).style(f"color:{COLORS['text_body']};font-size:13px;min-width:210px;")
-                ui.label(_m(f["value"])).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
-                ui.label(f"{dv:+.1f}% vs median").style(f"color:{MUT};font-size:12px;")
+                ui.label(f["firm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);min-width:210px;")
+                ui.label(_m(f["value"])).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
+                ui.label(f"{dv:+.1f}% vs median").style(f"color:{MUT};font-size:var(--fs-sm);")
                 if f["is_outlier"]:
                     ui.label("OUTLIER").style(
-                        f"background:rgba(180,83,9,.12);color:{AMBER};font-size:10px;font-weight:700;"
+                        f"background:rgba(180,83,9,.12);color:{AMBER};font-size:var(--fs-2xs);font-weight:700;"
                         "padding:1px 7px;border-radius:8px;").tooltip(">10% from median — kept in the math, flagged for you")
     else:
-        ui.label("No models received yet for this period.").style(f"color:{MUT};font-size:13px;")
+        ui.label("No models received yet for this period.").style(f"color:{MUT};font-size:var(--fs-base);")
 
     # ── who still owes a model (active coverage) ────────────────────────────
     received = {f["firm"] for f in r["per_firm"]}
@@ -4628,10 +4628,10 @@ def _render_consensus_rollup():
     if missing:
         ui.markdown("---")
         ui.label("Collect these covering analysts' models to upgrade from street to your own vetted consensus:").style(
-            f"color:{MUT};font-size:12px;")
+            f"color:{MUT};font-size:var(--fs-sm);")
         for a in missing:
             ui.label(f"· {a.get('firm')}" + (f" — {a.get('name')}" if a.get("name") else "")).style(
-                f"color:{AMBER};font-size:12px;")
+                f"color:{AMBER};font-size:var(--fs-sm);")
 
 
 def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
@@ -4661,7 +4661,7 @@ def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
     ui.label("Model Intake").classes("text-lg font-bold")
     ui.label(f"Analysts send models to irconnect@{domain}; parsed emails land below for review. "
              "Use manual entry to get started, or when a model was sent to the wrong person.").style(
-        f"color:{MUT};font-size:12px;")
+        f"color:{MUT};font-size:var(--fs-sm);")
 
     # ── A) parsed from the IRconnect mailbox ────────────────────────────────
     ui.markdown("---")
@@ -4669,17 +4669,17 @@ def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
     pending = inbox_queue.list_pending_items(category="model", client_id=cid)
     if not pending:
         ui.label("Nothing pending. Parsed models from the IRconnect mailbox appear here once it's "
-                 "connected.").style(f"color:{MUT};font-size:13px;")
+                 "connected.").style(f"color:{MUT};font-size:var(--fs-base);")
     for item in pending:
         ex = item.get("extracted") or {}
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
             ui.label(f"{item.get('firm') or item.get('contact') or 'Unknown sender'} · "
                      f"{item.get('subject', '(no subject)')}").classes("font-bold").style(
-                f"color:{COLORS['text_heading']};font-size:13px;")
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
             ui.label(f"Received {item.get('received_at', '')}"
                      + (f" · {item.get('filename')}" if item.get("filename") else "")).style(
-                f"color:{MUT};font-size:11px;")
+                f"color:{MUT};font-size:var(--fs-xs);")
             with ui.row().classes("w-full").style("gap:8px;flex-wrap:wrap;margin-top:4px;"):
                 q_firm = ui.input("Firm", value=item.get("firm") or "").props("outlined dense").style("min-width:160px;")
                 q_period = ui.select(period_keys, value=_norm_period(ex.get("period")), label="Period").props("outlined dense").style("min-width:120px;")
@@ -4714,7 +4714,7 @@ def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
     ui.markdown("---")
     ui.label("Manual model entry").classes("font-bold")
     ui.label("To get started, or for a model that arrived outside the IRconnect mailbox.").style(
-        f"color:{MUT};font-size:12px;")
+        f"color:{MUT};font-size:var(--fs-sm);")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         with ui.row().classes("w-full").style("gap:8px;flex-wrap:wrap;"):
@@ -4740,7 +4740,7 @@ def _render_model_intake_tab(cid, on_saved=None, refresh_self=None):
         ui.upload(on_upload=_on_upload, auto_upload=True).props(
             "accept='.xlsx,.xls,.xlsm,.csv,.pdf' flat max-files=1").classes("w-full").style("max-width:340px;")
 
-        msg = ui.label("").style("color:#B91C1C;font-size:12px;min-height:16px;")
+        msg = ui.label("").style("color:#B91C1C;font-size:var(--fs-sm);min-height:16px;")
 
         def _save():
             firm = (firm_in.value or "").strip()
@@ -4773,7 +4773,7 @@ def _render_surprise_tracker_tab():
         surprises = _default_surprises() if get_active_client_id() == "usio" else []
 
     ui.label("Consensus Tracker").classes("text-lg font-bold")
-    ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _cid = get_active_client_id()
 
@@ -4810,7 +4810,7 @@ def _render_surprise_tracker_tab():
                     ]:
                         with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                             ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-                            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:11px;")
+                            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                 ui.markdown("---")
                 for row in surprises:
@@ -4825,16 +4825,16 @@ def _render_surprise_tracker_tab():
                             ui.label(f"{row['quarter']} · {row['date']}").classes("font-bold").style(f"color:{COLORS['accent_light']};")
                             ui.label("BEAT" if beat else "MISS").style(f"color:{'#15803D' if beat else '#B91C1C'};font-weight:bold;")
                         with ui.row().classes("w-full gap-4"):
-                            ui.label(f"Actual: ${row['rev_actual']}M").style(f"color:{COLORS['text_body']};font-size:12px;")
-                            ui.label(f"vs Consensus: {surp:+.1f}%").style(f"color:{'#15803D' if surp>0 else '#B91C1C'};font-size:12px;")
-                            ui.label(f"vs Whisper: {wh_s:+.1f}%").style(f"color:{'#15803D' if wh_s>0 else '#B91C1C'};font-size:12px;")
-                            ui.label(f"AH Move: {ah:+.1f}%").style(f"color:{'#15803D' if ah>0 else '#B91C1C'};font-size:12px;")
-                            ui.label(f"Implied ±{row['implied_move']*100:.1f}%").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                            ui.label(f"Actual: ${row['rev_actual']}M").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                            ui.label(f"vs Consensus: {surp:+.1f}%").style(f"color:{'#15803D' if surp>0 else '#B91C1C'};font-size:var(--fs-sm);")
+                            ui.label(f"vs Whisper: {wh_s:+.1f}%").style(f"color:{'#15803D' if wh_s>0 else '#B91C1C'};font-size:var(--fs-sm);")
+                            ui.label(f"AH Move: {ah:+.1f}%").style(f"color:{'#15803D' if ah>0 else '#B91C1C'};font-size:var(--fs-sm);")
+                            ui.label(f"Implied ±{row['implied_move']*100:.1f}%").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         ui.label(f"Guidance vs embedded: {row.get('guidance_vs_embedded','—')} · "
                                  f"PT changes: {row.get('pt_changes',0)} · Call score: {row.get('call_score','—')}/100").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         if row.get("notes"):
-                            ui.label(row["notes"]).style(f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;")
+                            ui.label(row["notes"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
 
                 ui.markdown("---")
                 ui.label("Guidance Credibility").classes("font-bold")
@@ -4844,7 +4844,7 @@ def _render_surprise_tracker_tab():
                     icon = "" if gve in ["Beat", "Above"] else "" if gve == "In-line" else ""
                     ui.label(f"{icon} {row['quarter']}: Guidance {gve} embedded · AH "
                              f"{'exceeded' if excess>0 else 'undershot'} implied by {abs(excess):.1f}pp").style(
-                        f"color:{COLORS['text_body']};font-size:13px;")
+                        f"color:{COLORS['text_body']};font-size:var(--fs-base);")
             else:
                 ui.label("No quarters logged yet.").style(f"color:{COLORS['text_muted']};")
 
@@ -4896,7 +4896,7 @@ def _render_surprise_tracker_tab():
 
         with ui.tab_panel(e3):
             ui.label(f"Pre-Call Assessment — {CE().get('current_quarter','')}").classes("font-bold")
-            ui.label(f"Fill BEFORE {CE().get('earnings_date','')} earnings. Captures the embedded expectation for post-call scoring.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+            ui.label(f"Fill BEFORE {CE().get('earnings_date','')} earnings. Captures the embedded expectation for post-call scoring.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
             # ── The bar, live. Every field here used to be wrong in a way that only
             # showed up on the morning of the call:
@@ -4953,7 +4953,7 @@ def _render_surprise_tracker_tab():
                          f"guidance are both live — the street from the market feed with its period "
                          f"mapping reconciled against filed actuals, the guidance from the CFO's "
                          f"decision. Neither is a stored constant.").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
             precall = _load_json("q2_precall.json", {})
             with ui.row().classes("w-full gap-4"):
@@ -4974,14 +4974,14 @@ def _render_surprise_tracker_tab():
             if precall:
                 ui.label(f"Pre-call logged {precall.get('saved','')} · Implied ±{precall.get('implied',0):.1f}% · "
                          f"Whisper ${precall.get('whisper',0):.1f}M · 30d vs sector {precall.get('30d_sector',0):+.1f}%").style(
-                    f"color:{COLORS['text_muted']};font-size:12px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _pc_metric(label, value, sub):
     with ui.card().classes("flex-1 text-center").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(str(value)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
-        ui.label(label).style(f"color:{COLORS['text_body']};font-size:11px;font-weight:600;")
-        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:11px;")
+        ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+        ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -5004,15 +5004,15 @@ def _render_transcripts_tab():
         "Archive of ingested earnings call transcripts — full-text searchable, with an AI summary, key quotes, "
         "guidance language, and flagged Q&A risk topics per call. ChorusCall has no public API, so bring the PDF "
         "or pasted text in by hand below; that Q&A risk read then feeds the Markets → IR Risk Dashboard scorecard."
-    ).style(f"color:{COLORS['text_muted']};font-size:12px;")
+    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
     with ui.expansion("Ingest a transcript", value=True).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
             t_quarter = ui.input("Quarter", placeholder="Q1 2026", value=CE().get("current_quarter", "")).classes("flex-1")
             t_date = ui.input("Call date (YYYY-MM-DD)").classes("flex-1")
-        ui.label("Upload the PDF exported from ChorusCall:").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
-        pdf_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("Upload the PDF exported from ChorusCall:").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
+        pdf_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         pasted_text_holder = {"text": None, "filename": None}
 
         async def handle_pdf_upload(e):
@@ -5023,15 +5023,15 @@ def _render_transcripts_tab():
                 pasted_text_holder["text"] = extracted
                 pasted_text_holder["filename"] = e.file.name
                 pdf_status.text = f"Extracted {len(extracted.split()):,} words from {e.file.name}. Click Ingest below."
-                pdf_status.style("color:#15803D;font-size:12px;")
+                pdf_status.style("color:#15803D;font-size:var(--fs-sm);")
             else:
                 pdf_status.text = ("Couldn't extract text from that PDF (it may be scanned/image-only). "
                                     "Paste the transcript text below instead.")
-                pdf_status.style("color:#B45309;font-size:12px;")
+                pdf_status.style("color:#B45309;font-size:var(--fs-sm);")
 
         ui.upload(on_upload=handle_pdf_upload, auto_upload=True).props("accept=.pdf").classes("w-full")
 
-        ui.label("...or paste the transcript text directly:").style(f"color:{COLORS['text_body']};font-size:12px;margin-top:6px;")
+        ui.label("...or paste the transcript text directly:").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
         t_paste = ui.textarea(placeholder="Paste the full call transcript text here").classes("w-full").props("rows=6")
 
         def ingest():
@@ -5066,12 +5066,12 @@ def _render_transcripts_tab():
                 if not search_input.value:
                     return
                 if not hits:
-                    ui.label("No matches.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label("No matches.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 for h in hits:
                     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
                         ui.label(f"{h['quarter']} ({h['match_count']} match{'es' if h['match_count'] != 1 else ''})").classes("font-bold").style(f"color:{COLORS['accent_light']};")
                         for snip in h["snippets"]:
-                            ui.label(snip).style(f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;")
+                            ui.label(snip).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
 
         search_input.on("keydown.enter", do_search)
         ui.button("Search", on_click=do_search).props("dense")
@@ -5080,7 +5080,7 @@ def _render_transcripts_tab():
     ui.label("Ingested transcripts").classes("font-bold")
     records = transcripts.list_transcripts()
     if not records:
-        ui.label("No transcripts ingested yet — use the form above.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+        ui.label("No transcripts ingested yet — use the form above.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
 
     for rec in records:
@@ -5090,7 +5090,7 @@ def _render_transcripts_tab():
                     ui.label(f"{rec['quarter']} · {rec.get('call_date') or 'date not set'}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
                     ui.label(f"{rec['word_count']:,} words · uploaded {rec['uploaded_at'][:16].replace('T',' ')}"
                               + (f" · {rec['source_filename']}" if rec.get("source_filename") else "")).style(
-                        f"color:{COLORS['text_muted']};font-size:11px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 with ui.row().classes("gap-2"):
                     def delete_this(q=rec["quarter"]):
                         transcripts.delete_transcript(q)
@@ -5104,7 +5104,7 @@ def _render_transcripts_tab():
                 async def generate_summary(q=rec["quarter"], area=summary_area):
                     with area:
                         area.clear()
-                        ui.label("Generating AI summary…").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                        ui.label("Generating AI summary…").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     result = transcripts.summarize_transcript(q)
                     area.clear()
                     with area:
@@ -5117,40 +5117,40 @@ def _render_transcripts_tab():
                                 "Couldn't generate a summary — check that ANTHROPIC_API_KEY is set in .env, "
                                 "and that this machine has network access to api.anthropic.com. Try again, or "
                                 "review the transcript manually."
-                            ).style("color:#B45309;font-size:12px;")
+                            ).style("color:#B45309;font-size:var(--fs-sm);")
 
                 ui.button("Generate AI Summary", on_click=generate_summary).props("flat dense").style("margin-top:6px;")
             else:
                 ui.markdown("---")
-                ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:13px;")
+                ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
 
                 key_quotes = rec.get("key_quotes") or []
                 if key_quotes:
-                    ui.label("Key quotes").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    ui.label("Key quotes").classes("font-bold").style("font-size:var(--fs-sm);margin-top:6px;")
                     for kq in key_quotes:
                         ui.label(f"“{kq.get('quote','')}” — {kq.get('speaker','')}").style(
-                            f"color:{COLORS['text_muted']};font-size:12px;font-style:italic;")
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
 
                 guidance = rec.get("guidance_language") or []
                 if guidance:
-                    ui.label("Guidance language").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    ui.label("Guidance language").classes("font-bold").style("font-size:var(--fs-sm);margin-top:6px;")
                     for g in guidance:
-                        ui.label(f"• {g}").style(f"color:{COLORS['text_body']};font-size:12px;")
+                        ui.label(f"• {g}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
                 topics = rec.get("qa_risk_topics") or []
                 if topics:
-                    ui.label("Q&A risk topics").classes("font-bold").style("font-size:12px;margin-top:6px;")
+                    ui.label("Q&A risk topics").classes("font-bold").style("font-size:var(--fs-sm);margin-top:6px;")
                     sev_color = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
                     for t in topics:
                         clr = sev_color.get(t.get("severity"), "#64748B")
-                        ui.label(f"{t.get('severity','?')} · {t.get('topic','')} — {t.get('why','')}").style(f"color:{clr};font-size:12px;")
+                        ui.label(f"{t.get('severity','?')} · {t.get('topic','')} — {t.get('why','')}").style(f"color:{clr};font-size:var(--fs-sm);")
                 else:
-                    ui.label("No Q&A risk topics flagged by AI review.").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                    ui.label("No Q&A risk topics flagged by AI review.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                 ui.label(f"Summarized {rec['summarized_at'][:16].replace('T',' ') if rec.get('summarized_at') else ''}").style(
-                    f"color:{COLORS['text_muted']};font-size:11px;margin-top:4px;")
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
 
-                rerun_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:12px;")
+                rerun_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                 async def rerun_summary(q=rec["quarter"], status=rerun_status):
                     status.text = "Regenerating…"
@@ -5162,6 +5162,6 @@ def _render_transcripts_tab():
                     else:
                         status.text = ("Couldn't regenerate — check that ANTHROPIC_API_KEY is set in .env "
                                         "and this machine can reach api.anthropic.com.")
-                        status.style("color:#B45309;font-size:12px;")
+                        status.style("color:#B45309;font-size:var(--fs-sm);")
 
                 ui.button("Re-run AI Summary", on_click=rerun_summary).props("flat dense")

@@ -42,7 +42,7 @@ def render_inbox_page():
     else:
         note = ("The IR inbox isn’t connected yet. Once IMAP credentials are set, anything emailed to your "
                 "IR mailbox — a model, a research note, an NDR ask — is parsed and lands here for review.")
-    ui.label(note).style(f"color:{COLORS['text_muted']};font-size:13px;margin-bottom:6px;")
+    ui.label(note).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-bottom:6px;")
 
     from core import inbox_queue
     pending = inbox_queue.list_pending_items()
@@ -58,7 +58,7 @@ def render_inbox_page():
             ui.label("Inbox is clear").classes("font-bold").style(f"color:{COLORS['text_heading']};")
             ui.label("Nothing waiting on you. Email a model (.xlsx / .pdf) or a research note to your IR "
                      "mailbox and it appears here — parsed, with the numbers pulled out, ready to file.").style(
-                f"color:{COLORS['text_muted']};font-size:13px;")
+                f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
     # Recently filed — a short history so the ingestion is visible even when the queue is clear.
     recent = []
@@ -78,19 +78,19 @@ def render_inbox_page():
             with ui.expansion(_hdr, caption=it.get("received_at", "")).classes("w-full").style(
                     f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
                 if it.get("subject"):
-                    ui.label(it["subject"]).style(f"color:{COLORS['text_body']};font-size:13px;font-weight:600;")
+                    ui.label(it["subject"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
                 if it.get("outcome"):
-                    ui.label(f"Filed: {it['outcome']}").style(f"color:{COLORS['accent']};font-size:12px;")
+                    ui.label(f"Filed: {it['outcome']}").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);")
                 if it.get("sender_email"):
-                    ui.label(f"From: {it['sender_email']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(f"From: {it['sender_email']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 if it.get("filename"):
-                    ui.label(f"Attachment: {it['filename']}").style(f"color:{COLORS['text_muted']};font-size:11px;")
+                    ui.label(f"Attachment: {it['filename']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 if it.get("body"):
                     ui.label(it["body"]).style(
-                        f"color:{COLORS['text_muted']};font-size:12px;white-space:pre-wrap;margin-top:4px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);white-space:pre-wrap;margin-top:4px;")
                 if not any(it.get(k) for k in ("subject", "outcome", "sender_email", "filename", "body")):
                     ui.label("No further detail captured for this item.").style(
-                        f"color:{COLORS['text_muted']};font-size:12px;")
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _render_ir_knowledge_editor()
 
@@ -108,7 +108,7 @@ def _render_ir_knowledge_editor():
         ui.label("Pre-vetted PUBLIC answers the reply drafter may state directly — dividend policy, transfer "
                  "agent, filing locations, how to reach IR. Anything not here defers to your filings; nothing "
                  "is invented. Keep every answer to publicly disclosed information.").style(
-            f"color:{COLORS['text_muted']};font-size:11.5px;")
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         _box = ui.column().classes("w-full gap-1").style("margin-top:6px;")
 
         def _rebuild():
@@ -118,13 +118,13 @@ def _render_ir_knowledge_editor():
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};padding:8px 10px;"):
                         if _ro:
-                            ui.label(e.get("topic") or "").style(f"color:{COLORS['text_heading']};font-size:12px;font-weight:600;")
-                            ui.label(e.get("answer") or "").style(f"color:{COLORS['text_body']};font-size:12px;")
+                            ui.label(e.get("topic") or "").style(f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:600;")
+                            ui.label(e.get("answer") or "").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                             continue
                         _t = ui.input("Topic", value=e.get("topic") or "").props("outlined dense").classes(
-                            "w-full").style("font-size:12px;")
+                            "w-full").style("font-size:var(--fs-sm);")
                         _a = ui.textarea("Answer", value=e.get("answer") or "").props("outlined autogrow dense").classes(
-                            "w-full").style("font-size:12px;")
+                            "w-full").style("font-size:var(--fs-sm);")
                         with ui.row().classes("gap-2"):
                             def _save(eid=e["id"], _t=_t, _a=_a):
                                 ir_knowledge.update_entry(eid, _t.value, _a.value, cid)
@@ -141,11 +141,11 @@ def _render_ir_knowledge_editor():
                     with ui.card().classes("w-full").style(
                             f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['border']};padding:8px 10px;"):
                         ui.label("Add an approved answer").style(
-                            f"color:{COLORS['text_body']};font-size:12px;font-weight:600;")
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                         _nt = ui.input("Topic (e.g. Dividend policy)").props("outlined dense").classes(
-                            "w-full").style("font-size:12px;")
+                            "w-full").style("font-size:var(--fs-sm);")
                         _na = ui.textarea("Answer (public info only)").props("outlined autogrow dense").classes(
-                            "w-full").style("font-size:12px;")
+                            "w-full").style("font-size:var(--fs-sm);")
 
                         def _add(_nt=_nt, _na=_na):
                             if not (_nt.value and _na.value):
