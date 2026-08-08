@@ -182,11 +182,13 @@ def _render_risk_dashboard(seed, days_to_earn, state):
              f"{days_to_earn} days to consensus lock").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
-    ui.label("Actionable IR signals — what to do this week").classes("font-bold")
-    ui.label(
-        "Closed loop: click into any signal to resolve it or log it as reviewed-but-not-pursued — "
-        "these cards track a decision, not just a readout."
-    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:4px;")
+    from page_modules_nicegui.signals import capability_banner
+    capability_banner(
+        "The quarter's risks, tracked as decisions",
+        "Missing models, the beat-bar gap, PT drift, insider and peer signals — each a card you "
+        "resolve or log as reviewed-but-not-pursued, so nothing slips before the print.",
+        tag="Multi-factor risk radar")
+    ui.element("div").style("height:6px;")
 
     level_colors = {"red": ("#FDECEC", "#B91C1C"), "amber": ("#FCF0E0", "#B45309"),
                      "green": ("#E9F6EF", "#15803D"), "gray": ("#EEF2F7", "#475569")}

@@ -2702,7 +2702,13 @@ def _render_big_picture(institutions):
     # quiet-period banner is the correct pattern if a countdown is wanted again: it
     # renders only when a quiet_start exists AND the count is positive.
 
-    ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:10px;")
+    from page_modules_nicegui.signals import capability_banner
+    capability_banner(
+        "Who owns you, who should, and where they are",
+        "Every institution's stake tracked from SEC 13F filings quarter over quarter; funds that "
+        "own your peers but not you surfaced as targets, clustered by roadshow metro.",
+        tag="Live 13F targeting")
+    ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:12px;")
 
     with ui.row().classes("w-full gap-3"):
         _bp_metric("NDR Requests/City", str(len(ndr_requests)),

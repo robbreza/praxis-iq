@@ -117,9 +117,14 @@ def _render_peer_synthesis(s):
 def render_lighthouse_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
+    from page_modules_nicegui.signals import capability_banner
     ui.label("Lighthouse").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
-    ui.label(f"Why is {ticker} moving? — evidence-based attribution, point-in-time, no invented causes.") \
-        .style(f"color:{COLORS['text_muted']};margin-bottom:8px;")
+    capability_banner(
+        "Why your stock moved — with the evidence",
+        f"Point-in-time attribution for {ticker} to real, disclosed drivers — filings, peers, "
+        "market factors — never an invented narrative.",
+        tag="Stock-move attribution")
+    ui.element("div").style("height:8px;")
 
     if ticker == "USIO":
         try:                                            # this render is itself a usage signal — log it

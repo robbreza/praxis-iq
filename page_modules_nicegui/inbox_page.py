@@ -28,7 +28,14 @@ def _cat_label(c):
 
 
 def render_inbox_page():
+    from page_modules_nicegui.signals import capability_banner
     ui.label("IR Inbox").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    capability_banner(
+        "Every investor email, read and filed",
+        "Models, research notes, meeting and NDR requests are auto-classified, the key numbers "
+        "pulled out, and routed here for one-click confirmation.",
+        tag="AI mail classification")
+    ui.element("div").style("height:6px;")
 
     # Connection / auto-sync status — makes the poller visible.
     from core import mail_gateway

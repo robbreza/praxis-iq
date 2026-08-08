@@ -4772,8 +4772,14 @@ def _render_surprise_tracker_tab():
         # real quarter is logged via "Log Quarter".
         surprises = _default_surprises() if get_active_client_id() == "usio" else []
 
-    ui.label("Consensus Tracker").classes("text-lg font-bold")
-    ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+    from page_modules_nicegui.signals import capability_banner
+    capability_banner(
+        "Build the number you're judged against",
+        "Collect your covering analysts' models here; the platform composes your consensus and "
+        "grades every quarter's actual against it — the estimate you own, not a licensed feed.",
+        tag="Proprietary consensus")
+    ui.label("Actual vs consensus vs embedded expectation · Guidance credibility database").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:8px;")
 
     _cid = get_active_client_id()
 
