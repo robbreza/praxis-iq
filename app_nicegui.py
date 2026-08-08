@@ -1943,7 +1943,7 @@ ui.add_head_html(
     "--fs-sm:13px;"      # was 12 / 12.5    (body — the dominant size)
     "--fs-base:14px;"    # was 13 / 13.5    (body-large / subhead)
     "--fs-md:15px;"      # was 14 / 14.5 / 15 (lead)
-    "--fs-lg:17px;"      # was 16 / 17      (section head / card title)
+    "--fs-lg:16px;"      # was 16 / 17      (section head / card title)
     "--fs-xl:19px;"      # was 18 / 19      (metric value)
     "--fs-2xl:21px;"     # was 20 / 21      (page heading / KPI)
     "--fs-3xl:23px;"     # was 22           (large heading)
