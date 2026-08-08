@@ -5619,6 +5619,135 @@ _CATEGORY_LABELS = {
 }
 
 
+def _fmt_xlsx_cell(v, fmt):
+    """Render one spreadsheet cell for the HTML preview, honouring the common Excel number
+    formats we author (percent, currency, plain decimal). Text passes through unchanged."""
+    if v is None:
+        return ""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return str(v)
+    fmt = fmt or ""
+    if "%" in fmt:
+        dec = 1 if "0.0" in fmt else 0
+        return f"{v * 100:.{dec}f}%"
+    if "$" in fmt:
+        dec = 2 if "0.00" in fmt else 1
+        return f"${v:,.{dec}f}"
+    dec = 1 if "0.0" in fmt else 0
+    return f"{v:,.{dec}f}"
+
+
+def _open_attachment_preview(doc_id, filename):
+    """Pull the stored attachment up IN THE APP as a legible preview, instead of pushing a raw
+    binary download the viewer's OS might open in Notepad (a spreadsheet dumped as text reads as
+    mojibake). Spreadsheets render as a styled table mirroring the sheet; PDFs embed inline; text/
+    calendar files show as text. A 'Download original' button is always offered as the fallback."""
+    import html as _html
+    result = documents.get_document_bytes(doc_id)
+    dialog = ui.dialog()
+    with dialog, ui.card().classes("w-full").style("max-width:900px;background:#FFFFFF;"):
+        if not result:
+            ui.label("This attachment could not be loaded.").style(f"color:{COLORS['text_muted']};")
+            ui.button("Close", on_click=dialog.close).props("flat")
+            dialog.open()
+            return
+        fname, ctype, raw = result
+        ext = (fname or "").lower().rsplit(".", 1)[-1]
+        with ui.row().classes("w-full items-center justify-between no-wrap"):
+            ui.label(fname).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:14px;")
+            ui.label("Parsed from the analyst's emailed model" if ext in ("xlsx", "xlsm", "xls")
+                     else "Attachment preview").style(f"color:{COLORS['text_muted']};font-size:11px;")
+
+        body = ui.column().classes("w-full").style("max-height:70vh;overflow:auto;margin-top:6px;")
+        rendered = False
+        try:
+            if ext in ("xlsx", "xlsm", "xls"):
+                import openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+                MAXCOL = 7
+
+                def _cell_style(c, numeric, spanning):
+                    bold = "font-weight:700;" if (c.font and c.font.bold) else ""
+                    align = (c.alignment.horizontal if c.alignment and c.alignment.horizontal
+                             else ("right" if numeric else "left"))
+                    col = ""
+                    try:
+                        rgb = c.font.color.rgb if c.font and c.font.color else None
+                        if isinstance(rgb, str) and len(rgb) == 8 and rgb.upper() != "FF000000":
+                            col = f"color:#{rgb[2:]};"
+                    except Exception:
+                        col = ""
+                    # Header/paragraph rows (a single spanning cell) wrap; data cells stay on one line
+                    # so the number columns line up instead of one long label stretching column A.
+                    wrap = "white-space:normal;" if spanning else "white-space:nowrap;"
+                    return f"text-align:{align};{bold}{col}{wrap}vertical-align:top;"
+
+                with body:
+                    for ws in wb.worksheets:
+                        rows_html = []
+                        for row_i in range(1, ws.max_row + 1):
+                            cells = [ws.cell(row=row_i, column=ci) for ci in range(1, MAXCOL + 1)]
+                            nonempty = [i for i, c in enumerate(cells) if c.value not in (None, "")]
+                            if not nonempty:
+                                continue
+                            if nonempty == [0]:
+                                # title / section header / thesis — span the full width and wrap
+                                c = cells[0]
+                                txt = _html.escape(_fmt_xlsx_cell(c.value, c.number_format))
+                                rows_html.append(
+                                    f"<tr><td colspan={MAXCOL} style='padding:4px 9px;"
+                                    f"{_cell_style(c, False, True)}'>{txt}</td></tr>")
+                            else:
+                                tds = []
+                                for c in cells:
+                                    numeric = isinstance(c.value, (int, float)) and not isinstance(c.value, bool)
+                                    txt = _html.escape(_fmt_xlsx_cell(c.value, c.number_format))
+                                    tds.append(f"<td style='padding:3px 9px;"
+                                               f"{_cell_style(c, numeric, False)}'>{txt}</td>")
+                                rows_html.append("<tr>" + "".join(tds) + "</tr>")
+                        ui.html(
+                            "<table style='border-collapse:collapse;font-size:12px;width:100%;"
+                            "border:1px solid #E2E8F0;'>" + "".join(rows_html) + "</table>")
+                        rendered = True
+            elif ext == "csv":
+                text = raw.decode("utf-8", errors="replace")
+                rows = list(csv.reader(io.StringIO(text)))
+                with body:
+                    cells = "".join(
+                        "<tr>" + "".join(f"<td style='padding:3px 8px;border-bottom:1px solid #EEF;'>"
+                                         f"{_html.escape(str(x))}</td>" for x in row) + "</tr>"
+                        for row in rows)
+                    ui.html(f"<table style='border-collapse:collapse;font-size:12px;'>{cells}</table>")
+                    rendered = True
+            elif ext == "pdf":
+                import base64
+                b64 = base64.b64encode(raw).decode("ascii")
+                with body:
+                    ui.html(f"<embed src='data:application/pdf;base64,{b64}' type='application/pdf' "
+                            f"style='width:100%;height:60vh;border:1px solid #E2E8F0;'/>")
+                    rendered = True
+            elif ext in ("ics", "txt", "eml", "md", "json"):
+                text = raw.decode("utf-8", errors="replace")
+                with body:
+                    ui.html(f"<pre style='white-space:pre-wrap;font-size:12px;color:#334155;'>"
+                            f"{_html.escape(text)}</pre>")
+                    rendered = True
+        except Exception:
+            rendered = False
+
+        if not rendered:
+            with body:
+                ui.label("No inline preview for this file type — use Download to open it in its native app.").style(
+                    f"color:{COLORS['text_muted']};font-size:12px;")
+
+        def _download(fname=fname, raw=raw):
+            ui.download(raw, filename=fname)
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:8px;"):
+            ui.button("Download original", icon="download", on_click=_download).props("flat dense")
+            ui.button("Close", on_click=dialog.close).props("flat dense color=primary")
+    dialog.open()
+
+
 def _render_pending_inbox_items():
     """The human half of the email-routing pipeline: core/mail_gateway.py
     classifies an inbound email (model / research note / NDR request /
@@ -5670,13 +5799,11 @@ def _render_pending_inbox_items():
                 ui.label(f"Subject: {item.get('subject') or '(no subject)'}").style(f"color:{COLORS['text_muted']};font-size:12px;")
 
                 if item.get("doc_id") is not None:
-                    def _download(doc_id=item["doc_id"]):
-                        result = documents.get_document_bytes(doc_id)
-                        if result:
-                            fname, _ctype, raw = result
-                            ui.download(raw, filename=fname)
-                    ui.button(f"{item['filename']}", on_click=_download).props("flat dense size=sm").style(
-                        f"color:{COLORS['accent_light']};font-size:11px;")
+                    def _preview(doc_id=item["doc_id"], fname=item.get("filename")):
+                        _open_attachment_preview(doc_id, fname)
+                    ui.button(f"{item['filename']}", icon="visibility", on_click=_preview).props(
+                        "flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:11px;").tooltip(
+                        "Open a legible preview in the app (Download original inside)")
 
                 def dismiss(item_id=item["id"]):
                     inbox_queue.dismiss_item(item_id)

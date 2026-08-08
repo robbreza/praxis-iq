@@ -161,6 +161,33 @@ def get_document_bytes(doc_id, client_id=None):
         conn.close()
 
 
+def update_document_bytes(doc_id, file_bytes, filename=None, content_type=None, client_id=None):
+    """Replace an existing document's bytes (and optionally its filename/content_type)
+    in place, keeping the same doc_id so anything already pointing at it (an inbox
+    queue item, a meeting card) still resolves. Returns True if a row was updated.
+    Used to regenerate a stored file — e.g. rebuilding the demo analyst model cleanly."""
+    cid = _resolve_client_id(client_id)
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    ph = "%s" if pg else "?"
+    try:
+        cur = conn.cursor()
+        sets = [f"file_bytes = {ph}"]
+        params = [psycopg2_binary(file_bytes) if pg else file_bytes]
+        if filename is not None:
+            sets.append(f"filename = {ph}")
+            params.append(filename)
+        if content_type is not None:
+            sets.append(f"content_type = {ph}")
+            params.append(content_type)
+        params += [doc_id, cid]
+        cur.execute(f"UPDATE documents SET {', '.join(sets)} WHERE id = {ph} AND client_id = {ph}", params)
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def delete_document(doc_id, client_id=None):
     cid = _resolve_client_id(client_id)
     conn = db.get_connection()
