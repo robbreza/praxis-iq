@@ -142,16 +142,53 @@ def _session_to_visitor(events):
     }
 
 
+def _merge_by_firm(rows):
+    """Collapse the IDENTIFIED sessions of the same firm into ONE visitor row so a firm that visited
+    three times reads as one lead with its full engagement — visits = session count, union of pages
+    viewed and assets downloaded, any demo request, summed pages/minutes, latest visit. Unidentified
+    sessions have no firm to merge on and pass through unchanged. Keyed by web_flow._org_key so
+    'Acme Capital LLC' and 'Acme Capital' collapse together."""
+    from core import web_flow
+    merged, order, passthrough = {}, [], []
+    for r in rows:
+        org = (r.get("org") or "").strip()
+        if not org or r.get("category") == "New — unidentified":
+            passthrough.append(r)
+            continue
+        key = web_flow._org_key(org) or org.lower()
+        if key not in merged:
+            merged[key] = dict(r)
+            order.append(key)
+            continue
+        m = merged[key]
+        m["visits"] = (m.get("visits") or 1) + (r.get("visits") or 1)
+        m["pages"] = (m.get("pages") or 0) + (r.get("pages") or 0)
+        m["minutes"] = (m.get("minutes") or 0) + (r.get("minutes") or 0)
+        for field in ("paths", "downloads"):                 # order-preserved unions
+            seen = set(m.get(field) or [])
+            for v in r.get(field) or []:
+                if v not in seen:
+                    seen.add(v)
+                    m.setdefault(field, []).append(v)
+        m["demo_request"] = bool(m.get("demo_request")) or bool(r.get("demo_request"))
+        for field in ("email", "ticker", "device", "org"):   # keep the first non-empty
+            m[field] = m.get(field) or r.get(field)
+        m["last_visit"] = max(m.get("last_visit") or "", r.get("last_visit") or "")
+    return [merged[k] for k in order] + passthrough
+
+
 def aggregate(tenant=PRAXIS_TENANT, save=True):
-    """Group web_events for `tenant` by session into web_flow visitor rows, one per session,
-    and (by default) persist them to that tenant's web_flow_visitors.json so the analyzer
-    renders them. Returns {sessions, identified, rows}."""
+    """Group web_events for `tenant` by session, then MERGE identified sessions by firm into one
+    visitor row each (see _merge_by_firm), and (by default) persist them to that tenant's
+    web_flow_visitors.json so the analyzer renders one lead per firm. Returns {sessions, identified,
+    rows} where `sessions` is the raw session count and `rows` are the firm-merged visitors."""
     by_session = {}
     for e in _events_for(tenant):
         by_session.setdefault(e["session_id"], []).append(e)
-    rows = [_session_to_visitor(evs) for evs in by_session.values()]
+    n_sessions = len(by_session)
+    rows = _merge_by_firm([_session_to_visitor(evs) for evs in by_session.values()])
     if save:
         db.save_json("web_flow_visitors.json", rows, client_id=tenant)
-    return {"sessions": len(rows),
+    return {"sessions": n_sessions,
             "identified": sum(1 for r in rows if r["category"] == "Identified lead"),
             "rows": rows}

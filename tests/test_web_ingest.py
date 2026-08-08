@@ -50,6 +50,28 @@ def test_aggregate_builds_visitor_rows(wdb):
     assert anon["org"] == "New — unidentified" and anon["downloads"] == []
 
 
+def test_identified_sessions_merge_by_firm(wdb):
+    _seed()
+    # the SAME firm comes back in a later session (name variant), views another page + a new download
+    web_ingest.record_event("praxis", "s3", "pageview", path="/product.html", org="Meridian IR Advisors LLC",
+                            created_at="2026-08-07T09:00:00+00:00")
+    web_ingest.record_event("praxis", "s3", "pageview", path="/security.html", org="Meridian IR Advisors LLC",
+                            created_at="2026-08-07T09:06:00+00:00")
+    web_ingest.record_event("praxis", "s3", "download", asset="ROI one-pager", org="Meridian IR Advisors LLC",
+                            created_at="2026-08-07T09:07:00+00:00")
+    out = web_ingest.aggregate(save=False)
+    assert out["sessions"] == 3                                   # raw session count preserved
+    leads = [r for r in out["rows"] if r["category"] == "Identified lead"]
+    assert len(leads) == 1                                        # both Meridian sessions -> ONE firm row
+    m = leads[0]
+    assert m["visits"] == 2                                       # two sessions
+    assert m["demo_request"] is True                             # carried from the first visit
+    # unions across sessions
+    assert "ROI one-pager" in m["downloads"] and "Security overview" in m["downloads"]
+    assert "/security.html" in m["paths"] and "/pricing.html" in m["paths"]
+    assert m["last_visit"] == "2026-08-07"                        # latest
+
+
 def test_feeds_web_flow_analyzer(wdb, mem_db):
     _seed()
     web_ingest.aggregate(tenant="praxis", save=True)     # persists via the in-memory store
