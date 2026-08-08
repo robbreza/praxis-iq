@@ -4,8 +4,8 @@
 Both are pure (no DB / no NiceGUI), so they run in the standard suite."""
 import io
 
+from core.demo_model import build_model_xlsx
 from page_modules_nicegui.investors_page import _fmt_xlsx_cell
-from scripts.build_demo_model import build_model_xlsx
 
 
 def test_fmt_xlsx_cell_formats():

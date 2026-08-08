@@ -234,6 +234,44 @@ def _cache(ticker, holders, cusip=CUSIP):
     }
 
 
+def seed_inbox_model(cid=CID):
+    """Seed the IR-Inbox model-ingestion demo: one clean, pending analyst-model attachment plus its
+    stored document, so a fresh reseed reproduces "an analyst emailed a model -> we parsed it ->
+    confirm the numbers", and clicking the attachment pulls up a legible model (not a binary dump).
+    Idempotent — clears any prior copy of this illustrative NLKP self-model (its queue items and
+    documents, matched by filename) so re-running doesn't pile up duplicates; other inbox items
+    (conference invites, shareholder inquiries, the already-filed Meridian model) are left alone."""
+    from core import demo_model, documents, inbox_queue
+
+    # Clear prior copies of THIS model — queue items and their documents (by filename).
+    queue = db.load_json("inbox_queue.json", [], client_id=cid) or []
+    stale = {it.get("doc_id") for it in queue
+             if it.get("category") == "model" and it.get("filename") == demo_model.FILENAME
+             and it.get("doc_id") is not None}
+    for existing in documents.list_documents(doc_type="model", client_id=cid):
+        if existing.get("filename") == demo_model.FILENAME:
+            stale.add(existing["id"])
+    for did in stale:
+        documents.delete_document(did, client_id=cid)
+    queue = [it for it in queue
+             if not (it.get("category") == "model" and it.get("filename") == demo_model.FILENAME)]
+    db.save_json("inbox_queue.json", queue, client_id=cid)
+
+    # Save the clean document, then enqueue the pending review item pointing at it.
+    doc_id = documents.save_document(
+        contact=demo_model.ANALYST, firm=demo_model.FIRM, doc_type="model",
+        filename=demo_model.FILENAME, file_bytes=demo_model.build_model_xlsx(),
+        content_type=demo_model.CONTENT_TYPE, source="illustrative-demo", client_id=cid)
+    inbox_queue.enqueue_item(
+        category="model", contact=demo_model.ANALYST, firm=demo_model.FIRM,
+        subject="NLKP — updated Q2 2026 model",
+        extracted=dict(demo_model.EXTRACTED), doc_id=doc_id, filename=demo_model.FILENAME,
+        source="illustrative-demo", sender_email=demo_model.SENDER_EMAIL, client_id=cid,
+        body=("Refreshed our NLKP model into the Q2 print — reiterate BUY, PT $42.70. "
+              "We model Q2 revenue of $25.9M and EPS $0.13. Full model attached."))
+    return doc_id
+
+
 def seed():
     # 1. Register the tenant
     client_store.upsert_client(CID, RECORD, active=True, merge=False)
@@ -789,6 +827,12 @@ That concludes today's question-and-answer session. Thank you for joining.
         except Exception as exc:
             print(f"   (activity_log {et} skipped: {exc})")
     print("[demo] seeded 8 activity-ledger events")
+
+    # 11. IR Inbox — a freshly arrived analyst model awaiting review, so the inbox demo shows the
+    # parse -> confirm flow and its attachment pulls up a clean, legible model (not a binary dump).
+    from core import demo_model
+    seed_inbox_model(CID)
+    print(f"[demo] seeded 1 pending analyst-model inbox item + document ({demo_model.FILENAME})")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
