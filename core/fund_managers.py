@@ -338,18 +338,30 @@ def roster_pms_for_firm(firm, cik, firm_currency=None):
     return {"firm": firm, "cik": int(cik), "found": len(pms), **res}
 
 
-def roster_pms_for_book(cid=None, limit=None):
-    """Roster PMs for every firm in the fund-lineup crosswalk that resolves to a usable fund
-    registrant (a confirmed or high-confidence, non-rejected CIK). One deliberate enrichment pass
-    — each registrant is a cached prospectus fetch. Returns per-firm summaries."""
-    out = []
+def eligible_firms():
+    """Firms in the fund-lineup crosswalk that resolve to a USABLE fund registrant (confirmed or
+    high-confidence, non-rejected CIK) — the roster targets. [{'firm','cik'}], deduped by CIK so a
+    firm isn't fetched twice. This is what the whole-book roster (and its UI progress) iterates."""
+    out, seen = [], set()
     for e in _fl.crosswalk_entries():
         if e.get("rejected"):
             continue
         cik = e.get("cik")
-        if not cik or not (e.get("confirmed") or e.get("confidence") in ("high", "manual")):
+        if not cik or int(cik) in seen:
             continue
-        out.append(roster_pms_for_firm(e.get("manager") or e.get("registrant") or "", cik))
-        if limit and len(out) >= limit:
-            break
+        if not (e.get("confirmed") or e.get("confidence") in ("high", "manual")):
+            continue
+        seen.add(int(cik))
+        out.append({"firm": e.get("manager") or e.get("registrant") or "", "cik": int(cik)})
     return out
+
+
+def roster_pms_for_book(cid=None, limit=None):
+    """Roster PMs for every eligible fund-family firm. One deliberate enrichment pass — each
+    registrant is a cached prospectus fetch (+ a possible LLM call for hard formats). Returns
+    per-firm summaries. The Console/House-Contacts button iterates eligible_firms() itself so it
+    can show live progress; this stays the headless one-shot."""
+    firms = eligible_firms()
+    if limit:
+        firms = firms[:limit]
+    return [roster_pms_for_firm(f["firm"], f["cik"]) for f in firms]

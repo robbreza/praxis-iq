@@ -838,6 +838,70 @@ def house_contacts_page():
             o[v] = f"{(labels.get(v, v) if labels else v)} ({n})"
         return o
 
+    def _open_roster_pms_dialog():
+        """Whole-book PM roster: for every firm the fund-lineup crosswalk resolves to a fund family,
+        read its SEC prospectus and add its portfolio managers to the house CRM (classified, CIK-
+        linked, deduped). Rule-based first; the AI reads formats the rules can't. Runs firm-by-firm
+        off-thread with live progress so a multi-minute pass never blocks the page."""
+        import asyncio
+        from core import fund_managers as fmg
+        firms = fmg.eligible_firms()
+        dlg = ui.dialog()
+        with dlg, ui.card().classes("w-full").style("max-width:640px;"):
+            ui.label("Roster portfolio managers from prospectuses").classes("text-lg font-bold") \
+                .style(f"color:{COLORS['text_heading']};")
+            ui.label(
+                f"{len(firms)} firms in the fund-lineup crosswalk resolve to a fund family. For each, "
+                "IRconnect reads the SEC prospectus and adds its portfolio managers to the house CRM "
+                "— classified, CIK-linked, deduped against anyone already here. Rule-based first; the "
+                "AI reads the formats the rules can't.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            prog = ui.linear_progress(value=0, show_value=False).props("instant-feedback")
+            prog.set_visibility(False)
+            status = ui.label("").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
+            results = ui.column().classes("w-full").style("max-height:34vh;overflow:auto;gap:1px;")
+            btns = ui.row().classes("w-full justify-end gap-2")
+
+            async def _run(limit):
+                targets = firms if limit is None else firms[:limit]
+                if not targets:
+                    status.set_text("No eligible firms — confirm fund-lineup matches first.")
+                    return
+                btns.set_visibility(False)
+                prog.set_visibility(True)
+                results.clear()
+                tot = {"firms": 0, "found": 0, "added": 0}
+                for i, f in enumerate(targets, 1):
+                    status.set_text(f"{i}/{len(targets)} · {f['firm']} …")
+                    prog.set_value(i / len(targets))
+                    try:
+                        res = await asyncio.to_thread(fmg.roster_pms_for_firm, f["firm"], f["cik"])
+                    except Exception as ex:
+                        res = {"found": 0, "added": 0, "error": str(ex)}
+                    tot["firms"] += 1
+                    tot["found"] += res.get("found", 0)
+                    tot["added"] += res.get("added", 0)
+                    if res.get("found"):
+                        with results:
+                            ui.label(f"✓ {f['firm']} — {res['found']} PMs "
+                                     f"(+{res.get('added', 0)} new, {res.get('merged', 0)} enriched)").style(
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                status.set_text(
+                    f"Done — {tot['added']} PMs added across {tot['firms']} firms ({tot['found']} found).")
+                with results:
+                    ui.button("Reload to see them", icon="refresh",
+                              on_click=lambda: ui.navigate.reload()).props("color=primary")
+                    ui.button("Close", on_click=dlg.close).props("flat")
+
+            with btns:
+                ui.button(f"Run first 10", icon="playlist_add_check",
+                          on_click=lambda: _run(10)).props("color=primary")
+                ui.button(f"Run all ({len(firms)})", icon="account_tree",
+                          on_click=lambda: _run(None)).props("flat").tooltip(
+                    "Reads every firm's prospectus — can take a few minutes and uses AI for hard formats.")
+                ui.button("Close", on_click=dlg.close).props("flat")
+        dlg.open()
+
     with ui.column().classes("w-full items-center"):
         wrap = ui.column().style("width:min(1240px,97vw);margin-top:18px;gap:14px;")
         with wrap:
@@ -846,6 +910,9 @@ def house_contacts_page():
                 ui.label(f"Praxis Point CRM · {facets['_total']} contacts").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-left:8px;")
                 ui.space()
+                ui.button("Roster PMs", icon="groups", on_click=_open_roster_pms_dialog) \
+                    .props("dense").style(f"background:{COLORS['accent']};color:#fff;").tooltip(
+                    "Fill in portfolio managers from fund prospectuses")
                 ui.button("Console", icon="arrow_back", on_click=lambda: ui.navigate.to("/console")) \
                     .props("flat dense").style(f"color:{COLORS['text_muted']};")
 

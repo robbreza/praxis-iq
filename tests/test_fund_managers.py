@@ -103,6 +103,20 @@ def test_llm_extract_handles_bad_output(monkeypatch):
     assert FM._llm_extract("Portfolio Manager text") == []
 
 
+def test_eligible_firms_filters_and_dedupes(mem_db):
+    import core.fund_lineup as FL
+    mem_db[(FL._GLOBAL, FL._CROSSWALK_KEY)] = {
+        "acme": {"cik": 1, "confidence": "high", "confirmed": False, "rejected": False, "manager": "Acme Advisors"},
+        "beta": {"cik": 2, "confidence": "review", "confirmed": False, "rejected": False, "manager": "Beta Capital"},
+        "gamma": {"cik": 3, "confidence": "high", "confirmed": False, "rejected": True, "manager": "Gamma"},
+        "delta": {"cik": 4, "confidence": "manual", "confirmed": True, "rejected": False, "manager": "Delta Advisors"},
+        "dup": {"cik": 1, "confidence": "high", "confirmed": True, "rejected": False, "manager": "Acme Trust"},
+    }
+    ciks = sorted(f["cik"] for f in FM.eligible_firms())
+    # high (acme) + confirmed (delta); review(beta) & rejected(gamma) excluded; CIK 1 deduped
+    assert ciks == [1, 4]
+
+
 def test_pm_window_bounds_to_named_section():
     head = "Fees and expenses. " * 400
     body = ("The Fund is managed by a team which consists of Dana K. Reeves, who has served as a "
