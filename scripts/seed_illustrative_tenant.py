@@ -210,6 +210,33 @@ PEER_OWNERS = [
     ("Thames Meridian Asset Mgmt",   "LONDON",        "X0", "PYRA",  6_700_000, 1_900_000_000, 268),
     ("Cheapside Row Capital",        "LONDON",        "X0", "CLRT",  4_500_000,   910_000_000, 140),
     ("Kingsway Bay Capital",         "TORONTO",       "A6", "VNTG",  5_100_000,   980_000_000, 142),
+
+    # ── Philadelphia / Main Line corridor — the roadshow IRconnect recommends (Big Picture "Top
+    # opportunity"). Each owns ALL THREE tight comps (PYRA/CLRT/VNTG) at high concentration in a
+    # focused book → Tier-1 conviction (~91), and the suburbs (Berwyn/Radnor/Conshohocken) fold into
+    # the Philadelphia ~60-mile metro — so one click surfaces the whole corridor. Powers the
+    # "plan an NDR on day one" demo; keep these together. See [[illustrative-demo-tenant]].
+    ("Cooke & Bieler L.P.",              "PHILADELPHIA",  "PA", "PYRA", 55_000_000, 1_050_000_000, 16),
+    ("Cooke & Bieler L.P.",              "PHILADELPHIA",  "PA", "CLRT", 54_000_000, 1_050_000_000, 16),
+    ("Cooke & Bieler L.P.",              "PHILADELPHIA",  "PA", "VNTG", 53_000_000, 1_050_000_000, 16),
+    ("Penn Capital Management",          "PHILADELPHIA",  "PA", "PYRA", 52_000_000, 1_100_000_000, 18),
+    ("Penn Capital Management",          "PHILADELPHIA",  "PA", "CLRT", 51_000_000, 1_100_000_000, 18),
+    ("Penn Capital Management",          "PHILADELPHIA",  "PA", "VNTG", 50_000_000, 1_100_000_000, 18),
+    ("Chartwell Investment Partners",    "BERWYN",        "PA", "PYRA", 49_000_000, 1_150_000_000, 19),
+    ("Chartwell Investment Partners",    "BERWYN",        "PA", "CLRT", 48_000_000, 1_150_000_000, 19),
+    ("Chartwell Investment Partners",    "BERWYN",        "PA", "VNTG", 47_000_000, 1_150_000_000, 19),
+    ("Glenmede Investment Management",   "PHILADELPHIA",  "PA", "PYRA", 46_000_000, 1_200_000_000, 20),
+    ("Glenmede Investment Management",   "PHILADELPHIA",  "PA", "CLRT", 45_000_000, 1_200_000_000, 20),
+    ("Glenmede Investment Management",   "PHILADELPHIA",  "PA", "VNTG", 44_000_000, 1_200_000_000, 20),
+    ("Conestoga Capital Advisors",       "RADNOR",        "PA", "PYRA", 43_000_000, 1_050_000_000, 17),
+    ("Conestoga Capital Advisors",       "RADNOR",        "PA", "CLRT", 42_000_000, 1_050_000_000, 17),
+    ("Conestoga Capital Advisors",       "RADNOR",        "PA", "VNTG", 41_000_000, 1_050_000_000, 17),
+    ("Brandywine Global Investment Mgmt","PHILADELPHIA",  "PA", "PYRA", 40_000_000, 1_250_000_000, 22),
+    ("Brandywine Global Investment Mgmt","PHILADELPHIA",  "PA", "CLRT", 39_000_000, 1_250_000_000, 22),
+    ("Brandywine Global Investment Mgmt","PHILADELPHIA",  "PA", "VNTG", 38_000_000, 1_250_000_000, 22),
+    ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "PYRA", 37_000_000, 1_300_000_000, 24),
+    ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "CLRT", 36_000_000, 1_300_000_000, 24),
+    ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "VNTG", 35_000_000, 1_300_000_000, 24),
 ]
 
 
@@ -375,8 +402,9 @@ def seed():
         ("Marta Reyes",    "Denby Securities",   "Boston",      "Boston, MA",
          "Marta is bringing two institutional accounts through Boston and wants to add an NLKP "
          "management meeting to that itinerary.", 4),
-        ("Owen Pike",      "Westmark Partners",  "Minneapolis", "Minneapolis-St. Paul, MN",
-         "Owen is hosting a small-cap fintech lunch and has asked for the CFO on the panel.", 9),
+        ("Owen Pike",      "Westmark Partners",  "Philadelphia", "Philadelphia, PA",
+         "Owen wants to introduce two Philadelphia value accounts post-print — lines up with the "
+         "corridor's Tier-1 non-holders (see the Philadelphia peer-owner block).", 9),
     ]
     db.save_json("ndr_requests.json", [
         {"id": f"req-{i+1}", "analyst": a, "firm": f, "city": c, "metro": m, "reason": why,
