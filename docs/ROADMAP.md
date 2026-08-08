@@ -4,9 +4,17 @@
 > Near-term roadmap for the Praxis Point IR platform after the 2026-07-15 demo. Entries are
 > reverse-chronological (newest first). `[[name]]` markers reference related working-memory notes.
 >
-> _Last synced from memory: 2026-08-07._
+> _Last synced from memory: 2026-08-08._
 
 ---
+
+## 2026-08-08 — Shared type scale (retires the zoom-only lever) — DONE (commit de297be)
+
+The durable fix flagged in the canvas-rebalance note. The app had **no shared type scale** — 1,327 inline `font-size:Npx` across 14 files, 18 distinct values (9–26px). Consolidated to **11 `--fs-*` CSS custom properties on `:root`** (in the plain-string `<style>` block near `.emph-15` in app_nicegui.py); the existing `.t-*` classes now reference them, and every inline font-size was migrated to the matching `var(--fs-*)` (one-shot regex script, scratchpad — not committed). **Single source of truth: the whole app's type retunes from ~11 vars.** Erred UP per the user: each old cluster → top of its band, so small/body text gains ~1px (body 12→13, meta 11→12, fine 10→11, footnote 9→10), display sizes lift slightly for proportion; nests on the desktop `.app-content` 1.08 zoom. Scale: micro 10 / 2xs 11 / xs 12 / sm 13 (body) / base 14 / md 15 / lg 17 (section head) / xl 19 (metric value) / 2xl 21 (heading) / 3xl 23 / hero 26. Verified: 0 render failures across 44 combos + 68 lazy tabs; live-checked the dense pages (Markets consensus matrix, Investors Target Database) — no overflow. Suite 176. To resize the app now: edit the `:root{--fs-*}` block, not call sites. Minor cosmetic: Today "Key market metrics" section-head now wraps to 2 lines (17px) — tune `--fs-lg`→16 if unwanted. [[ui-design-standard]] **Next pre-launch (user's order): (1) type scale ✓; then UI capability-highlighting pass; Fund-lineup Confirm UI; Contact-pipeline Phase 2; sales-pipeline polish; SARO holder-move re-prepare; Lighthouse diagnostics-into-expander. User-side blockers: rotate Neon password, NOBO/Broadridge uploads (post Aug 12), engagement/billing terms, delete leftover Zoho test emails.**
+
+## 2026-08-08 — Persona persistence + greeting-follows-persona + demo model preview/seeder
+
+(1) **Greeting follows persona (commit 0e952aa):** Today greeting now names the selected "Logged in as" persona (role_roster + `ui_context.current_role()`), not the signed-in account — Priya Raman — CFO reads "Good morning, Priya." (2) **Persona persists (commit 44714b6):** the role picker was ephemeral (reset on restart); now saved to `app.storage.user["active_role"]` on change + restored at page init, validated against the client's roster. **Per-browser** (storage cookie) — the user's Chrome and my in-app Browser pane are separate stores, so each must set it once. (3) **IR-Inbox model demo (commits d9958cf, ffe13e7, fddb31e):** clicking a parsed attachment now opens an **in-app preview** (`investors_page._open_attachment_preview` — xlsx→HTML table, PDF inline, text as text) instead of a raw binary download that opened as Notepad mojibake; the clean model generator lives in **`core/demo_model.py`**, wired into the seeder (`seed_inbox_model`) + a standalone `scripts/build_demo_model.py`; `documents.update_document_bytes` added. **Seeder now UTF-8-forces stdout** (was crashing on cp1252 console at the `→` prints). Full reseed runs end-to-end; suite 176.
 
 ## 2026-08-07 — UX/navigation audit + P1 quick wins — DONE (commit bb0778a)
 
