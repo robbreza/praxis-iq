@@ -105,3 +105,26 @@ def test_summary_counts(mem_db):
     s = sp.summary()
     assert s["total"] == 2 and s["open"] == 1 and s["won"] == 1
     assert s["by_stage"]["identified"] == 1 and s["by_stage"]["won"] == 1
+
+
+def test_lead_notes_timeline(mem_db):
+    lead = sp.add_outbound(_enrich())
+    lid = lead["id"]
+    assert sp.add_lead_note(lid, "  ") is None                 # blank ignored
+    sp.add_lead_note(lid, "Left a voicemail", by="Rob")
+    sp.add_lead_note(lid, "Sent the deck")
+    notes = sp.lead_notes(lid)
+    assert [n["text"] for n in notes] == ["Sent the deck", "Left a voicemail"]   # newest first
+    assert notes[1]["by"] == "Rob"
+    assert sp.add_lead_note("out:NOPE", "x") is None            # missing lead
+
+
+def test_set_contact_persists_and_mirrors(mem_db):
+    lead = sp.add_outbound({"ticker": "MCHP", "company": "Microchip"})
+    lid = lead["id"]
+    c = sp.set_contact(lid, name="Sajid Daudi", title="Head of IR",
+                       email="ir@microchip.com", phone="480-555-0100", label="ir")
+    assert c["name"] == "Sajid Daudi" and c["phone"] == "480-555-0100" and c.get("enriched_at")
+    stored = sp._find(sp._load(), lid)
+    assert stored["contact"]["email"] == "ir@microchip.com"
+    assert stored["contact_name"] == "Sajid Daudi" and stored["email"] == "ir@microchip.com"  # mirrored

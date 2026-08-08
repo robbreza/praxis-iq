@@ -777,6 +777,45 @@ def _render_sales_pipeline_panel():
             f"background:{bg};color:{clr};font-size:var(--fs-micro);font-weight:800;letter-spacing:.04em;"
             "padding:2px 8px;border-radius:9px;")
 
+    def _open_lead_notes(lead):
+        """A lead's own notes timeline (core.sales_pipeline — stays in the pipeline, not the
+        buy-side house CRM) + an add-note field."""
+        lid = lead["id"]
+        dlg = ui.dialog()
+        with dlg, ui.card().classes("w-full").style("max-width:560px;"):
+            ui.label(f"Notes — {lead.get('company') or 'lead'}").classes("text-lg font-bold") \
+                .style(f"color:{COLORS['text_heading']};")
+            timeline = ui.column().classes("w-full").style("max-height:44vh;overflow:auto;gap:6px;")
+
+            def _paint():
+                timeline.clear()
+                notes = sp.lead_notes(lid)
+                with timeline:
+                    if not notes:
+                        ui.label("No notes yet.").style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                    for n in notes:
+                        with ui.element("div").style(
+                                f"border-left:2px solid {COLORS['border']};padding:1px 0 1px 9px;"):
+                            ui.label(n["text"]).style(
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);white-space:pre-wrap;")
+                            ui.label(f"{n['ts'][:16].replace('T', ' ')}"
+                                     + (f" · {n['by']}" if n.get("by") else "")).style(
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
+            _paint()
+            box_in = ui.textarea(placeholder="Add a note — call outcome, next step, context…").props(
+                "outlined autogrow dense").classes("w-full").style("font-size:var(--fs-sm);")
+
+            def _add():
+                if sp.add_lead_note(lid, box_in.value or ""):
+                    box_in.value = ""
+                    _paint()
+                    _render()                                    # refresh the card's note count
+            with ui.row().classes("w-full justify-end gap-2"):
+                ui.button("Add note", icon="add", on_click=_add).props("color=primary dense")
+                ui.button("Close", on_click=dlg.close).props("flat dense")
+        dlg.open()
+
     def _lead_card(lead, overdue):
         src = lead.get("source")
         border = "#B45309" if (src == "inbound" and lead.get("demo_request")) else (
@@ -839,6 +878,28 @@ def _render_sales_pipeline_panel():
                     ui.button("Onboard as client", icon="rocket_launch",
                               on_click=lambda lead=lead: _onboard_won_lead(lead)).props(
                         "dense").style("font-size:var(--fs-2xs);")
+                if lead.get("ticker") and not lead.get("contact_name"):
+                    async def _find_contact(lid=lead["id"], tk=lead["ticker"]):
+                        import asyncio
+                        from core import ir_contact
+                        ui.notify(f"Finding IR contact for {tk}…")
+                        e = await asyncio.to_thread(ir_contact.enrich, tk)
+                        if e and e.get("ir_name"):
+                            sp.set_contact(lid, name=e.get("ir_name"), title=e.get("ir_title"),
+                                           email=e.get("suggested_email"), phone=e.get("phone"),
+                                           label=e.get("ir_kind"),
+                                           extra={"ceo_name": e.get("ceo_name"), "website": e.get("website")})
+                            ui.notify(f"Found {e['ir_name']} — saved to the lead.", type="positive")
+                        else:
+                            ui.notify("No IR contact found for this ticker.", type="warning")
+                        _render()
+                    ui.button("Find IR contact", icon="person_search",
+                              on_click=_find_contact).props("flat dense").style(
+                        f"color:{COLORS['accent']};font-size:var(--fs-2xs);")
+                _ncnt = len(lead.get("notes_log") or [])
+                ui.button(f"Notes{f' ({_ncnt})' if _ncnt else ''}", icon="sticky_note_2",
+                          on_click=lambda lead=lead: _open_lead_notes(lead)).props(
+                    "flat dense").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-2xs);")
                 ui.button("Email", icon="send",
                           on_click=lambda lead=lead: _open_pipeline_email_dialog(lead, on_sent=_render)).props(
                     "flat dense").style(f"color:{COLORS['accent']};font-size:var(--fs-2xs);")

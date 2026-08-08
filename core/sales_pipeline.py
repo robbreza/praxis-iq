@@ -203,6 +203,56 @@ def set_owner(lid, owner):
     return lead
 
 
+def add_lead_note(lid, text, by=None, save=True):
+    """Append a free-text note to a lead's OWN notes timeline. Stays in the sales pipeline (these
+    are IRconnect-prospect notes) — deliberately NOT the buy-side house CRM. Newest first. Returns
+    the note dict, or None if the lead is missing or the text is blank."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    rows = _load()
+    lead = _find(rows, lid)
+    if lead is None:
+        return None
+    note = {"ts": _now(), "text": text, "by": by or None}
+    lead.setdefault("notes_log", []).insert(0, note)
+    if save:
+        _save(rows)
+    return note
+
+
+def lead_notes(lid):
+    """A lead's notes timeline (newest first), or []."""
+    lead = _find(_load(), lid)
+    return list(lead.get("notes_log") or []) if lead else []
+
+
+def set_contact(lid, name=None, title=None, email=None, phone=None, label=None,
+                extra=None, save=True):
+    """Persist a lead's IR decision-maker (from core.ir_contact.enrich) ONTO the lead row, so it's
+    not re-enriched every time the card opens. Fills only the fields provided; mirrors the headline
+    name/title/email onto the lead for the existing card displays. Returns the stored contact."""
+    rows = _load()
+    lead = _find(rows, lid)
+    if lead is None:
+        return None
+    c = dict(lead.get("contact") or {})
+    for k, v in (("name", name), ("title", title), ("email", email),
+                 ("phone", phone), ("label", label)):
+        if v:
+            c[k] = v
+    if extra:
+        c.update({k: v for k, v in extra.items() if v})
+    c["enriched_at"] = _now()
+    lead["contact"] = c
+    lead["contact_name"] = lead.get("contact_name") or name
+    lead["contact_title"] = lead.get("contact_title") or title
+    lead["email"] = lead.get("email") or email
+    if save:
+        _save(rows)
+    return c
+
+
 def ingest_inbound(save=True):
     """Fold identified praxispointir.com visitors (core.web_ingest / web_flow) into the pipeline
     as INBOUND leads. Idempotent: an existing lead keeps its stage/activity, only facts refresh.
