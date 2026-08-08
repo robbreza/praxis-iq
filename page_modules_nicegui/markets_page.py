@@ -617,10 +617,17 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
 
 
 def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighted_analyst=None):
+    from page_modules_nicegui.signals import capability_banner
     last_price = _last_price()
 
-    ui.label("Street Consensus Matrix").classes("text-lg font-bold")
-    ui.label("Estimate horizon — where is the risk?").classes("font-bold").style("margin-top:8px;")
+    # Signature capability: this consensus is MANUFACTURED (analyst estimates collected + composed
+    # here), not a licensed third-party feed — the platform's single strongest wedge. Foreground it.
+    capability_banner(
+        "Consensus you build, not license",
+        "Composed here from your covering analysts' own estimates — requests sent, responses "
+        "collected, consensus and price target manufactured first-party. Not a licensed feed.",
+        tag="Proprietary consensus")
+    ui.label("Estimate horizon — where is the risk?").classes("font-bold").style("margin-top:12px;")
     ui.html(
         "Street = analyst consensus · Guidance = management's own number. "
         "<b style='color:#B45309;'>Beat bar</b> = Street above guide (you must beat your own guide to meet the Street) · "

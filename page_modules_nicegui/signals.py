@@ -15,6 +15,9 @@ from config.theme_tokens import ACTIVE as COLORS
 
 _AMBER = "#B45309"
 _AMBER_BG = "rgba(180,83,9,.07)"
+# Accent (indigo) wash for the signature-capability banner — a distinct register from amber/status.
+_ACCENT_WASH = "rgba(30,64,175,.05)"
+_ACCENT_BORDER = "rgba(30,64,175,.20)"
 
 
 def waiting_signal(what, detail=None, unlocks=None, compact=False):
@@ -38,6 +41,35 @@ def waiting_signal(what, detail=None, unlocks=None, compact=False):
         if unlocks:
             ui.label(f"Unlocks: {unlocks}").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-style:italic;")
+
+
+def capability_banner(title, why, *, tag="IRconnect capability", icon="◆", compact=False):
+    """Elevate a SIGNATURE, LIVE capability in a page's hierarchy so it reads as a platform
+    strength at a glance — not commodity data sitting flat among equal-weight cards. The accent
+    left-rail + subtle indigo wash is a distinct register from the amber `waiting_signal` and the
+    green/red status colours, reserved for the real differentiators (proprietary consensus, "why
+    is the stock moving" attribution, analyst tone-shift, 13F holder-flow targeting, the risk
+    dashboard). ONLY use for capabilities that actually run live — never for wired-not-live features.
+
+      title  — the capability, in plain buyer vocabulary ("Consensus you build, not license").
+      why    — one line on WHAT makes it differentiated / how it's produced.
+      tag    — the small eyebrow marker (kept consistent app-wide).
+    """
+    with ui.element("div").classes("w-full").style(
+            f"background:{_ACCENT_WASH};border:1px solid {_ACCENT_BORDER};"
+            f"border-left:4px solid {COLORS['accent']};border-radius:8px;"
+            f"padding:{'8px 12px' if compact else '11px 15px'};"):
+        with ui.row().classes("items-center").style("gap:6px;margin-bottom:2px;"):
+            ui.label(icon).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);line-height:1;")
+            ui.label(tag.upper()).style(
+                f"color:{COLORS['accent']};font-size:var(--fs-2xs);font-weight:700;"
+                "text-transform:uppercase;letter-spacing:.08em;")
+        ui.label(title).style(
+            f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;"
+            "letter-spacing:-.01em;line-height:1.2;")
+        if why:
+            ui.label(why).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);"
+                                "line-height:1.45;margin-top:1px;")
 
 
 def fallback_banner():
