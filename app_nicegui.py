@@ -1946,7 +1946,7 @@ ui.add_head_html(
     # Dashboard section container: a grounded white panel (border + radius + soft shadow) so a
     # section's heading and its contents read as one card instead of floating loose on the canvas.
     # The light-grey inner tiles (#EEF2F7) nest cleanly inside it.
-    ".today-panel{background:#FFFFFF;border:1px solid #D3DBE4;border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}"
+    ".today-panel{background:#FFFFFF;border:1px solid #C2CCD9;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);}"
     # Chevrons were near-white and vanished into the background: force the select dropdown arrow
     # and the expansion toggle to a clear grey so they read as affordances.
     ".q-select__dropdown-icon{color:#64748B !important;}"
