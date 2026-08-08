@@ -1114,7 +1114,16 @@ def main_page(request: Request = None):
                 try:
                     module = importlib.import_module(module_path)
                     render_fn_name = f"render_{state['page'].lower()}_page"
-                    getattr(module, render_fn_name)()
+                    _render_fn = getattr(module, render_fn_name)
+                    # Today is magnified ~15% as a whole page (header, hero, top story and every
+                    # dashboard section together) via one width-compensated .emph-15 wrapper —
+                    # zoom:1.15 + width:calc(100%/1.15) so it stays one content-width wide (no
+                    # horizontal scroll) and nests on the desktop .app-content 1.08 magnify.
+                    if state["page"] == "Today":
+                        with ui.element("div").classes("emph-15"):
+                            _render_fn()
+                    else:
+                        _render_fn()
                 except Exception:
                     # A page that throws while rendering used to just leave
                     # the user staring at a blank/half-cleared screen — the
