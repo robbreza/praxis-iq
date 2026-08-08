@@ -184,7 +184,7 @@ def _save_json(name, data):
 # hardcoded absolute dates), so they never render as literally impossible.
 # ─────────────────────────────────────────────────────────────────────────
 
-def _load_ndr_requests():
+def _load_ndr_requests(client_id=None):
     """This client's inbound NDR requests. EMPTY when none have been logged.
 
     There used to be a hardcoded fallback here — three invented requests naming real
@@ -195,12 +195,17 @@ def _load_ndr_requests():
     management" read "Respond to Barry Sine (Litchfield Hills Research)".
 
     That is the same trap load_meeting_log documents: a fabricated REQUEST asserts a
-    named person asked for something they didn't. An unworked request list is empty."""
-    return db.load_json("ndr_requests.json", default=[]) or []
+    named person asked for something they didn't. An unworked request list is empty.
+
+    Scope is EXPLICIT (client_id resolved here, not left to db's default) so a mis-bound
+    active-tenant ContextVar in a callback can't read another client's requests — the same
+    class of leak the hardcoded fallback above once caused."""
+    return db.load_json("ndr_requests.json", default=[],
+                        client_id=client_id or get_active_client_id()) or []
 
 
-def _save_ndr_requests(records):
-    db.save_json("ndr_requests.json", records)
+def _save_ndr_requests(records, client_id=None):
+    db.save_json("ndr_requests.json", records, client_id=client_id or get_active_client_id())
 
 
 def _mailto(to, subject, body, label):
