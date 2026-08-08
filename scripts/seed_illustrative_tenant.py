@@ -32,6 +32,14 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# The status prints below use Unicode (arrows, en-dashes); the default Windows console is cp1252
+# and raises UnicodeEncodeError on them. Force UTF-8 output so the seeder runs on any console.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from core.security import load_environment  # noqa: E402
 
 load_environment()
