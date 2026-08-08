@@ -1046,7 +1046,17 @@ def main_page(request: Request = None):
     # "expanded" is the SET of sections whose sub-items are shown. Multiple can be open at once
     # (the audit's P3: an accordion that collapses the rest hides the whole map on a wide desktop).
     # The active page auto-expands; clicking an already-active section toggles it.
-    state = {"page": _landing, "role": DEFAULT_ROLE_KEY, "expanded": set(), "active_tab": None}
+    # Persona persists per-account (app.storage.user["active_role"]), same as the active tenant.
+    # Honour a saved persona only if the current client actually staffs it (role_keys vary per
+    # tenant); otherwise fall back to the default so a stale/cross-tenant role can't stick.
+    _role = DEFAULT_ROLE_KEY
+    try:
+        _saved_role = app.storage.user.get("active_role")
+        if _saved_role and _saved_role in {r["role_key"] for r in role_roster()}:
+            _role = _saved_role
+    except Exception:
+        _role = DEFAULT_ROLE_KEY
+    state = {"page": _landing, "role": _role, "expanded": set(), "active_tab": None}
     # Auto-expand the landing page's own section so its sub-items show immediately (e.g. a deep
     # link to /?page=Investors opens with its rail already visible).
     if NAV_SUBITEMS.get(_landing):
@@ -1194,6 +1204,12 @@ def main_page(request: Request = None):
 
     def _on_role_change(e):
         state["role"] = e.value
+        # Persist the chosen persona per-account (same store as the active tenant) so it
+        # survives restarts and new tabs — validated against the client's roster on reload.
+        try:
+            app.storage.user["active_role"] = e.value
+        except Exception:
+            pass
         # If the current page isn't allowed for the newly-selected role, jump
         # to the first page that role can view.
         if not role_can_view(state["role"], state["page"]):
