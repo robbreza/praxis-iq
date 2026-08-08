@@ -334,18 +334,28 @@ def render_today_page():
     td = datetime.now().strftime("%A, %B %d, %Y")
 
     ui.label(td).style(f"color:{COLORS['accent_light2']};text-transform:uppercase;letter-spacing:.08em;font-size:13px;")
-    # Greet the actual logged-in user — whoever is viewing (IR / CEO / CFO via the role selector),
-    # not a hardcoded exec. (This used to name USIO's CFO for one specific demo.) Falls back to a
-    # clean, name-less greeting when there's no session — e.g. the smoke renderer.
+    # Greet the persona currently selected in the "Logged in as" switcher (IR / CEO / CFO / CRO) so
+    # the picker and the greeting stay aligned — the person for that role comes from the client
+    # profile (role_roster), never a hardcoded name. Falls back to the signed-in account, then a
+    # clean name-less greeting when there's no session (e.g. the smoke renderer).
     first_name = ""
     try:
-        from nicegui import app as _app
-        from core import auth as _auth
-        _uid = _app.storage.user.get("user_id")
-        _u = _auth.get_user(_uid) if _uid else None
-        first_name = ((_u or {}).get("display_name") or "").split(" ")[0]
+        from config.client_config import role_roster as _rr
+        _role = ui_context.current_role()
+        _entry = next((r for r in _rr() if r.get("role_key") == _role), None)
+        if _entry and _entry.get("name"):
+            first_name = _entry["name"].split(" ")[0]
     except Exception:
         first_name = ""
+    if not first_name:
+        try:
+            from nicegui import app as _app
+            from core import auth as _auth
+            _uid = _app.storage.user.get("user_id")
+            _u = _auth.get_user(_uid) if _uid else None
+            first_name = ((_u or {}).get("display_name") or "").split(" ")[0]
+        except Exception:
+            first_name = ""
     ui.label(f"Good morning, {first_name}." if first_name else "Good morning.") \
         .classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
