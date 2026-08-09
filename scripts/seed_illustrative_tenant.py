@@ -380,6 +380,70 @@ def seed_ndr_replies(cid=CID):
     return len(queue)
 
 
+def seed_nobo(cid=CID):
+    """Seed TWO illustrative NOBO pulls (prior + current) so the NOBO Ownership report renders the
+    FULL engine — Institutional/Retail categorization, size sort + top-10 concentration + HHI, the
+    13D/G threshold bands, the tracked cross-reference, and the flow read (accumulate / distribute /
+    new / exited) between the two pulls (the 'compare'). Fictional beneficial owners: retail = made-up
+    individuals; institutional reuses the fictional tracked-13F names so the cross-reference lights up.
+    Demo tenant only (a real client must never see fabricated NOBO — see markets_page._render_nobo)."""
+    import copy
+    _cur = TODAY.strftime("%Y-%m-%d")
+    _pri = (TODAY - timedelta(days=91)).strftime("%Y-%m-%d")
+    def _h(name, typ, shares, city, st):
+        return {"name": name, "type": typ, "shares": shares, "city": city, "state": st}
+    # Institutional beneficial owners — a variety (custody/broker, bank trust, family office, RIAs,
+    # 401k trust) with a couple crossing the 13D/G thresholds; the first six reuse tracked-13F names.
+    inst = [
+        _h("Keystone Brokerage & Custody",   "Institutional", 1_650_000, "Philadelphia",   "PA"),  # >5% -> 13D/G
+        _h("Delaware Valley Trust Company",  "Institutional", 1_300_000, "Wilmington",     "DE"),  # ~4.6% -> watch
+        _h("Halewood Capital Management",    "Institutional", 1_100_000, "New York",       "NY"),  # tracked
+        _h("Fairmount Ridge Capital",        "Institutional",   640_000, "Philadelphia",   "PA"),  # tracked
+        _h("Windgate Asset Management",      "Institutional",   520_000, "Milwaukee",      "WI"),  # tracked
+        _h("Brentmoor Capital Management",   "Institutional",   430_000, "Boston",         "MA"),  # tracked
+        _h("Radnor Family Office LLC",       "Institutional",   380_000, "Radnor",         "PA"),
+        _h("Schuylkill Wealth Management",   "Institutional",   260_000, "Bala Cynwyd",    "PA"),
+        _h("Liberty Bell Advisors",          "Institutional",   210_000, "Philadelphia",   "PA"),  # NEW this pull
+        _h("Cascade Employee 401(k) Trust",  "Institutional",   175_000, "Denver",         "CO"),
+        _h("Main Line Wealth Advisors",      "Institutional",   150_000, "Radnor",         "PA"),
+        _h("Conshohocken Capital Partners",  "Institutional",   120_000, "Conshohocken",   "PA"),
+    ]
+    # Retail beneficial owners — a long tail of made-up individuals (broad, sticky float), varied geo.
+    _ret = [
+        ("Robert A. Chen", 82_000, "Wayne", "PA"), ("Margaret S. Whitfield", 54_000, "Villanova", "PA"),
+        ("James P. Delgado", 38_000, "Philadelphia", "PA"), ("Patricia Nowak", 31_000, "Berwyn", "PA"),
+        ("David R. Feldman", 27_500, "Cherry Hill", "NJ"), ("Susan M. Bianchi", 22_000, "Malvern", "PA"),
+        ("Thomas O'Rourke", 19_800, "King of Prussia", "PA"), ("Angela Reyes", 16_400, "Media", "PA"),
+        ("Kevin Zhao", 14_200, "Princeton", "NJ"), ("Barbara Klein", 12_900, "Doylestown", "PA"),
+        ("Michael Sanders", 11_300, "Wilmington", "DE"), ("Jennifer Alvarez", 9_800, "West Chester", "PA"),
+        ("Richard Boyle", 8_600, "Lancaster", "PA"), ("Nancy Whitman", 7_400, "Newtown", "PA"),
+        ("Paul Genovese", 6_200, "Haddonfield", "NJ"), ("Karen Fitzpatrick", 5_500, "Ardmore", "PA"),
+        ("Steven Park", 4_800, "Conshohocken", "PA"), ("Donna Russo", 4_100, "Phoenixville", "PA"),
+        ("Gregory Hahn", 3_600, "Wayne", "PA"), ("Michelle Carter", 3_050, "Chester", "PA"),
+        ("Andrew Meyer", 2_700, "Reading", "PA"), ("Laura Simmons", 2_300, "Doylestown", "PA"),
+        ("Brian Kelly", 1_900, "Trenton", "NJ"), ("Emily Watson", 1_500, "Norristown", "PA"),
+        ("Frank DiNardo", 1_150, "Camden", "NJ"), ("Rachel Green", 900, "Allentown", "PA"),
+    ]
+    current = inst + [_h(n, "Retail", s, c, st) for (n, s, c, st) in _ret]
+    # PRIOR pull — same base with deltas so the flow read tells a story vs current:
+    #   accumulators (prior had fewer), distributors (prior had more), NEW (absent in prior),
+    #   EXITED (present in prior only).
+    _acc  = {"Keystone Brokerage & Custody": 250_000, "Radnor Family Office LLC": 80_000, "Robert A. Chen": 12_000}
+    _dist = {"Halewood Capital Management": 150_000, "Brentmoor Capital Management": 70_000}
+    _new  = {"Liberty Bell Advisors", "Margaret S. Whitfield"}          # in current, not prior
+    prior = [copy.deepcopy(h) for h in current if h["name"] not in _new]
+    for h in prior:
+        if h["name"] in _acc:  h["shares"] -= _acc[h["name"]]
+        if h["name"] in _dist: h["shares"] += _dist[h["name"]]
+    prior += [_h("Northgate Meridian Capital", "Institutional", 240_000, "Denver", "CO"),   # exited (tracked)
+              _h("Edwin R. Kowalski", "Retail", 21_000, "Cherry Hill", "NJ")]                # exited (retail)
+    store = {"shares_outstanding": 28_400_000,
+             "pulls": [{"record_date": _pri, "holders": prior},
+                       {"record_date": _cur, "holders": current}]}
+    db.save_json("nobo_pulls.json", store, client_id=cid)
+    return len(current), len(prior)
+
+
 def seed():
     # 1. Register the tenant
     client_store.upsert_client(CID, RECORD, active=True, merge=False)
@@ -987,6 +1051,9 @@ That concludes today's question-and-answer session. Thank you for joining.
     print(f"[demo] seeded 1 pending analyst-model inbox item + document ({demo_model.FILENAME})")
     seed_ndr_replies(CID)
     print("[demo] seeded 3 filed NDR-invite replies in the IR Inbox (confirm / reschedule / pass)")
+    _n_cur, _n_pri = seed_nobo(CID)
+    print(f"[demo] seeded 2 NOBO pulls (current {_n_cur} holders, prior {_n_pri}) — inst/retail mix, "
+          "13D/G thresholds, tracked cross-ref, and flow for the compare")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
