@@ -1380,9 +1380,9 @@ def render_investors_page():
         # the on-screen order changed). See NAV_SUBGROUPS / NAV_SUBITEMS["Investors"].
         # ── Ownership — who owns the stock
         # (SEC Intelligence moved to Settings — it's a data-audit view, not a targeting workflow.)
-        t1 = ui.tab("Buy-Side Intelligence")
+        t1 = ui.tab("Buyside Ownership")
         t6 = ui.tab("NOBO Ownership")
-        t9 = ui.tab("Website")
+        t9 = ui.tab("Website Ownership")
         # ── Targeting — who should own it
         t4 = ui.tab("Target Database")
         t7 = ui.tab("Peer Prospects")
@@ -1620,7 +1620,7 @@ def _render_web_flow_tab(client_id):
     from core import web_flow
     from page_modules_nicegui.signals import waiting_signal
 
-    ui.label("Website Engagement").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+    ui.label("Website Ownership").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Who comes to your IR site — and whether they DOWNLOAD material (deck, model, filings) or "
              "just READ. A download is a far stronger buy-side intent signal than a page skim, so the two "
              "are scored separately.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
@@ -1932,7 +1932,7 @@ def _render_peer_prospects_tab(client_id):
     # Buy-Side Intelligence — no duplicate here. The conviction-ranked prospects below feed the
     # same NDR pipeline.
     ui.label("📍 Roadshow metro view — with click-a-metro → select → Add to NDR — now lives in "
-             "Buy-Side Intelligence → “Where they are”. The conviction-ranked prospects below feed the "
+             "Buyside Ownership → “Where they are”. The conviction-ranked prospects below feed the "
              "same pipeline.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);background:{COLORS['surface_hover_bg']};"
         "border-radius:8px;padding:8px 10px;")
@@ -3474,10 +3474,10 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     contacts = get_institution_contacts()
 
     if mode == "pre":
-        ui.label("Buy-Side Intelligence — Pre-Earnings Engagement").classes("text-lg font-bold")
+        ui.label("Buyside Ownership — Pre-Earnings Engagement").classes("text-lg font-bold")
         ui.label("Three-layer institutional targeting · Engagement score 0-100 · Prioritized by probability of buying into the re-rating story").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     else:
-        ui.label("Buy-Side Intelligence — Post-Earnings Prospecting").classes("text-lg font-bold")
+        ui.label("Buyside Ownership — Post-Earnings Prospecting").classes("text-lg font-bold")
         ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     tier1 = [i for i in institutions if _score_val(i) >= 80]
@@ -4606,7 +4606,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
             # redundancy flagged in review). The per-card status dropdown graduates a trip to Completed.
             _active_idxs = {i for i, t in enumerate(trips) if t.get("status") != "Completed"}
             if not _active_idxs:
-                ui.label("No active NDRs. Plan one from the metro table (Buy-Side Intelligence → click a "
+                ui.label("No active NDRs. Plan one from the metro table (Buyside Ownership → click a "
                          "metro), or review finished roadshows under Post-NDR Debrief.").style(
                     f"color:{COLORS['text_muted']};")
             status_options = ["scheduled", "completed", "cancelled", "no-show"]

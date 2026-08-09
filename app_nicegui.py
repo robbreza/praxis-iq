@@ -183,7 +183,7 @@ NAV_SUBITEMS = {
     # Investor Targeting's 10 destinations, grouped by INTENT (see NAV_SUBGROUPS below) — the flat
     # order here IS the group order, and must match the page's tab strip order (guarded by
     # tests/test_nav_subitems.py).
-    "Investors": ["Buy-Side Intelligence", "NOBO Ownership", "Website",
+    "Investors": ["Buyside Ownership", "NOBO Ownership", "Website Ownership",
                   "Target Database", "Peer Prospects", "Import list",
                   "NDR Planner", "Meeting Hub", "Accounts (CRM)"],
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
@@ -204,7 +204,7 @@ NAV_SUBITEMS = {
 # groups here MUST equal its NAV_SUBITEMS list, in order (asserted by tests/test_nav_subitems.py).
 NAV_SUBGROUPS = {
     "Investors": [
-        ("Ownership",  "who owns the stock", ["Buy-Side Intelligence", "NOBO Ownership", "Website"]),
+        ("Ownership",  "who owns the stock", ["Buyside Ownership", "NOBO Ownership", "Website Ownership"]),
         ("Targeting",  "who should own it",  ["Target Database", "Peer Prospects", "Import list"]),
         ("Engagement", "reach & track",      ["NDR Planner", "Meeting Hub", "Accounts (CRM)"]),
     ],
