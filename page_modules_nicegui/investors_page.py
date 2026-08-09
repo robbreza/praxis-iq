@@ -4675,6 +4675,18 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
     with ui.tab_panels(ndr_tabs, value=(nt2 if _open_ndrs else nt1)).classes("w-full"):
         with ui.tab_panel(nt1):
             ui.label("Plan a New Non-Deal Roadshow").classes("font-bold")
+            # Start from real demand: pick an inbound request (sponsoring bank · city) and it prefills
+            # the name, sponsoring bank and city — instead of opening on a blank name field. You can
+            # still start blank and type everything by hand.
+            _plan_open_reqs = [r for r in _load_ndr_requests() if not r.get("resolved")]
+            _req_pick = None
+            if _plan_open_reqs:
+                _rp_opts = {"": "— start blank —"}
+                for _r in _plan_open_reqs:
+                    _rp_opts[_r["id"]] = f"{_r.get('firm', '')} · {_r.get('city', '')} — {_r.get('analyst', '')}"
+                _req_pick = ui.select(
+                    _rp_opts, value="",
+                    label="Start from an inbound request (sponsoring bank · city)").classes("w-full").props("outlined")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
                     name_in = ui.input("NDR name / label", placeholder="Post-Q2 Boston NDR").classes("w-full")
@@ -4723,6 +4735,17 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     # just yields no auto-suggested targets.
                     city_in = ui.input("City / Region", placeholder="Type a city, or pick a tracked metro",
                                        autocomplete=_ndr_location_options(institutions)).classes("w-full")
+                    # Wire the request picker (created above) now that the fields it fills exist.
+                    if _req_pick is not None:
+                        def _prefill_from_req():
+                            _r = next((x for x in _plan_open_reqs if x["id"] == _req_pick.value), None)
+                            if not _r:
+                                return
+                            sponsor_in.value = _r.get("firm", "")
+                            city_in.value = _r.get("metro") or _r.get("city", "")
+                            name_in.value = (f"{_r.get('city', '')} NDR — {_r.get('firm', '')}").strip(" —")
+                            ui.notify(f"Prefilled from {_r.get('analyst', '')}'s request — adjust as needed.")
+                        _req_pick.on_value_change(lambda: _prefill_from_req())
                 with ui.column().classes("flex-1"):
                     # Contextual default: follow the active engagement mode (Pre-/Post-earnings)
                     # instead of a fixed "Post-earnings" that fought the current context.
@@ -5609,6 +5632,40 @@ def _render_ndr_requests_tab():
     open_reqs = [r for r in reqs if not r.get("resolved")]
     resolved_reqs = [r for r in reqs if r.get("resolved")]
 
+    # Rank by the request date — the ones that came in earliest (aging longest on the desk) sort to
+    # the top, so the most overdue demand is what you see first. Undated requests fall to the bottom.
+    def _req_date(r):
+        try:
+            return datetime.strptime(r.get("received", ""), "%b %d, %Y")
+        except Exception:
+            return datetime.max
+    open_reqs.sort(key=_req_date)
+
+    # Cross-reference open NDR trips: a request whose city is already being worked reads "IN PROGRESS"
+    # (with the trip name) rather than counting as untouched open demand.
+    _open_trips = [t for t in _load_json("ndr_trips.json", []) if t.get("status") != "Completed"]
+
+    def _matching_trip(r):
+        _keys = {(r.get("metro") or "").strip().lower(), (r.get("city") or "").strip().lower()} - {""}
+        for t in _open_trips:
+            _tk = {(t.get("metro") or "").strip().lower(), (t.get("city") or "").strip().lower()} - {""}
+            if _keys & _tk:
+                return t
+            for a in _keys:
+                for b in _tk:
+                    if a and b and (a in b or b in a):
+                        return t
+        return None
+
+    def _req_email(r):
+        if r.get("analyst_email"):
+            return r["analyst_email"]
+        _nm = (r.get("analyst") or "").split()
+        _slug = "".join(ch for ch in (r.get("firm") or "").lower() if ch.isalnum()) or "firm"
+        if len(_nm) >= 2:
+            return f"{_nm[0].lower()}.{_nm[-1].lower()}@{_slug}.com"
+        return f"contact@{_slug}.com"
+
     ui.label(f"{len(open_reqs)} open request(s)").classes("font-bold")
     if not open_reqs:
         ui.label("No open requests.").style(f"color:{COLORS['text_muted']};")
@@ -5616,10 +5673,17 @@ def _render_ndr_requests_tab():
         from core import ndr_correspondence
         seed_tag = " · example" if r.get("seeded") else ""
         _replied = ndr_correspondence.status(r) == "replied"
+        _mt = _matching_trip(r)
+        _cap = f"Received {r['received']}" + (f"  ·  In progress — {_mt.get('name', 'NDR')}" if _mt else "")
         with ui.expansion(f"{r['analyst']} ({r['firm']}) → {r['city']}{seed_tag}",
-                          caption=f"Received {r['received']}").classes("w-full").style(
+                          caption=_cap).classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
             with ui.row().classes("items-center").style("gap:8px;"):
+                # An NDR already exists for this city → this is being worked, not untouched demand.
+                if _mt:
+                    ui.label(f"IN PROGRESS · {_mt.get('name', 'NDR')}").style(
+                        "background:rgba(30,64,175,.14);color:#1E40AF;font-size:var(--fs-micro);font-weight:800;"
+                        "padding:2px 8px;border-radius:9px;")
                 if _replied:
                     ui.label(f"REPLIED · {r.get('replied_at','')}").style(
                         "background:rgba(21,128,61,.14);color:#15803D;font-size:var(--fs-micro);font-weight:800;"
@@ -5628,7 +5692,25 @@ def _render_ndr_requests_tab():
                     ui.label("AWAITING REPLY").style(
                         "background:rgba(180,83,9,.14);color:#B45309;font-size:var(--fs-micro);font-weight:800;"
                         "padding:2px 8px;border-radius:9px;")
-            ui.label(r["reason"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+
+            # The original message, as it landed in the IR Inbox — so you can see the actual ask, not
+            # just a one-line summary.
+            with ui.card().classes("w-full").style(
+                    f"background:{COLORS['surface_hover_bg']};border-left:3px solid {COLORS['accent']};"
+                    "border-radius:6px;padding:8px 12px;gap:2px;margin-top:4px;"):
+                ui.label("FROM THE IR INBOX · NDR request").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;")
+                ui.label(f"From: {r['analyst']} <{_req_email(r)}>").style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
+                ui.label(f"Subject: {CT('ticker')} — management meeting request, {r['city']}").style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
+                ui.label(f"Received: {r['received']}").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                ui.label(r["reason"]).style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
+                ui.button("Open in IR Inbox", icon="inbox",
+                          on_click=lambda: nav.go_to("Inbox")).props("flat dense size=sm").style(
+                    f"color:{COLORS['accent']};align-self:flex-start;margin-top:2px;")
 
             # Correspondence trail — the sent (and any received) messages on this request.
             trail = ndr_correspondence.trail(r)
