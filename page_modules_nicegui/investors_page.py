@@ -1683,19 +1683,30 @@ def _render_web_flow_tab(client_id):
             ui.label(f"Source: {d['source']}.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;margin:2px 0 6px;")
 
+            # THE WEBSITE READ — plain-English BLUF (same callout as NOBO / Buyside / Big Picture).
+            _top_assets = ", ".join(a for a, _ in d["by_asset"][:2]) or "—"
+            _wread = [f"{d['download_pct']}% of visitors downloaded material — {d['n_downloaders']} of "
+                      f"{d['n_visitors']} orgs; the rest read pages without pulling anything."]
+            if d["hot_prospects"]:
+                _wread.append(f"{len(d['hot_prospects'])} hot prospect(s) pulled real diligence "
+                              f"(deck / model / filings) but don't own you yet — the sharpest targets here.")
+            if d["by_asset"]:
+                _wread.append(f"Downloads skew to the {_top_assets}.")
+            with ui.card().classes("w-full").style(
+                    "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+                    "border-radius:8px;margin-top:6px;"):
+                ui.label("THE WEBSITE READ — who's on your site and pulling material").style(
+                    "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
+                for _wp in _wread:
+                    ui.label("• " + _wp).style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
+
             with ui.row().classes("w-full gap-3").style("margin-top:8px;"):
                 _stat(d["n_visitors"], "Visitors", "orgs on the site")
                 _stat(d["n_downloaders"], "Downloaders", f"{d['download_pct']}% of visitors", "#15803D")
                 _stat(d["n_readers"], "Readers only", "browsed, no download")
                 _stat(d["total_downloads"], "Assets pulled", "total downloads")
                 _stat(len(d["hot_prospects"]), "Hot prospects", "non-holders pulling assets", "#B45309")
-
-            # The split, spelled out — the whole point of the view.
-            _top_assets = ", ".join(a for a, _ in d["by_asset"][:2]) or "—"
-            ui.label(f"{d['download_pct']}% of site visitors downloaded material — {d['n_downloaders']} of "
-                     f"{d['n_visitors']}. The rest read pages without pulling anything. Downloads skew to the "
-                     f"{_top_assets}.").style(
-                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;margin-top:10px;")
 
             if d["by_asset"]:
                 ui.label("Most-downloaded assets").classes("section-head").style("margin-top:12px;")

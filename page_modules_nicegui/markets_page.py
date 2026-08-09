@@ -1374,7 +1374,7 @@ def _render_nobo():
                     f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
         # Composition & concentration
-        ui.label("Composition & concentration").classes("font-bold").style("margin-top:10px;")
+        ui.label("Who owns you — the NOBO base").classes("font-bold").style("margin-top:10px;")
         _hhi_label = "diffuse" if cur["hhi"] < 1000 else ("moderate" if cur["hhi"] < 1800 else "concentrated")
         with ui.row().classes("w-full gap-3"):
             _metric("NOBO holders", f"{cur['n_holders']:,}", f"{cur['n_inst']} institutional · {cur['n_retail']:,} retail")
@@ -1404,7 +1404,7 @@ def _render_nobo():
             "</div>")
 
         # Two-pull flow — the deltas the CEO watches (only with a prior pull).
-        ui.label("Two-pull flow — who moved since the prior record date").classes("font-bold").style("margin-top:12px;")
+        ui.label("Who's moving — since the prior pull").classes("font-bold").style("margin-top:12px;")
         if not fl:
             ui.label("Only one pull loaded — upload an earlier NOBO pull below to unlock the flow read "
                      "(accumulators, distributors, new, and exited holders).").style(

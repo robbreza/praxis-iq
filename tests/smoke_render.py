@@ -51,13 +51,15 @@ from nicegui.page import page                                     # noqa: E402
 # rendered client surface is proof a demo fallback leaked:
 #   * "Perkins Investment Management" — demo fund; the real holder is "PERKINS CAPITAL MANAGEMENT INC"
 #   * "Rutabaga Capital"              — demo buyside seed fund; not a real holder in our data
-#   * "Ancora Advisors" / "Frederick DiSanto" — demo meeting-log entry + attendee
+#   * "Frederick DiSanto"             — demo meeting-log ATTENDEE (only appears via a meeting surface)
 #   * "Michael Perkins"               — demo contact; the real Perkins contact is "Richard Perkins"
 #   * "irconnect@usio.com" is NOT here — that's a real configured address, not demo.
+# NOT "Ancora Advisors": that is a REAL firm (Ancora Advisors LLC, CIK 1446114) that legitimately
+# surfaces as a real 13F peer-owner of real clients (saro holds HEI, which Ancora owns). Banning it
+# false-positived once the ownership summaries began ranking real peer-owners. Removed 2026-08-09.
 DEMO_TOKENS = [
     "Perkins Investment Management",
     "Rutabaga Capital",
-    "Ancora Advisors",
     "Frederick DiSanto",
     "Michael Perkins",
 ]
