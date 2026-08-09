@@ -1422,6 +1422,24 @@ def board_package_pdf(client_id=None):
         cells = []
         if bs_.get("holders") is not None:
             cells.append((str(bs_["holders"]), "13F institutions", "on file", INK))
+            # Peer-average holder count — a board-relevant breadth/stability signal (a broader base
+            # than peers is typically stickier). Fluctuates quarter to quarter. Same metric as the
+            # app's "Who owns you" card: institutional 13F holders across the tight comps.
+            try:
+                from config.client_config import get_active_client_id as _gac
+                from core import peer_prospects as _pp
+                from core import sec_filings as _sf
+                _pc = [len(_sf.get_cached_13f_holders(tk).get("holders", []) or [])
+                       for tk in (_pp.tight_comps(client_id or _gac()) or set())]
+                _pc = [c for c in _pc if c > 0]
+                _pa = round(sum(_pc) / len(_pc)) if _pc else None
+            except Exception:
+                _pa = None
+            if _pa:
+                _above = bs_["holders"] >= _pa
+                cells.append((str(_pa), "Peer avg (13F)",
+                              "above peers - stickier base" if _above else "below peers",
+                              GOOD if _above else colors.HexColor("#B45309")))
         if bs_.get("activists_recent") is not None:
             cells.append((str(bs_["activists_recent"]), "Schedule 13D",
                           f"last {bs_['window_days']//365}y ({bs_['activists_all_time']} all-time)",

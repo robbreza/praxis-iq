@@ -1382,6 +1382,21 @@ def _render_nobo():
             _metric("Institutional / retail", f"{cur['inst_pct']:.0f}% / {cur['retail_pct']:.0f}%", "of visible NOBO shares")
             _metric("Top-10 concentration", f"{cur['top10_pct']:.0f}%", f"HHI {cur['hhi']:.0f} · {_hhi_label}")
 
+        # Institutional base vs peers — the board-relevant breadth/stability signal (a broader base
+        # than peers is typically stickier). Uses the SAME peer-average as the Buyside "Who owns you"
+        # card: institutional 13F holders across the tight comps. Fluctuates quarter to quarter, so
+        # it's captured on the board report too (core.report_pdf).
+        from page_modules_nicegui.investors_page import _peer_holder_avg
+        from core import sec_filings as _sf
+        _company_h = len(_sf.get_cached_13f_holders(CT('ticker')).get("holders", []) or [])
+        _pa = _peer_holder_avg(cid)
+        if _pa and _company_h:
+            _rel = "above" if _company_h > _pa else ("below" if _company_h < _pa else "in line with")
+            ui.label(f"Institutional base: {_company_h} holders on 13F vs peer average {_pa} — {_rel} peers"
+                     + (" — a broader, historically stickier ownership base." if _company_h > _pa
+                        else (" — a narrower base; worth broadening." if _company_h < _pa else "."))).style(
+                f"color:{'#15803D' if _company_h >= _pa else '#B45309'};font-size:var(--fs-sm);font-weight:600;margin-top:6px;")
+
         # Coverage-of-float bar
         _visible = min(cur["nobo_pct_so"], 100)
         _rest = max(0, 100 - _visible)
