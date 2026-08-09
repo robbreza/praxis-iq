@@ -4595,7 +4595,8 @@ def _time_picker_input(label="Time", placeholder="e.g. 2:00 PM", value=""):
     return ti
 
 
-def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metro, on_added):
+def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metro, on_added,
+                             default_address=""):
     """Ask for a time (with a clock) before dropping an investor onto a trip,
     instead of the old silent time='—' quick-add. Captures day / time / format /
     optional address, and stashes the metro so the itinerary's travel calc can
@@ -4628,6 +4629,7 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
                                   value=("Zoom" if _is_ria_fund else "In-person"),
                                   label="Format").props("dense outlined").classes("w-32")
         address_in = ui.input("Address / location (optional — powers the travel calc)",
+                              value=default_address or "",
                               placeholder=f"street, {default_metro or 'city'}").classes("w-full")
         # Virtual meetings carry a join link that flows onto the itinerary. Shown
         # only when the format isn't in-person.
@@ -5045,12 +5047,34 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
 
                     meetings_with_idx = sorted(enumerate(all_meetings), key=lambda x: (x[1].get("day", 1), x[0]))
                     current_day = None
+                    _prev_m = None
+                    _leg_miles, _leg_count, _routed_count = 0.0, 0, 0
+                    try:
+                        from core import routing as _routing_mod
+                        _routing_on = _routing_mod.is_configured()
+                    except Exception:
+                        _routing_on = False
                     for flat_idx, m in meetings_with_idx:
                         d = m.get("day", 1)
                         if d != current_day:
                             current_day = d
+                            _prev_m = None   # the travel chain restarts each day
                             ui.label(f"Day {d}" if len(meetings_with_idx) and any(mm.get("day", 1) != 1 for _, mm in meetings_with_idx) else "Meetings").style(
                                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;margin-top:8px;")
+                        # Inline travel leg from the previous in-person stop — REAL routed driving
+                        # miles/time when both stops have a street address (OpenRouteService), else a
+                        # city-level estimate. This is the "allow time in the schedule" read, shown
+                        # right where you plan the day instead of only in the downloaded itinerary.
+                        if _prev_m is not None:
+                            _lg, _tight = _travel_leg_between(_prev_m, m, trip)
+                            if _lg:
+                                _leg_miles += _lg["miles"]; _leg_count += 1
+                                _routed_count += 1 if _lg.get("basis") == "routed" else 0
+                                with ui.row().classes("items-center gap-1").style("margin:0 0 2px 20px;"):
+                                    ui.icon("directions_car").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                                    ui.label(_lg["label"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                    if _tight:
+                                        ui.label("· " + _tight).style(f"color:#B45309;font-size:var(--fs-xs);font-weight:600;")
                         nh_badge = "" if m.get("non_holder", True) else ""
                         fmt_badge = "" if m.get("format") in ("Zoom", "Teams") else ""
                         with ui.row().classes("w-full items-center gap-2").style(
@@ -5247,6 +5271,15 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                     f"color:#B45309;font-size:var(--fs-xs);margin-left:6px;")
                         if m.get("notes"):
                             ui.label(f"   {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:6px;")
+                        _prev_m = m
+
+                    # Trip-level travel total — honestly labelled as routed (driving) vs city-level
+                    # straight-line, per _travel_total_line.
+                    _tl_line = _travel_total_line(_leg_miles, _leg_count, _routed_count, _routing_on)
+                    if _tl_line:
+                        with ui.row().classes("items-center gap-1").style("margin-top:6px;"):
+                            ui.icon("route").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
+                            ui.label(_tl_line).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-xs);font-weight:600;")
 
                     # Filler-meeting finder — a light day (like 3 meetings)
                     # is the IR person's cue to fill open slots. Rather than
@@ -5271,8 +5304,13 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                      f"{len(_all_cands) - _n_non} holder{'s' if (len(_all_cands) - _n_non) != 1 else ''}). "
                                      f"Call or email to invite, then add them to the trip.{_more}").style(
                                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                            # Street addresses (where available) so you can see WHERE each candidate is
+                            # before adding it — and so an added filler carries the address into the
+                            # itinerary's routed drive-time calc.
+                            _faddr = _load_json("fund_addresses.json", {}) or {}
                             for c in _fillers:
                                 cc = get_institution_contacts().get(c["Fund"], {})
+                                _c_addr = _faddr.get(c["Fund"], "")
                                 with ui.row().classes("w-full items-center gap-2").style(
                                         f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                                     _cs = _score_val(c)
@@ -5280,7 +5318,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-weight:700;width:34px;")
                                     with ui.column().classes("gap-0 flex-1"):
                                         ui.label(c["Fund"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
-                                        _bits = [c.get("Metro"), c.get("Type")]
+                                        _bits = [_c_addr or c.get("Metro"), c.get("Type")]
                                         if cc.get("name"):
                                             _bits.append(f"{cc['name']} ({cc.get('title', '')})")
                                         _bits.append(cc.get("phone") or "no contact on file")
@@ -5298,13 +5336,13 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                                 f"{CT('name')} management? Happy to work around your schedule.\n\n",
                                                 "Email")
 
-                                    def add_filler(c=c, cc=cc, idx=idx):
+                                    def add_filler(c=c, cc=cc, idx=idx, _addr=_c_addr):
                                         _open_add_to_trip_dialog(
                                             idx, c["Fund"],
                                             ", ".join(p for p in (cc.get("name"), cc.get("title")) if p),
                                             not c.get("USIO_Holder", False),
                                             c.get("Engagement_Score"), c.get("Metro"),
-                                            _active_ndrs_panel.refresh)
+                                            _active_ndrs_panel.refresh, default_address=_addr)
 
                                     ui.button("Add to trip", on_click=add_filler).props("flat dense color=primary")
 

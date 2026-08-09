@@ -212,6 +212,28 @@ HOLDER_PROFILES = {
     "Kirkstone Advisors":            ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
 }
 
+# Street addresses for the Philadelphia-corridor funds (13F filings don't carry a street address).
+# These let the NDR "fill open slots" rows show WHERE a candidate is, and — when one is added to the
+# trip — feed the itinerary's real routed driving-time calc (Philadelphia ↔ Main Line ↔ Conshohocken).
+# Written to fund_addresses.json and read by the Investor Targeting page.
+FUND_ADDRESSES = {
+    "Cooke & Bieler L.P.":               "2001 Market St, Philadelphia, PA 19103",
+    "Penn Capital Management":           "1200 Intrepid Ave, Philadelphia, PA 19112",
+    "Chartwell Investment Partners":     "1205 Westlakes Dr, Berwyn, PA 19312",
+    "Conestoga Capital Advisors":        "201 King of Prussia Rd, Radnor, PA 19087",
+    "Glenmede Investment Management":    "1650 Market St, Philadelphia, PA 19103",
+    "Brandywine Global Investment Mgmt": "1735 Market St, Philadelphia, PA 19103",
+    "abrdn Inc.":                        "1176 W Swedesford Rd, Conshohocken, PA 19428",
+    "Fairmount Ridge Capital":           "1818 Market St, Philadelphia, PA 19103",
+    "Schuylkill Row Advisors":           "100 N 18th St, Philadelphia, PA 19103",
+    "Rittenhouse Broad Market Advisors": "1 Logan Sq, Philadelphia, PA 19103",
+    "Main Line Wealth Advisors":         "150 N Radnor Chester Rd, Radnor, PA 19087",
+    "Rittenhouse Private Wealth":        "1919 Market St, Philadelphia, PA 19103",
+    "Conshohocken Wealth Partners":      "4 Tower Bridge, Conshohocken, PA 19428",
+    "Delaware Valley Financial Advisors":"1601 Cherry St, Philadelphia, PA 19102",
+    "Schuylkill Wealth Management":      "150 Monument Rd, Bala Cynwyd, PA 19004",
+}
+
 # Own a PEER but not NLKP → these are what the prospect engine surfaces, and what
 # fills the roadshow-metro map with non-holders.
 PEER_OWNERS = [
@@ -494,6 +516,11 @@ def seed():
                  {f: {"type": t, "turnover": tv, "ownership": o}
                   for f, (t, tv, o) in HOLDER_PROFILES.items()}, client_id=CID)
     print(f"[demo] seeded type/turnover profiles for {len(HOLDER_PROFILES)} holders")
+
+    # Street addresses for the Philadelphia-corridor funds — powers the NDR fill-slot location read
+    # and the itinerary's routed driving time when a filler is added to the trip.
+    db.save_json("fund_addresses.json", FUND_ADDRESSES, client_id=CID)
+    print(f"[demo] seeded street addresses for {len(FUND_ADDRESSES)} corridor funds")
 
     # 3. Peer books (drives Peer Prospects + the non-holder side of the metro map)
     by_peer = {}
