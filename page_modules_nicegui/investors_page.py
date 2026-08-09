@@ -2844,12 +2844,6 @@ def _render_big_picture(institutions):
     # quiet-period banner is the correct pattern if a countdown is wanted again: it
     # renders only when a quiet_start exists AND the count is positive.
 
-    from page_modules_nicegui.signals import capability_banner
-    capability_banner(
-        "Who owns you, who should, and where they are",
-        "Every institution's stake tracked from SEC 13F filings quarter over quarter; funds that "
-        "own your peers but not you surfaced as targets, clustered by roadshow metro.",
-        tag="Live 13F targeting")
     ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:12px;")
 
     # THE IR READ — a plain-English BLUF up top (same pattern as NOBO's CEO read), built from the
@@ -2865,6 +2859,7 @@ def _render_big_picture(institutions):
         _bp_targets = []
     _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
     _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
+    _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
     _ir_read = []
     _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
            if top_metro_request else "")
@@ -2881,8 +2876,8 @@ def _render_big_picture(institutions):
             f"{len(_new_pos)} new 13F position(s) entered the book this cycle ({_nm}"
             f"{' …' if len(_new_pos) > 3 else ''}) — new money to engage early.")
     _ir_read.append(
-        f"Ownership is weighted {new_pct}% prospective / {100 - new_pct}% existing — {mix_label.lower()}; "
-        f"{holder_count} holder(s) tracked and {tracked_total - holder_count} non-holder prospect(s) worked.")
+        f"{holder_count} holder(s) own you today; {_bp_targets_count} non-holder target(s) are being worked, "
+        f"{len(_bp_tier1)} at Tier-1 conviction.")
     with ui.card().classes("w-full").style(
             "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
             "border-radius:8px;margin-top:8px;"):
@@ -2900,7 +2895,7 @@ def _render_big_picture(institutions):
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
                     if holders_by_metro else "No holders tracked yet."])
-        _bp_metric("Who should own you", f"{len(_bp_tier1)} / {len(_bp_targets)}",
+        _bp_metric("Who should own you", f"{len(_bp_tier1)} / {_bp_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _bp_top_targets[:5]] or ["No conviction targets yet."])
         _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
@@ -2911,18 +2906,12 @@ def _render_big_picture(institutions):
                     (f"{top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
                      if top_metro_request else f"{len(ndr_requests)} inbound NDR request(s) on the desk")])
 
-    ui.html(
-        f"<div style='font-size:var(--fs-base);color:{COLORS['text_muted']};margin-top:6px;'>New vs. existing — where the pipeline is weighted right now</div>"
-        f"<div style='display:flex;height:20px;border-radius:6px;overflow:hidden;'>"
-        f"<div style='width:{new_pct}%;background:#3B82F6;'></div>"
-        f"<div style='width:{100-new_pct}%;background:#475569;'></div></div>"
-        f"<div style='font-size:var(--fs-sm);color:{COLORS['text_muted']};margin-top:4px;'>New/prospective: {new_total} &nbsp; Existing holders: {holder_count}</div>"
-        f"<div style='font-size:var(--fs-sm);color:{mix_color};margin-top:4px;'>{mix_label} ({new_pct}% new / {100-new_pct}% existing)</div>"
-        + (f"<div style='font-size:var(--fs-xs);color:{COLORS['text_muted']};margin-top:2px;'>{recency_note}</div>" if recency_note else "")
-    )
-    # Data-source footnote — deliberately NOT a headline; provenance and refresh cadence are
-    # established during onboarding, so here it's just a quiet attribution at the foot of the read.
-    ui.label("Sourced from SEC 13F filings + peer 13F books · refreshed each 13F cycle.").style(
+    # (Removed the opaque "New vs. existing" mix bar — its 52/48 came from a call/visitor/prospect
+    # signal blend that never reconciled with the visible holder/target counts; the four cards above
+    # carry the composition now.)
+    # Data-source footnote — deliberately NOT a headline; provenance/cadence are set in onboarding.
+    ui.label("Sourced from SEC 13F filings + peer 13F books · refreshed each 13F cycle."
+             + (f" · {recency_note}" if recency_note else "")).style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:6px;font-style:italic;")
 
     most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
@@ -3522,9 +3511,14 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         _targets = []
     _tier1 = [c for c in _targets if (c.get("conviction") or 0) >= 70]   # Tier-1 conviction (metro-table def)
     _top_targets = sorted(_targets, key=lambda c: -(c.get("conviction") or 0))
+    # Unified non-holder count = tracked non-holders + peer-owners (deduped) — matches the split
+    # Non-Holders list below, so the card, read, and list all show the same number.
+    _tracked_nonh = [i for i in institutions if not i.get("USIO_Holder")]
+    _seen_t = {_norm_name(c.get("filer", "")) for c in _targets}
+    _targets_count = len(_targets) + len([i for i in _tracked_nonh if _norm_name(i["Fund"]) not in _seen_t])
 
     # THE BUYSIDE READ — plain-English BLUF (same pattern as NOBO / the Big Picture read).
-    _read = [f"{len(_holders)} holder(s) to defend and {len(_targets)} peer-owner target(s) to convert — "
+    _read = [f"{len(_holders)} holder(s) to defend and {_targets_count} non-holder target(s) to convert — "
              f"{len(_tier1)} at Tier-1 conviction, ready for a 1×1 this week."]
     if _adding or _trimming:
         _read.append(f"Holder momentum this 13F cycle: {len(_adding)} adding/new vs {len(_trimming)} trimming/exiting.")
@@ -3546,7 +3540,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                    [f"{pretty_name(i['Fund'])} — {_holder_dollars(i.get('Position_Value'))}"
                     + (f" · {_dir_label(i.get('Direction'))}" if _dir_label(i.get('Direction')) else "")
                     for i in _top_holders[:6]] or ["No tracked holders yet."])
-        _bp_metric("Who should own you", f"{len(_tier1)} / {len(_targets)}",
+        _bp_metric("Who should own you", f"{len(_tier1)} / {_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _top_targets[:6]] or ["No conviction targets yet."])
         _bp_metric("Adding / New (holders)", str(len(_adding)),
