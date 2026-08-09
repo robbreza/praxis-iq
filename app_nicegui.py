@@ -183,7 +183,7 @@ NAV_SUBITEMS = {
     # Investor Targeting's 10 destinations, grouped by INTENT (see NAV_SUBGROUPS below) — the flat
     # order here IS the group order, and must match the page's tab strip order (guarded by
     # tests/test_nav_subitems.py).
-    "Investors": ["Buy-Side Intelligence", "SEC Intelligence", "NOBO Ownership", "Website",
+    "Investors": ["Buy-Side Intelligence", "NOBO Ownership", "Website",
                   "Target Database", "Peer Prospects", "Import list",
                   "NDR Planner", "Meeting Hub", "Accounts (CRM)"],
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
@@ -191,7 +191,10 @@ NAV_SUBITEMS = {
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
                   "Peer & Market Analysis", "Reg FD & Compliance",
                   "Automation Tracker"],
-    "Settings":  ["Platform Config", "Data Sources", "About"],
+    # SEC Intelligence lives here, not under Investors: it's a data-audit / source view
+    # (13D/13G/13F filings + the tracked-universe refresh), a sibling of Data Sources — not a
+    # targeting workflow. Moved 2026-08-08.
+    "Settings":  ["Platform Config", "Data Sources", "SEC Intelligence", "About"],
 }
 
 # Optional intra-page grouping of the sidebar sub-items, so a dense page reads as a few clear
@@ -201,7 +204,7 @@ NAV_SUBITEMS = {
 # groups here MUST equal its NAV_SUBITEMS list, in order (asserted by tests/test_nav_subitems.py).
 NAV_SUBGROUPS = {
     "Investors": [
-        ("Ownership",  "who owns the stock", ["Buy-Side Intelligence", "SEC Intelligence", "NOBO Ownership", "Website"]),
+        ("Ownership",  "who owns the stock", ["Buy-Side Intelligence", "NOBO Ownership", "Website"]),
         ("Targeting",  "who should own it",  ["Target Database", "Peer Prospects", "Import list"]),
         ("Engagement", "reach & track",      ["NDR Planner", "Meeting Hub", "Accounts (CRM)"]),
     ],

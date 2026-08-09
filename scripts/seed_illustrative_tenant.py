@@ -67,6 +67,12 @@ FILE_DATE = TODAY.strftime("%d-%b-%Y").upper()
 RECORD = {
     "ticker": TICKER,
     "name": "Northlake Payments, Inc.",
+    # FULLY ILLUSTRATIVE, SELF-CONTAINED tenant. This flag makes the demo inherit NOTHING
+    # cross-client — in particular it is gated OUT of the global curated house book
+    # (core.curated_targets.merged / _is_illustrative), so real hand-entered targets never
+    # bleed onto the public demo. Everything the demo shows comes from THIS seeder. See
+    # [[illustrative-demo-tenant]].
+    "illustrative": True,
     "exchange": "NASDAQ",
     "email_domain": "northlakepay.com",
     "sector": "Fintech / Payments",
@@ -153,16 +159,14 @@ HOLDERS = [
     ("Brentmoor Capital Management", "BOSTON",        "MA",   735_000, 2_087_400,    178_000_000,  24),
     ("Ashcombe Partners",            "STAMFORD",      "CT",   612_000, 1_738_080,    920_000_000, 130),
     ("Reddington Asset Management",  "CHICAGO",       "IL",   580_000, 1_647_200,  3_400_000_000, 210),
-    ("Kestrel Ridge Capital",        "MINNEAPOLIS",   "MN",   498_000, 1_414_320,    126_000_000,  21),
     ("Thornbury Investment Partners","SAN FRANCISCO", "CA",   455_000, 1_292_200,  1_800_000_000, 155),
     ("Marchmont Capital",            "DALLAS",        "TX",   402_000, 1_141_680,    540_000_000,  72),
-    ("Ellinwood Advisors",           "PHILADELPHIA",  "PA",   361_000, 1_025_240,    310_000_000,  55),
+    ("Fairmount Ridge Capital",      "PHILADELPHIA",  "PA",   455_000, 1_292_200,     92_000_000,  27),
     ("Baldwin Creek Capital",        "SEATTLE",       "WA",   318_000,   903_120,    205_000_000,  31),
     ("Longmere Trust Company",       "PASADENA",      "CA",   295_000,   837_800,  6_200_000_000, 940),
     ("Ferncliff Capital Group",      "SHORT HILLS",   "NJ",   271_000,   769_640,    480_000_000,  88),
     ("Sandhurst Equity Partners",    "AUSTIN",        "TX",   244_000,   692_960,    175_000_000,  26),
     ("Windgate Asset Management",    "MILWAUKEE",     "WI",   228_000,   647_520,    390_000_000,  64),
-    ("Pemberton Hill Capital",       "WAYZATA",       "MN",   206_000,   585_040,    142_000_000,  22),
     ("Calloway Bridge Advisors",     "ATLANTA",       "GA",   188_000,   533_920,    620_000_000, 101),
     ("Straiton Global Investors",    "TORONTO",       "A6",   174_000,   494_160,  2_700_000_000, 240),
     ("Aldergate Asset Management",   "LONDON",        "X0",   162_000,   460_080,  4_100_000_000, 310),
@@ -203,7 +207,7 @@ PEER_OWNERS = [
     ("Verdugo Hills Partners",       "LOS ANGELES",   "CA", "VNTG",  3_350_000,   210_000_000, 41),
     ("Arroyo Vista Capital",         "LOS ANGELES",   "CA", "CLRT",  2_700_000,   175_000_000, 34),
     # Single-metro stops
-    ("Sturgis Lake Capital",         "MINNEAPOLIS",   "MN", "PYRA",  3_100_000,   118_000_000, 21),
+    ("Sturgis Lake Capital",         "DENVER",        "CO", "PYRA",  3_100_000,   118_000_000, 21),
     ("Schuylkill Row Advisors",      "PHILADELPHIA",  "PA", "VNTG",  2_600_000,   150_000_000, 28),
     ("Trinity Fork Capital",         "DALLAS",        "TX", "CLRT",  5_800_000,   620_000_000, 89),
     # International hubs
@@ -237,6 +241,31 @@ PEER_OWNERS = [
     ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "PYRA", 37_000_000, 1_300_000_000, 24),
     ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "CLRT", 36_000_000, 1_300_000_000, 24),
     ("abrdn Inc.",                       "CONSHOHOCKEN",  "PA", "VNTG", 35_000_000, 1_300_000_000, 24),
+    # Fairmount Ridge is our Philadelphia HOLDER — but it also owns comp CLRT, and BIGGER than it
+    # owns us (CLRT ~2.8% of its book vs our 1.4%). Drives the holder "Underweight vs CLRT" read —
+    # the quantified upsell case for the roadshow. (Suppressed as a peer-owner since it holds us.)
+    ("Fairmount Ridge Capital",          "PHILADELPHIA",  "PA", "CLRT", 30_000_000, 1_064_000_000, 27),
+    # ── Diversified & Market-maker peer-owners (illustrative) — so the metro table's Divsfd / MM
+    #    buckets are populated and the segmentation (Inst / RIA / Diversified / MM / Curated) is
+    #    demoable. Diversified = broad, index-like books (book_positions > the small-cap breadth_max
+    #    of 1200 → routed to the Diversified review bucket, any name). Market makers = names matched
+    #    by peer_prospects._MARKET_MAKER (fictional demo names added there). All fictional holdings.
+    #    One of each sits in Philadelphia (Bala Cynwyd folds into the Philadelphia metro) so the
+    #    showcase metro shows every bucket.
+    ("Rittenhouse Broad Market Advisors","PHILADELPHIA",  "PA", "PYRA",  7_500_000,  85_000_000_000, 1_450),
+    ("Ironwood Index Partners",          "NEW YORK",      "NY", "CLRT",  9_000_000, 120_000_000_000, 1_620),
+    ("Lakeshore Multi-Strategy Group",   "CHICAGO",       "IL", "VNTG",  6_000_000,  60_000_000_000, 1_310),
+    ("Tessera Markets LLC",              "BALA CYNWYD",   "PA", "PYRA",  3_500_000,   9_000_000_000,    320),
+    ("Flowstone Securities",             "NEW YORK",      "NY", "CLRT",  4_500_000,  14_000_000_000,    410),
+    # ── RIA / wealth peer-owners (illustrative) — the advisory channel: they own you/your comps via
+    #    client accounts, with no PM to pitch, so they get their own bucket. Names carry a wealth/
+    #    advisory pattern so peer_prospects.is_ria routes them to RIA (book < breadth_max so they
+    #    don't fall to Diversified). All fold into the Philadelphia metro → RIA populated in the showcase.
+    ("Main Line Wealth Advisors",        "RADNOR",        "PA", "PYRA",  1_800_000,    900_000_000,  95),
+    ("Rittenhouse Private Wealth",       "PHILADELPHIA",  "PA", "CLRT",  1_200_000,    650_000_000,  70),
+    ("Conshohocken Wealth Partners",     "CONSHOHOCKEN",  "PA", "VNTG",    950_000,    480_000_000,  55),
+    ("Delaware Valley Financial Advisors","PHILADELPHIA", "PA", "PYRA",  1_500_000,  1_100_000_000, 110),
+    ("Schuylkill Wealth Management",     "BALA CYNWYD",   "PA", "CLRT",    780_000,    520_000_000,  60),
 ]
 
 
@@ -245,6 +274,13 @@ def _cik_for(filer):
     are both keyed by CIK — with a blank one every holder reads "No history pulled
     yet" and every Engagement Score collapses to the same number."""
     return str(1_400_000 + (abs(hash(filer)) % 500_000))
+
+
+# Quant/systematic managers — tracked, but NOT 1x1-invitable (they don't take management
+# meetings). Tag the broad, index-like books so the NDR "invite holders UNLESS a quant shop"
+# rule has real names to demo. Philadelphia's holder (Fairmount Ridge) is deliberately NOT here,
+# so the Philly showcase shows an invitable holder to defend.
+_QUANT = {"Longmere Trust Company", "Aldergate Asset Management", "Straiton Global Investors"}
 
 
 def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSIP):
@@ -258,6 +294,7 @@ def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSI
         "value": value, "shares": shares, "filename": "", "accession": "",
         "file_date": FILE_DATE, "book_total": book_total, "size_known": True,
         "book_positions": positions,
+        "style": "Quant/Systematic" if filer in _QUANT else "Active",
     }
 
 
@@ -307,6 +344,42 @@ def seed_inbox_model(cid=CID):
     return doc_id
 
 
+def seed_ndr_replies(cid=CID):
+    """Seed inbound REPLIES to the Philadelphia NDR invites, filed in the IR Inbox, so the demo shows
+    responses coming back through IRconnect (confirm / reschedule / pass). The inbox has no native
+    'NDR reply' category, so these are filed items (came in → parsed → filed), shown in the inbox's
+    'Recently filed' history with subject / sender / body. Idempotent — clears prior copies by source tag."""
+    import uuid
+    key = "inbox_queue.json"
+    queue = [q for q in (db.load_json(key, [], client_id=cid) or [])
+             if q.get("source") != "illustrative-ndr-reply"]
+    def _reply(firm, contact, sender, subject, body, outcome, days_ago):
+        ts = (TODAY - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M")
+        return {"id": str(uuid.uuid4()), "category": "ndr_request", "contact": contact, "firm": firm,
+                "subject": subject, "extracted": {"city": "Philadelphia", "metro": "Philadelphia, PA"},
+                "doc_id": None, "filename": None, "body": body, "sender_email": sender,
+                "source": "illustrative-ndr-reply", "status": "confirmed", "outcome": outcome,
+                "received_at": ts, "confirmed_at": ts}
+    queue += [
+        _reply("Cooke & Bieler L.P.", "Andrew Armstrong", "aarmstrong@cooke-bieler.com",
+               "Re: NLKP Philadelphia NDR — glad to host",
+               "Priya — yes, we'd be glad to host you. Tuesday morning at our Market St office works; "
+               "we'll have two PMs and an analyst in the room.",
+               "Confirmed → slotted Day 1, 9:00 AM", 3),
+        _reply("Chartwell Investment Partners", "Megan Ferrell", "mferrell@chartwellip.com",
+               "Re: NLKP Philadelphia NDR — timing",
+               "Thanks for the invite — morning is tight for us. Could we do early afternoon in Berwyn "
+               "instead? Happy to make it work.",
+               "Reschedule requested — awaiting new slot", 2),
+        _reply("abrdn Inc.", "David Hutchins", "dhutchins@abrdn.com",
+               "Re: NLKP Philadelphia NDR — passing this round",
+               "Appreciate the outreach. We'll pass this cycle, but keep us on the list for the next print.",
+               "Declined — kept on list for next cycle", 2),
+    ]
+    db.save_json(key, queue, client_id=cid)
+    return len(queue)
+
+
 def seed():
     # 1. Register the tenant
     client_store.upsert_client(CID, RECORD, active=True, merge=False)
@@ -332,10 +405,13 @@ def seed():
     # 3b. Position history — the add/trim/new/exit read behind each holder's "Action".
     # Without this every card reads "No history pulled yet".
     directions = ["adding", "trimming", "new", "flat", "adding", "trimming", "flat", "exited"]
+    # Pin specific showcase holders regardless of their slot in the cycle. The Philadelphia
+    # holder (Fairmount Ridge) should read "Adding" — a believer you defend and grow.
+    _dir_override = {"Fairmount Ridge Capital": "adding"}
     hist = {}
     for i, h in enumerate(HOLDERS):
         filer = h[0]
-        d = directions[i % len(directions)]
+        d = _dir_override.get(filer, directions[i % len(directions)])
         qoq = {"adding": 42_000, "trimming": -31_000, "new": 96_000,
                "flat": 0, "exited": -120_000}[d]
         # Peer overlap drives the Peer Ownership pillar. Varied deliberately: the top
@@ -374,13 +450,13 @@ def seed():
          "Alice Kenner", "Requested the investor deck and peer comp sheet."),
         ("Brentmoor Capital Management", 86, "1x1 — Investor Conference", "Positive — follow up",
          "Alice Kenner", "Micro-cap specialist; understands the gross-vs-net reporting."),
-        ("Kestrel Ridge Capital",        68, "NDR meeting", "CFO follow-up required",
+        ("Windgate Asset Management",     68, "NDR meeting", "CFO follow-up required",
          "Sofia Braun", "Asked for time with the CFO on capital allocation."),
         ("Ashcombe Partners",            41, "Intro call", "Neutral — maintain",
          "Rahul Menon", "Introductory; tracking the story, no position change signalled."),
         ("Reddington Asset Management",  55, "Earnings call Q&A", "Flag — possible exit",
          "Dana Kirby", "Pressed on take rate compression twice — watch the next 13F."),
-        ("Kestrel Ridge Capital",        12, "1x1 — Investor Conference", "Positive — follow up",
+        ("Windgate Asset Management",     12, "1x1 — Investor Conference", "Positive — follow up",
          "Sofia Braun", "Micro-cap specialist, added on the last print."),
     ]
     db.save_json("meeting_log.csv", [
@@ -416,7 +492,7 @@ def seed():
         ("Boston, MA",                61, "Denby Securities",  5),
         ("San Francisco / Bay Area",  96, "Westmark Partners", 4),
     ]
-    db.save_json("ndr_trips.json", [
+    _ndr_trips = [
         # Full trip shape the NDR Planner panels expect (name + meetings as a LIST, not a count) —
         # the old compact {"meetings": n, "status": "complete"} shape crashed _active_ndrs_panel.
         {"id": f"trip-{i+1}", "name": f"{sp} — {c}", "city": c, "metro": c,
@@ -426,8 +502,50 @@ def seed():
          "meetings": [], "team": [], "shortlist": [], "notes": "", "focus": "", "debrief": {},
          "status": "Completed"}
         for i, (c, d, sp, n) in enumerate(trips)
-    ], client_id=CID)
-    print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips")
+    ]
+    # The SHOWCASE Philadelphia NDR, seeded MID-FLIGHT so the invite→response→scheduled loop is
+    # demoable out of the box AND survives reseeds (a hand-built NDR is wiped by the next reseed).
+    # The "reply came back" is represented by a target's status: Confirmed targets move OUT of the
+    # shortlist INTO meetings[] (a filled capacity slot); Invited = awaiting; Declined = a no.
+    _ts = TODAY.strftime("%Y-%m-%d %H:%M")
+    def _sl(inst, conv, status, city="Philadelphia", bucket="Institutional", peers="CLRT, PYRA, VNTG"):
+        r = {"institution": inst, "city": city, "state": "PA", "metro": "Philadelphia, PA",
+             "conviction": conv, "peers": peers, "bucket": bucket, "status": status,
+             "source": "outbound", "added_at": _ts}
+        if status == "invited":  r["contacted_at"] = _ts
+        if status == "declined": r["declined_at"] = _ts
+        return r
+    def _mtg(inst, day, slot, time, score, address):
+        return {"institution": inst, "day": day, "slot_index": slot, "time": time, "type": "1x1",
+                "format": "In-person", "status": "scheduled", "address": address, "notes": "Owns PYRA, CLRT, VNTG",
+                "non_holder": True, "score": score, "contact": "", "confirmed_at": _ts, "source": "outbound"}
+    _ndr_trips.append({
+        "id": "trip-philly", "name": "Philadelphia Value Corridor NDR", "city": "Philadelphia, PA",
+        "metro": "Philadelphia, PA", "sponsor_bank": "Westmark Partners", "sponsor": "Westmark Partners",
+        "dates": "TBD", "date": "", "time": "Full day", "ndr_type": "in_person",
+        "focus": "Pre-earnings — build anticipation", "team": ["Priya Raman (CFO)", "Marcus Ellery (CEO)"],
+        "notes": "Convert the Main Line value corridor; defend Fairmount.", "status": "Planning",
+        "debrief": {}, "days": 2, "slots_per_day": 6, "created": TODAY.strftime("%Y-%m-%d"),
+        "meetings": [   # confirmed → slotted, WITH street addresses so the itinerary routes real
+                        # driving miles/time across the corridor (Philadelphia → Berwyn → Wayne).
+            _mtg("Cooke & Bieler L.P.", 1, 0, "9:00 AM", 93, "2001 Market St, Philadelphia, PA 19103"),
+            _mtg("Penn Capital Management", 1, 1, "10:30 AM", 92, "1200 Intrepid Ave, Philadelphia, PA 19112"),
+            _mtg("Chartwell Investment Partners", 1, 3, "1:00 PM", 92, "1205 Westlakes Dr, Berwyn, PA 19312"),
+            # Deliberately tight after Chartwell (only 30 min for a ~5-mi Berwyn→Wayne hop + turnaround)
+            # so the itinerary's feasibility check flags a REAL roadshow snag — the "see what happens".
+            _mtg("Conestoga Capital Advisors", 1, 4, "1:30 PM", 93, "550 E Swedesford Rd, Wayne, PA 19087"),
+        ],
+        "shortlist": [  # still in the pipeline: awaiting replies, a decline, and not-yet-contacted
+            _sl("Glenmede Investment Management", 92, "invited"),
+            _sl("Main Line Wealth Advisors", 88, "invited", city="Radnor", bucket="RIA / wealth", peers="RIA — wealth channel"),
+            _sl("abrdn Inc.", 91, "declined", city="Conshohocken"),
+            _sl("Brandywine Global Investment Mgmt", 91, "shortlisted"),
+            _sl("Fairmount Ridge Capital", None, "shortlisted", bucket="Holder", peers="Holder — defend"),
+        ],
+    })
+    db.save_json("ndr_trips.json", _ndr_trips, client_id=CID)
+    print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips "
+          f"+ 1 mid-flight Philadelphia NDR (4 confirmed/slotted w/ addresses, 2 invited, 1 declined, 2 shortlisted)")
 
     # 3d-bis. A few UPCOMING scheduled meetings so the Mobile "On the road → Your meetings" hero
     # has something to lead with in the demo (illustrative buy-side names; the tenant stays fully
@@ -436,7 +554,7 @@ def seed():
         (0,  "10:30", "Blue Harbor Capital",   "Dana Whitfield", "1x1",        "Q3 outlook + take-rate trajectory"),
         (0,  "14:00", "Cedar Grove Advisors",  "Marcus Lin",     "Callback",   "Follow-up on interchange questions"),
         (3,  "09:00", "Westline Asset Mgmt",   "Priya Nair",     "NDR meeting","Intro — new coverage"),
-        (8,  "11:15", "Kestrel Partners",      "Tom Alvarez",    "1x1",        "Prepaid float + capital allocation"),
+        (8,  "11:15", "Marchmont Capital",     "Tom Alvarez",    "1x1",        "Prepaid float + capital allocation"),
     ]
     db.save_json("scheduled_meetings.json", [
         {"id": f"mtg-{i+1}", "Contact": who, "Firm": firm, "Side": "Buy-side",
@@ -452,8 +570,8 @@ def seed():
     # rows on this illustrative tenant (it must stay fully illustrative — no real contacts).
     db.save_json("curated_targets.json", [], client_id=CID)
     for nm, city, st, why in [
-        ("Kestrel Ridge Capital II", "MINNEAPOLIS", "MN",
-         "Sister fund to an existing holder — same PM, asked to be kept in the loop."),
+        ("Wissahickon Trust Advisors", "PHILADELPHIA", "PA",
+         "CFO relationship from a prior seat; not a peer-holder today — wants the corridor swing."),
         ("Bracken Hill Advisors", "BOSTON", "MA",
          "Relationship carried from the CFO's prior seat; not a peer-holder today."),
     ]:
@@ -489,8 +607,6 @@ def seed():
         ("Wacker Bend Advisors","Small-cap growth","Chicago, IL","Screen",70,"Cap and sector fit."),
         ("Arroyo Reach Capital","Growth","Los Angeles, CA","Screen",76,"Style fit; cash to deploy."),
         ("Silverlake Vale Partners","GARP","Los Angeles, CA","Conference",71,"Interest at the conference."),
-        ("Kestrel Ridge Capital II","Small-cap value","Minneapolis-St. Paul, MN","Peer relationship",74,"Sister fund to an existing holder — same PM."),
-        ("North Loop Advisors","Core","Minneapolis-St. Paul, MN","Screen",69,"Regional fit."),
         ("Schuylkill Vale Capital","Value","Philadelphia, PA","Holds peer (13F)",72,"Owns VNTG."),
         ("Front Range Partners","Growth","Denver, CO","Conference",70,"Met on the road."),
         ("Thames Reach Capital","International small-cap","London, UK","Holds peer (13F)",78,"Owns PYRA; UK swing candidate."),
@@ -833,10 +949,10 @@ That concludes today's question-and-answer session. Thank you for joining.
          "Location": "Boston, MA", "Organizer": "Denby Securities", "Status": "Confirmed",
          "Deadline": _d(28), "Notes": "Fireside + six 1x1s.", "Source": "Analyst invite",
          "Attending": "Priya Raman, Dana Whitfield", "Priority": "Medium"},
-        {"Event": "Twin Cities Institutional NDR", "Type": "NDR", "Date": _d(47),
-         "Location": "Minneapolis-St. Paul, MN", "Organizer": "Westmark Partners",
+        {"Event": "Chicago Institutional NDR", "Type": "NDR", "Date": _d(47),
+         "Location": "Chicago, IL", "Organizer": "Halbrook Securities",
          "Status": "Needs to be Scheduled", "Deadline": _d(25),
-         "Notes": "Four accounts identified; sequencing with the Westmark lunch.",
+         "Notes": "Four accounts identified in the region; sequencing around the fall swing.",
          "Source": "Internal", "Attending": "Marcus Ellery, Dana Whitfield", "Priority": "High"},
         {"Event": "Q3 2026 Earnings Call", "Type": "Earnings", "Date": _d(112),
          "Location": "Virtual / Conference Bridge", "Organizer": "Northlake Internal",
@@ -869,6 +985,8 @@ That concludes today's question-and-answer session. Thank you for joining.
     from core import demo_model
     seed_inbox_model(CID)
     print(f"[demo] seeded 1 pending analyst-model inbox item + document ({demo_model.FILENAME})")
+    seed_ndr_replies(CID)
+    print("[demo] seeded 3 filed NDR-invite replies in the IR Inbox (confirm / reschedule / pass)")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short

@@ -115,7 +115,7 @@ def _ownership_liquidity():
             reason = (f"{len(recent)} 13D/13G filing(s) in the last 45 days (of {len(filings)} on file) — "
                       f"{'active recent ownership-stake activity' if recent else 'on file, but nothing in the last 45 days'}.")
         else:
-            status, reason = "GRAY", "No 13D/13G filings cached yet — see Investors → SEC Intelligence."
+            status, reason = "GRAY", "No 13D/13G filings cached yet — see Settings → SEC Intelligence."
         items.append(("New Institutional Buying", status, reason))
     except Exception as e:
         items.append(("New Institutional Buying", "GRAY", f"13D/13G data unavailable ({e})."))

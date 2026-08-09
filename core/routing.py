@@ -88,13 +88,21 @@ def focus_for(city_label):
     return geo.resolve_coords(city_label)
 
 
+_GLOBAL_SCOPE = "_global"   # shared, cross-tenant settings scope for account-level credentials
+
+
 def api_key():
-    """The ORS key from Settings, then the environment. '' when unset."""
-    try:
-        key = (db.load_json("settings.json", {}) or {}).get("routing_api_key", "")
-    except Exception:
-        key = ""
-    return (key or os.environ.get("ORS_API_KEY", "") or "").strip()
+    """The ORS routing key. Resolution order: this tenant's Settings (a per-tenant OVERRIDE if one
+    was saved), then the shared GLOBAL scope (one key routes for EVERY tenant — an ORS token is an
+    account credential, not a per-client one), then the ORS_API_KEY env var. '' when none is set."""
+    for cid in (None, _GLOBAL_SCOPE):        # None = active tenant; then the shared global key
+        try:
+            key = (db.load_json("settings.json", {}, client_id=cid) or {}).get("routing_api_key", "")
+        except Exception:
+            key = ""
+        if key and key.strip():
+            return key.strip()
+    return os.environ.get("ORS_API_KEY", "").strip()
 
 
 def is_configured():

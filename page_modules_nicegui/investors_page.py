@@ -848,56 +848,169 @@ def _shortlist_from_inst(inst):
     }
 
 
-def _open_metro_select_dialog(metro, funds):
-    """Click-a-metro → tick peer-owners → shortlist them onto an NDR. Used by the unified
-    'Where they are' metro table (NDR pipeline — one list)."""
+_DIR_LABEL = {"add": "Adding", "adding": "Adding", "increase": "Adding",
+              "trim": "Trimming", "trimming": "Trimming", "decrease": "Trimming",
+              "new": "New", "flat": "Steady", "exit": "Exited", "exited": "Exited"}
+
+
+def _dir_label(d):
+    """Holder trajectory tag from a 13F position-history direction (Adding / Trimming / New / …)."""
+    return _DIR_LABEL.get((d or "").strip().lower(), "")
+
+
+def _holder_dollars(v):
+    """Compact position-size label for a holder ($1.3M / $940K / $2.1B)."""
+    if not isinstance(v, (int, float)) or not v:
+        return "—"
+    if v >= 1e9: return f"${v / 1e9:.1f}B"
+    if v >= 1e6: return f"${v / 1e6:.1f}M"
+    if v >= 1e3: return f"${v / 1e3:.0f}K"
+    return f"${v:.0f}"
+
+
+def _holder_position_cells(it):
+    """The 'Position' readout for a HOLDER row (replaces the meaningless buy-conviction/engagement
+    score): size in $ for the score column, and trajectory + %-of-their-book + how that weight
+    compares to how they hold our COMPS (Over/In-line/Under-weight) for the detail column. A holder
+    already bought us — what matters is how big a bet we are, the direction, and whether we're
+    under our own comp in their book (the upsell case), NOT a likelihood-to-buy number."""
+    bp = it.get("Book_Pct")
+    parts = []
+    dl = _dir_label(it.get("Direction"))
+    if dl:
+        parts.append(dl)
+    if isinstance(bp, (int, float)) and bp:
+        parts.append(f"{bp:.1f}% of their book")
+    vs, comp, cw = it.get("Weight_Vs_Comp"), it.get("Comp_Best"), it.get("Comp_Weight_Pct")
+    if vs and comp:
+        parts.append(f"{vs} vs {comp} ({cw}%)")
+    return _holder_dollars(it.get("Position_Value")), (" · ".join(parts) or "Existing position")
+
+
+def _enrich_holders_vs_comps(institutions, cid):
+    """For every existing holder, compare OUR weight in their book to how THEY weight our tight
+    comps (from the peer 13F books) → Overweight / In-line / Underweight vs the comp they hold
+    biggest. Turns a context-free "1.4% of their book" into an actionable read: "underweight vs
+    CLRT — we should be at least where our peer is." Only holders with a real comp overlap get the
+    tag; the rest just show size + trajectory. comp% = comp_value / their_book_total * 100, and
+    since Book_Pct = Position_Value / their_book_total * 100, comp% = comp_value * Book_Pct /
+    Position_Value — so no separate book-total lookup is needed."""
+    from core import sec_filings, peer_prospects
+    try:
+        comps = peer_prospects.tight_comps(cid) or set()
+    except Exception:
+        comps = set()
+    if not comps:
+        return
+    comp_val = {}                                   # holder cik -> {comp_ticker: position_value}
+    for tk in comps:
+        for h in (sec_filings.get_cached_13f_holders(tk).get("holders") or []):
+            k = str(h.get("cik") or "").lstrip("0")
+            if k:
+                comp_val.setdefault(k, {})[tk] = h.get("value") or 0
+    for inst in institutions:
+        if not inst.get("USIO_Holder"):
+            continue
+        bpct, pv = inst.get("Book_Pct"), inst.get("Position_Value")
+        cvs = comp_val.get(str(inst.get("cik") or "").lstrip("0"))
+        if not (bpct and pv and cvs):
+            continue
+        best_tk, best_v = max(cvs.items(), key=lambda kv: kv[1])
+        if not best_v:
+            continue
+        comp_pct = best_v * bpct / pv               # their comp weight, same book-total basis
+        inst["Comp_Best"] = best_tk
+        inst["Comp_Weight_Pct"] = round(comp_pct, 1)
+        diff = bpct - comp_pct
+        inst["Weight_Vs_Comp"] = ("Overweight" if diff > 0.15 else
+                                  "Underweight" if diff < -0.15 else "In-line")
+
+
+def _is_quant_inst(it):
+    """A quant/systematic manager — tracked, but NOT invitable to a 1x1 (they don't take
+    management meetings). Read from the institution record's style tag."""
+    return bool(it.get("Quant") or it.get("Ownership_Style") == "Quant/Systematic")
+
+
+def _open_metro_select_dialog(metro, funds, holders=None):
+    """Click-a-metro → tick who to see there → shortlist them onto an NDR. ONE list that combines
+    existing HOLDERS (defend the relationship) with PEER-OWNERS (convert — own a comp, not us),
+    the way an IR team actually builds a roadshow. Quant/systematic shops are shown but NOT
+    invitable (no management 1x1s)."""
+    holders = list(holders or [])
     funds = sorted(funds, key=lambda c: -(c.get("conviction") or 0))
-    with ui.dialog() as dlg, ui.card().style("min-width:min(840px,95vw);max-width:95vw;"):
+    items = holders + funds                       # holders first — existing relationships lead
+    _key = lambda it: it.get("filer") or pretty_name(it.get("Fund") or "")
+    by_key = {_key(it): it for it in items}
+    with ui.dialog() as dlg, ui.card().style("min-width:min(880px,95vw);max-width:95vw;"):
+        n_h, n_f = len(holders), len(funds)
         with ui.row().classes("w-full justify-between items-center"):
-            ui.label(f"{metro} — {len(funds)} peer-owner{'s' if len(funds) != 1 else ''} "
-                     "(own a comp, not us)").classes("text-lg font-bold")
+            ui.label(f"{metro} — {n_h} holder{'s' if n_h != 1 else ''} to defend · "
+                     f"{n_f} peer-owner{'s' if n_f != 1 else ''} to convert").classes("text-lg font-bold")
             ui.button(icon="close", on_click=dlg.close).props("flat round dense")
-        if not funds:
-            ui.label("No peer-owners in this metro.").style(f"color:{COLORS['text_muted']};")
+        if not items:
+            ui.label("Nobody tracked in this metro yet.").style(f"color:{COLORS['text_muted']};")
             dlg.open(); return
-        cand_by_filer = {c.get("filer"): c for c in funds}
         _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
         trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
         trip_opts["__new__"] = "＋ New NDR…"
+        # If this metro already has an open NDR, default the selector to it and pre-check the names
+        # already on it — so re-opening a planned metro reads as "here's the plan," not a blank slate.
+        _metro_pair = next(((i, t) for i, t in _open if (t.get("city") or "") == metro), None)
+        _already = {}
+        if _metro_pair:
+            _mt_name = _metro_pair[1].get("name") or "this NDR"
+            for _e in (_metro_pair[1].get("shortlist") or []) + (_metro_pair[1].get("meetings") or []):
+                if _e.get("institution"):
+                    _already[_e["institution"]] = _mt_name
         with ui.row().classes("w-full items-end gap-2").style(
-                f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
-            ui.label("Tick funds below, then add them to an NDR as shortlisted targets.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
-            trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
-            new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
+                f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:10px 12px;margin-bottom:6px;"):
+            ui.label("Tick names, then add them to:").style(
+                f"color:{COLORS['text_heading']};font-weight:600;font-size:var(--fs-sm);")
+            trip_sel = ui.select(trip_opts, value=(str(_metro_pair[0]) if _metro_pair else "__new__"),
+                                 label="NDR").props("dense outlined").style("min-width:190px;")
+            new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:170px;")
             new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
-            add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
-        d_rows = []
-        for c in funds:
-            conv = c.get("conviction")
-            peers = ", ".join(sorted((c.get("comps") or {}).keys()))
-            d_rows.append({
-                "_filer": c.get("filer"), "Fund": pretty_name(c.get("filer") or "—"),
-                "City": c.get("city") or "—", "Category": c.get("tier") or "—",
-                "Conviction": round(conv) if conv is not None else "—",
-                "Peers held": peers or ("Curated target" if c.get("kind") == "curated" else "—"),
-            })
-        d_cols = [{"name": k, "label": k, "field": k, "align": "right" if k == "Conviction" else "left"}
-                  for k in d_rows[0].keys() if k != "_filer"]
+            add_btn = ui.button("Add to NDR", icon="playlist_add").props("dense color=primary")
+        d_rows, _preselect = [], []
+        for it in items:
+            q = _is_quant_inst(it)
+            if it.get("filer"):                   # peer-owner candidate (convert)
+                conv = it.get("conviction")
+                peers = ", ".join(sorted((it.get("comps") or {}).keys()))
+                cat = "Peer-owner (convert)"
+                score = round(conv) if isinstance(conv, (int, float)) else "—"
+                detail = peers or ("Curated target" if it.get("kind") == "curated" else "—")
+            else:                                 # existing holder (defend) — or a quant to skip
+                cat = "Quant — no 1×1" if q else "Holder (defend)"
+                score, detail = _holder_position_cells(it)   # position SIZE + trajectory, not buy-conviction
+            _on = _already.get(it.get("filer") or it.get("Fund"))   # already on this metro's NDR?
+            if _on:
+                detail = f"✓ on {_on}" + (f" · {detail}" if detail and detail != "—" else "")
+            _row = {"_filer": _key(it),
+                    "Fund": pretty_name(it.get("filer") or it.get("Fund") or "—"),
+                    "City": (it.get("city") or it.get("City") or "—"),
+                    "Category": cat, "Score": score, "Detail": detail}
+            d_rows.append(_row)
+            if _on:
+                _preselect.append(_row)
+        d_cols = [{"name": k, "label": ("Conviction / Position" if k == "Score" else k),
+                   "field": k, "align": "right" if k == "Score" else "left"}
+                  for k in ("Fund", "City", "Category", "Score", "Detail")]
         tbl = ui.table(columns=d_cols, rows=d_rows, row_key="_filer",
                        selection="multiple").classes("w-full").props("dense flat")
-        _header_tooltips(tbl, {
-            "Fund": "The fund / manager (tick to add to an NDR)",
-            "City": "Fund HQ city",
-            "Bucket": "Ownership bucket (Institutional / RIA / Diversified / Market maker / Curated)",
-            "Conviction": "Prospect conviction, 0-100 — position weight, tight-comp focus, active vs. index, size fit",
-            "Peers held": f"Which of {CT('ticker')}'s comps this fund owns",
-        })
+        if _preselect:                            # names already on this metro's NDR start ticked
+            tbl.selected = _preselect
+        _hint = ("Names already on this metro's NDR are ticked and marked ✓. " if _preselect else "")
+        ui.label(_hint + "Peer-owners show conviction to buy (0–100) · Holders show position size + "
+                 "trajectory (Adding / Trimming / New) — a holder already owns you, so size and direction "
+                 "matter, not a buy score. Quant/systematic shops are listed but can't be invited to a 1×1.").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
 
         def _do_add():
             sel = tbl.selected
             if not sel:
-                ui.notify("Tick at least one fund first.", type="warning"); return
+                ui.notify("Tick at least one name first.", type="warning"); return
             trips2 = _load_json("ndr_trips.json", [])
             if trip_sel.value == "__new__":
                 nm = (new_name.value or "").strip()
@@ -916,18 +1029,27 @@ def _open_metro_select_dialog(metro, funds):
             target.setdefault("shortlist", [])
             have = {s.get("institution") for s in target["shortlist"]} | \
                    {m.get("institution") for m in target.get("meetings", [])}
-            added = 0
+            added = quant_skip = 0
             for row in sel:
-                c = cand_by_filer.get(row.get("_filer"))
-                if not c or c.get("filer") in have:
+                it = by_key.get(row.get("_filer"))
+                if not it:
                     continue
-                target["shortlist"].append(_shortlist_record(c))
-                have.add(c.get("filer")); added += 1
+                nm2 = it.get("filer") or it.get("Fund")
+                if not nm2 or nm2 in have:
+                    continue
+                if _is_quant_inst(it):
+                    quant_skip += 1; continue     # quant/systematic — no management 1x1
+                rec = _shortlist_record(it) if it.get("filer") else _shortlist_from_inst(it)
+                target["shortlist"].append(rec)
+                have.add(nm2); added += 1
             _save_json("ndr_trips.json", trips2)
-            skipped = len(sel) - added
-            ui.notify(f"Shortlisted {added} fund(s) to '{tname}'"
-                      + (f" · {skipped} already on it" if skipped else "")
-                      + ". See NDR Planner → Active NDRs.", type="positive")
+            dup = len(sel) - added - quant_skip
+            msg = f"Added {added} target(s) to '{tname}' (Planning)"
+            if quant_skip:
+                msg += f" · skipped {quant_skip} quant shop(s) — no 1×1"
+            if dup:
+                msg += f" · {dup} already on it"
+            ui.notify(msg + ". Find it in NDR Planner → Active NDRs.", type="positive")
             dlg.close()
         add_btn.on_click(_do_add)
     dlg.open()
@@ -1072,12 +1194,14 @@ def _open_schedule_request_dialog(request, on_done):
     dlg.open()
 
 
-def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None):
+def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None, style="Active"):
     """A full institution record for a real SEC-sourced name, with honest
     'unknown' defaults for every enrichment field the scorer and cards read —
     so a 13F/13D-G/peer-overlap holder lives in the same universe as the seed
     without breaking scoring. It simply scores low until it's enriched.
-    city/state (from the 13F filing address) drive the Metro breakdown."""
+    city/state (from the 13F filing address) drive the Metro breakdown.
+    `style` = manager style ("Active" / "Quant/Systematic" / …); quant shops are
+    tracked but NOT 1x1-invitable (they don't take management meetings)."""
     action = {
         "SEC 13F": "Confirmed 13F holder — enrich & prioritize",
         "Peer 13F": "Holds a peer — real NDR prospect",
@@ -1089,7 +1213,8 @@ def _sec_holder_record(name, source, holder, peer_of=None, city=None, state=None
         "Listen_Duration": "—", "Peer_Holdings": ([peer_of] if peer_of else []),
         "IR_Visits_30d": 0, "Last_Visit": "—", "Conviction": "—",
         "Call_Score": 0, "Peer_Score": 0, "Visit_Score": 0,
-        "Turnover_Style": "Unknown (SEC)", "Metro": _metro_from_city(city, state), "Ownership_Style": "Active",
+        "Turnover_Style": "Unknown (SEC)", "Metro": _metro_from_city(city, state), "Ownership_Style": style,
+        "Quant": (style == "Quant/Systematic"),   # tracked but not 1x1-invitable
         "Action": action, "Source": source,
     }
 
@@ -1105,7 +1230,8 @@ def _sec_universe_records(client_id):
         if not name:
             continue
         r = recs.setdefault(name, _sec_holder_record(
-            name, "SEC 13F", True, city=h.get("city"), state=h.get("state")))
+            name, "SEC 13F", True, city=h.get("city"), state=h.get("state"),
+            style=(h.get("style") or "Active")))
         # Real, exact position size from the bulk 13F dataset (size_known).
         if h.get("size_known") and h.get("shares"):
             r["Shares"] = h["shares"]
@@ -1253,8 +1379,8 @@ def render_investors_page():
         # left-to-right as Ownership → Targeting → Engagement (variable names kept stable; only
         # the on-screen order changed). See NAV_SUBGROUPS / NAV_SUBITEMS["Investors"].
         # ── Ownership — who owns the stock
+        # (SEC Intelligence moved to Settings — it's a data-audit view, not a targeting workflow.)
         t1 = ui.tab("Buy-Side Intelligence")
-        t5 = ui.tab("SEC Intelligence")
         t6 = ui.tab("NOBO Ownership")
         t9 = ui.tab("Website")
         # ── Targeting — who should own it
@@ -1282,7 +1408,7 @@ def render_investors_page():
     # A sidebar sub-item can deep-link straight to any tab; map the label back to
     # its tab object so lazy loading opens (and eager-builds) the right one. All
     # tabs are lazy now — whichever we open on is built by the eager block below.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10)}
+    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t6, t7, t8, t9, t10)}
     default_tab = _by_name.get(nav.consume_target_tab(), t1)
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
         with ui.tab_panel(t1) as p1:
@@ -1292,8 +1418,6 @@ def render_investors_page():
         with ui.tab_panel(t3) as p3:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t4) as p4:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t5) as p5:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t6) as p6:
             ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
@@ -1314,7 +1438,6 @@ def render_investors_page():
     lazy_panels = {
         # ── Ownership
         t1.props["name"]: (p1, lambda: _buyside_section()),
-        t5.props["name"]: (p5, lambda: _render_sec_intelligence_tab()),
         # NOBO Ownership relocated here from Market Intelligence — its render (with the Broadridge
         # upload) is the shared one in markets_page, called cross-module like Earnings' narrative.
         t6.props["name"]: (p6, lambda: _render_nobo_tab()),
@@ -1847,7 +1970,7 @@ def _render_peer_prospects_tab(client_id):
                     ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
         if not cands:
-            ui.label("No candidates to qualify. Run the SEC 13F refresh on the SEC Intelligence tab if you "
+            ui.label("No candidates to qualify. Run the SEC 13F refresh from Settings → Data Sources if you "
                      "haven't yet, or you've reviewed them all.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:8px;")
             return
@@ -2530,6 +2653,9 @@ def _open_lineup_crosswalk_dialog():
 
 def _render_big_picture(institutions):
     client_id = get_active_client_id()
+    # Tag each holder with how our weight in their book compares to how they weight our comps
+    # (Over/In-line/Under) — read by _holder_position_cells in the metro select + drill dialogs.
+    _enrich_holders_vs_comps(institutions, client_id)
 
     metro_lookup = {i["Fund"]: i["Metro"] for i in institutions}
     metro_lookup.update({
@@ -2642,7 +2768,7 @@ def _render_big_picture(institutions):
             d["holders"] += 1
             d["holder_list"].append(i)              # exact list behind the "Holders" count
         if _score_val(i) > (d["top_score"] or 0):
-            d["top_score"], d["top"] = i["Engagement_Score"], i["Fund"]
+            d["top_score"], d["top"], d["top_inst"] = i["Engagement_Score"], i["Fund"], i
 
     # Fold the qualified peer-prospect universe into the metro rollup as NON-HOLDERS — the funds
     # that own a peer/comp but not us, i.e. the actual NDR conversion targets. Without this the table
@@ -2760,13 +2886,29 @@ def _render_big_picture(institutions):
     top_req_html = (f" <b>Plus a direct request:</b> {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for "
                      f"{top_metro_request['city']} meetings on {top_metro_request['received']} — {top_metro_request['reason']}"
                      if top_metro_request else "")
+    # Top holder shown as a POSITION read (size · under/over vs comp), not a stale engagement
+    # score — consistent with the metro select/drill dialogs (see _holder_position_cells).
+    _ti = top_d.get("top_inst")
+    if top_d.get("top") and _ti and _ti.get("USIO_Holder"):
+        _sz = _holder_dollars(_ti.get("Position_Value"))
+        _vs = (f"{_ti['Weight_Vs_Comp'].lower()} vs {_ti['Comp_Best']}"
+               if _ti.get("Weight_Vs_Comp") and _ti.get("Comp_Best")
+               else (f"{_ti['Book_Pct']:.1f}% of their book"
+                     if isinstance(_ti.get('Book_Pct'), (int, float)) and _ti.get('Book_Pct') else ""))
+        _detail = " · ".join(x for x in (_sz if _sz != "—" else "", _vs) if x)
+        _top_phrase = (f", including your holder <b>{pretty_name(top_d['top'])}</b>"
+                       + (f" ({_detail})" if _detail else ""))
+    elif top_d.get("top"):
+        _top_phrase = f", including <b>{pretty_name(top_d['top'])}</b>"
+    else:
+        _top_phrase = ""
     ui.html(
         f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid {COLORS['accent']};border-radius:12px;padding:18px 22px;'>"
         f"<div class='section-head' style='margin:0;'>Top opportunity — where to start</div>"
         f"<div style='font-size:var(--fs-lg);font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>{top_metro}</div>"
         f"<div style='font-size:var(--fs-base);color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
         f"{top_d['count']} tracked institution(s) here"
-        + (f", including <b>{top_d['top']}</b> (score {top_d['top_score']})" if top_d.get('top') else "")
+        + _top_phrase
         + f" — {top_d['tier1_nonholder']} non-holder(s) at Tier 1 ready to convert and {top_d['holders']} existing holder(s) to defend — "
         f"{'zero NDR trips logged here yet' if top_visits == 0 else f'only {top_visits} trip(s) so far'}."
         + top_req_html + top_conf_html + "</div></div>"
@@ -2907,20 +3049,28 @@ def _render_big_picture(institutions):
         # A peer-prospect carried its comps in — show which comp it owns ("owns CASS, FOUR"),
         # matching the Peer-owners drill. Real tracked institutions have no comps → fall back.
         peers = ", ".join(sorted((x.get("comps") or {}).keys()))
-        detail = f"Owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
-        return {"Fund": pretty_name(x.get("Fund") or "—"),
+        _q = _is_quant_inst(x)
+        if x.get("USIO_Holder"):                 # existing holder → position size + trajectory
+            _cat = "Quant — no 1×1" if _q else "Holder"
+            _score, detail = _holder_position_cells(x)
+        else:                                    # tracked non-holder / promoted prospect → conviction
+            _cat = "Non-holder"
+            _score = round(sc) if isinstance(sc, (int, float)) else "—"
+            detail = f"Owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
+        return {"_filer": pretty_name(x.get("Fund") or "—"),   # row key for selection
+                "Fund": pretty_name(x.get("Fund") or "—"),
                 "City": x.get("City") or (x.get("Metro") or "—"),
-                "Category": "Holder" if x.get("USIO_Holder") else "Non-holder",
-                "Score": round(sc) if isinstance(sc, (int, float)) else "—",
+                "Category": _cat,
+                "Score": _score,
                 "Detail": detail,
                 "Funds": _fund_lineup_label(raw_name)}
 
     _drill_dialog = ui.dialog()
 
-    # Peer-owner buckets are NDR candidates, so their drill-down is selectable → Add to NDR
-    # (same shortlist flow as the metro row-click). Holders / Tier-1 are tracked institutions,
-    # not prospecting targets, so those stay read-only.
-    _selectable_cols = {"funds", "inst", "ria", "div", "mm", "curated"}
+    # Every bucket drill-down is selectable → Add to NDR (same shortlist flow as the metro
+    # row-click). Holders/Tier-1 (tracked institutions) are invitable too — you defend existing
+    # relationships on a roadshow — EXCEPT quant/systematic shops, excluded at add time.
+    _selectable_cols = {"funds", "inst", "ria", "div", "mm", "curated", "holders", "t1"}
 
     def _open_cell_drill(e):
         metro, col = e.args.get("metro"), e.args.get("col")
@@ -2940,7 +3090,8 @@ def _render_big_picture(institutions):
                 # Add-to-NDR bar (restored) — only for the peer-owner buckets, which are the
                 # NDR-prospecting universe. Tick names → shortlist onto a new or existing trip.
                 trip_sel = new_name = tbl = None
-                cand_by_filer = {c.get("filer"): c for c in items} if is_peer else {}
+                item_by_key = {(it.get("filer") or pretty_name(it.get("Fund") or "")): it
+                               for it in items} if is_peer else {}
                 if is_peer:
                     _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
                     trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
@@ -2953,7 +3104,8 @@ def _render_big_picture(institutions):
                         new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
                         new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
                         add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
-                _dcol_label = {"Funds": "Fund lineup (SEC)", "Category": "Category"}
+                _dcol_label = {"Funds": "Fund lineup (SEC)", "Category": "Category",
+                               "Score": "Conviction / Position"}
                 dcols = [{"name": k, "label": _dcol_label.get(k, k),
                           "field": k, "sortable": True,
                           "align": "right" if k == "Score" else "left",
@@ -3005,18 +3157,27 @@ def _render_big_picture(institutions):
                         target.setdefault("shortlist", [])
                         have = {s.get("institution") for s in target["shortlist"]} | \
                                {m.get("institution") for m in target.get("meetings", [])}
-                        added = 0
+                        added = quant_skip = 0
                         for row in sel:
-                            c = cand_by_filer.get(row.get("_filer"))
-                            if not c or c.get("filer") in have:
+                            it = item_by_key.get(row.get("_filer"))
+                            if not it:
                                 continue
-                            target["shortlist"].append(_shortlist_record(c))
-                            have.add(c.get("filer")); added += 1
+                            nm2 = it.get("filer") or it.get("Fund")
+                            if not nm2 or nm2 in have:
+                                continue
+                            if _is_quant_inst(it):
+                                quant_skip += 1; continue     # quant/systematic — no management 1x1
+                            rec = _shortlist_record(it) if it.get("filer") else _shortlist_from_inst(it)
+                            target["shortlist"].append(rec)
+                            have.add(nm2); added += 1
                         _save_json("ndr_trips.json", trips2)
-                        skipped = len(sel) - added
-                        ui.notify(f"Shortlisted {added} name(s) to '{tname}'"
-                                  + (f" · {skipped} already on it" if skipped else "")
-                                  + ". See NDR Planner → Active NDRs.", type="positive")
+                        dup = len(sel) - added - quant_skip
+                        _m = f"Added {added} target(s) to '{tname}' (Planning)"
+                        if quant_skip:
+                            _m += f" · skipped {quant_skip} quant shop(s) — no 1×1"
+                        if dup:
+                            _m += f" · {dup} already on it"
+                        ui.notify(_m + ". Find it in NDR Planner → Active NDRs.", type="positive")
                         _drill_dialog.close()
                     add_btn.on_click(_do_add)
                 if _n_lineups:
@@ -3064,7 +3225,8 @@ def _render_big_picture(institutions):
         '<span v-else style="opacity:.4;">—</span></q-td>'))
     geo_table.on("cellClick", _open_cell_drill)
     geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
-        e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], [])))
+        e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
+        holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
     _peer_total = sum(v["funds"] for v in peer_by_metro.values())
     ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
              f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
@@ -4066,8 +4228,11 @@ def _ndr_target_candidates(institutions, location, ndr_type):
         candidates = [i for i in institutions if not i["USIO_Holder"] and _score_val(i) >= 40]
     else:
         candidates = [i for i in institutions if i["Metro"] == location]
-    non_holders = sorted([i for i in candidates if not i["USIO_Holder"]], key=lambda x: -x["Engagement_Score"])
-    holders = sorted([i for i in candidates if i["USIO_Holder"]], key=lambda x: -x["Engagement_Score"])
+    # _score_val (not x["Engagement_Score"]) — a candidate can have a missing or None score
+    # (SEC-sourced names, unscored prospects), and `-None` / a missing key raises, which used to
+    # abort the whole Active NDRs panel mid-render so a Planning NDR's card never drew.
+    non_holders = sorted([i for i in candidates if not i["USIO_Holder"]], key=lambda x: -_score_val(x))
+    holders = sorted([i for i in candidates if i["USIO_Holder"]], key=lambda x: -_score_val(x))
     return non_holders + holders
 
 
@@ -4201,13 +4366,19 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
 
 
 def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
+    # Count open (non-Completed) NDRs up front so the TAB ITSELF advertises them. A Planning NDR
+    # built from the metro table lands here; without a visible count it's easy to be sitting on
+    # "Plan New" while your just-created NDR is one tab over (the "where is my NDR?" report).
+    _open_ndrs = [t for t in _load_json("ndr_trips.json", []) if t.get("status") != "Completed"]
+    _active_lbl = f"Active NDRs ({len(_open_ndrs)})" if _open_ndrs else "Active NDRs"
     with ui.tabs().classes("w-full") as ndr_tabs:
         nt1 = ui.tab("Plan New NDR")
-        nt2 = ui.tab("Active NDRs")
+        nt2 = ui.tab("Active NDRs", label=_active_lbl)
         nt3 = ui.tab("Meeting Requests")
         nt4 = ui.tab("Prep Cards")
         nt5 = ui.tab("Post-NDR Debrief")
-    with ui.tab_panels(ndr_tabs, value=nt1).classes("w-full"):
+    # Land on Active NDRs when a roadshow is in flight, so a Planning NDR you just built isn't hidden.
+    with ui.tab_panels(ndr_tabs, value=(nt2 if _open_ndrs else nt1)).classes("w-full"):
         with ui.tab_panel(nt1):
             ui.label("Plan a New Non-Deal Roadshow").classes("font-bold")
             with ui.row().classes("w-full gap-4"):
@@ -4395,8 +4566,14 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
         @ui.refreshable
         def _active_ndrs_panel():
             trips = _load_json("ndr_trips.json", [])
-            if not trips:
-                ui.label("No NDR trips logged yet.").style(f"color:{COLORS['text_muted']};")
+            # Active NDRs = Planning / In Progress only. Completed roadshows live under Post-NDR
+            # Debrief; showing them here made a finished trip read as unfinished/past-due (the
+            # redundancy flagged in review). The per-card status dropdown graduates a trip to Completed.
+            _active_idxs = {i for i, t in enumerate(trips) if t.get("status") != "Completed"}
+            if not _active_idxs:
+                ui.label("No active NDRs. Plan one from the metro table (Buy-Side Intelligence → click a "
+                         "metro), or review finished roadshows under Post-NDR Debrief.").style(
+                    f"color:{COLORS['text_muted']};")
             status_options = ["scheduled", "completed", "cancelled", "no-show"]
 
             # ── Shortlist status transitions (NDR pipeline Phase 2) ──────────────
@@ -4470,6 +4647,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 _save_json("ndr_trips.json", trips_)
 
             for idx, trip in enumerate(trips):
+                if trip.get("status") == "Completed":
+                    continue                      # Completed → Post-NDR Debrief tab, not here
                 all_meetings = trip.get("meetings", [])
                 # A malformed trip (e.g. legacy seed data where meetings is a COUNT, not a list)
                 # must not crash the whole NDR Planner tab — treat a non-list as no meetings.
@@ -4787,7 +4966,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     _scheduled = {mm.get("institution") for mm in all_meetings}
                     _all_cands = [c for c in _ndr_target_candidates(
                                       institutions, trip.get("city"), trip.get("ndr_type", "in-person"))
-                                  if c["Fund"] not in _scheduled]
+                                  if c["Fund"] not in _scheduled] if trip_status != "Completed" else []
                     _fillers = _all_cands[:6]
                     if _fillers:
                         with ui.expansion(
@@ -4804,7 +4983,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 cc = get_institution_contacts().get(c["Fund"], {})
                                 with ui.row().classes("w-full items-center gap-2").style(
                                         f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
-                                    ui.label(str(c["Engagement_Score"])).style(
+                                    _cs = _score_val(c)
+                                    ui.label(str(round(_cs)) if _cs else "—").style(
                                         f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-weight:700;width:34px;")
                                     with ui.column().classes("gap-0 flex-1"):
                                         ui.label(c["Fund"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
@@ -6455,8 +6635,8 @@ def _render_target_db_tab(institutions, client_id):
     ui.markdown("---")
     with ui.expansion("Automated Prospecting Pipeline — Live 13F Holders of Coverage-Network Stocks", value=False).classes("w-full"):
         ui.label("For the selected analyst's other Buy-rated stocks scoring at or above the threshold, pulls real "
-                  "SEC 13F institutional holders (already fetched via the SEC Intelligence tab's 'Refresh 13F "
-                  "Institutional Holders' button — this does not trigger a new download itself), excludes anyone "
+                  "SEC 13F institutional holders (already fetched via the 13F refresh in Settings → Data Sources "
+                  "— this does not trigger a new download itself), excludes anyone "
                   "already tracked or already in the prospect queue, and ranks the rest.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
@@ -6480,7 +6660,7 @@ def _render_target_db_tab(institutions, client_id):
                 with auto_results:
                     if result["not_fetched_tickers"]:
                         ui.label(f"No live 13F data cached yet for: {', '.join(result['not_fetched_tickers'])} — "
-                                  f"add them to the Peer Universe below and refresh 13F on the SEC Intelligence tab "
+                                  f"add them to the Peer Universe below and refresh 13F from Settings → Data Sources "
                                   f"to include their holders here.").style(f"color:{COLORS['warning']};font-size:var(--fs-xs);")
                     # Show what the quality gates removed, so a short (or empty) list
                     # reads as "the filter worked", not "the pipeline is broken".
@@ -6865,8 +7045,8 @@ def _render_peer_universe_manager(institutions):
         _freshness_bits.append(f"Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
     ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if _seed_tickers:
-        ui.label("Refresh a ticker from the SEC Intelligence tab's \"Refresh 13F Institutional Holders\" "
-                  "button to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
+        ui.label("Refresh a ticker from Settings → Data Sources "
+                  "to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
     with ui.row().classes("w-full gap-4"):
         peer_select = ui.select(all_tickers, multiple=True, value=all_tickers,
@@ -6905,7 +7085,7 @@ def _render_peer_universe_manager(institutions):
             if not cross_targets:
                 ui.label("No cross-target matches at this AUM threshold. This checks your tracked watchlist "
                          "institutions by exact legal-entity name against the live SEC 13F filer roster — a peer "
-                         "can have real institutional holders (see the SEC Intelligence tab) without any of them "
+                         "can have real institutional holders (see Settings → SEC Intelligence) without any of them "
                          "being one of the specific institutions on your watchlist. Add more institutions to the "
                          "watchlist above, or lower the AUM threshold.").style(f"color:{COLORS['text_muted']};margin-top:6px;")
                 if from_click:
@@ -6982,7 +7162,7 @@ def _render_peer_universe_manager(institutions):
         with fit_results_area:
             if not scored:
                 ui.label("No confirmed holders yet for the selected peers — refresh 13F Institutional Holders "
-                          "on the SEC Intelligence tab first.").style(f"color:{COLORS['text_muted']};")
+                          "from Settings → Data Sources first.").style(f"color:{COLORS['text_muted']};")
                 if from_click:
                     ui.notify("No confirmed 13F holders yet for these peers.", type="warning")
                 return

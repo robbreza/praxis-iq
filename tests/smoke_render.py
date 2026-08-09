@@ -122,6 +122,48 @@ def render_one(module_path, render_fn_name, client_id, role="IR"):
     return True, "", hits, lazy
 
 
+def check_ndr_planning_render(cid):
+    """Regression guard (2026-08-08): the Active NDRs panel crashed rendering a PLANNING NDR when a
+    candidate in the trip's metro had a missing/None Engagement_Score — `_ndr_target_candidates`
+    sorted by `-x["Engagement_Score"]`, and the exception aborted the panel MID-LOOP so the card
+    never drew (the user saw the completed cards but not the new one). smoke_render already renders
+    the NDR lazy tab, but the SEEDED trips sit in 'safe' metros, so the condition never fired. Force
+    it: score the universe, blank one holder's score, point a Planning trip (with a shortlist) at
+    its metro, render the NDR tab. A render exception fails the run. Returns (ok, detail)."""
+    from config.client_config import set_active_client_id
+    from core import ui_context, targets as tm
+    set_active_client_id(cid)
+    ui_context.set_page_context("IR", "Investors")
+    import page_modules_nicegui.investors_page as IP
+    try:
+        raw = IP._merge_sec_universe(tm.targets_as_institutions(cid), cid)
+        _ex = {IP._norm_name(i["Fund"]) for i in raw}
+        raw += [p for p in IP._promoted_prospect_records(cid) if IP._norm_name(p["Fund"]) not in _ex]
+        IP._enrich_peer_holdings_with_live_13f(raw, [p["ticker"] for p in IP._load_peer_universe()])
+        insts = IP._score_institutions(raw, "pre", set(), IP._load_meeting_log())
+    except Exception:
+        return False, traceback.format_exc()
+    if not insts:
+        return True, ""                       # nothing tracked for this tenant — nothing to exercise
+    insts[0]["Engagement_Score"] = None       # the exact condition that used to crash the panel
+    metro = insts[0].get("Metro") or "Unknown (SEC)"
+    trip = {"name": "SMOKE Planning NDR", "city": metro, "ndr_type": "in-person", "status": "Planning",
+            "shortlist": [{"institution": insts[0]["Fund"], "status": "shortlisted"}], "meetings": [],
+            "days": 2, "slots_per_day": 6, "team": [], "focus": "", "notes": "", "sponsor_bank": "",
+            "dates": "TBD", "debrief": {}}
+    _orig = IP._load_json
+    IP._load_json = lambda name, default=None: [trip] if name == "ndr_trips.json" else _orig(name, default)
+    try:
+        client = Client(page("/"), request=None)
+        with client:
+            IP._render_ndr_tab(insts, IP._load_meeting_log(), cid, "pre")
+        return True, ""
+    except Exception:
+        return False, traceback.format_exc()
+    finally:
+        IP._load_json = _orig
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--client", help="only this client_id (default: all registered tenants)")
@@ -168,6 +210,19 @@ def main():
                     print(f"  DEMO LEAK    {label}  -> {', '.join(thits)}")
                 else:
                     print(f"  PASS         {label}  (lazy tab)")
+
+        # Targeted regression: NDR Active-cards panel must render a PLANNING NDR whose metro holds an
+        # unscored candidate (the crash that hid a just-planned NDR's card). Runs when Investors is in
+        # scope, once per tenant.
+        if not args.page or args.page == "Investors":
+            ok_ndr, ndr_detail = check_ndr_planning_render(cid)
+            checked += 1
+            _lbl = "Investors › Active NDRs (Planning-card regression)"
+            if not ok_ndr:
+                render_fails.append((cid, _lbl, ndr_detail))
+                print(f"  RENDER FAIL  {_lbl}")
+            else:
+                print(f"  PASS         {_lbl}")
 
     print(f"\n{'-' * 64}")
     print(f"rendered {checked} page/tenant combinations + {lazy_checked} lazy tab(s) · "

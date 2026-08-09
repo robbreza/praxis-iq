@@ -36,6 +36,7 @@ def render_settings_page():
     with ui.tabs().classes("w-full") as tabs:
         t1 = ui.tab("Platform Config")
         t2 = ui.tab("Data Sources")
+        t_sec = ui.tab("SEC Intelligence")
         t3 = ui.tab("About")
     _panels = ui.tab_panels(tabs, value=nav.consume_target_tab() or t1).classes("w-full")
     _panels.on_value_change(lambda e: nav.tab_changed(e.value))
@@ -44,6 +45,13 @@ def render_settings_page():
             _render_platform_config()
         with ui.tab_panel(t2):
             _render_data_sources()
+        with ui.tab_panel(t_sec):
+            # SEC Intelligence is a data-audit / source view (13D/13G/13F + the tracked-universe
+            # refresh), so it lives under Settings next to Data Sources rather than as a targeting
+            # workflow. Render the shared, self-contained implementation from investors_page (lazy
+            # import to avoid loading that heavy module until this tab is actually opened).
+            from page_modules_nicegui.investors_page import _render_sec_intelligence_tab
+            _render_sec_intelligence_tab()
         with ui.tab_panel(t3):
             _render_about()
 

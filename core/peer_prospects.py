@@ -69,6 +69,9 @@ _MARKET_MAKER = [
     # ETF issuers — the holding is index mechanics, not a PM's decision
     "themes management", "global x", "first trust", "wisdomtree", "vaneck",
     "direxion", "proshares", "exchange traded concepts",
+    # Illustrative-demo market makers (Northlake tenant) — fictional prop/HFT names so the
+    # segmentation demo can show a populated Market-maker bucket. No real firm matches these.
+    "tessera markets", "flowstone securities",
 ]
 
 # _DIVERSIFIED — index families and bank/brokerage asset-management arms. These

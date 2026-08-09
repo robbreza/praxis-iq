@@ -103,7 +103,7 @@ def _f13_results(q):
         if q in hay:
             out.append(_result("13F holder", filer,
                                f"SEC 13F · {h.get('city', '')}, {h.get('state', '')} · {h.get('shares', 0):,} sh",
-                               "Investors", "SEC Intelligence", score=_score(q, filer) if q in filer.lower() else 45))
+                               "Settings", "SEC Intelligence", score=_score(q, filer) if q in filer.lower() else 45))
     return out
 
 

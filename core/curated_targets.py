@@ -124,14 +124,29 @@ def remove(key, scope="client", cid=None):
     _save(scope, cid, rows)
 
 
+def _is_illustrative(cid):
+    """Illustrative/sandbox tenants (the public demo) must stay fully self-contained — they NEVER
+    inherit the cross-client global house book. Gated on the tenant's `illustrative` flag so real
+    hand-entered targets can't bleed onto a demo that may be shown publicly. See
+    seed_illustrative_tenant.RECORD and [[illustrative-demo-tenant]]."""
+    try:
+        from config.client_config import CLIENT_REGISTRY
+        return bool((CLIENT_REGISTRY.get(cid) or {}).get("illustrative"))
+    except Exception:
+        return False
+
+
 def merged(cid=None):
     """Global ∪ client, deduped by normalized name with the CLIENT entry winning,
     each shaped like a peer_prospects candidate so the unified metro view and
     promote() can consume it directly (kind='curated', tier='Curated', no comps,
-    no conviction — these aren't scored against evidence-backed prospects)."""
+    no conviction — these aren't scored against evidence-backed prospects).
+
+    Illustrative tenants get client scope ONLY — no global house book (see _is_illustrative)."""
     cid = cid or get_active_client_id()
+    _scopes = ("client",) if _is_illustrative(cid) else ("client", "global")
     out, seen = [], set()
-    for scope in ("client", "global"):          # client first ⇒ it wins on conflict
+    for scope in _scopes:                        # client first ⇒ it wins on conflict
         for r in list_scope(scope, cid):
             k = r.get("key") or _norm(r.get("filer", ""))
             if not k or k in seen:
@@ -153,6 +168,6 @@ def counts(cid=None):
     cid = cid or get_active_client_id()
     return {
         "client": len(list_scope("client", cid)),
-        "global": len(list_scope("global", cid)),
+        "global": 0 if _is_illustrative(cid) else len(list_scope("global", cid)),
         "total": len(merged(cid)),
     }
