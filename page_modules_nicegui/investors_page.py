@@ -3475,20 +3475,64 @@ def _render_buyside_tab(institutions, meeting_log, mode):
 
     if mode == "pre":
         ui.label("Buyside Ownership — Pre-Earnings Engagement").classes("text-lg font-bold")
-        ui.label("Three-layer institutional targeting · Engagement score 0-100 · Prioritized by probability of buying into the re-rating story").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        ui.label("Existing holders to defend · non-holder targets to convert · ranked by conviction "
+                 "(likelihood to buy) and position (size, trajectory).").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     else:
         ui.label("Buyside Ownership — Post-Earnings Prospecting").classes("text-lg font-bold")
-        ui.label("Post-earnings catalyst scoring · Who heard the beat · Who fits the upgrade thesis · 5-day prospecting window").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        ui.label("Post-earnings: who heard the beat and fits the upgrade thesis · holders to defend, "
+                 "targets to convert, ranked by conviction and position.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-    tier1 = [i for i in institutions if _score_val(i) >= 80]
-    tier2 = [i for i in institutions if 40 <= _score_val(i) < 80]
-    tier3 = [i for i in institutions if _score_val(i) < 40]
+    # Split by the core buyside question — existing HOLDERS to defend vs NON-HOLDER targets to
+    # convert — and rank on the SAME model as the metro selector: Position for holders, Conviction
+    # for targets. Replaces the opaque "Engagement Funnel" (Tier 1/2/3 by an unexplained 0-100
+    # score that collided with Coverage Priority and the conviction model — the "3 confusing cards").
+    _enrich_holders_vs_comps(institutions, get_active_client_id())
+    _holders = [i for i in institutions if i.get("USIO_Holder")]
+    _dirl = lambda i: (i.get("Direction") or "").lower()
+    _adding = [i for i in _holders if _dirl(i) in ("adding", "new")]
+    _trimming = [i for i in _holders if _dirl(i) in ("trimming", "exited")]
+    _top_holders = sorted(_holders, key=lambda x: -(x.get("Position_Value") or 0))
+    # "Who should own you" = the conviction-ranked peer-owner universe (the SAME model the metro
+    # selector / NDR planner use), NOT the buyside engagement score — so the conviction numbers and
+    # the Tier-1 count match everywhere on the platform (the whole point of the unify-the-score fix).
+    try:
+        from core import peer_prospects as _pp
+        _targets = _pp.build_candidates(get_active_client_id(), limit=None) or []
+    except Exception:
+        _targets = []
+    _tier1 = [c for c in _targets if (c.get("conviction") or 0) >= 70]   # Tier-1 conviction (metro-table def)
+    _top_targets = sorted(_targets, key=lambda c: -(c.get("conviction") or 0))
 
-    ui.label("Engagement Funnel").classes("font-bold").style("margin-top:10px;")
-    with ui.row().classes("w-full gap-3 items-stretch"):
-        _tier_card(tier1, "Tier 1 — Defend / Convert", "Direct 1x1 calls this week", COLORS["negative"])
-        _tier_card(tier2, "Tier 2 — Nurture", "Send the Q2 preview deck", COLORS["warning"])
-        _tier_card(tier3, "Tier 3 — Passive", "Add to the next NDR queue", COLORS["accent"])
+    # THE BUYSIDE READ — plain-English BLUF (same pattern as NOBO / the Big Picture read).
+    _read = [f"{len(_holders)} holder(s) to defend and {len(_targets)} peer-owner target(s) to convert — "
+             f"{len(_tier1)} at Tier-1 conviction, ready for a 1×1 this week."]
+    if _adding or _trimming:
+        _read.append(f"Holder momentum this 13F cycle: {len(_adding)} adding/new vs {len(_trimming)} trimming/exiting.")
+    if _top_targets[:3]:
+        _read.append("Call first: " + ", ".join(pretty_name(c.get("filer", "")) for c in _top_targets[:3]) + ".")
+    with ui.card().classes("w-full").style(
+            "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+            "border-radius:8px;margin-top:8px;"):
+        ui.label("THE BUYSIDE READ — who owns you, who should").style(
+            "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
+        for _p in _read:
+            ui.label("• " + _p).style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
+
+    # Composition — the four questions (replaces the Tier 1/2/3 funnel), same tile style as NOBO/Big Picture.
+    ui.label("Who owns you · who should · who's moving").classes("font-bold").style("margin-top:10px;")
+    with ui.row().classes("w-full gap-3"):
+        _bp_metric("Who owns you", str(len(_holders)),
+                   [f"{pretty_name(i['Fund'])} — {_holder_dollars(i.get('Position_Value'))}"
+                    + (f" · {_dir_label(i.get('Direction'))}" if _dir_label(i.get('Direction')) else "")
+                    for i in _top_holders[:6]] or ["No tracked holders yet."])
+        _bp_metric("Who should own you", f"{len(_tier1)} / {len(_targets)}",
+                   [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
+                    for c in _top_targets[:6]] or ["No conviction targets yet."])
+        _bp_metric("Adding / New (holders)", str(len(_adding)),
+                   [pretty_name(i['Fund']) for i in _adding[:6]] or ["None adding this cycle."])
+        _bp_metric("Trimming / Exited (holders)", str(len(_trimming)),
+                   [pretty_name(i['Fund']) for i in _trimming[:6]] or ["None trimming this cycle."])
 
     ui.markdown("---")
 
@@ -3591,7 +3635,8 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             for f, inst in picked:
                 if f in have:
                     continue
-                target["shortlist"].append(_shortlist_from_inst(inst))
+                target["shortlist"].append(
+                    _shortlist_record(inst) if inst.get("filer") else _shortlist_from_inst(inst))
                 have.add(f); added += 1
             _save_json("ndr_trips.json", trips2)
             skipped = len(picked) - added
@@ -3608,8 +3653,9 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         bs_checks.clear()
         sel_tiers = tier_filter.value or [1, 2, 3]
         sel_turnover = turnover_filter.value or turnover_options
-        filtered = [i for i in institutions
-                    if i["Coverage_Priority"] in sel_tiers
+
+        def _pass(i):
+            return (i["Coverage_Priority"] in sel_tiers
                     and (holder_filter.value == "All"
                          or (holder_filter.value == "Current holders" and i["USIO_Holder"])
                          or (holder_filter.value == "Non-holders only" and not i["USIO_Holder"]))
@@ -3619,23 +3665,75 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                     and _score_val(i, "Digital_Intent_Score") >= (intent_filter.value or 0)
                     and (ownership_filter.value == "All"
                          or (ownership_filter.value == "Active only" and i["Ownership_Style"] == "Active")
-                         or (ownership_filter.value == "Passive only" and i["Ownership_Style"] == "Passive"))]
+                         or (ownership_filter.value == "Passive only" and i["Ownership_Style"] == "Passive")))
+
+        filtered = [i for i in institutions if _pass(i)]
+        holders_f = sorted([i for i in filtered if i["USIO_Holder"]],
+                           key=lambda x: -(x.get("Position_Value") or 0))
+        nonh = [i for i in filtered if not i["USIO_Holder"]]
+
+        # Fold the conviction targets (peer-owners) into the NON-HOLDER group — the SAME universe as
+        # the metro table / the "who should own you" card — so the metro-identified names appear HERE
+        # (ranked by conviction), not only on Peer Prospects. This is what made the two disagree.
+        _seen = {_norm_name(i["Fund"]) for i in nonh}
+        if holder_filter.value != "Current holders":
+            try:
+                from core import peer_prospects as _pp
+                _cands = _pp.build_candidates(get_active_client_id(), limit=None) or []
+            except Exception:
+                _cands = []
+            for c in _cands:
+                _m = _metro_from_city(c.get("city"), c.get("state"))
+                if metro_filter.value != "All Regions" and _m != metro_filter.value:
+                    continue
+                if _norm_name(c.get("filer", "")) in _seen:
+                    continue
+                nonh.append(c); _seen.add(_norm_name(c.get("filer", "")))
+        _cscore = lambda x: (x.get("conviction") if x.get("filer") else _score_val(x)) or 0
+        nonh.sort(key=lambda x: -_cscore(x))
 
         with banner_container:
-            _render_repeat_alert_banner(filtered, meeting_log)
+            _render_repeat_alert_banner(holders_f, meeting_log)
 
         with list_container:
-            ui.label(f"{len(filtered)} institutions matching filters").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            if not filtered:
-                ui.label("No institutions match these filters.").style(f"color:{COLORS['text_muted']};")
-            for inst in filtered:
-                # Checkbox lives OUTSIDE the card (no change to _institution_card), so ticking a
-                # fund registers it for the Add-to-NDR bar above.
-                with ui.row().classes("w-full items-start no-wrap gap-2"):
-                    bs_checks[inst["Fund"]] = (
-                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
-                    with ui.column().classes("flex-1").style("min-width:0;"):
-                        _institution_card(inst, meeting_log, contacts)
+            # ── Current Holders — who owns you (rich cards, by position size) ──
+            with ui.expansion(f"Current Holders — who owns you ({len(holders_f)})",
+                              value=True, icon="account_balance").classes("w-full").style(
+                    f"border:1px solid {COLORS['border']};border-radius:8px;"):
+                if not holders_f:
+                    ui.label("No current holders match these filters.").style(f"color:{COLORS['text_muted']};")
+                for inst in holders_f:
+                    with ui.row().classes("w-full items-start no-wrap gap-2"):
+                        bs_checks[inst["Fund"]] = (
+                            ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
+                        with ui.column().classes("flex-1").style("min-width:0;"):
+                            _institution_card(inst, meeting_log, contacts)
+
+            # ── Non-Holders — who should own you (conviction targets, incl. the metro-identified peer-owners) ──
+            with ui.expansion(f"Non-Holders — who should own you ({len(nonh)})",
+                              value=True, icon="person_search").classes("w-full").style(
+                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;"):
+                if not nonh:
+                    ui.label("No non-holder targets match these filters.").style(f"color:{COLORS['text_muted']};")
+                for x in nonh:
+                    _is_c = bool(x.get("filer"))
+                    _nm = x.get("filer") or x.get("Fund")
+                    _sc = round(_cscore(x))
+                    _comps = (", ".join(sorted((x.get("comps") or {}).keys())) if _is_c
+                              else ", ".join(x.get("Peer_Holdings") or []))
+                    _mt = _metro_from_city(x.get("city"), x.get("state")) if _is_c else x.get("Metro", "—")
+                    with ui.row().classes("w-full items-center gap-2").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                            "border-radius:8px;padding:6px 10px;"):
+                        bs_checks[_nm] = (ui.checkbox().props("dense").style("flex:0 0 auto;"), x)
+                        ui.label(str(_sc)).style(
+                            f"color:{COLORS['accent_light']};font-weight:700;width:34px;text-align:center;").tooltip(
+                            "Conviction 0-100 — likelihood to buy (owns a comp of yours, not you)")
+                        with ui.column().classes("gap-0 flex-1").style("min-width:0;"):
+                            ui.label(pretty_name(_nm)).style(
+                                f"color:{COLORS['text_body']};font-weight:600;font-size:var(--fs-base);")
+                            _dd = ("Owns " + _comps if _comps else "Non-holder") + (f"  ·  {_mt}" if _mt and _mt != "—" else "")
+                            ui.label(_dd).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     filter_btn.on_click(apply_and_render)
     apply_and_render()
