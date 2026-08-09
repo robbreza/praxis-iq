@@ -2894,7 +2894,8 @@ def _render_big_picture(institutions):
         _bp_metric("Who owns you", str(holder_count),
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
-                    if holders_by_metro else "No holders tracked yet."])
+                    if holders_by_metro else "No holders tracked yet."],
+                   sub=_peer_holder_sub(holder_count, client_id))
         _bp_metric("Who should own you", f"{len(_bp_tier1)} / {_bp_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _bp_top_targets[:5]] or ["No conviction targets yet."])
@@ -3281,10 +3282,35 @@ def _render_big_picture(institutions):
               on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
 
 
-def _bp_metric(label, value, detail_lines):
+def _peer_holder_avg(cid):
+    """Average number of institutional 13F holders across the client's tight comps — turns a bare
+    holder count into a judgement (better- or worse-owned than peers). None when no comp 13F is
+    cached (real clients before a peer 13F refresh), so the card just omits the comparison."""
+    try:
+        from core import peer_prospects as _pp, sec_filings as _sf
+        counts = [len(_sf.get_cached_13f_holders(tk).get("holders", []) or [])
+                  for tk in (_pp.tight_comps(cid) or set())]
+        counts = [c for c in counts if c > 0]
+        return round(sum(counts) / len(counts)) if counts else None
+    except Exception:
+        return None
+
+
+def _peer_holder_sub(holder_count, cid):
+    """Subtitle for the 'Who owns you' card — 'vs peer avg N · above/below/in line'. '' if no comp data."""
+    pa = _peer_holder_avg(cid)
+    if not pa:
+        return ""
+    rel = "above peers" if holder_count > pa else ("below peers" if holder_count < pa else "in line with peers")
+    return f"vs peer avg {pa} · {rel}"
+
+
+def _bp_metric(label, value, detail_lines, sub=None):
     with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
         ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        if sub:
+            ui.label(sub).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-xs);margin-top:-2px;")
         with ui.expansion("Details", value=False).classes("w-full"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
@@ -3539,7 +3565,8 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         _bp_metric("Who owns you", str(len(_holders)),
                    [f"{pretty_name(i['Fund'])} — {_holder_dollars(i.get('Position_Value'))}"
                     + (f" · {_dir_label(i.get('Direction'))}" if _dir_label(i.get('Direction')) else "")
-                    for i in _top_holders[:6]] or ["No tracked holders yet."])
+                    for i in _top_holders[:6]] or ["No tracked holders yet."],
+                   sub=_peer_holder_sub(len(_holders), get_active_client_id()))
         _bp_metric("Who should own you", f"{len(_tier1)} / {_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _top_targets[:6]] or ["No conviction targets yet."])
