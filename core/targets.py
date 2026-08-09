@@ -189,13 +189,21 @@ def targets_as_institutions(client_id=None, ticker=None):
     None — Call_Score, Visit_Score, IR_Visits_30d and Call_Listener have no source without website
     analytics or a call-listener feed, so scoring omits them rather than scoring them zero."""
     rows = targets_from_13f(client_id=client_id, ticker=ticker)
+    # Optional per-holder type/turnover/active-passive overrides (13F carries none of these). Keyed by
+    # exact fund name; only tenants that seed holder_profiles.json have it (the illustrative demo),
+    # so real clients keep the None defaults below.
+    from core import db as _db
+    from config.client_config import get_active_client_id as _gac
+    _profiles = _db.load_json("holder_profiles.json", default={},
+                              client_id=client_id or _gac()) or {}
     out = []
     for r in rows:
         cik = (r.get("cik") or "").lstrip("0")
+        _prof = _profiles.get(r["Fund"], {})
         out.append({
             "Fund": r["Fund"],
             "cik": r.get("cik"),
-            "Type": None,
+            "Type": _prof.get("type"),
             "AUM": _fmt_aum(r.get("Book_Total")),
             "Coverage_Priority": _PRIORITY_BY_CONVICTION.get(r.get("Conviction"), 4),
             # the page's holder flag is named for the original single tenant; it means "holds us"
@@ -231,7 +239,8 @@ def targets_as_institutions(client_id=None, ticker=None):
             # scoring a fabricated zero.
             "Call_Score": None, "Visit_Score": None,
             "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None,
-            "Last_Visit": None, "Turnover_Style": None, "Ownership_Style": None,
+            "Last_Visit": None,
+            "Turnover_Style": _prof.get("turnover"), "Ownership_Style": _prof.get("ownership"),
         })
     return out
 

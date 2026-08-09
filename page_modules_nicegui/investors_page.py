@@ -1334,7 +1334,15 @@ def render_investors_page():
     # _enrich_peer_holdings_with_live_13f's docstring) — must run BEFORE
     # scoring, since post-earnings mode's Catalyst Fit pillar reads
     # Peer_Holdings too, not just Peer Cross-Targeting below.
-    _enrich_peer_holdings_with_live_13f(raw_institutions, [p["ticker"] for p in _load_peer_universe()])
+    # The illustrative demo is the ONE exception: its comp books (PYRA/CLRT/VNTG) are cached to
+    # drive Peer Prospects, so the enrichment sees them as "fetched" and — finding our own holders
+    # correctly NOT among the comps' filers — wipes the seeded peer_overlap, leaving every holder
+    # card reading "Peers held: —". For a self-contained demo the seed IS the intended truth, so we
+    # keep it. (Seeding the holders INTO the comp books would confirm the overlap but inflate the
+    # comps' holder counts, flipping the peer-average stability signal — see _peer_holder_avg.)
+    from core.curated_targets import _is_illustrative
+    if not _is_illustrative(client_id):
+        _enrich_peer_holdings_with_live_13f(raw_institutions, [p["ticker"] for p in _load_peer_universe()])
     institutions = _score_institutions(raw_institutions, mode, q2_listeners, meeting_log)
 
     ui.label(f"{CT('name')} — Investor Targeting").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
@@ -2902,10 +2910,23 @@ def _render_big_picture(institutions):
         _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
                    ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
                    + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []))
-        _bp_metric("Where to start", top_metro,
-                   [f"{top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) to convert · {top_d.get('holders', 0)} to defend",
-                    (f"{top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
-                     if top_metro_request else f"{len(ndr_requests)} inbound NDR request(s) on the desk")])
+        # "Where to start" is the roadshow-geography answer: the #1 city, then a ranked summary of
+        # the other cities in play, and — the part IR actually acts on — who asked for each one.
+        _wts_detail = ["Priority cities (convert · defend):"]
+        for _m, _pri, _d, _v, _rc in metro_priority[:5]:
+            _seg = f"  {_m}: {_d.get('tier1_nonholder', 0)} to convert · {_d.get('holders', 0)} to defend"
+            if _rc:
+                _seg += f" · {_rc} request(s)"
+            _wts_detail.append(_seg)
+        if ndr_requests:
+            _wts_detail.append("Who's asking:")
+            for _r in ndr_requests:
+                _wts_detail.append(f"  {_r['metro']} — {_r.get('analyst', '—')} ({_r.get('firm', '—')})")
+        _next_cities = [m for m, *_ in metro_priority[1:4]]
+        _wts_sub = f"{len(ndr_requests)} inbound request(s) on the desk" if ndr_requests else None
+        if _next_cities:
+            _wts_sub = ((_wts_sub + " · ") if _wts_sub else "") + "then " + ", ".join(_next_cities)
+        _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub)
 
     # (Removed the opaque "New vs. existing" mix bar — its 52/48 came from a call/visitor/prospect
     # signal blend that never reconciled with the visible holder/target counts; the four cards above
@@ -3306,11 +3327,13 @@ def _peer_holder_sub(holder_count, cid):
 
 
 def _bp_metric(label, value, detail_lines, sub=None):
-    with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        ui.label(value).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+    # Match the Today page cards (the app's card standard): softer surface_hover_bg fill, no hard
+    # border, a solid heading-grey title (not the washed-out muted tone that got lost before).
+    with ui.card().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};"):
+        ui.label(label).style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:700;")
+        ui.label(value).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
         if sub:
-            ui.label(sub).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-xs);margin-top:-2px;")
+            ui.label(sub).classes("t-meta").style("margin-top:-2px;")
         with ui.expansion("Details", value=False).classes("w-full"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
@@ -3584,7 +3607,10 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         ui.label(f"{len(institutions)} institutions tracked").classes("font-bold")
         ui.label(f"· {sum(1 for i in institutions if i['Call_Listener'])} were Q1 call listeners").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-    with ui.expansion("Filter Criteria — Coverage Priority, Holder Status, Turnover, Metro, Intent, Ownership", value=False).classes("w-full"):
+    with ui.expansion("Filter Criteria — Coverage Priority, Holder Status, Turnover, Metro, Intent, Ownership",
+                      value=False, icon="tune").classes("w-full").style(
+            f"border:1px solid {COLORS['border']};border-radius:8px;background:{COLORS['surface_bg']};"
+            f"color:{COLORS['text_heading']};font-weight:600;"):
         ui.label("These narrow the institution list below — they don't affect the Engagement Funnel or metrics "
                  "above, which always show the complete tracked set. All defaults below are unfiltered (everything "
                  "shown), so the list you see with no filters applied matches the same ranked order Today's "
@@ -3740,41 +3766,41 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             # ── Current Holders — who owns you (rich cards, by position size) ──
             with ui.expansion(f"Current Holders — who owns you ({len(holders_f)})",
                               value=True, icon="account_balance").classes("w-full").style(
-                    f"border:1px solid {COLORS['border']};border-radius:8px;"):
+                    f"border:1px solid {COLORS['border']};border-radius:8px;"
+                    f"color:{COLORS['text_heading']};font-weight:600;"):
                 if not holders_f:
                     ui.label("No current holders match these filters.").style(f"color:{COLORS['text_muted']};")
-                for inst in holders_f:
-                    with ui.row().classes("w-full items-start no-wrap gap-2"):
-                        bs_checks[inst["Fund"]] = (
-                            ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
-                        with ui.column().classes("flex-1").style("min-width:0;"):
-                            _institution_card(inst, meeting_log, contacts)
+                # Fixed-height inner scroll — ~3 cards visible with the next peeking, so this group
+                # doesn't push the Non-Holders section off an endless scroll. Shrinks to fit when few.
+                with ui.column().classes("w-full gap-2").style(
+                        "max-height:500px;overflow-y:auto;padding-right:6px;"):
+                    for inst in holders_f:
+                        with ui.row().classes("w-full items-start no-wrap gap-2"):
+                            bs_checks[inst["Fund"]] = (
+                                ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
+                            with ui.column().classes("flex-1").style("min-width:0;"):
+                                _institution_card(inst, meeting_log, contacts)
 
             # ── Non-Holders — who should own you (conviction targets, incl. the metro-identified peer-owners) ──
             with ui.expansion(f"Non-Holders — who should own you ({len(nonh)})",
                               value=True, icon="person_search").classes("w-full").style(
-                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;"):
+                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;"
+                    f"color:{COLORS['text_heading']};font-weight:600;"):
                 if not nonh:
                     ui.label("No non-holder targets match these filters.").style(f"color:{COLORS['text_muted']};")
-                for x in nonh:
-                    _is_c = bool(x.get("filer"))
-                    _nm = x.get("filer") or x.get("Fund")
-                    _sc = round(_cscore(x))
-                    _comps = (", ".join(sorted((x.get("comps") or {}).keys())) if _is_c
-                              else ", ".join(x.get("Peer_Holdings") or []))
-                    _mt = _metro_from_city(x.get("city"), x.get("state")) if _is_c else x.get("Metro", "—")
-                    with ui.row().classes("w-full items-center gap-2").style(
-                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-                            "border-radius:8px;padding:6px 10px;"):
-                        bs_checks[_nm] = (ui.checkbox().props("dense").style("flex:0 0 auto;"), x)
-                        ui.label(str(_sc)).style(
-                            f"color:{COLORS['accent_light']};font-weight:700;width:34px;text-align:center;").tooltip(
-                            "Conviction 0-100 — likelihood to buy (owns a comp of yours, not you)")
-                        with ui.column().classes("gap-0 flex-1").style("min-width:0;"):
-                            ui.label(pretty_name(_nm)).style(
-                                f"color:{COLORS['text_body']};font-weight:600;font-size:var(--fs-base);")
-                            _dd = ("Owns " + _comps if _comps else "Non-holder") + (f"  ·  {_mt}" if _mt and _mt != "—" else "")
-                            ui.label(_dd).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                # Same rich card as the holders above — a peer-owner candidate is adapted into the
+                # institution shape first (_candidate_to_inst); a tracked non-holder is already one.
+                # The checkbox stores the ORIGINAL record so _bs_add routes it correctly. Same
+                # fixed-height inner scroll as the holders group.
+                with ui.column().classes("w-full gap-2").style(
+                        "max-height:500px;overflow-y:auto;padding-right:6px;"):
+                    for x in nonh:
+                        inst = _candidate_to_inst(x) if x.get("filer") else x
+                        with ui.row().classes("w-full items-start no-wrap gap-2"):
+                            bs_checks[inst["Fund"]] = (
+                                ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), x)
+                            with ui.column().classes("flex-1").style("min-width:0;"):
+                                _institution_card(inst, meeting_log, contacts)
 
     filter_btn.on_click(apply_and_render)
     apply_and_render()
@@ -3856,6 +3882,49 @@ def _tier_card(institutions, label, action, accent_color):
                 ui.label("No institutions currently in this tier.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
+def _fmt_aum(v):
+    """Compact dollar label for a book total ($1.1B / $840M / $12,500)."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return "—"
+    if v >= 1e9:
+        return f"${v / 1e9:.1f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.0f}M"
+    return f"${v:,.0f}"
+
+
+def _candidate_to_inst(c):
+    """Adapt a peer_prospects.build_candidates record (a peer-owner we don't hold yet) into the
+    institution shape _institution_card renders, so the Non-Holders group looks IDENTICAL to the
+    Current Holders group instead of a separate light row. The card's score slot carries CONVICTION
+    here (our one non-holder score); the holdings-of-us fields (Shares / QoQ) are blank because a
+    non-holder holds none of us yet, and 'Peers held' carries the comps that make them a prospect.
+    Signal fields we never measured (call-listener, IR visits) stay None so the card reads
+    'no data', never a fabricated zero. Keeps the raw candidate identity (filer/comps/city/state)
+    so the Add-to-NDR checkbox still routes through _shortlist_record."""
+    nm = c.get("filer") or c.get("Fund") or "—"
+    comps = sorted((c.get("comps") or {}).keys())
+    return {
+        "Fund": nm,
+        "Engagement_Score": round(c.get("conviction") or 0),
+        "USIO_Holder": False,
+        "QoQ_Change": 0, "Shares": 0,
+        "Type": "Institution", "AUM": _fmt_aum(c.get("book_total")),
+        "Metro": _metro_from_city(c.get("city"), c.get("state")) or "—",
+        "Turnover_Style": "—",
+        "Action": "Prospect — owns your comp, not you yet",
+        "Ownership_Style": "Active", "Source": "Peer 13F",
+        "cik": c.get("cik"),
+        "Peer_Holdings": comps,
+        "Peer_Holdings_Source": {t: "live" for t in comps},
+        "Call_Listener": None, "Listen_Duration": None, "IR_Visits_30d": None, "Last_Visit": None,
+        "filer": c.get("filer"), "comps": c.get("comps"),
+        "city": c.get("city"), "state": c.get("state"), "conviction": c.get("conviction"),
+    }
+
+
 def _institution_card(inst, meeting_log, contacts):
     fund_meetings = _get_fund_meetings(meeting_log, inst["Fund"])
     repeat_gap = _get_repeat_signal(fund_meetings)
@@ -3865,7 +3934,9 @@ def _institution_card(inst, meeting_log, contacts):
     qoq_str = f"{inst['QoQ_Change']:+,}" if inst["QoQ_Change"] else "—"
     shares_str = f"{inst['Shares']:,}" if inst["Shares"] else "—"
 
-    border_clr = "#F9A825" if repeat_gap else COLORS["border"]
+    # Match the Today page cards (the app card standard): softer surface_hover_bg fill, no hard
+    # border; a repeat-meeting alert shows as a left rail, the same "attention" cue Today uses.
+    _card_rail = "border-left:3px solid #F9A825;" if repeat_gap else ""
     # Today's Investor Pipeline widget (top_engagement_targets) drops any
     # fund contacted within the last 7 days from its top-5, so it can look
     # "out of order" compared to this full list unless it's clear why a
@@ -3875,12 +3946,27 @@ def _institution_card(inst, meeting_log, contacts):
     from core import account_api
     _acct = account_api.get_account(name=inst["Fund"], cik=inst.get("cik")) or {}
     _rel, _ix = _acct.get("relationship", {}), _acct.get("interactions", {})
-    with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {border_clr};"):
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_hover_bg']};{_card_rail}padding:10px 14px;gap:3px;"):
         with ui.row().classes("w-full justify-between items-start"):
             with ui.column().classes("gap-0"):
                 ownership_badge = "Passive" if inst.get("Ownership_Style") == "Passive" else "Active"
+                # Join only the parts we actually have — real SEC-sourced holders often carry no
+                # Type / Turnover_Style, and rendering the literal "None" between the dots ("· None ·")
+                # looked broken. Drop any empty / None / placeholder segment instead.
+                def _dots(*vals):
+                    out = []
+                    for v in vals:
+                        s = "" if v is None else str(v).strip()
+                        if s and s.lower() != "none" and s != "—":
+                            out.append(s)
+                    return "  ·  ".join(out)
+                _aum = inst.get("AUM")
+                _aum_seg = f"AUM {_aum}" if (_aum and str(_aum).strip().lower() not in ("none", "—", "")) else None
+                _title_txt = _dots(pretty_name(inst["Fund"]), inst.get("Type"), _aum_seg)
+                _meta_txt = _dots(inst.get("Metro"), inst.get("Turnover_Style"), ownership_badge, holder_badge)
                 with ui.row().classes("items-center gap-2"):
-                    ui.label(f"{pretty_name(inst['Fund'])}  ·  {inst['Type']}  ·  AUM {inst['AUM']}").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
+                    ui.label(_title_txt).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
                     _src = inst.get("Source", "Seed (demo)")
                     ui.label(_src).style(
                         f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:1px 6px;"
@@ -3891,7 +3977,7 @@ def _institution_card(inst, meeting_log, contacts):
                             f"background:{COLORS['positive'] if _q in ('good', 'responsive') else COLORS['surface_hover_bg']};"
                             f"color:{'#fff' if _q in ('good', 'responsive') else COLORS['text_secondary']};"
                             "border-radius:6px;padding:1px 7px;font-size:var(--fs-2xs);font-weight:700;white-space:nowrap;")
-                ui.label(f"{inst['Metro']}  ·  {inst['Turnover_Style']}  ·  {ownership_badge}  ·  {holder_badge}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                ui.label(_meta_txt).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 if _ix.get("touches"):
                     ui.label(f"{_ix['touches']} touch{'es' if _ix['touches'] != 1 else ''} · last {_ix.get('last_contact') or '—'}").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")

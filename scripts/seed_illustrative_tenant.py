@@ -180,6 +180,38 @@ HOLDERS = [
     ("Kirkstone Advisors",           "REDMOND",       "WA",    78_000,   221_520,     88_000_000,  16),
 ]
 
+# Type / turnover / active-passive per holder — a realistic mix so the cards, the Turnover filter,
+# and the Active/Passive filter all read like a real book: concentrated hedge funds run HIGH turnover
+# and Active; the big multi-hundred-position books read index-like / Passive; the Philadelphia
+# showcase (Fairmount Ridge) is a LOW-turnover value believer. Read by targets_as_institutions via
+# holder_profiles.json (client-scoped — real clients have none, so this never touches them).
+HOLDER_PROFILES = {
+    "Halewood Capital Management":   ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Corveth Advisors":              ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Brentmoor Capital Management":  ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Ashcombe Partners":             ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Reddington Asset Management":   ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Thornbury Investment Partners": ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Marchmont Capital":             ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Fairmount Ridge Capital":       ("Value Boutique",  "Low (Long-Term Value)", "Active"),
+    "Baldwin Creek Capital":         ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Longmere Trust Company":        ("Bank / Trust",    "Low (Long-Term Value)", "Passive"),
+    "Ferncliff Capital Group":       ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Sandhurst Equity Partners":     ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Windgate Asset Management":     ("Asset Manager",   "Low (Long-Term Value)", "Active"),
+    "Calloway Bridge Advisors":      ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Straiton Global Investors":     ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Aldergate Asset Management":    ("Asset Manager",   "Medium (Growth/GARP)",  "Passive"),
+    "Rheinfeld Privatbank":          ("Private Bank",    "Low (Long-Term Value)", "Active"),
+    "Cambourne Capital":             ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Vessley Point Partners":        ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Oakhurst Lane Capital":         ("Growth Boutique", "Medium (Growth/GARP)",  "Active"),
+    "Deerfield Row Advisors":        ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Northgate Meridian Capital":    ("Asset Manager",   "Medium (Growth/GARP)",  "Active"),
+    "Harlow Bay Investment Co":      ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+    "Kirkstone Advisors":            ("Hedge Fund",      "High (Hedge/Trading)",  "Active"),
+}
+
 # Own a PEER but not NLKP → these are what the prospect engine surfaces, and what
 # fills the roadshow-metro map with non-holders.
 PEER_OWNERS = [
@@ -454,6 +486,14 @@ def seed():
     own = [_holder(*h) for h in HOLDERS]
     db.save_json(f"sec_13f_holders_{TICKER}.json", _cache(TICKER, own), client_id=CID)
     print(f"[demo] seeded {len(own)} holders of {TICKER}")
+
+    # Per-holder type / turnover / active-passive (13F filings don't carry these) so the demo cards
+    # and the Turnover / Active-Passive filters read like a real book. targets_as_institutions folds
+    # these in by exact fund name; a client without this store is unaffected.
+    db.save_json("holder_profiles.json",
+                 {f: {"type": t, "turnover": tv, "ownership": o}
+                  for f, (t, tv, o) in HOLDER_PROFILES.items()}, client_id=CID)
+    print(f"[demo] seeded type/turnover profiles for {len(HOLDER_PROFILES)} holders")
 
     # 3. Peer books (drives Peer Prospects + the non-holder side of the metro map)
     by_peer = {}
