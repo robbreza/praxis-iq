@@ -3714,10 +3714,18 @@ def _render_buyside_tab(institutions, meeting_log, mode):
 
     list_container = ui.column().classes("w-full gap-3")
 
+    # Per-group "sort by city" toggle (the little arrow in each group header). False = default order
+    # (holders by position, non-holders by conviction); True = grouped alphabetically by metro.
+    _sortcity = {"h": False, "n": False}
+
     def apply_and_render():
         banner_container.clear()
         list_container.clear()
         bs_checks.clear()
+
+        def _toggle_city(group):
+            _sortcity[group] = not _sortcity[group]
+            apply_and_render()
         sel_tiers = tier_filter.value or [1, 2, 3]
         sel_turnover = turnover_filter.value or turnover_options
 
@@ -3759,48 +3767,72 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         _cscore = lambda x: (x.get("conviction") if x.get("filer") else _score_val(x)) or 0
         nonh.sort(key=lambda x: -_cscore(x))
 
+        # "Sort by city" toggle overrides the default order: group by metro, then keep the default
+        # ranking within each city. Non-holders can be tracked institutions OR peer-owner candidates.
+        def _row_metro(x):
+            if x.get("filer"):
+                return _metro_from_city(x.get("city"), x.get("state")) or "~"
+            return x.get("Metro") or "~"
+        if _sortcity["h"]:
+            holders_f.sort(key=lambda x: ((x.get("Metro") or "~"), -(x.get("Position_Value") or 0)))
+        if _sortcity["n"]:
+            nonh.sort(key=lambda x: (_row_metro(x), -_cscore(x)))
+
         with banner_container:
             _render_repeat_alert_banner(holders_f, meeting_log)
 
         with list_container:
-            # ── Current Holders — who owns you (rich cards, by position size) ──
-            with ui.expansion(f"Current Holders — who owns you ({len(holders_f)})",
-                              value=True, icon="account_balance").classes("w-full").style(
-                    f"border:1px solid {COLORS['border']};border-radius:8px;"
-                    f"color:{COLORS['text_heading']};font-weight:600;"):
-                if not holders_f:
-                    ui.label("No current holders match these filters.").style(f"color:{COLORS['text_muted']};")
-                # Fixed-height inner scroll — ~3 cards visible with the next peeking, so this group
-                # doesn't push the Non-Holders section off an endless scroll. Shrinks to fit when few.
-                with ui.column().classes("w-full gap-2").style(
-                        "max-height:500px;overflow-y:auto;padding-right:6px;"):
-                    for inst in holders_f:
-                        with ui.row().classes("w-full items-start no-wrap gap-2"):
-                            bs_checks[inst["Fund"]] = (
-                                ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
-                            with ui.column().classes("flex-1").style("min-width:0;"):
-                                _institution_card(inst, meeting_log, contacts)
+            # Holders and Non-Holders sit SIDE BY SIDE (two columns) on a wide screen and stack on a
+            # narrow one — halves this section's height vs stacking, and each has its own inner scroll
+            # so neither pushes the page into an endless scroll.
+            with ui.row().classes("w-full gap-3 items-start").style("flex-wrap:wrap;"):
+                # ── Current Holders — who owns you (rich cards, by position size) ──
+                with ui.column().style("flex:1 1 400px;min-width:0;"):
+                    with ui.expansion(f"Current Holders — who owns you ({len(holders_f)})",
+                                      value=True, icon="account_balance").classes("w-full").style(
+                            f"border:1px solid {COLORS['border']};border-radius:8px;"
+                            f"color:{COLORS['text_heading']};font-weight:600;"):
+                        with ui.row().classes("w-full items-center justify-end").style("margin:-4px 0 2px;"):
+                            ui.button("City", icon="sort_by_alpha", on_click=lambda: _toggle_city("h")).props(
+                                "flat dense size=sm").style(
+                                f"color:{COLORS['accent'] if _sortcity['h'] else COLORS['text_muted']};").tooltip(
+                                "Sort by city (click again to restore position order)")
+                        if not holders_f:
+                            ui.label("No current holders match these filters.").style(f"color:{COLORS['text_muted']};")
+                        with ui.column().classes("w-full gap-2").style(
+                                "max-height:560px;overflow-y:auto;padding-right:6px;"):
+                            for inst in holders_f:
+                                with ui.row().classes("w-full items-start no-wrap gap-2"):
+                                    bs_checks[inst["Fund"]] = (
+                                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
+                                    with ui.column().classes("flex-1").style("min-width:0;"):
+                                        _institution_card(inst, meeting_log, contacts)
 
-            # ── Non-Holders — who should own you (conviction targets, incl. the metro-identified peer-owners) ──
-            with ui.expansion(f"Non-Holders — who should own you ({len(nonh)})",
-                              value=True, icon="person_search").classes("w-full").style(
-                    f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;"
-                    f"color:{COLORS['text_heading']};font-weight:600;"):
-                if not nonh:
-                    ui.label("No non-holder targets match these filters.").style(f"color:{COLORS['text_muted']};")
-                # Same rich card as the holders above — a peer-owner candidate is adapted into the
-                # institution shape first (_candidate_to_inst); a tracked non-holder is already one.
-                # The checkbox stores the ORIGINAL record so _bs_add routes it correctly. Same
-                # fixed-height inner scroll as the holders group.
-                with ui.column().classes("w-full gap-2").style(
-                        "max-height:500px;overflow-y:auto;padding-right:6px;"):
-                    for x in nonh:
-                        inst = _candidate_to_inst(x) if x.get("filer") else x
-                        with ui.row().classes("w-full items-start no-wrap gap-2"):
-                            bs_checks[inst["Fund"]] = (
-                                ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), x)
-                            with ui.column().classes("flex-1").style("min-width:0;"):
-                                _institution_card(inst, meeting_log, contacts)
+                # ── Non-Holders — who should own you (conviction targets, incl. the metro-identified peer-owners) ──
+                with ui.column().style("flex:1 1 400px;min-width:0;"):
+                    with ui.expansion(f"Non-Holders — who should own you ({len(nonh)})",
+                                      value=True, icon="person_search").classes("w-full").style(
+                            f"border:1px solid {COLORS['border']};border-radius:8px;"
+                            f"color:{COLORS['text_heading']};font-weight:600;"):
+                        with ui.row().classes("w-full items-center justify-end").style("margin:-4px 0 2px;"):
+                            ui.button("City", icon="sort_by_alpha", on_click=lambda: _toggle_city("n")).props(
+                                "flat dense size=sm").style(
+                                f"color:{COLORS['accent'] if _sortcity['n'] else COLORS['text_muted']};").tooltip(
+                                "Sort by city (click again to restore conviction order)")
+                        if not nonh:
+                            ui.label("No non-holder targets match these filters.").style(f"color:{COLORS['text_muted']};")
+                        # Same rich card as the holders — a peer-owner candidate is adapted into the
+                        # institution shape first (_candidate_to_inst); a tracked non-holder is already
+                        # one. The checkbox stores the ORIGINAL record so _bs_add routes it correctly.
+                        with ui.column().classes("w-full gap-2").style(
+                                "max-height:560px;overflow-y:auto;padding-right:6px;"):
+                            for x in nonh:
+                                inst = _candidate_to_inst(x) if x.get("filer") else x
+                                with ui.row().classes("w-full items-start no-wrap gap-2"):
+                                    bs_checks[inst["Fund"]] = (
+                                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), x)
+                                    with ui.column().classes("flex-1").style("min-width:0;"):
+                                        _institution_card(inst, meeting_log, contacts)
 
     filter_btn.on_click(apply_and_render)
     apply_and_render()
