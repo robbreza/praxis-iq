@@ -2844,6 +2844,16 @@ def _render_big_picture(institutions):
     # THE IR READ — a plain-English BLUF up top (same pattern as NOBO's CEO read), built from the
     # numbers already on this page so the "so what" lands before the tiles.
     _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
+    _dirl = lambda i: (i.get("Direction") or "").lower()
+    _bp_adding = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("adding", "new")]
+    _bp_trimming = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("trimming", "exited")]
+    try:                                          # who should own you = the conviction target universe
+        from core import peer_prospects as _bpp
+        _bp_targets = _bpp.build_candidates(client_id, limit=None) or []
+    except Exception:
+        _bp_targets = []
+    _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
+    _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
     _ir_read = []
     _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
            if top_metro_request else "")
@@ -2871,25 +2881,24 @@ def _render_big_picture(institutions):
             ui.label("• " + _p).style(
                 f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
-    ui.label("Ownership & momentum").classes("font-bold").style("margin-top:10px;")
+    # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape
+    # across every ownership surface): who owns you · who should · who's moving · where to start.
+    ui.label("Who owns you · who should · who's moving · where to start").classes("font-bold").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
-        _bp_metric("NDR Requests/City", str(len(ndr_requests)),
-                   [f"{r['analyst']} ({r['firm']}) → {r['city']}: {r['reason']} — received {r['received']}" for r in ndr_requests])
-        # Was "New Investor Signals" = call-listener + website-visitor counts. Both read
-        # CSVs that exist for NO client (there is no call or web-analytics integration),
-        # so this headline tile was structurally pinned at 0 for every customer, forever.
-        # New positions ARE measurable — they come from the 13F holder history — and
-        # "who just bought in" is the more useful number anyway.
-        _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
-        _bp_metric("New Positions (13F)", str(len(_new_pos)),
-                   [f"{pretty_name(i['Fund'])} — {i.get('Metro') or '—'}"
-                    f"{(' · ' + i['Conviction']) if i.get('Conviction') else ''}" for i in _new_pos[:6]]
-                   or ["No new positions in the latest 13F cycle."])
-        _bp_metric("Existing Holders Tracked", f"{holder_count} / {tracked_total}",
-                   [("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1]))) if holders_by_metro else "No holders tracked yet.",
-                    f"{tracked_total - holder_count} active non-holder prospects being worked"])
-        _bp_metric("NDRs logged", str(len(trip_rows)),
-                   [f"{c} — {dt} · {tm} · Sponsor: {sp} · {n} meetings" for c, dt, tm, sp, n in trip_rows] or ["No NDR trips logged yet"])
+        _bp_metric("Who owns you", str(holder_count),
+                   [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
+                    ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
+                    if holders_by_metro else "No holders tracked yet."])
+        _bp_metric("Who should own you", f"{len(_bp_tier1)} / {len(_bp_targets)}",
+                   [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
+                    for c in _bp_top_targets[:5]] or ["No conviction targets yet."])
+        _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
+                   ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
+                   + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []))
+        _bp_metric("Where to start", top_metro,
+                   [f"{top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) to convert · {top_d.get('holders', 0)} to defend",
+                    (f"{top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
+                     if top_metro_request else f"{len(ndr_requests)} inbound NDR request(s) on the desk")])
 
     ui.html(
         f"<div style='font-size:var(--fs-base);color:{COLORS['text_muted']};margin-top:6px;'>New vs. existing — where the pipeline is weighted right now</div>"
