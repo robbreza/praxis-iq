@@ -2841,6 +2841,37 @@ def _render_big_picture(institutions):
         tag="Live 13F targeting")
     ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:12px;")
 
+    # THE IR READ — a plain-English BLUF up top (same pattern as NOBO's CEO read), built from the
+    # numbers already on this page so the "so what" lands before the tiles.
+    _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
+    _ir_read = []
+    _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
+           if top_metro_request else "")
+    _ir_read.append(
+        f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to convert and "
+        f"{top_d.get('holders', 0)} holder(s) to defend{_rq}.")
+    if ndr_requests:
+        _ir_read.append(
+            f"{len(ndr_requests)} inbound NDR request(s) on the desk across "
+            f"{len({r['metro'] for r in ndr_requests})} cities — slot them while you're already routing.")
+    if _new_pos:
+        _nm = ", ".join(pretty_name(i['Fund']) for i in _new_pos[:3])
+        _ir_read.append(
+            f"{len(_new_pos)} new 13F position(s) entered the book this cycle ({_nm}"
+            f"{' …' if len(_new_pos) > 3 else ''}) — new money to engage early.")
+    _ir_read.append(
+        f"Ownership is weighted {new_pct}% prospective / {100 - new_pct}% existing — {mix_label.lower()}; "
+        f"{holder_count} holder(s) tracked and {tracked_total - holder_count} non-holder prospect(s) worked.")
+    with ui.card().classes("w-full").style(
+            "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+            "border-radius:8px;margin-top:8px;"):
+        ui.label("THE IR READ — where your ownership stands").style(
+            "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
+        for _p in _ir_read:
+            ui.label("• " + _p).style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
+
+    ui.label("Ownership & momentum").classes("font-bold").style("margin-top:10px;")
     with ui.row().classes("w-full gap-3"):
         _bp_metric("NDR Requests/City", str(len(ndr_requests)),
                    [f"{r['analyst']} ({r['firm']}) → {r['city']}: {r['reason']} — received {r['received']}" for r in ndr_requests])
@@ -2869,6 +2900,10 @@ def _render_big_picture(institutions):
         f"<div style='font-size:var(--fs-sm);color:{mix_color};margin-top:4px;'>{mix_label} ({new_pct}% new / {100-new_pct}% existing)</div>"
         + (f"<div style='font-size:var(--fs-xs);color:{COLORS['text_muted']};margin-top:2px;'>{recency_note}</div>" if recency_note else "")
     )
+    # Data-source footnote — deliberately NOT a headline; provenance and refresh cadence are
+    # established during onboarding, so here it's just a quiet attribution at the foot of the read.
+    ui.label("Sourced from SEC 13F filings + peer 13F books · refreshed each 13F cycle.").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:6px;font-style:italic;")
 
     most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
     if most_visited and most_visited[1] >= 2 and most_visited[0] != top_metro:

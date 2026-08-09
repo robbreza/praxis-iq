@@ -1386,13 +1386,21 @@ def _render_nobo():
         _visible = min(cur["nobo_pct_so"], 100)
         _rest = max(0, 100 - _visible)
         ui.label("Coverage of shares outstanding").classes("font-bold").style("margin-top:10px;")
+        # Bar is pure colour segments; labels live in a legend below so a narrow segment never
+        # clips its text (a 26%-wide slice can't fit "NOBO visible 26%" — it read "BO visible 2").
         ui.html(
-            "<div style='display:flex;width:100%;height:26px;border-radius:6px;overflow:hidden;"
-            "font-size:var(--fs-xs);font-weight:600;'>"
-            f"<div style='width:{_visible:.1f}%;background:#1E40AF;color:#fff;display:flex;align-items:center;"
-            f"justify-content:center;white-space:nowrap;'>NOBO visible {_visible:.0f}%</div>"
-            f"<div style='width:{_rest:.1f}%;background:#E2E8F0;color:#475569;display:flex;align-items:center;"
-            f"justify-content:center;white-space:nowrap;'>OBO / registered / insider {_rest:.0f}%</div>"
+            "<div style='display:flex;width:100%;height:22px;border-radius:6px;overflow:hidden;'>"
+            f"<div style='width:{_visible:.1f}%;background:#1E40AF;'></div>"
+            f"<div style='width:{_rest:.1f}%;background:#E2E8F0;'></div>"
+            "</div>"
+            "<div style='display:flex;gap:22px;flex-wrap:wrap;margin-top:7px;"
+            f"font-size:var(--fs-xs);color:{COLORS['text_muted']};'>"
+            "<span style='white-space:nowrap;'><span style='display:inline-block;width:11px;height:11px;"
+            f"border-radius:2px;background:#1E40AF;margin-right:6px;vertical-align:middle;'></span>"
+            f"NOBO visible {_visible:.0f}%</span>"
+            "<span style='white-space:nowrap;'><span style='display:inline-block;width:11px;height:11px;"
+            f"border-radius:2px;background:#E2E8F0;margin-right:6px;vertical-align:middle;'></span>"
+            f"OBO · registered · insider {_rest:.0f}%</span>"
             "</div>")
 
         # Two-pull flow — the deltas the CEO watches (only with a prior pull).
