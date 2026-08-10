@@ -6575,7 +6575,12 @@ def _render_meeting_hub_tab():
                           "explain that rather than pretend to have fetched anything.").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-            _render_pending_inbox_items()
+            # Meeting Hub is about meetings — surface only inbound emails asking for / confirming a
+            # meeting. Models, research notes, conference invites, etc. are triaged on the IR Inbox
+            # page, not here (that filtering gap is why an analyst model was showing up in the hub).
+            _render_pending_inbox_items(
+                categories=("speak_to_management", "meeting_confirmation"),
+                title="Pending meeting requests")
 
             hub_list = ui.column().classes("w-full gap-2").style("margin-top:8px;")
 
@@ -6896,7 +6901,7 @@ def _open_attachment_preview(doc_id, filename):
     dialog.open()
 
 
-def _render_pending_inbox_items():
+def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
     """The human half of the email-routing pipeline: core/mail_gateway.py
     classifies an inbound email (model / research note / NDR request /
     conference invite / speak-to-management) and queues it here rather than
@@ -6920,8 +6925,15 @@ def _render_pending_inbox_items():
                               pre-filled Status "Confirmed" — replaces app.py's
                               old ad hoc IMAP-scan-with-password-prompt button
                               (see core/email_classifier.py's docstring)
-    Every card also has Dismiss, for anything that turns out mis-tagged."""
+    Every card also has Dismiss, for anything that turns out mis-tagged.
+
+    `categories` optionally restricts which classified categories are shown, so a page can surface
+    only the items that belong to it — the Meeting Hub passes the meeting-scheduling categories only,
+    so a model / research note (which belong in the IR Inbox) never appears there. None = show all."""
     pending = inbox_queue.list_pending_items()
+    if categories is not None:
+        _cats = set(categories)
+        pending = [p for p in pending if p.get("category", "general") in _cats]
     if not pending:
         return
 
@@ -6929,7 +6941,7 @@ def _render_pending_inbox_items():
     firms_with_data = {a["firm"] for a in CA()}
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};margin-top:8px;"):
-        ui.label(f"Pending Inbox Items ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+        ui.label(f"{title} ({len(pending)})").classes("font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Classified and pre-filled from the email by AI where possible — review, correct if needed, "
                   "and confirm to send it where it belongs, or dismiss if it was mis-tagged.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
