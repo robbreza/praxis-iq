@@ -3319,13 +3319,20 @@ def _render_big_picture(institutions):
             '</q-td>'
         ) % _cc)
     # NDR status as a colored badge: Scheduled (green) / Planning (blue) / Completed (grey) / — none.
+    # When an NDR EXISTS for the metro, the badge is a shortcut STRAIGHT TO that NDR (Active NDRs) —
+    # @click.stop so it doesn't also fire the row-click's "add names to an NDR" dialog. A metro with
+    # no NDR yet (—) still opens that dialog via the row click, to start one.
     geo_table.add_slot("body-cell-read", (
         '<q-td :props="props">'
-        '<q-badge v-if="props.value===\'Scheduled\'" color="green" label="Scheduled"/>'
-        '<q-badge v-else-if="props.value===\'Planning\'" color="blue" label="Planning"/>'
-        '<q-badge v-else-if="props.value===\'Completed\'" outline color="grey" label="Completed"/>'
+        '<q-badge v-if="props.value===\'Scheduled\'" color="green" label="Scheduled" '
+        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
+        '<q-badge v-else-if="props.value===\'Planning\'" color="blue" label="Planning" '
+        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
+        '<q-badge v-else-if="props.value===\'Completed\'" outline color="grey" label="Completed" '
+        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
         '<span v-else style="opacity:.4;">—</span></q-td>'))
     geo_table.on("cellClick", _open_cell_drill)
+    geo_table.on("openndr", lambda e: nav.go_to("Roadshow", "NDR Planner"))
     geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
         e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
         holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
