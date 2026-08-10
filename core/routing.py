@@ -37,6 +37,7 @@ _BASE = "https://api.openrouteservice.org"
 _TIMEOUT = 8
 _GEOCACHE_KEY = "routing_geocode.json"
 _LEGCACHE_KEY = "routing_legs.json"
+_POLYCACHE_KEY = "routing_polylines.json"
 
 # Metro-region label -> a geocodable "City, ST" string, so a stop that only has
 # a metro (no street address yet) still routes from a real city center.
@@ -203,6 +204,39 @@ def leg(from_text, to_text, focus=None):
     legcache[cache_id] = result
     db.save_json(_LEGCACHE_KEY, legcache)
     return result
+
+
+def route_polyline(from_text, to_text, focus=None):
+    """The real driving route between two stops as a list of [lon, lat] points
+    (the road geometry, not just the summary that `leg()` keeps), or None on any
+    failure. Cached in db keyed by the address pair so the map builder makes zero
+    new calls on a re-export. Same geocoding/focus contract as `leg()`."""
+    key = api_key()
+    if not key or not from_text or not to_text:
+        return None
+    _fc = "" if not focus else f"@@{round(focus[0], 2)},{round(focus[1], 2)}"
+    cache_id = f"{_norm(_query_for(from_text))}||{_norm(_query_for(to_text))}{_fc}"
+    cache = db.load_json(_POLYCACHE_KEY, {})
+    if cache_id in cache:
+        return cache[cache_id]
+    a, b = geocode(from_text, focus), geocode(to_text, focus)
+    if not a or not b:
+        return None
+    try:
+        r = requests.get(
+            f"{_BASE}/v2/directions/driving-car",
+            params={"api_key": key, "start": f"{a[0]},{a[1]}", "end": f"{b[0]},{b[1]}"},
+            timeout=_TIMEOUT)
+        r.raise_for_status()
+        geom = ((r.json() or {}).get("features") or [{}])[0].get("geometry", {}).get("coordinates")
+        if not geom:
+            return None
+        poly = [[float(c[0]), float(c[1])] for c in geom]
+    except Exception:
+        return None
+    cache[cache_id] = poly
+    db.save_json(_POLYCACHE_KEY, cache)
+    return poly
 
 
 def test(sample_from="55 E 52nd St, New York, NY", sample_to="200 Vesey St, New York, NY"):

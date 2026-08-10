@@ -4459,8 +4459,8 @@ def _build_ndr_itinerary(trip, ticker):
                     lines.append(f"        ↳ travel: {lg['label']}"
                                  + (f"   [!] {tight}" if tight else ""))
             tag = "Non-Holder — Priority Target" if m.get("non_holder", True) else "Existing Holder"
-            time_lbl = m.get("time") or "—"
-            lines.append(f"  {time_lbl:>10}   {m.get('institution','')}")
+            time_lbl = _meeting_time_range(m)
+            lines.append(f"  {time_lbl:>18}   {m.get('institution','')}")
             if m.get("score") is not None:
                 lines.append(f"              {m.get('format','In-person')} · {tag} · Engagement Score {m['score']}/100")
             else:
@@ -4550,7 +4550,7 @@ def _build_ndr_itinerary_html(trip, ticker):
                 f"<b>Note:</b> {esc(m['notes'])}" if m.get("notes") else "",
             ]))
             rows.append(
-                f'<tr><td class="time">{esc(m.get("time", "—"))}</td>'
+                f'<tr><td class="time">{esc(_meeting_time_range(m))}</td>'
                 f'<td class="firm">{esc(m.get("institution", ""))}'
                 f'<div class="meta">{esc(meta)}</div>'
                 f'{("<div class=det>" + det + "</div>") if det else ""}</td></tr>')
@@ -4559,6 +4559,20 @@ def _build_ndr_itinerary_html(trip, ticker):
     if _tl:
         rows.append(f'<tr><td class="time travel"></td>'
                     f'<td class="travel"><b>{esc(_tl)}</b></td></tr>')
+
+    # Route map (best-effort, cached) — a street map of the day pinned in schedule
+    # order, so the printed itinerary carries its own map to hand the team.
+    map_html = ""
+    try:
+        _png = _build_ndr_route_map_png(trip, ticker)
+        if _png:
+            import base64 as _b64
+            _uri = "data:image/png;base64," + _b64.b64encode(_png).decode()
+            map_html = (f"<div class='routemap'><img src='{_uri}' alt='NDR route map'/>"
+                        "<div class='mapcap'>Stops numbered in schedule order; H = hotel (start / end). "
+                        "Map data © OpenStreetMap contributors.</div></div>")
+    except Exception:
+        map_html = ""
 
     meta_line = (f"{esc(trip.get('dates', ''))} &nbsp;·&nbsp; {esc(trip.get('city', ''))} &nbsp;·&nbsp; "
                  f"{'Virtual' if trip.get('ndr_type') == 'virtual' else 'In-Person'}")
@@ -4578,7 +4592,7 @@ def _build_ndr_itinerary_html(trip, ticker):
         ".meta-block div{font-size:var(--fs-base);margin:2px 0;color:#334155;}"
         "table{width:100%;border-collapse:collapse;margin-top:14px;}"
         "td{border-bottom:1px solid #E2E8F0;padding:8px 6px;vertical-align:top;font-size:var(--fs-base);}"
-        "td.time{white-space:nowrap;width:90px;color:#475569;font-weight:600;}"
+        "td.time{white-space:nowrap;width:132px;color:#475569;font-weight:600;}"
         "td.firm{font-weight:600;}.meta{font-weight:400;color:#64748B;font-size:var(--fs-xs);margin-top:2px;}"
         ".det{font-weight:400;color:#334155;font-size:var(--fs-sm);margin-top:4px;}"
         "td.travel{border-bottom:none;color:#64748B;font-size:var(--fs-xs);font-style:italic;padding:2px 6px;}"
@@ -4586,15 +4600,77 @@ def _build_ndr_itinerary_html(trip, ticker):
         ".tight{color:#B45309;font-style:normal;font-weight:600;}"
         "td.day{background:#F1F5F9;font-weight:700;font-size:var(--fs-sm);letter-spacing:.03em;}"
         ".foot{margin-top:18px;color:#94A3B8;font-size:var(--fs-xs);}"
-        "@media print{body{margin:12px;}}"
+        ".routemap{margin:14px 0 4px;}"
+        ".routemap img{width:100%;max-width:900px;border:1px solid #E2E8F0;border-radius:8px;}"
+        ".mapcap{color:#94A3B8;font-size:var(--fs-xs);margin-top:4px;}"
+        "@media print{body{margin:12px;}.routemap img{max-width:100%;}.routemap{page-break-inside:avoid;}}"
         "</style></head><body>"
         f"<h1>{esc(ticker)} — Non-Deal Roadshow Itinerary</h1>"
         f"<div class='sub'>{esc(trip.get('name', ''))} &nbsp;|&nbsp; {meta_line}</div>"
         f"<div class='meta-block'>{''.join(blocks)}</div>"
+        f"{map_html}"
         f"<table>{''.join(rows)}</table>"
         f"<div class='foot'>Prepared {datetime.now().strftime('%b %d, %Y')} · {esc(ticker)} Investor Relations</div>"
         "</body></html>"
     )
+
+
+def _ndr_map_stops(trip):
+    """Ordered (hotel, stops) for the route map: the hotel as start/end plus every
+    meeting in itinerary order (day, then time), each numbered and carrying its best
+    street address. Mirrors exactly what the printed schedule lists."""
+    hotel_addr = (trip.get("hotel") or "").strip()
+    hotel = {"name": hotel_addr.split(",")[0].strip() or "Hotel", "address": hotel_addr} if hotel_addr else None
+    ordered = sorted(
+        trip.get("meetings", []),
+        key=lambda m: (m.get("day", 1),
+                       _parse_time_min(m.get("time")) if _parse_time_min(m.get("time")) is not None else 9999))
+    stops, n = [], 0
+    for m in ordered:
+        addr = _meeting_street(m) or _meeting_loc(m, trip)
+        if not addr:
+            continue
+        n += 1
+        stops.append({"label": str(n), "name": m.get("institution", ""),
+                      "time": (m.get("time") or "").strip(), "address": addr})
+    return hotel, stops
+
+
+def _build_ndr_route_map_png(trip, ticker):
+    """PNG bytes of the trip's route map (numbered stops in schedule order, real
+    driving route, hotel, legend, scale), or None when the routing key is missing or
+    no stop can be located. Cached in db per trip content so re-exports are instant."""
+    import base64
+    import hashlib
+
+    from core import db, ndr_map, routing
+    if not routing.is_configured():
+        return None
+    hotel, stops = _ndr_map_stops(trip)
+    if not stops:
+        return None
+    sig = hashlib.md5(json.dumps(
+        [ticker, trip.get("name"), trip.get("dates"), (hotel or {}).get("address"),
+         [(s["label"], s["address"], s["time"]) for s in stops]], sort_keys=True).encode()).hexdigest()
+    cache = db.load_json("ndr_route_maps.json", {}) or {}
+    if sig in cache:
+        try:
+            return base64.b64decode(cache[sig])
+        except Exception:
+            pass
+    try:
+        focus = routing.focus_for(trip.get("city") or "")
+    except Exception:
+        focus = None
+    png = ndr_map.build_route_map(
+        hotel, stops, focus=focus,
+        title=trip.get("name") or f"{ticker} NDR",
+        subtitle=" · ".join(x for x in [trip.get("dates", ""), ticker, "route & schedule"] if x))
+    if not png:
+        return None
+    cache[sig] = base64.b64encode(png).decode()
+    db.save_json("ndr_route_maps.json", cache)
+    return png
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -4703,6 +4779,16 @@ def _meeting_duration(m):
     """Minutes a meeting occupies on the calendar. A regular 1x1 runs ~45 min; a catered lunch runs
     ~1h15 (the Street norm — the meeting IS the lunch)."""
     return 75 if m.get("lunch") else 45
+
+
+def _meeting_time_range(m):
+    """'8:00 AM – 8:45 AM' — the meeting's start through its end (start + duration), so the
+    itinerary shows how long each slot runs. Falls back to the raw start (or '—') when the
+    time can't be parsed, leaving hand-typed / unscheduled entries untouched."""
+    start = _parse_time_min(m.get("time"))
+    if start is None:
+        return (m.get("time") or "—")
+    return f"{_fmt_min_12h(start)} – {_fmt_min_12h(start + _meeting_duration(m))}"
 
 
 def _available_slots(meetings, day, win_start="8:00 AM", win_end="5:00 PM",
@@ -5747,9 +5833,26 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 f"&body={quote(_build_ndr_itinerary(trip, CT('ticker')))}")
                         ui.run_javascript(f"window.location.href={json.dumps(href)};")
 
+                    async def download_map(trip=trip):
+                        # A street map of the day (numbered stops, driving route, hotel) to
+                        # attach to the itinerary. Built off-thread so the first (uncached)
+                        # geocode/route/tile fetch doesn't freeze the UI.
+                        from nicegui import run
+                        ui.notify("Building route map…")
+                        try:
+                            png = await run.io_bound(_build_ndr_route_map_png, trip, CT("ticker"))
+                        except Exception:
+                            png = None
+                        if not png:
+                            ui.notify("Route map needs the routing key (Settings) and at least one "
+                                      "located stop.", type="warning")
+                            return
+                        ui.download(png, filename=f"{trip['name'].replace(' ', '_')}_route_map.png")
+
                     with ui.row().classes("gap-2 items-center").style("margin-top:6px;"):
                         ui.button("Export itinerary (.txt)", on_click=download_itinerary).props("flat dense")
                         ui.button("Add to calendar (.ics)", icon="event", on_click=download_calendar).props("flat dense")
+                        ui.button("Route map (.png)", icon="map", on_click=download_map).props("flat dense")
                         ui.button("Print", icon="print", on_click=print_itinerary).props("flat dense")
                         ui.button("Email", icon="mail", on_click=email_itinerary).props("flat dense")
 
