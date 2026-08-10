@@ -4374,6 +4374,23 @@ def _hotel_departure(trip, first_m, buffer_min=10):
     return _fmt_min_12h(max(t1 - (lg.get("drive_min") or 0) - buffer_min, 0)), lg
 
 
+def _hotel_return(trip, last_m):
+    """The day's last meeting → back to where management is staying (the trip's ending). Returns
+    (arrive_time_str, leg_dict): the leg is the routed drive back to the hotel, and arrive is the
+    last meeting's start + its duration + that drive — 'back at the hotel by …'. (None, None) if
+    there's no hotel or the last stop can't be routed."""
+    hotel = (trip.get("hotel") or "").strip()
+    if not hotel or last_m.get("format", "In-person") != "In-person":
+        return None, None
+    lg, _ = _travel_leg_between(last_m, {"address": hotel, "format": "In-person"}, trip)
+    if not lg:
+        return None, None
+    t0 = _parse_time_min(last_m.get("time"))
+    if t0 is None:
+        return None, lg
+    return _fmt_min_12h(t0 + _meeting_duration(last_m) + (lg.get("drive_min") or 0)), lg
+
+
 def _travel_total_line(total_miles, leg_count, routed_count, routing_on=False):
     """The trip-level travel summary, honestly labelled by whether the legs were
     really routed (driving) or fell back to the offline straight-line estimate."""
@@ -4464,6 +4481,15 @@ def _build_ndr_itinerary(trip, ticker):
                 lines.append("              Catered working lunch (~1h15) · Dietary: "
                              + ((m.get("dietary") or "").strip() or "— (confirm with caterer)"))
             prev = m
+        # Day ends back at where management is staying (the trip ending).
+        if trip.get("hotel") and day_ms:
+            _ar, _rl = _hotel_return(trip, day_ms[-1])
+            if _rl:
+                total_miles += _rl["miles"]; leg_count += 1
+                routed_count += 1 if _rl.get("basis") == "routed" else 0
+                lines.append(f"        ↳ return: {_rl['label']} to hotel"
+                             + (f"   (back ~{_ar})" if _ar else ""))
+                lines.append(f"              Return to {trip['hotel']}")
     lines.append("=" * 64)
     _tl = _travel_total_line(total_miles, leg_count, routed_count, _routing_on)
     if _tl:
@@ -5137,14 +5163,18 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 _save_json("ndr_trips.json", trips_)
 
             def _set_window(ti, field, value):
-                # Management availability window (day_start / day_end) — persisted silently; the smart
-                # slot picker reads it fresh each time a fund is added.
+                # Management window (day_start / day_end) + lodging. Saved on blur — with a confirming
+                # toast, since there's no explicit Save button on these inline fields.
                 trips_ = _load_json("ndr_trips.json", [])
                 try:
                     trips_[ti][field] = (value or "").strip()
                 except (IndexError, TypeError):
                     return
                 _save_json("ndr_trips.json", trips_)
+                ui.notify(f"{ {'hotel': 'Lodging', 'day_start': 'Management start', 'day_end': 'Management end'}.get(field, field)} saved.",
+                          type="positive")
+                if field == "hotel":
+                    _refresh_ndr()   # the morning pickup + end-of-day return legs recompute with the new address
 
             for idx, trip in enumerate(trips):
                 if trip.get("status") == "Completed":
@@ -5538,6 +5568,22 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                     _dtxt += " · Dietary: — (confirm with caterer)"
                                 ui.label(_dtxt).style(f"color:#B45309;font-size:var(--fs-xs);font-weight:600;")
                         _prev_m = m
+
+                    # Trip ending: the last meeting → back to where management is staying. Mirrors the
+                    # morning pickup and its drive counts toward the day's total.
+                    if _prev_m is not None and (trip.get("hotel") or "").strip():
+                        _arr, _rlg = _hotel_return(trip, _prev_m)
+                        if _rlg:
+                            _leg_miles += _rlg["miles"]; _leg_count += 1
+                            _routed_count += 1 if _rlg.get("basis") == "routed" else 0
+                            with ui.row().classes("items-start gap-1").style("margin:2px 0 2px 20px;"):
+                                ui.icon("hotel").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);margin-top:2px;")
+                                with ui.column().classes("gap-0"):
+                                    ui.label(f"Return to {trip['hotel']}").style(
+                                        f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                                    ui.label((f"Back by {_arr} — " if _arr else "") + f"{_rlg['label']} from "
+                                             f"{pretty_name(_prev_m.get('institution', ''))}").style(
+                                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
                     # Trip-level travel total — honestly labelled as routed (driving) vs city-level
                     # straight-line, per _travel_total_line.
