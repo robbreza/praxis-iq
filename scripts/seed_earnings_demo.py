@@ -110,7 +110,25 @@ _Q1_TURNS = [
      "easiest payments provider to turn on and the hardest to turn off. We see a long runway in our "
      "existing verticals and a real opportunity in adjacent ones, and the pipeline of ISV partners we're in "
      "conversations with is the strongest it has been in the company's history. I am more confident in this "
-     "model today than at any point since we began the transformation. With that, I'll turn it over to "
+     "model today than at any point since we began the transformation. "
+     "Let me give you a little more color by vertical, because the strength was broad-based. In healthcare "
+     "practice management, our largest vertical, integrated volume grew in the low thirties as more clinics "
+     "turned on card-present and card-not-present acceptance directly through their scheduling workflow. "
+     "Field services — the HVAC, plumbing, and pest-control platforms — was our fastest-growing vertical, up "
+     "in the high thirties, as those partners increasingly bundle payments into the technician's mobile app "
+     "at the point of service. And in the nonprofit and faith-based vertical, where donation flows are the "
+     "use case, we saw strong seasonal volume and, importantly, rising recurring-gift adoption, which is "
+     "exactly the kind of sticky, predictable volume we want. And I'd note that no single partner represents "
+     "more than a low-single-digit percentage of revenue, so this is a diversified book, not a concentration "
+     "story. "
+     "I also want to underscore the size of the runway, because I think it's the most important thing for "
+     "investors to understand. Across our existing partners, the majority of their end merchants have not "
+     "yet adopted integrated payments. That is the opportunity directly in front of us — we don't need to "
+     "win the whole market, we need to keep converting the merchants already sitting inside our partners' "
+     "software. And beyond that installed base, the adjacent verticals we're evaluating roughly double our "
+     "addressable partner universe over time. So when I talk about a long runway, I mean years of attach "
+     "growth from assets we already have, with real optionality layered on top. "
+     "With that, I'll turn it over to "
      "Priya to walk through the financials and our outlook."),
 
     ("Priya Raman, Chief Financial Officer",
@@ -139,7 +157,23 @@ _Q1_TURNS = [
      "margin of approximately 20%. Given the first-quarter trajectory, we see the bias to the upside on the "
      "full-year range, and we expect the second half to be stronger than the first as new-partner go-lives "
      "weight toward the back half. We are not raising the formal range today — it is early in the year — but "
-     "I want to be direct that the momentum we are seeing supports the high end. With that, operator, we are "
+     "I want to be direct that the momentum we are seeing supports the high end. "
+     "Let me give you a little more detail on the model to help with your estimates. Of the $25.3 million in "
+     "net revenue, integrated payments now represents just over sixty percent of the total, up from about "
+     "fifty percent a year ago, and that mix shift is the single biggest driver of the take-rate expansion "
+     "you're seeing. Our blended net take-rate expanded several basis points year over year, and to be "
+     "clear, that came entirely from mix — we did not raise pricing. On the expense side, we grew operating "
+     "expenses in the high single digits against 19% revenue growth, which is where the operating leverage "
+     "comes from; we continue to invest in partner onboarding and engineering, but those investments scale "
+     "sublinearly with revenue. Days sales outstanding was stable, we have no debt, and the $41 million of "
+     "cash gives us ample flexibility to fund the onboarding investment internally. "
+     "A couple of assumptions embedded in our guidance, since I know you'll ask. We assume no change in the "
+     "rate environment and no contribution from float growth. We assume the back-half-weighted go-live "
+     "cadence Marcus described, which is why we expect the second half to be stronger than the first. And we "
+     "assume continued mid-single-digit growth in the legacy processing book, with the integrated book "
+     "carrying the story. If the go-lives land as we expect, that is where the upside bias on the full-year "
+     "range comes from. "
+     "With that, operator, we are "
      "ready to open the call for questions."),
 
     ("Operator",
@@ -231,6 +265,117 @@ _Q1_TURNS = [
      "processor can match us on price, but price isn't what keeps a partner; the embedded workflow and the "
      "trust that we'll manage the risk correctly is what keeps them. Scale doesn't replicate that — depth of "
      "integration and years of a working relationship do."),
+
+    ("Operator",
+     "The next question comes from Tom Castellano with Meridian Capital Markets. Please go ahead."),
+
+    ("Tom Castellano, Meridian Capital Markets",
+     "Thanks. Priya, on the margin trajectory — you did roughly 20% adjusted EBITDA margin this quarter. "
+     "How should we think about the path from here, and where can this model get to at scale?"),
+
+    ("Priya Raman, Chief Financial Officer",
+     "It's a good question, Tom. The margin expansion is a direct function of the mix shift, so as "
+     "integrated becomes a larger share of the book, the blended margin structurally improves. I'm not going "
+     "to put a specific long-term target on the record today, but I'd frame it this way: the integrated "
+     "business carries software-like gross margins, our operating expenses scale sublinearly with revenue, "
+     "and we generate cash. So the direction is clearly up, and I'd think of 20% as a milestone on the way, "
+     "not a ceiling. As the second-half go-lives ramp and the mix continues to shift, you should expect "
+     "continued margin expansion, and over a multi-year horizon we believe there is meaningful room above "
+     "where we are today. What we won't do is sacrifice the onboarding investment to hit a near-term margin "
+     "number, because that investment is what compounds the attach motion."),
+
+    ("Operator",
+     "The next question comes from Rachel Kim with Harborview Securities. Please go ahead."),
+
+    ("Rachel Kim, Harborview Securities",
+     "Thank you. Marcus, you mentioned adjacent verticals a couple of times. Can you be more specific about "
+     "which adjacencies you're evaluating and the timing of any expansion?"),
+
+    ("Marcus Ellery, Chief Executive Officer",
+     "I'll be a little careful here for competitive reasons, Rachel, but I can give you the framework. We "
+     "look for verticals with three characteristics: fragmented software providers who need a payments "
+     "partner rather than building it themselves, recurring or high-frequency payment flows, and merchants "
+     "who are underserved by the large processors. Healthcare, field services, and nonprofit all fit that "
+     "profile, and there are several adjacent categories — property management, membership and recreation, "
+     "and education administration — that share the same DNA. Our approach is to enter a new vertical "
+     "through a small number of anchor ISV partners, prove the model, and then expand from there. We're "
+     "deliberate about it; we would rather go deep in a few verticals than shallow across many. On timing, I "
+     "would think of adjacency expansion as a multi-year driver layered on top of the attach growth in our "
+     "existing verticals, not a this-year event. The near-term story, and the one I want you focused on, is "
+     "the installed base we already have."),
+
+    ("Operator",
+     "The next question comes from David Osei with Pinnacle Research. Please go ahead."),
+
+    ("David Osei, Pinnacle Research",
+     "Thanks for taking my question. Two related ones — how sensitive is your volume to consumer spending if "
+     "the macro softens, and what are you seeing on churn?"),
+
+    ("Marcus Ellery, Chief Executive Officer",
+     "On the macro, our volume is tied to our partners' merchants, and those merchants skew toward "
+     "non-discretionary and recurring categories — a clinic visit, a service call, a recurring donation — so "
+     "we're structurally less exposed to discretionary consumer swings than a processor concentrated in "
+     "retail or travel. We're not immune to a broad downturn, but the mix is defensive by design. On churn, "
+     "it remains low and was stable in the quarter. The reason is the one I gave earlier: once we're "
+     "embedded in a partner's workflow, we are hard to remove, and partner-level retention is what matters "
+     "most because a single partner brings a whole book of merchants. We watch merchant-level attrition too, "
+     "and it's running in line with our expectations. Priya, do you want to add anything on the numbers?"),
+
+    ("Priya Raman, Chief Financial Officer",
+     "Just that net revenue retention above 110% already nets out whatever churn we see, so that headline "
+     "retention number is the cleanest single way to see it. Churn is not a concern in the model today, and "
+     "it's not an assumption we're relying on in the guidance."),
+
+    ("Operator",
+     "The next question comes from James Meridian with Cascade Securities. Please go ahead."),
+
+    ("James Meridian, Cascade Securities",
+     "Thanks. Priya, the second-quarter guide of $25.6 to $26.0 million implies fairly modest sequential "
+     "growth off a record first quarter. Is that conservatism, seasonality, or something in the business we "
+     "should understand?"),
+
+    ("Priya Raman, Chief Financial Officer",
+     "It's primarily the go-live cadence, James, plus a degree of conservatism this early in the year. As I "
+     "mentioned, new-partner go-lives are back-half weighted — partners finish integration and turn on later "
+     "in the year — so the sequential step-up is more pronounced in the third and fourth quarters than from "
+     "the first to the second. There's also a modest seasonal element in a couple of our verticals. So I "
+     "wouldn't read the second-quarter sequential as any change in trajectory; the full-year range, and the "
+     "upside bias we've talked about, are the better way to think about the shape of the year. We would "
+     "rather guide the quarter prudently and let the full year carry the story."),
+
+    ("Operator",
+     "The next question comes from Laura Benson with Summit Equity Research. Please go ahead."),
+
+    ("Laura Benson, Summit Equity Research",
+     "Thank you. Can you help us understand the unit economics — how should we think about the lifetime "
+     "value of a partner relative to what it costs you to acquire and onboard one?"),
+
+    ("Marcus Ellery, Chief Executive Officer",
+     "It's the right question to anchor on, Laura, because it's exactly how we think internally. Without "
+     "giving you the specific figures, the shape is very attractive. The cost to acquire and onboard a "
+     "partner is largely one-time, and the revenue from that partner compounds for years as their merchants "
+     "adopt payments and as new merchants join their platform. So the payback period is well inside a couple "
+     "of years for a typical partner, the lifetime value is a large multiple of the acquisition cost, and "
+     "that multiple improves over time because attach keeps deepening. That is the whole basis for "
+     "prioritizing onboarding investment over near-term margin — the return on that investment is the best "
+     "use of our capital, and it's why net revenue retention above 110% matters so much. A partner we "
+     "brought on two years ago is generating meaningfully more revenue today than it did in its first "
+     "quarter with us, and it's costing us almost nothing incremental to keep."),
+
+    ("Operator",
+     "We have a follow-up from Ellis Grant with Ashfield Research. Please go ahead."),
+
+    ("Ellis Grant, Ashfield Research",
+     "Thanks for squeezing me back in. Just quickly — with three price-target raises since the print, does "
+     "the sell-side reaction change how you're thinking about communicating the model, particularly that "
+     "gross-to-net bridge?"),
+
+    ("Priya Raman, Chief Financial Officer",
+     "It reinforces the priority, Ellis. The bridge is the clearest way to close the gap between how we "
+     "report, on net revenue, and how the gross-revenue names report, and we've committed to putting it in "
+     "the deck this quarter. We would rather the Street value us correctly on gross profit than have a "
+     "reporting convention obscure the economics of the business. So clearer disclosure on that bridge is a "
+     "near-term focus, and you will see it from us this quarter."),
 
     ("Operator",
      "This concludes our question-and-answer session. I would like to turn the conference back over to "
