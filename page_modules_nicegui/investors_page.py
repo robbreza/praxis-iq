@@ -4674,13 +4674,13 @@ def _fmt_min_12h(mins):
 
 
 def _meeting_duration(m):
-    """Minutes a meeting occupies on the calendar. A catered lunch runs ~1h15 (the Street norm — the
-    meeting IS the lunch); a regular 1x1 is ~1h."""
-    return 75 if m.get("lunch") else 60
+    """Minutes a meeting occupies on the calendar. A regular 1x1 runs ~45 min; a catered lunch runs
+    ~1h15 (the Street norm — the meeting IS the lunch)."""
+    return 75 if m.get("lunch") else 45
 
 
 def _available_slots(meetings, day, win_start="8:00 AM", win_end="5:00 PM",
-                     new_meeting_min=60, step_min=15):
+                     new_meeting_min=45, step_min=15):
     """Open meeting START times on `day`, inside the management window [win_start, win_end], that fit
     a `new_meeting_min`-long meeting without colliding with an already-scheduled one (each blocked
     for its own duration — a lunch takes 1h15). Returns a chronological list of 12-hour time strings
@@ -4772,10 +4772,10 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
         diet_in.bind_visibility_from(lunch_in, "value")
 
         def _refresh_slots():
-            _mm = 75 if lunch_in.value else 60
+            _mm = 75 if lunch_in.value else 45
             _av = _available_slots(_ms, int(day_in.value or 1), _ws, _we, new_meeting_min=_mm)
             slot_in.set_options(_av, value=(_av[0] if _av else None))
-            _kind = "lunch (1h15)" if lunch_in.value else "meeting (1h)"
+            _kind = "lunch (1h15)" if lunch_in.value else "meeting (45 min)"
             if _av:
                 _slot_note.set_text(f"Management available {_ws}–{_we} · {len(_av)} open slot(s) on day "
                                     f"{day_in.value} that fit a {_kind} (existing meetings blocked out).")
