@@ -823,6 +823,71 @@ def render_earnings_page():
 # ─────────────────────────────────────────────────────────────────────────
 # Tab 0 — Prior Qtr Review
 # ─────────────────────────────────────────────────────────────────────────
+def _render_illustrative_lookback(prior_q, rec):
+    """Prior Qtr Review post-mortem for illustrative demo tenants — driven entirely by the client's OWN
+    seeded data (prior-quarter transcript summary + beat/miss log), never USIO's hardcoded numbers.
+    See scripts/seed_earnings_demo.py."""
+    surp = next((s for s in (_load_json("earnings_surprise_log.json", []) or [])
+                 if s.get("quarter") == prior_q), None)
+    if surp:
+        ui.label(f"{prior_q} · as reported").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);letter-spacing:.05em;margin-top:2px;")
+        _G, _B, _N = "#15803D", "#1E40AF", "#64748B"
+        beat = surp["rev_actual"] > surp["rev_consensus"]
+        cards = [
+            (f"{'+' if surp['ah_move'] >= 0 else ''}{surp['ah_move']*100:.1f}%", "AH Reaction",
+             f"{surp['date']} · vs {surp['implied_move']*100:.0f}% implied", _G if surp["ah_move"] >= 0 else "#B91C1C"),
+            (f"${surp['rev_actual']:.1f}M", "Revenue", f"vs ${surp['rev_consensus']:.1f}M cons "
+             f"({'+' if beat else ''}{(surp['rev_actual']-surp['rev_consensus'])/surp['rev_consensus']*100:.1f}%)", _G if beat else "#B91C1C"),
+            (f"${surp['eps_actual']:.2f}", "Adj. EPS", f"vs ${surp['eps_consensus']:.2f} cons", _G),
+            (f"{surp['guidance_vs_embedded']}", "Guidance", "vs embedded bar", _B),
+            (f"{surp['pt_changes']} PT raises", "Sell-side", f"avg +${surp['pt_change_avg']:.2f}", _N),
+        ]
+        with ui.row().classes("w-full gap-3"):
+            for val, lbl, sub, clr in cards:
+                with ui.card().classes("flex-1 text-center").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+                    ui.label(val).classes("text-lg font-bold").style(f"color:{clr};")
+                    ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                    ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+    ui.label(f"{prior_q} call summary").classes("font-bold").style("margin-top:12px;")
+    ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);line-height:1.5;")
+
+    with ui.row().classes("w-full gap-4 items-start").style("margin-top:6px;"):
+        with ui.column().classes("flex-1"):
+            kqs = rec.get("key_quotes") or []
+            if kqs:
+                ui.label("What management said").classes("font-bold").style("font-size:var(--fs-sm);")
+                for kq in kqs:
+                    ui.label(f"“{kq.get('quote','')}” — {kq.get('speaker','')}").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            guid = rec.get("guidance_language") or []
+            if guid:
+                ui.label("Guidance language").classes("font-bold").style("font-size:var(--fs-sm);margin-top:8px;")
+                for g in guid:
+                    ui.label(f"• {g}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+        with ui.column().classes("flex-1"):
+            topics = rec.get("qa_risk_topics") or []
+            if topics:
+                ui.label("What analysts pressed on — carry into the Q2 script").classes("font-bold").style(
+                    "font-size:var(--fs-sm);")
+                sev = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
+                for t in topics:
+                    clr = sev.get(t.get("severity"), "#64748B")
+                    with ui.row().classes("w-full items-start gap-2").style(
+                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                        ui.label(t.get("severity", "?")).style(
+                            f"background:{clr}22;color:{clr};font-size:var(--fs-micro);font-weight:700;"
+                            "padding:1px 7px;border-radius:9px;white-space:nowrap;")
+                        with ui.column().classes("gap-0 flex-1"):
+                            ui.label(t.get("topic", "")).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                            ui.label(t.get("why", "")).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    with ui.row().classes("gap-2").style("margin-top:8px;"):
+        ui.button("Carry these into the Q2 script →",
+                  on_click=lambda: nav.go_to("Earnings", "Script Generation")).props("flat dense color=primary")
+
+
 def _render_lookback_tab():
     # Prior quarter + its real call date, derived — not hardcoded "Q1 2026 · May 13
     # · 72 minutes" (the 72-min length was invented; the date comes from the
@@ -861,6 +926,14 @@ def _render_lookback_tab():
     # ingested Q1 2026 transcript analysis — one specific quarter's data, NOT per-tenant config. It
     # must NOT render for another client: it would assert USIO's +24.22% / $25.47M as theirs. Until a
     # client's own prior call is ingested, show an honest waiting state instead of someone else's data.
+    # Illustrative demo tenants get a data-driven post-mortem from their OWN seeded prior-quarter
+    # transcript summary + beat/miss log — never USIO's hardcoded numbers (scripts/seed_earnings_demo.py).
+    from config.client_config import get_active_client_id
+    from core.curated_targets import _is_illustrative
+    if _is_illustrative(get_active_client_id()) and _rec and _rec.get("ai_summary"):
+        _render_illustrative_lookback(prior_q, _rec)
+        return
+
     if CT("ticker") != "USIO":
         from page_modules_nicegui.signals import waiting_signal
         waiting_signal(

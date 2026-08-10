@@ -1433,6 +1433,14 @@ That concludes today's question-and-answer session. Thank you for joining.
         print(f"  seeded {_n} research note(s); removed {_d} duplicate doc(s) from the Research Library")
     except Exception as _e:
         print(f"  [warn] research-library seed skipped: {_e}")
+    # Earnings cycle: beat/miss history + summarized prior-quarter transcript so the Earnings tabs
+    # (Prior Qtr Review, Consensus Tracker, Call Transcripts) tell a story instead of sitting empty.
+    try:
+        from scripts.seed_earnings_demo import seed_earnings_demo
+        _e = seed_earnings_demo(CID)
+        print(f"  seeded earnings demo: {_e['surprises']} surprise quarters, {_e['transcripts']} transcripts")
+    except Exception as _ex:
+        print(f"  [warn] earnings-demo seed skipped: {_ex}")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
