@@ -548,6 +548,75 @@ def seed_financials(cid=CID):
     print(f"[demo] seeded EDGAR financial summary for {TICKER} (Board Package / financials / benchmarking)")
 
 
+def seed_ndr_crm_extras(cid=CID):
+    """Fill the Meeting Hub Post-Meeting Notes tab (was 0 records) and the Accounts (CRM) relationship
+    book (quality/notes were blank for demo funds)."""
+    from core import relationship_notes
+
+    def _note(contact, firm, side, days_ago, typ, raw, structured):
+        return {"Contact": contact, "Firm": firm, "Side": side,
+                "Date": (TODAY - timedelta(days=days_ago)).strftime("%Y-%m-%d"), "Type": typ,
+                "Raw": raw, "Structured": structured}
+    notes = [
+        _note("Andrew Armstrong", "Cooke & Bieler L.P.", "Buy-side", 2, "1x1",
+              "Met at their Market St office. Liked the PayFac attach story, pushed on prepaid float "
+              "sustainability. Asked for the gross-to-net revenue bridge. Building conviction; wants the Q2 model.",
+              {"key_questions": ["How sustainable is the PayFac attach rate?",
+                                 "What's the gross-to-net revenue bridge vs net-revenue peers?"],
+               "concerns_raised": ["Prepaid float is rate-sensitive and may be declining"],
+               "positive_signals": ["Liked the PayFac attach trajectory", "Actively building conviction"],
+               "commitments_made": ["IR to send the Q2 model and the gross-to-net bridge"],
+               "follow_up_actions": ["Send Q2 model", "Prepare a one-page gross-to-net bridge", "Schedule CFO follow-up"],
+               "financial_kpi_takeaways": ["Revenue mix: focused on PayFac attach vs prepaid float",
+                                           "Margins: benchmark on gross profit, not gross revenue"],
+               "sentiment": "Positive",
+               "summary": "Cooke & Bieler is warming to the story on PayFac attach but needs a clean gross-to-net "
+                          "revenue bridge and reassurance on prepaid-float durability before initiating."}),
+        _note("Ellis Grant", "Ashfield Research", "Sell-side", 5, "Analyst call",
+              "Pre-print check-in. Reiterated Buy, PT $43. Wants Q2 detail on take-rate and PayFac volume. Modeling ~$102M Q2.",
+              {"key_questions": ["What drove the take-rate trajectory in Q2?", "PayFac volume growth?"],
+               "concerns_raised": ["Wants confirmation the guide isn't conservative"],
+               "positive_signals": ["Reiterated Buy, PT $43", "Constructive into the print"],
+               "commitments_made": ["IR to confirm segment detail post-print"],
+               "follow_up_actions": ["Share segment breakout after earnings"],
+               "financial_kpi_takeaways": ["Revenue growth: modeling ~$102M Q2, in line with guide",
+                                           "Guidance: watching for a low-end raise"],
+               "sentiment": "Positive",
+               "summary": "Ashfield is constructive into Q2, modeling ~$102M with a possible low-end guidance raise; "
+                          "wants post-print segment detail."}),
+        _note("Sarah Whitfield", "Halewood Capital Management", "Buy-side", 9, "1x1",
+              "Existing holder, adding. Comfortable with the story. Asked about capital allocation and buyback "
+              "appetite. No major objections.",
+              {"key_questions": ["Capital allocation priorities?", "Any buyback appetite?"],
+               "concerns_raised": [],
+               "positive_signals": ["Existing holder actively adding", "Comfortable with the narrative"],
+               "commitments_made": ["IR to share the capital-allocation framework"],
+               "follow_up_actions": ["Send capital-allocation framework"],
+               "financial_kpi_takeaways": ["Capital allocation: interested in buyback vs reinvestment mix"],
+               "sentiment": "Positive",
+               "summary": "Halewood is a happy, adding holder focused on capital allocation; low-maintenance "
+                          "relationship — share the buyback framework."}),
+    ]
+    db.save_json("post_meeting_notes.json", notes, client_id=cid)
+
+    # Accounts (CRM): relationship quality + a note for marquee FICTIONAL demo funds (skip the real
+    # corridor firm names — the relationship store is global). Makes Quality/Cadence columns and the
+    # "Good to deal with" tile populate.
+    _quality = [
+        ("Halewood Capital Management", "good", "Long-time holder, adding. Very responsive, straightforward."),
+        ("Corveth Advisors", "responsive", "Trimmed last quarter — worth a call to understand why."),
+        ("Brentmoor Capital Management", "good", "New position this quarter; engaged and constructive."),
+        ("Fairmount Ridge Capital", "good", "Philadelphia believer — defend and grow. Hosts easily."),
+        ("Windgate Asset Management", "good", "Milwaukee value shop; patient, high-quality holder."),
+        ("Reddington Asset Management", "low_touch", "Large index-adjacent book; low-touch."),
+        ("Ashcombe Partners", "responsive", "Growing interest; met at the last conference."),
+        ("Marchmont Capital", "good", "Dallas hedge fund; sharp, engaged, quick to respond."),
+    ]
+    for nm, q, note in _quality:
+        relationship_notes.save(nm, quality=q, note=note)
+    print(f"[demo] seeded {len(notes)} post-meeting notes + {len(_quality)} CRM relationship records")
+
+
 def seed_targeting_extras(cid=CID):
     """Fill the Target Database + Consensus targeting surfaces that read empty:
       1. Consensus 'Last Updated' per covering firm (column was '—' for every analyst).
@@ -741,6 +810,27 @@ def seed():
          "status": "Completed"}
         for i, (c, d, sp, n) in enumerate(trips)
     ]
+    # The New York completed trip keeps its held meetings AND a fully-filled debrief, so the
+    # Post-NDR Debrief tab shows a real worked example instead of an empty shell.
+    _ndr_trips[0]["meetings"] = [
+        {"institution": "Halewood Capital Management", "day": 1, "time": "9:00 AM", "type": "1x1",
+         "format": "In-person", "status": "held", "address": "", "non_holder": False, "score": 61,
+         "contact": "", "notes": "Existing holder — adding"},
+        {"institution": "Ridgeline Park Capital", "day": 1, "time": "10:30 AM", "type": "1x1",
+         "format": "In-person", "status": "held", "address": "", "non_holder": True, "score": 88,
+         "contact": "", "notes": "Owns PYRA — top conversion target"},
+        {"institution": "Hudson Yard Advisors", "day": 1, "time": "1:00 PM", "type": "1x1",
+         "format": "In-person", "status": "held", "address": "", "non_holder": True, "score": 84,
+         "contact": "", "notes": "Owns CLRT"},
+    ]
+    _ndr_trips[0]["debrief"] = {
+        "meetings_held": 3, "effectiveness": 82, "best_meeting": "Ridgeline Park Capital",
+        "follow_ups": "Send Ridgeline the Q2 model and the PayFac attach detail; book a CFO call in ~2 weeks.",
+        "new_positions": "Ridgeline Park indicated they are building a starter position.",
+        "key_objection": "Prepaid float seen as a declining, rate-sensitive revenue line.",
+        "narrative_gap": "Need a cleaner bridge from gross (interchange-inclusive) revenue to net revenue for peer comparability.",
+        "next_targets": "Marrow Point Capital, Sutton Yard Management (both NY, screened, not yet met).",
+    }
     # The SHOWCASE Philadelphia NDR, seeded MID-FLIGHT so the invite→response→scheduled loop is
     # demoable out of the box AND survives reseeds (a hand-built NDR is wiped by the next reseed).
     # The "reply came back" is represented by a target's status: Confirmed targets move OUT of the
@@ -760,7 +850,8 @@ def seed():
     _ndr_trips.append({
         "id": "trip-philly", "name": "Philadelphia Value Corridor NDR", "city": "Philadelphia, PA",
         "metro": "Philadelphia, PA", "sponsor_bank": "Westmark Partners", "sponsor": "Westmark Partners",
-        "dates": "TBD", "date": "", "time": "Full day", "ndr_type": "in_person",
+        "dates": (TODAY + timedelta(days=8)).strftime("%b %d") + "–" + (TODAY + timedelta(days=9)).strftime("%d, %Y"),
+        "date": (TODAY + timedelta(days=8)).strftime("%Y-%m-%d"), "time": "Full day", "ndr_type": "in_person",
         "focus": "Pre-earnings — build anticipation", "team": ["Priya Raman (CFO)", "Marcus Ellery (CEO)"],
         "notes": "Convert the Main Line value corridor; defend Fairmount.", "status": "Planning",
         "debrief": {}, "days": 2, "slots_per_day": 6, "created": TODAY.strftime("%Y-%m-%d"),
@@ -800,16 +891,18 @@ def seed():
     # has something to lead with in the demo (illustrative buy-side names; the tenant stays fully
     # illustrative). Shape matches investors_page's scheduled_meetings.json record.
     _mtgs = [
-        (0,  "10:30", "Blue Harbor Capital",   "Dana Whitfield", "1x1",        "Q3 outlook + take-rate trajectory"),
-        (0,  "14:00", "Cedar Grove Advisors",  "Marcus Lin",     "Callback",   "Follow-up on interchange questions"),
-        (3,  "09:00", "Westline Asset Mgmt",   "Priya Nair",     "NDR meeting","Intro — new coverage"),
-        (8,  "11:15", "Marchmont Capital",     "Tom Alvarez",    "1x1",        "Prepaid float + capital allocation"),
+        (0,  "10:30", "Blue Harbor Capital",  "Dana Whitfield", "1x1",         "Buy-side",  "Q3 outlook + take-rate trajectory"),
+        (0,  "14:00", "Cedar Grove Advisors", "Marcus Lin",     "Callback",    "Buy-side",  "Follow-up on interchange questions"),
+        (1,  "09:30", "Ashfield Research",    "Ellis Grant",    "Analyst call","Sell-side", "Pre-print check-in — model refresh"),
+        (3,  "09:00", "Westline Asset Mgmt",  "Priya Nair",     "NDR meeting",  "Buy-side",  "Intro — new coverage"),
+        (5,  "15:00", "Denby Securities",     "Marta Reyes",    "Analyst call","Sell-side", "Coverage catch-up + estimate review"),
+        (8,  "11:15", "Marchmont Capital",    "Tom Alvarez",    "1x1",         "Buy-side",  "Prepaid float + capital allocation"),
     ]
     db.save_json("scheduled_meetings.json", [
-        {"id": f"mtg-{i+1}", "Contact": who, "Firm": firm, "Side": "Buy-side",
+        {"id": f"mtg-{i+1}", "Contact": who, "Firm": firm, "Side": side,
          "Date": (TODAY + timedelta(days=d)).strftime("%Y-%m-%d"), "Time": t, "Type": typ,
          "Topic": topic, "Status": "Confirmed", "Priority": "High" if d == 0 else "Medium"}
-        for i, (d, t, firm, who, typ, topic) in enumerate(_mtgs)
+        for i, (d, t, firm, who, typ, side, topic) in enumerate(_mtgs)
     ], client_id=CID)
     print(f"[demo] seeded {len(_mtgs)} upcoming scheduled meetings")
 
@@ -834,6 +927,14 @@ def seed():
     # a real hub metro so nothing lands in a vague "International" bucket. (Call-listen & IR-web
     # signals stay unseeded on purpose — those need live integrations we don't claim.)
     _PROSPECTS = [
+        # Philadelphia corridor — the funds slotted on the showcase NDR, promoted so the Prep Cards
+        # tab resolves them into the tracked universe (holder status + conviction + talking points)
+        # instead of a generic "discovery meeting".
+        ("Cooke & Bieler L.P.","Fundamental value","Philadelphia, PA","Holds 3 peers (13F)",93,"Owns PYRA, CLRT, VNTG — deepest corridor overlap; hosting the NDR."),
+        ("Penn Capital Management","Small-cap value","Philadelphia, PA","Holds 3 peers (13F)",92,"Owns PYRA, CLRT, VNTG; met on the Philadelphia NDR."),
+        ("Chartwell Investment Partners","Value","Philadelphia, PA","Holds 3 peers (13F)",92,"Owns PYRA, CLRT, VNTG; Berwyn — Main Line corridor."),
+        ("Glenmede Investment Management","GARP","Philadelphia, PA","Holds 3 peers (13F)",92,"Owns PYRA, CLRT, VNTG; catered-lunch meeting on the NDR."),
+        ("Conestoga Capital Advisors","Small-cap growth","Philadelphia, PA","Holds 3 peers (13F)",93,"Owns PYRA, CLRT, VNTG; Radnor."),
         ("Ridge & Vale Capital","Small-cap growth","New York, NY","Holds 2 peers (13F)",88,"Owns PYRA and CLRT; no position in you — clean fit."),
         ("Hanover Reed Partners","GARP","New York, NY","Conference",83,"Met at the Q2 micro-cap conference; requested the model."),
         ("Ellison Park Advisors","Fundamental value","New York, NY","Holds peer (13F)",80,"Holds VNTG; rotating into payments."),
@@ -1241,6 +1342,7 @@ That concludes today's question-and-answer session. Thank you for joining.
           "13D/G thresholds, tracked cross-ref, and flow for the compare")
     seed_financials(CID)
     seed_targeting_extras(CID)
+    seed_ndr_crm_extras(CID)
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
