@@ -256,12 +256,14 @@ def _render_weekly_context_mirror():
     drift never shown without its yardstick. Reads a cached context (refreshed by the scheduler
     post-close and on any Lighthouse visit), so Today stays fast — no live attribution compute here.
     Wired for USIO in the MVP; other tenants simply skip it."""
-    if CT("ticker") != "USIO":
-        return
     from config.client_config import get_active_client_id
+    from core.curated_targets import _is_illustrative
+    _cid, _tk = get_active_client_id(), CT("ticker")
+    if _tk != "USIO" and not _is_illustrative(_cid):
+        return
     try:
         from lighthouse import weekly as _weekly
-        wk = _weekly.load_context_cache(get_active_client_id(), "USIO")
+        wk = _weekly.load_context_cache(_cid, _tk)
     except Exception:
         wk = None
     if not wk or not wk.get("context") or not wk.get("context_read"):

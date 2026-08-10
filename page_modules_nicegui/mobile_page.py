@@ -218,15 +218,16 @@ def render_home_page():
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         else:
             ui.label("Market data refreshing…").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
-        if ticker == "USIO":
-            try:
+        try:
+            from core.curated_targets import _is_illustrative
+            if ticker == "USIO" or _is_illustrative(client_id):
                 from lighthouse import weekly as _weekly
-                wk = _weekly.load_context_cache(client_id, "USIO")
+                wk = _weekly.load_context_cache(client_id, ticker)
                 if wk and wk.get("context_read"):
-                    ui.label(f"This week: USIO {wk['context_read']}").style(
+                    ui.label(f"This week: {ticker} {wk['context_read']}").style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
-            except Exception:
-                pass
+        except Exception:
+            pass
         # Prominent action, full-width — not a shrunk top-right link.
         ui.button("Why is it moving? Open Lighthouse →",
                   on_click=lambda: nav.go_to("Lighthouse")).props("flat dense").classes("w-full").style(
@@ -261,7 +262,8 @@ def render_home_page():
                 f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
     # ── 4. ALERTS ─────────────────────────────────────────────────────────────
-    if ticker == "USIO":
+    from core.curated_targets import _is_illustrative as _isillus_m
+    if ticker == "USIO" or _isillus_m(client_id):
         with _card():
             ui.label("Alerts").classes("section-head")
             ui.label("Get a phone notification when the stock makes an abnormal move.").style(
@@ -270,7 +272,7 @@ def render_home_page():
             # document-level delegated listener (in app_nicegui's body script) fires on [data-ir-enable],
             # which keeps the handler INSIDE the tap gesture that Notification.requestPermission needs.
             # user-select/touch-callout=none stops iOS from treating a tap as "select text → Copy".
-            ui.html('<button data-ir-enable="usio" '
+            ui.html(f'<button data-ir-enable="{client_id}" '
                     'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
                     'border:0;border-radius:8px;padding:11px 16px;font:600 14px -apple-system,Segoe UI,Roboto,'
                     'sans-serif;cursor:pointer;margin-top:6px;-webkit-user-select:none;user-select:none;'
@@ -281,7 +283,7 @@ def render_home_page():
                 try:
                     import os as _os
                     from lighthouse import push
-                    rep = push.send_to_client("usio", "IRconnect test alert",
+                    rep = push.send_to_client(client_id, "IRconnect test alert",
                                               "If you can read this, phone alerts are working. 🎉",
                                               url=(_os.environ.get("LIGHTHOUSE_APP_URL") or "/"))
                     if rep.get("sent"):

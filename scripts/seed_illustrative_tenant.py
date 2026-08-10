@@ -28,7 +28,7 @@ Run:  python scripts/seed_illustrative_tenant.py
 """
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -546,6 +546,86 @@ def seed_financials(cid=CID):
     }
     db.save_json(ef._SUMMARY_KEY.format(ticker=TICKER), summary)   # unscoped, as financial_summary reads it
     print(f"[demo] seeded EDGAR financial summary for {TICKER} (Board Package / financials / benchmarking)")
+
+
+def seed_lighthouse(cid=CID):
+    """Seed the Lighthouse quant engine for the fictional ticker so the page renders live (it computes
+    'why did the stock move' verdicts from a factor model over price history). We synthesize daily
+    OHLCV for the issuer + comps (real factor/benchmark ETFs are reused if already loaded), seed peers
+    + a couple of events, then RUN the shadow engine to persist real verdicts. No network — fully
+    self-contained and deterministic."""
+    import psycopg2
+    import numpy as np
+    import pandas as pd
+    from datetime import time as _time
+    from psycopg2.extras import execute_values
+    from core.security import get_database_url
+    from lighthouse.factors import FACTOR_ETFS
+    from lighthouse.weekly import BENCHMARK_TICKERS
+    from lighthouse import data as _lhdata, ceo as _ceo
+    from lighthouse.factor_model import attribution
+    from config.client_config import CP
+
+    peers = [p["ticker"] for p in CP()]                     # PYRA / CLRT / VNTG (fictional)
+    fict = [TICKER] + peers
+    etfs = sorted(set(FACTOR_ETFS) | set(BENCHMARK_TICKERS))  # real market factor ETFs
+    all_t = fict + etfs
+    conn = psycopg2.connect(get_database_url()); cur = conn.cursor()
+    cur.execute("DELETE FROM lh_verdict WHERE client_id=%s", (cid,))
+    cur.execute("DELETE FROM lh_ohlcv WHERE ticker = ANY(%s)", (fict,))
+    cur.execute("DELETE FROM lh_event WHERE client_id=%s", (cid,))
+    cur.execute("DELETE FROM lh_peer WHERE client_id=%s", (cid,))
+    conn.commit()
+
+    rng = np.random.default_rng(7)                          # deterministic
+    days = pd.bdate_range(end=TODAY, periods=320)
+    kts = datetime.now(timezone.utc)
+    for t in all_t:
+        cur.execute("SELECT 1 FROM lh_ohlcv WHERE ticker=%s LIMIT 1", (t,))
+        if cur.fetchone() and t not in fict:
+            continue                                        # real ETF already loaded — reuse it
+        mu, sig = (0.0005, 0.021) if t == TICKER else (0.0003, 0.014)
+        r = rng.normal(mu, sig, len(days))
+        if t == TICKER:
+            r[-1] = 0.058                                   # a notable recent up-move to attribute
+        px = 30.0 * np.cumprod(1 + r)
+        vals = [(t, d.date(), float(p * 0.995), float(p * 1.012), float(p * 0.988), float(p), float(p),
+                 int(4e5 + rng.integers(0, 3e5)), kts, "synthetic") for d, p in zip(days, px)]
+        execute_values(cur,
+            "INSERT INTO lh_ohlcv (ticker,d,open,high,low,close,adj_close,volume,knowledge_ts,source) "
+            "VALUES %s ON CONFLICT (ticker,d) DO UPDATE SET adj_close=EXCLUDED.adj_close, "
+            "close=EXCLUDED.close, volume=EXCLUDED.volume", vals, page_size=500)
+    conn.commit()
+
+    for pt in peers:
+        cur.execute("INSERT INTO lh_peer (client_id,ticker,peer_ticker,peer_kind,weight,effective_from,knowledge_ts) "
+                    "VALUES (%s,%s,%s,'business',%s,%s,%s) ON CONFLICT DO NOTHING",
+                    (cid, TICKER, pt, 1.0 / len(peers), "2000-01-01", kts))
+    for kind, head, ago in [("earnings", "Q2 2026 results — revenue $102.5M, ahead of the $100M guide", 6),
+                            ("8-K", "New PayFac agreement with a regional QSR chain (~600 locations)", 4),
+                            ("rating", "Ashfield Research reiterates Buy, price target $43", 6)]:
+        cur.execute("INSERT INTO lh_event (client_id,ticker,kind,headline,published_at,materiality,url) "
+                    "VALUES (%s,%s,%s,%s,%s,'confirmed','')",
+                    (cid, TICKER, kind, head,
+                     datetime.combine((TODAY - timedelta(days=ago)).date(), _time.min, tzinfo=timezone.utc)))
+    conn.commit()
+
+    rets = _lhdata.returns_frame(all_t, conn=conn)
+    model = attribution(rets, issuer=TICKER, window=126)
+    n = 0
+    for d in list(model.index)[-30:]:
+        v = _ceo.build_verdict(cid, TICKER, d, model.loc[d], conn=conn)
+        _ceo.persist_verdict(v, conn=conn); n += 1
+    # Save the weekly-context cache too, so the Today-page "This Week in Context" band and the Mobile
+    # pulse render without the user first opening the Lighthouse page (which is what normally writes it).
+    try:
+        from lighthouse import weekly as _weekly
+        _wk = _weekly.weekly_digest(model, TICKER, conn=conn)
+        _weekly.save_context_cache(cid, TICKER, _wk)
+    except Exception as _e:
+        print(f"[demo] lighthouse weekly-cache warning: {_e!r}")
+    conn.commit(); conn.close()
+    print(f"[demo] seeded Lighthouse: synthetic OHLCV ({len(fict)} fictional tickers) + engine run -> {n} verdicts")
 
 
 def seed_ndr_crm_extras(cid=CID):
@@ -1343,6 +1423,7 @@ That concludes today's question-and-answer session. Thank you for joining.
     seed_financials(CID)
     seed_targeting_extras(CID)
     seed_ndr_crm_extras(CID)
+    seed_lighthouse(CID)
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short

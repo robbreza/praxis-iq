@@ -23,7 +23,7 @@ def _conf_badge(label, value):
         ui.label(value).style(f"color:{color};font-weight:700;font-size:var(--fs-xs);")
 
 
-def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=None):
+def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=None, issuer="USIO"):
     """One diverging bar (zero-centered) on a shared scale, so every benchmark is read against the
     same axis and USIO's position among them is visible at a glance."""
     green, red = "#15803D", "#B91C1C"
@@ -48,7 +48,7 @@ def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=N
         rel_txt = ""
         if rel is not None:
             rc = red if rel < 0 else green
-            rel_txt = f"  ·  USIO {rel*100:+.1f} pts"
+            rel_txt = f"  ·  {issuer} {rel*100:+.1f} pts"
         with ui.row().classes("items-baseline").style("width:150px;gap:0;flex:none;"):
             ui.label(val).style(f"color:{color};font-weight:{weight};font-size:var(--fs-sm);")
             if rel is not None:
@@ -57,7 +57,7 @@ def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=N
         pass
 
 
-def _render_week_in_context(wk, _weekly):
+def _render_week_in_context(wk, _weekly, issuer="USIO"):
     drift_color = "#B91C1C" if wk["resid_sum"] < 0 else "#15803D"
     ctx = wk.get("context") or []
     scale = max([abs(wk["car_actual"])] + [abs(c["ret"]) for c in ctx] + [0.005])
@@ -68,12 +68,12 @@ def _render_week_in_context(wk, _weekly):
                 .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         # punchline sentence — the number never appears without its comparison
         if wk.get("context_read"):
-            ui.label(f"USIO {wk['context_read']}").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;margin:6px 0 2px;")
+            ui.label(f"{issuer} {wk['context_read']}").style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;margin:6px 0 2px;")
         # the shared-axis comparison
         with ui.column().classes("w-full").style("gap:0;margin:8px 0 4px;"):
-            _bar_row("USIO", "", wk["car_actual"], scale, is_issuer=True)
+            _bar_row(issuer, "", wk["car_actual"], scale, is_issuer=True, issuer=issuer)
             for c in ctx:
-                _bar_row(c["label"], c["note"], c["ret"], scale, is_comp=c["relevant"], rel=c["rel"])
+                _bar_row(c["label"], c["note"], c["ret"], scale, is_comp=c["relevant"], rel=c["rel"], issuer=issuer)
         ui.label("● comp = the peer basket & size index the attribution model uses · lighter bars are broad-market reference") \
             .style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:2px;")
         # the drift + honest read
@@ -114,6 +114,30 @@ def _render_peer_synthesis(s):
             ui.label("• " + i).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);margin-top:2px;")
 
 
+def _lh_ready(client_id, ticker):
+    """Lighthouse renders live for USIO (first deployment) and for illustrative demo tenants (which
+    seed a synthetic OHLCV history + engine run). Other tenants get the graceful 'not loaded' notice."""
+    if ticker == "USIO":
+        return True
+    try:
+        from core.curated_targets import _is_illustrative
+        return _is_illustrative(client_id)
+    except Exception:
+        return False
+
+
+def _shadow_tickers_for(ticker):
+    """Ticker set the attribution model runs over — issuer + comps + factor/benchmark ETFs."""
+    if ticker == "USIO":
+        from lighthouse.shadow import SHADOW_TICKERS
+        return SHADOW_TICKERS
+    from lighthouse.factors import FACTOR_ETFS
+    from lighthouse.weekly import BENCHMARK_TICKERS
+    from config.client_config import CP
+    etfs = sorted(set(FACTOR_ETFS) | set(BENCHMARK_TICKERS))
+    return [ticker] + [p["ticker"] for p in CP()] + etfs
+
+
 def render_lighthouse_page():
     client_id = get_active_client_id()
     ticker = CT("ticker")
@@ -126,10 +150,10 @@ def render_lighthouse_page():
         tag="Stock-move attribution")
     ui.element("div").style("height:8px;")
 
-    if ticker == "USIO":
+    if _lh_ready(client_id, ticker):
         try:                                            # this render is itself a usage signal — log it
             from lighthouse import telemetry as _tel
-            _tel.record_view(client_id, "USIO", "lighthouse_page")
+            _tel.record_view(client_id, ticker, "lighthouse_page")
         except Exception:
             pass
 
@@ -139,7 +163,7 @@ def render_lighthouse_page():
         _answer_slot = ui.column().classes("w-full").style("gap:8px;")
         try:
             from lighthouse import shadow as _shadow
-            st = _shadow.shadow_status("usio", "USIO")
+            st = _shadow.shadow_status(client_id, ticker)
             with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
                 ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
                     "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
@@ -184,7 +208,7 @@ def render_lighthouse_page():
         # it sends a real notification on demand — so delivery can be proven without waiting for a
         # Critical market day.
         with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-            ui.html('<button onclick="window.irconnectSubscribePush(\'usio\')" '
+            ui.html(f'<button onclick="window.irconnectSubscribePush(\'{client_id}\')" '
                     'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
                     'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
                     'sans-serif;cursor:pointer;">🔔 Enable phone alerts</button>')
@@ -194,7 +218,7 @@ def render_lighthouse_page():
                     import os
                     from lighthouse import push
                     rep = push.send_to_client(
-                        "usio", "USIO — test alert",
+                        client_id, f"{ticker} — test alert",
                         "Phone alerts are working. This is a Lighthouse test push.",
                         url=(os.environ.get("LIGHTHOUSE_APP_URL", "") or "/"), tag="lh-test")
                     if rep.get("sent"):
@@ -212,7 +236,7 @@ def render_lighthouse_page():
 
         try:                                            # used-vs-ignored readout (measure, don't hope)
             from lighthouse import telemetry as _tel
-            eng = _tel.summary(client_id, "USIO", days=30)
+            eng = _tel.summary(client_id, ticker, days=30)
             if eng["app_views"] or eng["emails_sent"]:
                 bits = [f"{eng['app_views']} page view(s)"]
                 if eng["emails_sent"]:
@@ -245,15 +269,22 @@ def render_lighthouse_page():
                             .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         except Exception:
             pass
+        # The "market-revealed peers" diagnostics (co-ownership / co-movement / sell-side coverage
+        # overlap) need a real holder + coverage graph to be meaningful; on the illustrative demo they
+        # compute ~0% and are hardcoded to USIO, so skip them — the core verdict + weekly context is
+        # the showcase.
+        from core.curated_targets import _is_illustrative as _isillus_lh
+        _show_mrp = not _isillus_lh(client_id)
         try:                                            # Spec-14 capstone: the three-peer synthesis card
-            from lighthouse import peer_synthesis as _ps
-            _render_peer_synthesis(_ps.load_and_synthesize(client_id))
+            if _show_mrp:
+                from lighthouse import peer_synthesis as _ps
+                _render_peer_synthesis(_ps.load_and_synthesize(client_id))
         except Exception:
             pass
         try:                                            # market-revealed peers via co-ownership (cached)
             from lighthouse import coownership as _co
             co = _co.load_cache(client_id)
-            if co and not co.get("error"):
+            if _show_mrp and co and not co.get("error"):
                 with ui.expansion("Market-revealed peers — who owns USIO also owns…", icon="hub") \
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label(f"{co['n_holders']} holders · {co['n_focused']} focused/fundamental · "
@@ -274,7 +305,7 @@ def render_lighthouse_page():
         try:                                            # market-revealed peers via co-movement (cached)
             from lighthouse import comovement as _cm
             cm = _cm.load_cache(client_id)
-            if cm and not cm.get("error"):
+            if _show_mrp and cm and not cm.get("error"):
                 with ui.expansion("Market-revealed peers — who USIO actually co-moves with", icon="insights") \
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label("Top daily-return co-movers (broad universe):") \
@@ -294,7 +325,7 @@ def render_lighthouse_page():
         try:                                            # sell-side coverage-overlap peers (cached)
             from lighthouse import coverage as _cov
             cvg = _cov.load_cache(client_id)
-            if cvg and not cvg.get("error"):
+            if _show_mrp and cvg and not cvg.get("error"):
                 with ui.expansion("Market-revealed peers — who the sell-side brackets USIO with", icon="menu_book") \
                         .classes("w-full").style("margin-bottom:8px;"):
                     ui.label(f"{cvg['n_analysts']} covering analysts · {cvg['n_specialists']} payments specialist(s). "
@@ -315,9 +346,9 @@ def render_lighthouse_page():
         except Exception:
             pass
 
-    if ticker != "USIO":
+    if not _lh_ready(client_id, ticker):
         with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
-            ui.label(f"Lighthouse is wired for USIO in this MVP.").classes("font-bold")
+            ui.label("Lighthouse is wired for USIO in this MVP.").classes("font-bold")
             ui.label(f"A new client is a config file + a historical data load — {ticker} isn't loaded yet.") \
                 .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
@@ -325,11 +356,10 @@ def render_lighthouse_page():
     try:
         from lighthouse import data, ceo
         from lighthouse.factor_model import attribution
-        from lighthouse.shadow import SHADOW_TICKERS
         import psycopg2
         from core.security import get_database_url
-        rets = data.returns_frame(SHADOW_TICKERS)
-        model = attribution(rets, issuer="USIO", window=126)
+        rets = data.returns_frame(_shadow_tickers_for(ticker))
+        model = attribution(rets, issuer=ticker, window=126)
         rows = list(model.iterrows())[-4:][::-1]
         conn = psycopg2.connect(get_database_url())          # one shared connection for all cards
         verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
@@ -348,7 +378,7 @@ def render_lighthouse_page():
         # A drift number in isolation is uninterpretable, so it never travels alone: the issuer's
         # weekly move sits beside the peer basket, its size index, and the broad-market indices.
         if wk and not wk.get("empty"):
-            _render_week_in_context(wk, _weekly)
+            _render_week_in_context(wk, _weekly, ticker)
 
         ui.label("Recent sessions").classes("font-bold").style(f"color:{COLORS['text_heading']};margin:4px 0;")
         for v in verdicts:
