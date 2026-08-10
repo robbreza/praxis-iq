@@ -1122,14 +1122,34 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
             seq = earnings_prep.sequential_read()
         except Exception:
             seg = seq = None
-        if seq:
+        from core.curated_targets import _is_illustrative
+        _illus = _is_illustrative(get_active_client_id())
+        if seq and not _illus:
             draft += " " + seq
-        if seg:
+        if _illus and (n.get("integrated") or n.get("legacy")):
+            _tot = (n.get("integrated", 0) or 0) + (n.get("legacy", 0) or 0)
+            _mix = (n.get("integrated", 0) / _tot * 100) if _tot else 0
+            draft += (f" Integrated payments contributed ${n.get('integrated',0):.1f}M — roughly {_mix:.0f}% of "
+                      f"net revenue — with legacy processing of ${n.get('legacy',0):.1f}M the balance.")
+        elif seg and not _illus:
             draft += (f" By segment, {seg['payments_label']} — our payments business — represented "
                       f"approximately {seg['payments_gp_share']:.0f}% of gross profit, with "
                       f"{', '.join(seg['other_labels'])}, our print-and-mail operations, making up the balance.")
         return draft
     if role == "CRO":
+        from core.curated_targets import _is_illustrative
+        if _is_illustrative(get_active_client_id()):
+            # Northlake operates on the Street KPIs, not USIO's card/ACH/prepaid volume metrics.
+            sentences = [
+                f"On the operational metrics the Street tracks: integrated payments volume — our TPV — was "
+                f"${n.get('tpv',0):.2f} billion, up {n.get('tpv_yoy',0):.0f}% year over year, as new-partner "
+                f"go-lives and rising attach across the installed base both contributed.",
+                f"Net revenue retention was {n.get('nrr',0):.0f}%, reflecting the durability of the partner book, "
+                f"and net take-rate expanded to {n.get('take_rate',0):.0f} basis points — entirely from the mix "
+                f"shift toward integrated acquiring, not pricing.",
+                what_new or "Partner onboarding continued at a strong pace this quarter.",
+            ]
+            return " ".join(sentences)
         sentences = [f"Transaction volume processed grew {n.get('vol_yoy',0):.0f}% year-over-year to "
                      f"${n.get('vol',0):.1f}B, on {n.get('txn',0):.1f}M transactions."]
         if ops.get("card_yoy"):
@@ -1182,6 +1202,8 @@ def _generate_persona_draft(role, ss, context=""):
     contacts = _contacts()
     tone = _tone_context(ss)
     tone_rule = _TONE_RULES.get(tone["bucket"], "")
+    from core.curated_targets import _is_illustrative
+    _illus = _is_illustrative(get_active_client_id())   # Northlake uses its Street KPIs, not USIO metrics
 
     if gd.get("action") and gd.get("new_low") is not None and gd.get("new_hi") is not None:
         guidance_line = (f"guidance action decided: {gd['action'].replace('_',' ')} to ${gd['new_low']:.1f}M-"
@@ -1236,18 +1258,27 @@ def _generate_persona_draft(role, ss, context=""):
     # line that frames the payments-vs-print mix so analysts value it correctly; the valuation
     # ARGUMENT (blended vs pure-play) stays in the prep brief's Q&A, out of the spoken script.
     seg_fact = seq_fact = ""
-    try:
-        from core import earnings_prep as _ep
-        _seg = _ep.segment_story()
-        if _seg:
-            seg_fact = (f" Segment mix to state factually (do NOT argue the valuation multiple): "
-                        f"{_seg['payments_label']} ~{_seg['payments_gp_share']:.0f}% of gross profit — the "
-                        f"payments business — with {', '.join(_seg['other_labels'])} (print-and-mail) the balance.")
-        _seq = _ep.sequential_read()
-        if _seq:
-            seq_fact = f" Sequential (QoQ) revenue trend to weave in: {_seq}"
-    except Exception:
-        seg_fact = seq_fact = ""
+    if _illus:
+        # Northlake's segments are integrated payments vs legacy processing (from the CFO numbers),
+        # not USIO's payments/print XBRL — and the demo has no XBRL segment/sequential data anyway.
+        _tot = (n.get("integrated", 0) or 0) + (n.get("legacy", 0) or 0)
+        if _tot:
+            seg_fact = (f" Segment mix to state factually: integrated payments ~{n.get('integrated',0)/_tot*100:.0f}% "
+                        f"of net revenue (${n.get('integrated',0):.1f}M), legacy processing the balance "
+                        f"(${n.get('legacy',0):.1f}M).")
+    else:
+        try:
+            from core import earnings_prep as _ep
+            _seg = _ep.segment_story()
+            if _seg:
+                seg_fact = (f" Segment mix to state factually (do NOT argue the valuation multiple): "
+                            f"{_seg['payments_label']} ~{_seg['payments_gp_share']:.0f}% of gross profit — the "
+                            f"payments business — with {', '.join(_seg['other_labels'])} (print-and-mail) the balance.")
+            _seq = _ep.sequential_read()
+            if _seq:
+                seq_fact = f" Sequential (QoQ) revenue trend to weave in: {_seq}"
+        except Exception:
+            seg_fact = seq_fact = ""
 
     prompts = {
         "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
@@ -1263,11 +1294,19 @@ def _generate_persona_draft(role, ss, context=""):
                f"prior-quarter item that previously drew analyst follow-up): "
                f"{what_new or 'no specific updates provided'}. Professional tone, plain text (no markdown), "
                f"4-6 sentences.",
-        "CRO": f"Write a business-operations paragraph for an earnings call covering: transaction volume "
-               f"${n.get('vol',0):.1f}B (+{n.get('vol_yoy',0):.0f}% YoY), {n.get('txn',0):.1f}M transactions. "
-               f"Additional operating detail from this quarter (Stage 1B): {ops_text}. "
-               f"What's new this quarter: {what_new or 'no specific updates provided'}. Professional tone, plain "
-               f"text (no markdown), 3-5 sentences.",
+        "CRO": (
+            f"Write a business-operations paragraph for {ticker}'s earnings call covering the operational KPIs "
+            f"the Street tracks: integrated payments volume (TPV) ${n.get('tpv',0):.2f}B, up "
+            f"{n.get('tpv_yoy',0):.0f}% year over year; net revenue retention {n.get('nrr',0):.0f}%; and net "
+            f"take-rate {n.get('take_rate',0):.0f} basis points (expanding on the mix shift toward integrated "
+            f"acquiring, NOT pricing). What's new this quarter: {what_new or 'no specific updates provided'}. "
+            f"Professional tone, plain text (no markdown), 3-5 sentences."
+            if _illus else
+            f"Write a business-operations paragraph for an earnings call covering: transaction volume "
+            f"${n.get('vol',0):.1f}B (+{n.get('vol_yoy',0):.0f}% YoY), {n.get('txn',0):.1f}M transactions. "
+            f"Additional operating detail from this quarter (Stage 1B): {ops_text}. "
+            f"What's new this quarter: {what_new or 'no specific updates provided'}. Professional tone, plain "
+            f"text (no markdown), 3-5 sentences."),
         "CEO": f"Write a CEO narrative paragraph for {ticker}'s earnings call covering strategic highlights, then "
                f"the guidance stance: {guidance_line}. {tone_line}"
                f"What's new/evolved since last quarter (see Step 1 review): "
