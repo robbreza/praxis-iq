@@ -82,7 +82,7 @@ RECORD = {
     # Decision Engine compares Q2 actual ($102.5M) against this. Without it the
     # engine falls back to an unverified live value (None) and shows the Q2
     # actual as the entire "beat vs street".
-    "q2_consensus_rev": 102.0,
+    "q2_consensus_rev": 25.7,   # Northlake Q2 Street consensus; the $25.9M actual reads as a modest beat
     "last_price": PRICE,
     "price_date": TODAY.strftime("%b %d, %Y"),
     "fy_guidance": "9-12% revenue growth",
@@ -130,19 +130,29 @@ RECORD = {
     # Q1 2026 reported actuals — full line so the FY roll-up (Q1 actual + Q2-Q4
     # guidance) computes EPS/EBITDA, not just revenue. Q1+Q2+Q3+Q4 ties to the
     # $410M / $1.30 / $58M FY guide.
-    "financials": {"last_quarter": "Q1 2026", "last_rev": 98.5, "last_eps": 0.29,
-                   "last_ebitda": 13.5, "last_rev_yoy": 11.0},
-    "guidance": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
+    "financials": {"last_quarter": "Q1 2026", "last_rev": 25.3, "last_eps": 0.12,
+                   "last_ebitda": 5.1, "last_rev_yoy": 19.0},   # Northlake Q1 2026, from the transcript
+    "guidance": {"Revenue Est ($M)": 104.0, "EPS Est": 0.54, "EBITDA Est ($M)": 22.0},
     # Guidance-policy inputs for the seasonality-adjusted Decision Engine
-    # (core.guidance_engine.seasonal_read). Without these every figure in the
-    # engine reads $0.0M. Prior FY2025 quarters sum to $369M; a 10-12% range
-    # implies an FY2026 midpoint of ~$410M — matching the guide above. Weights
-    # are payments-seasonal (Q4 heaviest) and sum to 1.0.
+    # (core.guidance_engine.seasonal_read) — Northlake scale, consistent with the Q1 transcript.
+    # Prior FY2025 quarters sum to ~$91M; a 13–15% range implies an FY2026 range of ~$103–105M,
+    # matching the guide. Weights derive from those quarters (slightly H2-weighted as new-partner
+    # go-lives ramp) and sum to 1.0.
     "guidance_policy": {
         "prior_fy_label": "FY2025",
-        "prior_fy_quarterly_revenue": {"Q1": 86.0, "Q2": 90.0, "Q3": 92.0, "Q4": 101.0},
-        "seasonal_weights": {"Q1": 0.233, "Q2": 0.244, "Q3": 0.249, "Q4": 0.274},
-        "fy_growth_low": 0.10, "fy_growth_high": 0.12,
+        "prior_fy_quarterly_revenue": {"Q1": 21.3, "Q2": 21.9, "Q3": 23.2, "Q4": 24.6},
+        "seasonal_weights": {"Q1": 0.234, "Q2": 0.241, "Q3": 0.255, "Q4": 0.270},
+        "fy_growth_low": 0.13, "fy_growth_high": 0.15,
+        "range_deltas_m": {"raise_low": 1.0, "raise_mid": 2.0, "narrow": 0.5},
+        "known_h2_catalysts": [
+            "New-partner go-lives — back-half weighted as ISV partners finish integration and turn on",
+            "Gross-to-net revenue bridge published this quarter — closes the valuation gap vs net-revenue peers",
+            "Continued net take-rate expansion as integrated mix moves toward 65%+ of net revenue",
+            "Adjacent-vertical entry (property management, membership/recreation) via anchor ISV partners",
+            "Net revenue retention holding above 110% — installed-base attach compounding",
+        ],
+        "closing_line": "We remain focused on the attach motion and the durable, recurring economics it creates for Northlake.",
+        "operator_handoff": "Operator, we are ready to open the call for questions.",
     },
 }
 
@@ -1058,31 +1068,33 @@ def seed():
     # showed street $102M vs $410M guidance and flagged "beat/miss bar too wide".
     # FY 2027E is the roll-forward year: this is where street re-rates first, so an
     # IR team needs the view before management ever guides it.
+    # Northlake scale (~$26M/quarter, ~$104M FY). Q2 consensus averages ~$25.7M, just below the $25.9M
+    # actual the CFO enters, so the guidance engine reads a modest beat → "RAISE LOW END".
     _est_by_period = {
         "Q2 2026E": {
-            "Ashfield Research": (0.33, 102.4, 14.2), "Denby Securities": (0.35, 103.6, 14.8),
-            "Westmark Partners": (0.30,  99.8, 13.4), "Calder & Co.":     (0.32, 101.5, 14.0),
-            "Brightwater Equity": (0.34, 102.9, 14.5),
+            "Ashfield Research": (0.12, 25.7, 5.3), "Denby Securities": (0.13, 25.9, 5.4),
+            "Westmark Partners": (0.11, 25.3, 5.0), "Calder & Co.":     (0.12, 25.6, 5.2),
+            "Brightwater Equity": (0.13, 25.8, 5.4),
         },
         "Q3 2026E": {
-            "Ashfield Research": (0.35, 104.6, 14.6), "Denby Securities": (0.37, 105.8, 15.1),
-            "Westmark Partners": (0.32, 102.0, 13.8), "Calder & Co.":     (0.34, 103.8, 14.3),
-            "Brightwater Equity": (0.36, 105.1, 14.9),
+            "Ashfield Research": (0.13, 26.4, 5.6), "Denby Securities": (0.14, 26.7, 5.8),
+            "Westmark Partners": (0.12, 26.0, 5.4), "Calder & Co.":     (0.13, 26.3, 5.5),
+            "Brightwater Equity": (0.14, 26.6, 5.7),
         },
         "Q4 2026E": {
-            "Ashfield Research": (0.36, 109.0, 16.6), "Denby Securities": (0.38, 110.2, 17.0),
-            "Westmark Partners": (0.34, 107.0, 15.9), "Calder & Co.":     (0.35, 108.3, 16.3),
-            "Brightwater Equity": (0.37, 109.6, 16.8),
+            "Ashfield Research": (0.14, 27.8, 5.9), "Denby Securities": (0.15, 28.2, 6.1),
+            "Westmark Partners": (0.13, 27.3, 5.7), "Calder & Co.":     (0.14, 27.7, 5.9),
+            "Brightwater Equity": (0.15, 28.0, 6.0),
         },
         "FY 2026E": {
-            "Ashfield Research": (1.30, 411.0, 57.5), "Denby Securities": (1.35, 415.0, 59.2),
-            "Westmark Partners": (1.26, 406.0, 55.8), "Calder & Co.":     (1.31, 412.0, 57.9),
-            "Brightwater Equity": (1.33, 414.0, 58.6),
+            "Ashfield Research": (0.52, 103.5, 22.0), "Denby Securities": (0.55, 104.5, 22.6),
+            "Westmark Partners": (0.49, 102.5, 21.2), "Calder & Co.":     (0.52, 103.6, 22.0),
+            "Brightwater Equity": (0.54, 104.2, 22.4),
         },
         "FY 2027E": {
-            "Ashfield Research": (1.52, 458.0, 66.0), "Denby Securities": (1.60, 468.0, 68.5),
-            "Westmark Partners": (1.46, 450.0, 63.5), "Calder & Co.":     (1.54, 461.0, 66.4),
-            "Brightwater Equity": (1.58, 465.0, 67.6),
+            "Ashfield Research": (0.62, 118.0, 26.0), "Denby Securities": (0.66, 120.0, 27.0),
+            "Westmark Partners": (0.58, 116.0, 25.0), "Calder & Co.":     (0.62, 118.5, 26.2),
+            "Brightwater Equity": (0.65, 119.5, 26.8),
         },
     }
 
@@ -1099,15 +1111,14 @@ def seed():
     db.save_json("period_estimates.json",
                  {p: _ests_for(t) for p, t in _est_by_period.items()}, client_id=CID)
     db.save_json("period_guidance.json", {
-        "Q2 2026E": {"Revenue Est ($M)": 100.0, "EPS Est": 0.32, "EBITDA Est ($M)": 13.8},
-        "Q3 2026E": {"Revenue Est ($M)": 103.0, "EPS Est": 0.34, "EBITDA Est ($M)": 14.2},
-        # Q4 completes the quarterly book: Q1a 98.5 + Q2 100 + Q3 103 + Q4 108.5 = 410
-        # ties the four-quarter roll-up to the FY 2026E guide exactly.
-        "Q4 2026E": {"Revenue Est ($M)": 108.5, "EPS Est": 0.35, "EBITDA Est ($M)": 16.5},
-        "FY 2026E": {"Revenue Est ($M)": 410.0, "EPS Est": 1.30, "EBITDA Est ($M)": 58.0},
-        # FY 2027E: a preliminary long-term framework — low-teens growth off FY26 —
-        # so the roll-forward card renders "in line" rather than blank.
-        "FY 2027E": {"Revenue Est ($M)": 460.0, "EPS Est": 1.52, "EBITDA Est ($M)": 66.0},
+        "Q2 2026E": {"Revenue Est ($M)": 25.8, "EPS Est": 0.13, "EBITDA Est ($M)": 5.4},
+        "Q3 2026E": {"Revenue Est ($M)": 26.4, "EPS Est": 0.135, "EBITDA Est ($M)": 5.6},
+        # Q4 completes the quarterly book: Q1a 25.3 + Q2 25.8 + Q3 26.4 + Q4 26.5 = 104.0
+        # ties the four-quarter roll-up to the standing FY 2026E guide (the script raises it to $104–106M).
+        "Q4 2026E": {"Revenue Est ($M)": 26.5, "EPS Est": 0.14, "EBITDA Est ($M)": 5.8},
+        "FY 2026E": {"Revenue Est ($M)": 104.0, "EPS Est": 0.53, "EBITDA Est ($M)": 22.0},
+        # FY 2027E: preliminary framework — low-teens growth off FY26 — so the roll-forward card renders.
+        "FY 2027E": {"Revenue Est ($M)": 118.0, "EPS Est": 0.62, "EBITDA Est ($M)": 25.8},
     }, client_id=CID)
     print("[demo] seeded consensus + guidance across 4 horizon periods (Q2, Q3, FY26, FY27) — full book")
 
