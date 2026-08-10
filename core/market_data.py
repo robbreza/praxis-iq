@@ -41,6 +41,19 @@ def _resolve_client_id(client_id):
     return get_active_client_id()
 
 
+def _offline_illustrative(client_id):
+    """True for the illustrative demo tenants, whose tickers are fictional (NLKP, PYRA, …). A live
+    Yahoo lookup for them always 404s AND, worse, blocks the request thread on repeated dead fetches
+    with retries — which on a page render freezes the event loop and drops the websocket
+    ("connection lost"). For these tenants the SEEDED cache is authoritative: serve it and never hit
+    the network. Real tenants are unaffected."""
+    try:
+        from core.curated_targets import _is_illustrative
+        return _is_illustrative(_resolve_client_id(client_id))
+    except Exception:
+        return False
+
+
 def tracked_tickers():
     """Active client's own ticker plus its full peer set — same universe
     core/sec_filings.py tracks, kept as a separate call (not imported from
@@ -276,6 +289,12 @@ def get_snapshot(ticker, refresh_if_stale=True, max_age_minutes=DEFAULT_STALE_MI
     if _m is not None:
         return _m
     cached = get_cached(ticker, client_id)
+    # Demo tenants: the seeded snapshot IS the truth — serve it even when "stale" and never refresh
+    # from Yahoo (a fictional ticker would 404-storm and block the render). See _offline_illustrative.
+    if _offline_illustrative(client_id):
+        if cached:
+            _snapshot_memo_put(_mk, cached)
+        return cached
     if cached and not _is_stale(cached["fetched_at"], max_age_minutes):
         _snapshot_memo_put(_mk, cached)
         return cached
@@ -293,6 +312,12 @@ def refresh_all(client_id=None):
     """Refresh every tracked ticker (active client + peers). Meant to be
     called from a non-blocking startup hook (see app_nicegui.py) and from
     a manual "Refresh" button, same pattern as sec_filings.refresh_all."""
+    if _offline_illustrative(client_id):
+        # Demo tenants keep their seeded snapshots — a live refresh would 404 on fictional tickers
+        # and clobber the cache. No-op with an honest log.
+        log = {"run_at": datetime.now().isoformat(), "results": [], "skipped": "illustrative tenant"}
+        db.save_json("market_data_refresh_log.json", log, client_id=client_id)
+        return log
     results = []
     for ticker in tracked_tickers():
         snap = _fetch_one(ticker)
@@ -310,6 +335,8 @@ def refresh_one(ticker, client_id=None):
     """Force-fetch and cache ONE ticker's snapshot, bypassing the freshness check. For a manual
     'refresh price' control on a single client. Also updates the per-process memo so subsequent
     get_snapshot() reads see the new value. Returns the fresh snapshot dict, or None on failure."""
+    if _offline_illustrative(client_id):
+        return get_cached(ticker, client_id)   # demo: never Yahoo; the seeded snapshot stands
     fresh = _fetch_one(ticker)
     if fresh:
         _save_snapshot(ticker, fresh, client_id)
@@ -402,6 +429,8 @@ def get_fundamentals(ticker, client_id=None, max_age_hours=24, force=False):
     any stale cache on a failed fetch. None only if never fetched and the fetch
     fails."""
     key = f"market_fundamentals_{ticker.upper()}.json"
+    if _offline_illustrative(client_id):
+        return db.load_json(key, None, client_id=client_id)   # seeded only — never Yahoo for the demo
     if not force:
         cached = db.load_json(key, None, client_id=client_id)
         if cached and cached.get("as_of"):
@@ -506,6 +535,8 @@ def _num(v):
 def get_estimates(ticker, client_id=None, max_age_hours=12, force=False):
     """Cached street estimates. Same fetch/fallback contract as get_fundamentals()."""
     key = f"market_estimates_{ticker.upper()}.json"
+    if _offline_illustrative(client_id):
+        return db.load_json(key, None, client_id=client_id)   # seeded only — never Yahoo for the demo
     if not force:
         cached = db.load_json(key, None, client_id=client_id)
         if cached and cached.get("as_of"):

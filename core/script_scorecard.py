@@ -90,8 +90,16 @@ def close_to_open_reaction(earnings_date, ticker=None):
             return None
     if hasattr(earnings_date, "date"):
         earnings_date = earnings_date.date()
-    from config.client_config import CT
+    from config.client_config import CT, get_active_client_id
     tk = ticker or CT("ticker")
+    # Illustrative demo tenants have fictional tickers that 404 on Yahoo and block the render on
+    # retries — skip the live history fetch (the scorecard already treats None as "no reaction data").
+    try:
+        from core.curated_targets import _is_illustrative
+        if _is_illustrative(get_active_client_id()):
+            return None
+    except Exception:
+        pass
     try:
         import yfinance as yf
         # Pull a window around the call; we need the close ON the call day and
