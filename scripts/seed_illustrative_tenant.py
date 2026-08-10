@@ -507,6 +507,47 @@ def seed_nobo(cid=CID):
     return len(current), len(prior)
 
 
+def seed_financials(cid=CID):
+    """Seed the EDGAR financial-summary cache for the fictional NLKP ticker. Without it,
+    financial_summary('NLKP') can't fetch (no real EDGAR filing) and the WHOLE Reports stack dies:
+    Board IR Package renders 'Financials unavailable from EDGAR', its PDF raises, Company Financial
+    Analysis fails, and Benchmarking's headline is blank (NLKP has no gross-profit leg to rank).
+    Numbers tie to the seeded Q2 2026 actuals / guidance. Stored UNSCOPED (global) — the exact key
+    financial_summary() reads — which is safe because NLKP is unique to the demo."""
+    from core import edgar_financials as ef
+    M = 1_000_000
+
+    def pct(n, d):
+        return round(n / d * 100, 1) if (n is not None and d) else None
+
+    rev, gp, oi, ni = 102.5 * M, 24.6 * M, 12.0 * M, 9.656 * M          # ties to q2_numbers
+    ebitda, dna, adj = 14.5 * M, 2.5 * M, 15.5 * M
+    assets, liab, eq, ac, lc = 362 * M, 197 * M, 165 * M, 180 * M, 140 * M
+    cash, restr, cust, debt = 42 * M, 82 * M, 100 * M, 8 * M
+    ocf, cppe, csw = 13 * M, 1 * M, 2 * M
+    capex, fcf = cppe + csw, ocf - (cppe + csw)
+    summary = {
+        "ticker": TICKER, "entity": RECORD["name"], "cik": "0001999001",
+        "quarter_end": "2026-06-30", "bs_end": "2026-06-30",
+        "income": {"revenue": rev, "cogs": rev - gp, "gross_profit": gp, "operating_income": oi,
+                   "net_income": ni, "ebitda": ebitda, "dna": dna, "eps": 0.34, "adjusted_ebitda": adj,
+                   "ebitda_adjustments": {"Stock-based compensation": 1 * M},
+                   "gross_margin": pct(gp, rev), "operating_margin": pct(oi, rev), "net_margin": pct(ni, rev),
+                   "ebitda_margin": pct(ebitda, rev), "adj_ebitda_margin": pct(adj, rev),
+                   "rev_growth_yoy": 13.9, "rev_prior_year": 90 * M, "ttm_revenue": 394 * M},
+        "balance": {"assets": assets, "liabilities": liab, "equity": eq, "assets_current": ac,
+                    "liabilities_current": lc, "cash": cash, "restricted_cash": restr, "customer_deposits": cust,
+                    "debt": debt, "net_cash": cash - debt, "cash_and_restricted": 124 * M,
+                    "working_capital": ac - lc, "current_ratio": round(ac / lc, 2),
+                    "debt_to_equity": pct(debt, eq), "book_value": eq},
+        "cashflow": {"operating_cf": ocf, "capex": capex, "capex_ppe": cppe, "capex_software": csw,
+                     "fcf": fcf, "fcf_margin": pct(fcf, rev), "ocf_margin": pct(ocf, rev)},
+        "shares_out": 28_400_000, "_fetched_at": datetime.now().isoformat(),
+    }
+    db.save_json(ef._SUMMARY_KEY.format(ticker=TICKER), summary)   # unscoped, as financial_summary reads it
+    print(f"[demo] seeded EDGAR financial summary for {TICKER} (Board Package / financials / benchmarking)")
+
+
 def seed():
     # 1. Register the tenant
     client_store.upsert_client(CID, RECORD, active=True, merge=False)
@@ -1141,6 +1182,7 @@ That concludes today's question-and-answer session. Thank you for joining.
     _n_cur, _n_pri = seed_nobo(CID)
     print(f"[demo] seeded 2 NOBO pulls (current {_n_cur} holders, prior {_n_pri}) — inst/retail mix, "
           "13D/G thresholds, tracked cross-ref, and flow for the compare")
+    seed_financials(CID)
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
