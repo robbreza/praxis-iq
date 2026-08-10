@@ -261,6 +261,17 @@ DEFAULT_PEER_UNIVERSE = [
 
 def _load_peer_universe():
     records = db.load_json("peer_universe.csv", default=None)
+    # Illustrative tenants use their OWN configured comps (e.g. PYRA/CLRT/VNTG) — never the built-in
+    # USIO payments default set, and never the missing-default backfill below (which would re-add
+    # RPAY/CASS/… and make Peer Cross-Targeting contradict the rest of the demo).
+    from core.curated_targets import _is_illustrative
+    from config.client_config import get_active_client_id, CP
+    if _is_illustrative(get_active_client_id()):
+        if records:
+            return records
+        return [{"ticker": p["ticker"], "name": p.get("name", p["ticker"]),
+                 "ev_rev": p.get("ev_rev"), "sector": "Payments / Fintech",
+                 "weight": 1.0, "tier": p.get("tier", "close")} for p in CP()]
     if records is not None:
         known_ev = {p["ticker"]: p["ev_rev"] for p in DEFAULT_PEER_UNIVERSE if p["ev_rev"] is not None}
         for r in records:

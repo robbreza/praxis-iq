@@ -548,6 +548,63 @@ def seed_financials(cid=CID):
     print(f"[demo] seeded EDGAR financial summary for {TICKER} (Board Package / financials / benchmarking)")
 
 
+def seed_targeting_extras(cid=CID):
+    """Fill the Target Database + Consensus targeting surfaces that read empty:
+      1. Consensus 'Last Updated' per covering firm (column was '—' for every analyst).
+      2. The ISSUER's own news feed (Today's Peer Watch / top story showed 'No NLKP headlines').
+      3. The transfer-agent NOBO cross-reference list (Target DB tool was blank).
+      4. The analyst coverage network (mine covered stocks -> auto-generate prospects)."""
+    from core import prospecting
+
+    # 1. Consensus "Last Updated" per covering firm.
+    _dates = {a["firm"]: (TODAY - timedelta(days=d)).strftime("%b %d %Y")
+              for a, d in zip(RECORD["analysts"], (3, 6, 9, 12, 15))}
+    db.save_json("analyst_dates_override.json", _dates, client_id=cid)
+
+    # 2. Issuer's OWN news headlines (parked; idempotent on the illustrative-own source).
+    news = [n for n in (db.load_json("peer_news.json", [], client_id=cid) or [])
+            if n.get("source") != "illustrative-own"]
+    _own = [
+        ("Northlake Payments sets Q2 2026 earnings for August 30", 1,
+         "The company will report second-quarter results after market close on August 30; a call follows."),
+        ("Northlake Payments expands PayFac platform with regional QSR chain", 4,
+         "A multi-year agreement adds embedded-payments volume across ~600 quick-service locations."),
+        ("Ashfield Research reiterates Buy on Northlake Payments, PT $43", 6,
+         "Analyst Ellis Grant cites PayFac attach and prepaid float ahead of the Q2 print."),
+    ]
+    news += [{"id": f"nlkp-own-{i}", "ticker": TICKER, "title": t, "url": "", "summary": s,
+              "source": "illustrative-own", "pub": (TODAY - timedelta(days=d)).strftime("%Y-%m-%d")}
+             for i, (t, d, s) in enumerate(_own, 1)]
+    db.save_json("peer_news.json", news, client_id=cid)
+
+    # 3. Transfer-agent NOBO list (a spread of tracked/illustrative names so the cross-ref lights up).
+    _nobo = [{"holder_name": f, "shares": sh} for f, sh in [
+        ("Halewood Capital Management", 1_420_000), ("Corveth Advisors", 960_000),
+        ("Brentmoor Capital Management", 735_000), ("Fairmount Ridge Capital", 455_000),
+        ("Windgate Asset Management", 228_000), ("Cooke & Bieler L.P.", 610_000),
+        ("Ridge & Vale Capital", 180_000), ("Charter Oak Equity", 150_000),
+        ("Presidio Reach Capital", 120_000), ("Schuylkill Vale Capital", 90_000)]]
+    prospecting.save_nobo_list(_nobo, "Transfer agent — Q2 2026 NOBO (illustrative)", client_id=cid)
+
+    # 4. Analyst coverage network — each covering analyst also rates 2 comps, whose 13F holders the
+    #    coverage-network prospecting pipeline can mine into new prospects.
+    _peers = [("PYRA", "Pyramid Pay Holdings", 40.0), ("CLRT", "Clarity Payment Systems", 31.0),
+              ("VNTG", "Vantage Processing Group", 22.0)]
+    _cov = {}
+    for i, a in enumerate(RECORD["analysts"]):
+        stocks = [{"ticker": TICKER, "name": RECORD["name"], "pt": a["pt"], "rating": a["rating"],
+                   "sector": "Payments / Fintech", "relevance": 100,
+                   "bridge": "Covers the issuer directly.", "shared_dna": "payments processing"}]
+        for tk, nm, ppt in (_peers[i % 3], _peers[(i + 1) % 3]):   # 2 rotated comps per analyst
+            stocks.append({"ticker": tk, "name": nm, "pt": ppt, "rating": "Buy",
+                           "sector": "Payments / Fintech", "relevance": 85,
+                           "bridge": f"Direct payments comp — same coverage lens as {TICKER}.",
+                           "shared_dna": "payments processing"})
+        _cov[a["name"]] = {"analyst": a["name"], "firm": a["firm"], "email": a["email"], "coverage": stocks}
+    db.save_json("analyst_coverage_network.json", _cov, client_id=cid)
+    print("[demo] seeded consensus dates, issuer news, transfer-agent NOBO, and analyst coverage network")
+
+
 def seed():
     # 1. Register the tenant
     client_store.upsert_client(CID, RECORD, active=True, merge=False)
@@ -1183,6 +1240,7 @@ That concludes today's question-and-answer session. Thank you for joining.
     print(f"[demo] seeded 2 NOBO pulls (current {_n_cur} holders, prior {_n_pri}) — inst/retail mix, "
           "13D/G thresholds, tracked cross-ref, and flow for the compare")
     seed_financials(CID)
+    seed_targeting_extras(CID)
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
