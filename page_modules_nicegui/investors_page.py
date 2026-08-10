@@ -5268,7 +5268,15 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                      "Confirm → automatic slot assignment arrives in Phase 3.").style(
                                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:4px;")
 
-                    meetings_with_idx = sorted(enumerate(all_meetings), key=lambda x: (x[1].get("day", 1), x[0]))
+                    # Sort by DAY then TIME (not insertion order) so a hand-added meeting lands in its
+                    # chronological slot — and so the travel legs / hotel pickup below are computed
+                    # between the right chronological neighbours. Untimed meetings sort last; the
+                    # original index (x[0]) is the stable tiebreaker and is still the delete/edit key.
+                    meetings_with_idx = sorted(
+                        enumerate(all_meetings),
+                        key=lambda x: (x[1].get("day", 1),
+                                       _parse_time_min(x[1].get("time")) if _parse_time_min(x[1].get("time")) is not None else 9999,
+                                       x[0]))
                     current_day = None
                     _prev_m = None
                     _leg_miles, _leg_count, _routed_count = 0.0, 0, 0
