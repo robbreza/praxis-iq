@@ -6146,6 +6146,108 @@ def _render_ndr_requests_tab():
 # ─────────────────────────────────────────────────────────────────────────
 # NDR — Prep Cards tab
 # ─────────────────────────────────────────────────────────────────────────
+_PREP_HDR_STYLE = ("color:{c};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;"
+                   "margin-top:8px;text-transform:uppercase;")
+
+
+def _last_meeting_brief(firm):
+    """The most recent post-meeting debrief for a firm, with its structured fields parsed —
+    or None. This is the richest prep input the app holds: what they asked, what worried them,
+    and what we committed to send. Captured on the Post-NDR Debrief / meeting-notes flow, the
+    same store the CRM reads — so the prep card and the account history never diverge."""
+    import ast
+    recs = _load_json("post_meeting_notes.json", []) or []
+    mine = [r for r in recs if _norm_name(r.get("Firm", "")) == _norm_name(firm)]
+    if not mine:
+        return None
+    mine.sort(key=lambda r: r.get("Date", ""), reverse=True)
+    r = mine[0]
+    s, st = r.get("Structured"), {}
+    if isinstance(s, dict):
+        st = s
+    elif isinstance(s, str) and s.strip():
+        for parse in (json.loads, ast.literal_eval):   # stored as JSON or a py-dict repr
+            try:
+                st = parse(s)
+                break
+            except Exception:
+                continue
+    return {"date": r.get("Date"), "type": r.get("Type"), "contact": r.get("Contact"),
+            "raw": r.get("Raw"), **(st if isinstance(st, dict) else {})}
+
+
+def _ndr_prep_read(inst, prior=None):
+    """The one-line READ for a meeting — holder-vs-prospect framing off the Fit score, plus the
+    strongest warm signal on file. Mirrors the ownership-summary READ used elsewhere on the page
+    so a prep card leads with the same judgement, not a different one."""
+    if not inst:
+        base = ("No tracked signal on file — treat as a discovery meeting: confirm mandate fit and "
+                "time horizon before going deep on the thesis.")
+    else:
+        fit = inst.get("Fit_Score")
+        if inst.get("USIO_Holder"):
+            base = "Existing holder — a defend-and-deepen meeting: protect the position and grow it."
+        elif isinstance(fit, (int, float)) and fit >= 80:
+            base = f"High-fit prospect (Fit {int(fit)}/100) — a priority conversion, not a cold intro."
+        elif isinstance(fit, (int, float)) and fit >= 55:
+            base = f"Good-fit prospect (Fit {int(fit)}/100) — worth a full pitch; qualify the path to a position."
+        else:
+            base = "Prospect — discovery meeting: confirm mandate fit before going deep."
+        warm = []
+        if inst.get("Peer_Holdings"):
+            warm.append(f"owns {len(inst['Peer_Holdings'])} of your peers")
+        if inst.get("IR_Visits_30d"):
+            warm.append(f"on your IR site {inst['IR_Visits_30d']}× in 30d")
+        di = inst.get("Digital_Intent_Score")
+        if isinstance(di, (int, float)) and di >= 50 and not inst.get("IR_Visits_30d"):
+            warm.append(f"digital-intent {int(di)}/100")
+        if warm:
+            base += " They're warm: " + ", ".join(warm) + "."
+    if prior and prior.get("sentiment"):
+        base += f" Last conversation read {str(prior['sentiment']).lower()}."
+    return base
+
+
+def _prep_bring(inst, prior):
+    """Concrete things to walk in with: what we committed to send + open follow-ups from the last
+    meeting (deduped by overlap), then the peer comparison if they hold the comps and not us."""
+    out = []
+    if prior:
+        for x in (prior.get("commitments_made") or []) + (prior.get("follow_up_actions") or []):
+            xs = str(x).strip()
+            if xs and not any(xs.lower() in o.lower() or o.lower() in xs.lower() for o in out):
+                out.append(xs)
+    if inst and inst.get("Peer_Holdings"):
+        out.append(f"The side-by-side vs {', '.join(inst['Peer_Holdings'])} — they hold the peers, not you yet.")
+    return out
+
+
+def _prep_signals(inst):
+    """Why this name matters now, pulled from the SAME tracked fields the scoring and ownership
+    surfaces use: real 13F peer overlap, IR-site visits, digital intent, call-listening, and the
+    curated note — instead of the two generic lines the card showed before."""
+    if not inst:
+        return []
+    out = []
+    ph = inst.get("Peer_Holdings")
+    if ph:
+        src = inst.get("Peer_Holdings_Source") or ""
+        out.append(f"Owns {', '.join(ph)}{f' ({src})' if src else ''} — the direct peer comparison writes itself.")
+    if inst.get("IR_Visits_30d"):
+        last = inst.get("Last_Visit")
+        out.append(f"{inst['IR_Visits_30d']} visit(s) to your IR site in the last 30 days"
+                   + (f", most recently {last}." if last else "."))
+    di = inst.get("Digital_Intent_Score")
+    if isinstance(di, (int, float)) and di >= 50:
+        out.append(f"Digital-intent score {int(di)}/100 — actively researching the name.")
+    if inst.get("Call_Listener") and inst.get("Listen_Duration"):
+        out.append(f"Listened to the last earnings call ({inst['Listen_Duration']}).")
+    note = (inst.get("Notes") or "").strip()
+    if note:
+        out.append(note)
+    return out
+
+
 def _render_ndr_prep_cards_tab(institutions, meeting_log):
     """Per-meeting prep cards for an NDR trip. Ported from app.py's Prep
     Cards tab, but the talking points are no longer hardcoded per-ticker
@@ -6181,38 +6283,86 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
             if not meetings:
                 ui.label("No meetings on this trip yet.").style(f"color:{COLORS['text_muted']};")
                 return
-            meetings_sorted = sorted(enumerate(meetings), key=lambda x: (x[1].get("day", 1), x[0]))
+            # Chronological — group by day, then order each day by parsed time (a hand-added
+            # 8:00 must lead the day, not sink to insertion-order bottom — the same fix the
+            # Active NDRs schedule uses).
+            by_day = {}
+            for m in meetings:
+                by_day.setdefault(m.get("day", 1), []).append(m)
+            hdr = _PREP_HDR_STYLE.format(c=COLORS['text_muted'])
             current_day = None
-            for _, m in meetings_sorted:
-                d = m.get("day", 1)
+            for d in sorted(by_day.keys()):
                 if d != current_day:
                     current_day = d
                     ui.label(f"Day {d}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-weight:700;margin-top:10px;")
-                inst = inst_by_name.get(m.get("institution", ""))
-                # Collapsed to a scannable agenda line (time — institution,
-                # with holder status + score in the caption); expand a meeting
-                # to see last-contact, strategy note, and talking points.
-                if inst:
-                    holder_tag = "Existing holder" if inst["USIO_Holder"] else "Non-holder"
-                    caption = f"{inst.get('Metro','—')} · {inst.get('Type','—')} · {holder_tag} · score {inst['Engagement_Score']}/100"
-                else:
-                    caption = "Not in tracked institution list — added by hand"
-                with ui.expansion(f"{m.get('time','—')} — {m.get('institution','—')}", caption=caption).classes("w-full").style(
-                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
-                    days_since = _days_since_last_contact(m.get("institution", ""), meeting_log) if inst else None
-                    if days_since is not None:
-                        ui.label(f"Last contact: {days_since} day(s) ago").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-
-                    if m.get("notes"):
-                        ui.label(f"Strategy note: {m['notes']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
-
-                    ui.label("Talking points").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;margin-top:6px;")
+                for m in _sorted_day_meetings(by_day[d]):
+                    firm = m.get("institution", "")
+                    inst = inst_by_name.get(firm)
+                    contact = get_institution_contacts().get(firm, {}) or {}
+                    who = (m.get("contact") or "").strip() or ", ".join(
+                        p for p in (contact.get("name"), contact.get("title")) if p)
+                    prior = _last_meeting_brief(firm)
+                    # Caption: who we're meeting + the same Fit/Engagement read the rest of the page shows.
                     if inst:
-                        for pt in _ndr_talking_points(inst):
-                            ui.label(f"• {pt}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        cap_bits = [who or None, inst.get("Metro"), inst.get("Type"),
+                                    "Existing holder" if inst.get("USIO_Holder") else "Prospect"]
+                        if inst.get("Fit_Score") is not None:
+                            cap_bits.append(f"Fit {inst['Fit_Score']}")
+                        if inst.get("Engagement_Score") is not None:
+                            cap_bits.append(f"Engagement {inst['Engagement_Score']}")
+                        caption = " · ".join(str(x) for x in cap_bits if x)
                     else:
-                        ui.label("• No tracked signal on file — treat as a discovery meeting.").style(
-                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        caption = (f"{who} · " if who else "") + "not in tracked list — added by hand"
+                    with ui.expansion(f"{_meeting_time_range(m)} — {pretty_name(firm)}", caption=caption).classes("w-full").style(
+                            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
+                        # Who + one-tap reach
+                        if who or contact.get("phone") or contact.get("email"):
+                            with ui.row().classes("items-center gap-3 flex-wrap").style("margin:2px 0 6px;"):
+                                if who:
+                                    ui.label(f"Meeting with: {who}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                                if contact.get("phone"):
+                                    ui.link(f"Call {contact['phone']}", _tel_href(contact['phone'])).style(
+                                        f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
+                                if contact.get("email"):
+                                    _mailto(contact["email"], f"{CT('ticker')} — following up on our meeting", "", "Email")
+                        # THE READ
+                        ui.label(_ndr_prep_read(inst, prior)).style(
+                            f"background:{COLORS['surface_hover_bg']};border-left:3px solid {COLORS['accent']};"
+                            f"border-radius:6px;padding:8px 10px;color:{COLORS['text_body']};font-size:var(--fs-sm);"
+                            "line-height:1.45;margin-bottom:2px;")
+                        # WHERE YOU LEFT OFF — the last debrief's structured detail
+                        if prior:
+                            _t = (prior.get("type") or "meeting").lower()
+                            ui.label(f"Where you left off — last {_t} {prior.get('date','')}".strip()).style(hdr)
+                            if prior.get("summary"):
+                                ui.label(prior["summary"]).style(
+                                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.4;")
+                            for _lbl, _items, _col in (("They asked", prior.get("key_questions"), COLORS['text_secondary']),
+                                                       ("Their concern", prior.get("concerns_raised"), COLORS['warning'])):
+                                _items = [x for x in (_items or []) if x]
+                                if _items:
+                                    ui.label(_lbl).style(f"color:{_col};font-size:var(--fs-xs);font-weight:600;margin-top:4px;")
+                                    for _it in _items:
+                                        ui.label(f"• {_it}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        # BRING TO THIS MEETING
+                        bring = _prep_bring(inst, prior)
+                        if bring:
+                            ui.label("Bring to this meeting").style(hdr)
+                            for b in bring:
+                                ui.label(f"• {b}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        # WHY THEY MATTER NOW — real tracked signals
+                        sigs = _prep_signals(inst)
+                        if sigs:
+                            ui.label("Why they matter now").style(hdr)
+                            for s in sigs:
+                                ui.label(f"• {s}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        if not (prior or bring or sigs or inst):
+                            ui.label("• No tracked signal on file — treat as a discovery meeting.").style(
+                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        # Strategy note last (the human overlay)
+                        if m.get("notes"):
+                            ui.label(f"Strategy note: {m['notes']}").style(
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;margin-top:6px;")
 
     trip_sel.on_value_change(rebuild_cards)
     rebuild_cards()
