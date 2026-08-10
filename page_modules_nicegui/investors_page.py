@@ -4296,10 +4296,29 @@ def _travel_leg_between(prev_m, m, trip):
     t0, t1 = _parse_time_min(prev_m.get("time")), _parse_time_min(m.get("time"))
     if t0 is not None and t1 is not None and lg.get("drive_min") is not None:
         gap = t1 - t0
-        needed = lg["drive_min"] + 30  # +30 min minimum turnaround after a meeting
+        # Gap between starts must cover the prior meeting itself (1h, or 1h15 for a catered lunch)
+        # plus the drive to the next stop.
+        needed = _meeting_duration(prev_m) + lg["drive_min"]
         if 0 <= gap < needed:
             tight = f"TIGHT — {gap} min between starts vs ~{needed} min needed (meeting + travel)"
     return lg, tight
+
+
+def _hotel_departure(trip, first_m, buffer_min=10):
+    """Where management is staying → the day's first meeting. Returns (pickup_time_str, leg_dict):
+    the leg is the routed (or city-level) drive from the hotel, and pickup is the first meeting's
+    start minus that drive minus a short buffer — the "what time do they get picked up" answer.
+    (None, None) if there's no hotel on the trip or the first stop can't be routed."""
+    hotel = (trip.get("hotel") or "").strip()
+    if not hotel or first_m.get("format", "In-person") != "In-person":
+        return None, None
+    lg, _ = _travel_leg_between({"address": hotel, "format": "In-person"}, first_m, trip)
+    if not lg:
+        return None, None
+    t1 = _parse_time_min(first_m.get("time"))
+    if t1 is None:
+        return None, lg
+    return _fmt_min_12h(max(t1 - (lg.get("drive_min") or 0) - buffer_min, 0)), lg
 
 
 def _travel_total_line(total_miles, leg_count, routed_count, routing_on=False):
@@ -4327,6 +4346,8 @@ def _build_ndr_itinerary(trip, ticker):
               f"{trip['dates']}  ·  {trip['city']}  ·  {'Virtual' if trip['ndr_type']=='virtual' else 'In-Person'}"]
     if trip.get("sponsor_bank"):
         lines.append(f"Sponsoring Bank: {trip['sponsor_bank']}")
+    if trip.get("hotel"):
+        lines.append(f"Lodging: {trip['hotel']}")
     lines.append(f"Attendees: {', '.join(trip.get('team', [])) or '—'}")
     lines.append(f"Focus: {trip.get('focus','—')}")
     if trip.get("notes"):
@@ -4349,6 +4370,14 @@ def _build_ndr_itinerary(trip, ticker):
             lines.append(f"DAY {day_num}")
             lines.append("-" * 64)
         day_ms = _sorted_day_meetings(by_day[day_num])
+        # Day opens from the hotel — where management is staying and the pickup time to make the
+        # first meeting.
+        if trip.get("hotel") and day_ms:
+            _pk, _plg = _hotel_departure(trip, day_ms[0])
+            if _plg:
+                lines.append(f"  Staying at: {trip['hotel']}")
+                lines.append(f"  {('Pickup ' + _pk + ' — ') if _pk else ''}{_plg['label']} to "
+                             f"{day_ms[0].get('institution', '')}")
         prev = None
         for m in day_ms:
             if prev is not None:
@@ -4378,6 +4407,9 @@ def _build_ndr_itinerary(trip, ticker):
                 lines.append(f"              Join ({m.get('format')}): {_link or 'link TBD — add on the Active NDRs tab'}")
             if m.get("notes"):
                 lines.append(f"              Note: {m['notes']}")
+            if m.get("lunch"):
+                lines.append("              Catered working lunch (~1h15) · Dietary: "
+                             + ((m.get("dietary") or "").strip() or "— (confirm with caterer)"))
             prev = m
     lines.append("=" * 64)
     _tl = _travel_total_line(total_miles, leg_count, routed_count, _routing_on)
@@ -4581,6 +4613,44 @@ def _fmt_time_12h(t):
         return t
 
 
+def _fmt_min_12h(mins):
+    """Minutes-since-midnight → '2:00 PM' style."""
+    h, m = divmod(int(mins), 60)
+    ap = "AM" if h < 12 else "PM"
+    return f"{h % 12 or 12}:{m:02d} {ap}"
+
+
+def _meeting_duration(m):
+    """Minutes a meeting occupies on the calendar. A catered lunch runs ~1h15 (the Street norm — the
+    meeting IS the lunch); a regular 1x1 is ~1h."""
+    return 75 if m.get("lunch") else 60
+
+
+def _available_slots(meetings, day, win_start="8:00 AM", win_end="5:00 PM",
+                     new_meeting_min=60, step_min=15):
+    """Open meeting START times on `day`, inside the management window [win_start, win_end], that fit
+    a `new_meeting_min`-long meeting without colliding with an already-scheduled one (each blocked
+    for its own duration — a lunch takes 1h15). Returns a chronological list of 12-hour time strings
+    — the REAL availability once existing meetings carve up the day (before the first, between, and
+    after the last). Empty when the day is full or the window is invalid."""
+    ws, we = _parse_time_min(win_start), _parse_time_min(win_end)
+    if ws is None or we is None or we <= ws:
+        return []
+    occ = []
+    for m in meetings:
+        if m.get("day", 1) != day:
+            continue
+        t = _parse_time_min(m.get("time"))
+        if t is not None:
+            occ.append((t, t + _meeting_duration(m)))
+    out, t = [], ws
+    while t + new_meeting_min <= we:
+        if not any(t < b and t + new_meeting_min > a for a, b in occ):   # overlap test
+            out.append(_fmt_min_12h(t))
+        t += step_min
+    return out
+
+
 def _time_picker_input(label="Time", placeholder="e.g. 2:00 PM", value=""):
     """A text time field with an attached clock (ui.time in a popup menu). The
     field stays hand-editable — the clock just fills it — so a planner can nudge
@@ -4622,12 +4692,46 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
                 ui.icon("videocam").style("color:#B45309;font-size:var(--fs-md);")
                 ui.label("RIA / wealth manager — video call tier. An assistant can set this up; "
                          "it doesn't need management travel.").style("color:#B45309;font-size:var(--fs-sm);")
+        # Load the trip's existing schedule + management window so we offer ONLY open slots — the day
+        # already has meetings, and management is available a bounded number of hours.
+        try:
+            _trip_now = _load_json("ndr_trips.json", [])[idx]
+        except Exception:
+            _trip_now = {}
+        _ms = _trip_now.get("meetings", [])
+        _ws = _trip_now.get("day_start") or "8:00 AM"
+        _we = _trip_now.get("day_end") or "5:00 PM"
+        _ndays = max(int(_trip_now.get("days", 1) or 1), 1)
+
         with ui.row().classes("w-full gap-3 items-end").style("margin-top:6px;"):
-            day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20")
-            time_in = _time_picker_input()
+            day_in = ui.select({d: f"Day {d}" for d in range(1, _ndays + 1)}, value=1,
+                               label="Day").props("dense outlined").classes("w-28")
+            slot_in = ui.select([], label="Open slot").props("dense outlined").classes("flex-1")
             format_in = ui.select(["In-person", "Virtual", "Zoom", "Teams", "Phone", "Jitsi"],
                                   value=("Zoom" if _is_ria_fund else "In-person"),
                                   label="Format").props("dense outlined").classes("w-32")
+        _slot_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+        # Catered lunch meeting — the Street norm of building lunch INTO a meeting. Runs ~1h15 (so it
+        # blocks a bigger chunk of the day) and opens a dietary-requests field for the caterer.
+        lunch_in = ui.checkbox("Catered lunch meeting (~1h15)").props("dense")
+        diet_in = ui.input("Dietary requests", placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full")
+        diet_in.bind_visibility_from(lunch_in, "value")
+
+        def _refresh_slots():
+            _mm = 75 if lunch_in.value else 60
+            _av = _available_slots(_ms, int(day_in.value or 1), _ws, _we, new_meeting_min=_mm)
+            slot_in.set_options(_av, value=(_av[0] if _av else None))
+            _kind = "lunch (1h15)" if lunch_in.value else "meeting (1h)"
+            if _av:
+                _slot_note.set_text(f"Management available {_ws}–{_we} · {len(_av)} open slot(s) on day "
+                                    f"{day_in.value} that fit a {_kind} (existing meetings blocked out).")
+            else:
+                _slot_note.set_text(f"No open slots on day {day_in.value} that fit a {_kind} within "
+                                    f"{_ws}–{_we} — try another day, or widen the management window.")
+        day_in.on_value_change(lambda: _refresh_slots())
+        lunch_in.on_value_change(lambda: _refresh_slots())
+        _refresh_slots()
         address_in = ui.input("Address / location (optional — powers the travel calc)",
                               value=default_address or "",
                               placeholder=f"street, {default_metro or 'city'}").classes("w-full")
@@ -4642,14 +4746,17 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
                 "institution": fund, "contact": contact,
                 "address": (address_in.value or "").strip(), "notes": "",
                 "day": int(day_in.value or 1),
-                "time": (time_in.value or "").strip() or "—",
+                "time": (slot_in.value or "").strip() or "—",
                 "type": "1x1", "format": format_in.value, "status": "scheduled",
                 "meeting_link": (link_in.value or "").strip(),
                 "non_holder": non_holder, "score": score, "metro": default_metro or "",
+                "lunch": bool(lunch_in.value),
+                "dietary": (diet_in.value or "").strip() if lunch_in.value else "",
             })
             _save_json("ndr_trips.json", trips_)
-            _t = (time_in.value or "").strip()
-            ui.notify(f"{fund} added to trip{(' at ' + _t) if _t else ' — time TBD'}.")
+            _t = (slot_in.value or "").strip()
+            ui.notify(f"{fund} added to trip{(' at ' + _t) if _t else ' — time TBD'}"
+                      + (" · catered lunch" if lunch_in.value else "") + ".")
             dialog.close()
             on_added()
 
@@ -4762,6 +4869,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     with ui.row().classes("w-full gap-3"):
                         days_in = ui.number("Days", value=_nd["days"], min=1, max=3).classes("flex-1")
                         slots_in = ui.number("Meetings per day", value=_nd["slots_per_day"], min=3, max=10).classes("flex-1")
+                    # Management availability window — the hours the exec team can take meetings.
+                    # Set upfront: it bounds the smart slot picker when funds are added to the trip.
+                    with ui.row().classes("w-full gap-3"):
+                        daystart_in = _time_picker_input("Management available from", value="8:00 AM")
+                        dayend_in = _time_picker_input("… until", value="5:00 PM")
 
             # ── Auto-suggested targets — real tracked institutions instead of
             # app.py's hardcoded 25-row database (see _ndr_target_candidates).
@@ -4844,14 +4956,14 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 selected = [(name, inst) for name, (cb, inst) in target_checks.items() if cb.value]
                 days = int(days_in.value or 1)
                 slots = max(1, int(slots_in.value or 5))
+                # Lay the initial meetings out on a 90-min cadence starting at the management window's
+                # opening time (not a hardcoded 9:00), so the seeded schedule already respects the hours.
+                _day_open = _parse_time_min(daystart_in.value) or (9 * 60)
                 meetings = []
                 for idx, (fund_name, inst) in enumerate(selected):
                     day = idx // slots + 1
                     slot_in_day = idx % slots
-                    hr = 9 + slot_in_day * 90 // 60
-                    mn = (slot_in_day * 90) % 60
-                    hr12 = hr if hr <= 12 else hr - 12
-                    time_label = f"{hr12 or 12}:{mn:02d} {'AM' if hr < 12 else 'PM'}"
+                    time_label = _fmt_min_12h(_day_open + slot_in_day * 90)
                     meetings.append({
                         "institution": fund_name, "day": day, "time": time_label,
                         "type": "virtual" if type_in.value == "virtual" else "1x1",
@@ -4864,6 +4976,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     "name": name_in.value, "sponsor_bank": sponsor_in.value, "dates": dates_in.value or "TBD",
                     "ndr_type": type_in.value, "city": city_in.value or ("Virtual" if type_in.value == "virtual" else "TBD"),
                     "focus": focus_in.value, "team": team_in.value or [], "notes": notes_in.value,
+                    "day_start": (daystart_in.value or "8:00 AM").strip(),
+                    "day_end": (dayend_in.value or "5:00 PM").strip(),
                     "meetings": meetings, "status": "Planning", "debrief": {},
                     "created": datetime.now().strftime("%Y-%m-%d"),
                 })
@@ -4963,6 +5077,16 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     return
                 _save_json("ndr_trips.json", trips_)
 
+            def _set_window(ti, field, value):
+                # Management availability window (day_start / day_end) — persisted silently; the smart
+                # slot picker reads it fresh each time a fund is added.
+                trips_ = _load_json("ndr_trips.json", [])
+                try:
+                    trips_[ti][field] = (value or "").strip()
+                except (IndexError, TypeError):
+                    return
+                _save_json("ndr_trips.json", trips_)
+
             for idx, trip in enumerate(trips):
                 if trip.get("status") == "Completed":
                     continue                      # Completed → Post-NDR Debrief tab, not here
@@ -5017,6 +5141,29 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                   on_change=lambda e, ti=idx: _set_capacity(ti, "slots_per_day", e.value)).props("dense outlined").style("width:66px;").tooltip("Meetings per day")
                         ui.label(f"/day  ·  {_filled} of {_cap_d * _cap_p} slots filled").style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+                    # Management availability window — the exec team's meeting hours. Bounds the smart
+                    # slot picker when a fund is added. Defaults to 8:00 AM–5:00 PM until set.
+                    with ui.row().classes("w-full items-center gap-2").style("margin-top:2px;"):
+                        ui.icon("schedule").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+                        ui.label("Management hours").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                        _ws_in = ui.input(value=trip.get("day_start") or "8:00 AM").props(
+                            "dense outlined").style("width:104px;").tooltip("Earliest meeting start")
+                        ui.label("to").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                        _we_in = ui.input(value=trip.get("day_end") or "5:00 PM").props(
+                            "dense outlined").style("width:104px;").tooltip("Latest meeting end")
+                        _ws_in.on("blur", lambda e, ti=idx, el=_ws_in: _set_window(ti, "day_start", el.value))
+                        _we_in.on("blur", lambda e, ti=idx, el=_we_in: _set_window(ti, "day_end", el.value))
+
+                    # Where management is staying — the itinerary opens from here (pickup time to make
+                    # the first meeting is computed off the routed drive from this address).
+                    with ui.row().classes("w-full items-center gap-2").style("margin-top:2px;"):
+                        ui.icon("hotel").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+                        ui.label("Lodging").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                        _hotel_in = ui.input(value=trip.get("hotel") or "",
+                                             placeholder="Hotel name & street address — powers the pickup time").props(
+                            "dense outlined").classes("flex-1").tooltip("Where management is staying")
+                        _hotel_in.on("blur", lambda e, ti=idx, el=_hotel_in: _set_window(ti, "hotel", el.value))
 
                     # NDR pipeline (Phase 2) — shortlisted → invited → confirmed → declined.
                     # Held in trip['shortlist'], separate from the slot schedule below (Phase 3
@@ -5084,6 +5231,19 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             _prev_m = None   # the travel chain restarts each day
                             ui.label(f"Day {d}" if len(meetings_with_idx) and any(mm.get("day", 1) != 1 for _, mm in meetings_with_idx) else "Meetings").style(
                                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;margin-top:8px;")
+                        # Day opens from the hotel: where management is staying and the pickup time to
+                        # make the first meeting (first-meeting start − routed drive − buffer).
+                        if _prev_m is None and (trip.get("hotel") or "").strip():
+                            _pk, _plg = _hotel_departure(trip, m)
+                            if _plg:
+                                with ui.row().classes("items-start gap-1").style("margin:0 0 2px 20px;"):
+                                    ui.icon("hotel").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);margin-top:2px;")
+                                    with ui.column().classes("gap-0"):
+                                        ui.label(f"Staying at {trip['hotel']}").style(
+                                            f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                                        ui.label((f"Pickup {_pk} — " if _pk else "") + f"{_plg['label']} to "
+                                                 f"{pretty_name(m.get('institution', ''))}").style(
+                                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                         # Inline travel leg from the previous in-person stop — REAL routed driving
                         # miles/time when both stops have a street address (OpenRouteService), else a
                         # city-level estimate. This is the "allow time in the schedule" read, shown
@@ -5186,6 +5346,10 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                                        value=m.get("format", "In-person"),
                                                        label="Format").props("dense outlined").classes("w-32")
                                 _e_addr = ui.input("Address / location", value=m.get("address", "")).classes("w-full")
+                                _e_lunch = ui.checkbox("Catered lunch meeting (~1h15)", value=bool(m.get("lunch"))).props("dense")
+                                _e_diet = ui.input("Dietary requests", value=m.get("dietary", ""),
+                                                   placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full")
+                                _e_diet.bind_visibility_from(_e_lunch, "value")
                                 _e_link = ui.input("Meeting link", value=m.get("meeting_link", ""),
                                                    placeholder="Zoom / Teams / Meet URL").classes("w-full")
                                 _e_link.bind_visibility_from(_e_fmt, "value", backward=lambda v: v != "In-person")
@@ -5249,7 +5413,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                     ui.button("Cancel", on_click=_edit_dialog.close).props("flat dense")
 
                                     def do_edit(idx=idx, flat_idx=flat_idx, dlg=_edit_dialog,
-                                                e_time=_e_time, e_fmt=_e_fmt, e_addr=_e_addr, e_link=_e_link):
+                                                e_time=_e_time, e_fmt=_e_fmt, e_addr=_e_addr, e_link=_e_link,
+                                                e_lunch=_e_lunch, e_diet=_e_diet):
                                         trips_ = _load_json("ndr_trips.json", [])
                                         try:
                                             mm = trips_[idx]["meetings"][flat_idx]
@@ -5259,6 +5424,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         mm["time"] = (e_time.value or "").strip() or "—"
                                         mm["format"] = e_fmt.value
                                         mm["address"] = (e_addr.value or "").strip()
+                                        mm["lunch"] = bool(e_lunch.value)
+                                        mm["dietary"] = (e_diet.value or "").strip() if e_lunch.value else ""
                                         mm["meeting_link"] = (e_link.value or "").strip() if e_fmt.value != "In-person" else ""
                                         _save_json("ndr_trips.json", trips_)
                                         dlg.close()
@@ -5294,6 +5461,15 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                     f"color:#B45309;font-size:var(--fs-xs);margin-left:6px;")
                         if m.get("notes"):
                             ui.label(f"   {m['notes']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:6px;")
+                        if m.get("lunch"):
+                            with ui.row().classes("items-center gap-1").style("margin-left:6px;"):
+                                ui.icon("restaurant").style(f"color:#B45309;font-size:var(--fs-sm);")
+                                _dtxt = "Catered working lunch (~1h15)"
+                                if (m.get("dietary") or "").strip():
+                                    _dtxt += f" · Dietary: {m['dietary'].strip()}"
+                                else:
+                                    _dtxt += " · Dietary: — (confirm with caterer)"
+                                ui.label(_dtxt).style(f"color:#B45309;font-size:var(--fs-xs);font-weight:600;")
                         _prev_m = m
 
                     # Trip-level travel total — honestly labelled as routed (driving) vs city-level

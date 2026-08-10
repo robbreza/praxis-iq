@@ -657,17 +657,28 @@ def seed():
         "focus": "Pre-earnings — build anticipation", "team": ["Priya Raman (CFO)", "Marcus Ellery (CEO)"],
         "notes": "Convert the Main Line value corridor; defend Fairmount.", "status": "Planning",
         "debrief": {}, "days": 2, "slots_per_day": 6, "created": TODAY.strftime("%Y-%m-%d"),
+        # Management availability window + where they're staying — drives the smart slot picker and the
+        # itinerary's opening pickup time.
+        "day_start": "8:00 AM", "day_end": "5:00 PM",
+        "hotel": "The Rittenhouse Hotel, 210 W Rittenhouse Sq, Philadelphia, PA 19103",
         "meetings": [   # confirmed → slotted, WITH street addresses so the itinerary routes real
                         # driving miles/time across the corridor (Philadelphia → Berwyn → Wayne).
             _mtg("Cooke & Bieler L.P.", 1, 0, "9:00 AM", 93, "2001 Market St, Philadelphia, PA 19103"),
             _mtg("Penn Capital Management", 1, 1, "10:30 AM", 92, "1200 Intrepid Ave, Philadelphia, PA 19112"),
+            # Catered working lunch (Street norm — lunch built INTO a meeting), ~1h15 with a dietary
+            # note. Deliberately a Philadelphia lunch right before a Berwyn 1:00 — the itinerary flags
+            # that you can't be mid-lunch downtown and 26 mi out on the Main Line at once.
+            {"institution": "Glenmede Investment Management", "day": 1, "slot_index": 2, "time": "11:45 AM",
+             "type": "1x1", "format": "In-person", "status": "scheduled",
+             "address": "1650 Market St, Philadelphia, PA 19103", "notes": "Owns PYRA, CLRT, VNTG",
+             "non_holder": True, "score": 92, "contact": "", "confirmed_at": _ts, "source": "outbound",
+             "lunch": True, "dietary": "2 vegetarian, 1 gluten-free (Glenmede team)"},
             _mtg("Chartwell Investment Partners", 1, 3, "1:00 PM", 92, "1205 Westlakes Dr, Berwyn, PA 19312"),
             # Deliberately tight after Chartwell (only 30 min for a ~5-mi Berwyn→Wayne hop + turnaround)
             # so the itinerary's feasibility check flags a REAL roadshow snag — the "see what happens".
             _mtg("Conestoga Capital Advisors", 1, 4, "1:30 PM", 93, "550 E Swedesford Rd, Wayne, PA 19087"),
         ],
         "shortlist": [  # still in the pipeline: awaiting replies, a decline, and not-yet-contacted
-            _sl("Glenmede Investment Management", 92, "invited"),
             _sl("Main Line Wealth Advisors", 88, "invited", city="Radnor", bucket="RIA / wealth", peers="RIA — wealth channel"),
             _sl("abrdn Inc.", 91, "declined", city="Conshohocken"),
             _sl("Brandywine Global Investment Mgmt", 91, "shortlisted"),
@@ -676,7 +687,7 @@ def seed():
     })
     db.save_json("ndr_trips.json", _ndr_trips, client_id=CID)
     print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips "
-          f"+ 1 mid-flight Philadelphia NDR (4 confirmed/slotted w/ addresses, 2 invited, 1 declined, 2 shortlisted)")
+          f"+ 1 mid-flight Philadelphia NDR (5 slotted incl. a catered lunch, 1 invited, 1 declined, 2 shortlisted)")
 
     # 3d-bis. A few UPCOMING scheduled meetings so the Mobile "On the road → Your meetings" hero
     # has something to lead with in the demo (illustrative buy-side names; the tenant stays fully
