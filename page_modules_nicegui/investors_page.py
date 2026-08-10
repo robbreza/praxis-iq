@@ -5042,10 +5042,16 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 # Refresh just the Active NDRs list and switch to it, instead of
                 # a full page reload that bounced the user back to Buy-Side
                 # Intelligence (the "I created it but where did it go?" problem).
-                _active_ndrs_panel.refresh()
+                _refresh_ndr()
                 ndr_tabs.set_value(nt2)
 
             ui.button("Create NDR Trip", on_click=save_trip).props("color=primary").style("margin-top:8px;")
+
+        def _refresh_ndr():
+            # Defer the refresh out of the current click/dialog handler (once=True timer) so the
+            # refreshable reliably repaints — a direct in-handler .refresh() from a dialog that lives
+            # INSIDE this panel sometimes didn't repaint the schedule ("saved but no change on screen").
+            ui.timer(0.01, lambda: getattr(_active_ndrs_panel, "refresh")(), once=True)
 
         @ui.refreshable
         def _active_ndrs_panel():
@@ -5066,7 +5072,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 try:
                     entry = trips_[ti]["shortlist"][si]
                 except (IndexError, KeyError):
-                    _active_ndrs_panel.refresh(); return
+                    _refresh_ndr(); return
                 entry["status"] = new_status
                 stamp = {"invited": "contacted_at", "confirmed": "confirmed_at",
                          "declined": "declined_at"}.get(new_status)
@@ -5081,7 +5087,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                            launched_from=f"NDR · {trips_[ti].get('name', '')}")
                 except Exception:
                     pass
-                _active_ndrs_panel.refresh()
+                _refresh_ndr()
 
             def _sl_contact(ti, si, entry):
                 contact = get_institution_contacts().get(entry.get("institution", ""), {})
@@ -5096,7 +5102,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     trip_ = trips_[ti]
                     entry = trip_["shortlist"][si]
                 except (IndexError, KeyError):
-                    _active_ndrs_panel.refresh(); return
+                    _refresh_ndr(); return
                 day, slot = _next_open_slot(trip_)
                 if day is None:
                     ui.notify("This NDR's slots are full — raise its days or meetings/day to schedule more.",
@@ -5119,7 +5125,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     pass
                 ui.notify(f"{pretty_name(entry.get('institution', ''))} confirmed → Day {day} · {_slot_time(slot)}.",
                           type="positive")
-                _active_ndrs_panel.refresh()
+                _refresh_ndr()
 
             def _set_capacity(ti, field, value):
                 # Persist silently (no refresh) so the number input keeps focus while you type.
@@ -5176,7 +5182,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 trips_[idx]["status"] = e.value
                                 _save_json("ndr_trips.json", trips_)
                                 ui.notify(f"Trip marked {e.value}.")
-                                _active_ndrs_panel.refresh()
+                                _refresh_ndr()
 
                             ui.select(["Planning", "In Progress", "Completed"], value=trip_status,
                                       on_change=set_trip_status).props("dense outlined").classes("min-w-[130px]")
@@ -5336,7 +5342,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 trips_ = _load_json("ndr_trips.json", [])
                                 trips_[idx]["meetings"][flat_idx]["status"] = e.value
                                 _save_json("ndr_trips.json", trips_)
-                                _active_ndrs_panel.refresh()
+                                _refresh_ndr()
 
                             ui.select(status_options, value=m.get("status", "scheduled"),
                                       on_change=set_meeting_status).props("dense outlined").classes("min-w-[110px]")
@@ -5381,12 +5387,12 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         except (IndexError, KeyError):
                                             dlg.close()
                                             ui.notify("List changed — reloading.", type="warning")
-                                            _active_ndrs_panel.refresh()
+                                            _refresh_ndr()
                                             return
                                         _save_json("ndr_trips.json", trips_)
                                         dlg.close()
                                         ui.notify(f"Removed {name} from trip.")
-                                        _active_ndrs_panel.refresh()
+                                        _refresh_ndr()
 
                                     ui.button("Remove", on_click=do_remove).props("color=negative dense")
 
@@ -5443,7 +5449,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         mm = trips_[idx]["meetings"][flat_idx]
                                     except (IndexError, KeyError):
                                         ui.notify("List changed — reloading.", type="warning")
-                                        dlg.close(); _active_ndrs_panel.refresh(); return
+                                        dlg.close(); _refresh_ndr(); return
                                     mm["format"] = "Zoom"; mm["meeting_link"] = link
                                     mm["zoom_meeting_id"] = str(res.get("id") or "")
                                     _save_json("ndr_trips.json", trips_)
@@ -5462,7 +5468,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         mm = trips_[idx]["meetings"][flat_idx]
                                     except (IndexError, KeyError):
                                         ui.notify("List changed — reloading.", type="warning")
-                                        dlg.close(); _active_ndrs_panel.refresh(); return
+                                        dlg.close(); _refresh_ndr(); return
                                     mm["format"] = "Jitsi"; mm["meeting_link"] = link
                                     _save_json("ndr_trips.json", trips_)
                                     ui.notify("Jitsi link generated — added to the schedule.", type="positive")
@@ -5481,7 +5487,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                             mm = trips_[idx]["meetings"][flat_idx]
                                         except (IndexError, KeyError):
                                             dlg.close(); ui.notify("List changed — reloading.", type="warning")
-                                            _active_ndrs_panel.refresh(); return
+                                            _refresh_ndr(); return
                                         mm["time"] = (e_time.value or "").strip() or "—"
                                         mm["format"] = e_fmt.value
                                         mm["address"] = (e_addr.value or "").strip()
@@ -5491,7 +5497,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         _save_json("ndr_trips.json", trips_)
                                         dlg.close()
                                         ui.notify("Meeting updated.")
-                                        _active_ndrs_panel.refresh()
+                                        _refresh_ndr()
 
                                     ui.button("Save", on_click=do_edit).props("color=primary dense")
 
@@ -5602,7 +5608,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                             ", ".join(p for p in (cc.get("name"), cc.get("title")) if p),
                                             not c.get("USIO_Holder", False),
                                             c.get("Engagement_Score"), c.get("Metro"),
-                                            _active_ndrs_panel.refresh, default_address=_addr)
+                                            _refresh_ndr, default_address=_addr)
 
                                     ui.button("Add to trip", on_click=add_filler).props("flat dense color=primary")
 
@@ -5657,7 +5663,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             })
                             _save_json("ndr_trips.json", trips_)
                             ui.notify(f"{inst_in.value.strip()} added to trip.")
-                            _active_ndrs_panel.refresh()
+                            _refresh_ndr()
 
                         ui.button("Add", on_click=add_meeting).props("dense")
 
