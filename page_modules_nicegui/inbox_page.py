@@ -99,7 +99,86 @@ def render_inbox_page():
                     ui.label("No further detail captured for this item.").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
+    _render_research_library()
     _render_ir_knowledge_editor()
+
+
+def _render_research_library():
+    """The analyst repository — every model and research note ever filed (from the IR inbox or
+    uploaded), in one searchable, downloadable archive. Reads core/documents.py (the same store the
+    inbox sync writes to and the Meeting Hub reads 'the latest model' from), so this is the browse
+    view over what was previously only reachable per-firm or per-inbox-item."""
+    from core import documents
+    from page_modules_nicegui.investors_page import _open_attachment_preview
+
+    docs = (documents.list_documents(doc_type="model") or []) + \
+           (documents.list_documents(doc_type="research_note") or [])
+    docs.sort(key=lambda d: str(d.get("uploaded_at") or ""), reverse=True)
+
+    ui.label("Research Library").classes("section-head").style("margin-top:18px;")
+    ui.label("Every analyst model and research note filed from the inbox or uploaded — one searchable "
+             "archive, so you never dig through email for “the last model.”").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:6px;")
+
+    if not docs:
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px dashed {COLORS['border']};"):
+            ui.label("No models or research notes filed yet.").style(f"color:{COLORS['text_muted']};")
+            ui.label("Confirm a model or research note from the inbox above (or upload one) and it lands "
+                     "here — every version kept, newest first.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        return
+
+    _TYPE = {"model": ("Model", COLORS["accent"]), "research_note": ("Research note", COLORS["positive"])}
+    state = {"type": "all", "q": ""}
+
+    with ui.row().classes("w-full items-center gap-3").style("margin-bottom:6px;flex-wrap:wrap;"):
+        _toggle = ui.toggle({"all": "All", "model": "Models", "research_note": "Research notes"},
+                            value="all").props("no-caps dense")
+        _search = ui.input(placeholder="Search firm, analyst or file…").props("dense outlined clearable").classes(
+            "flex-1").style("min-width:220px;")
+
+    lib = ui.column().classes("w-full gap-2")
+
+    def _download(doc_id):
+        result = documents.get_document_bytes(doc_id)
+        if result:
+            fname, _ctype, raw = result
+            ui.download(raw, filename=fname)
+
+    def _render():
+        lib.clear()
+        q = (state["q"] or "").lower().strip()
+        rows = [d for d in docs
+                if (state["type"] == "all" or d.get("doc_type") == state["type"])
+                and (not q or q in f"{d.get('firm') or ''} {d.get('contact') or ''} {d.get('filename') or ''}".lower())]
+        with lib:
+            ui.label(f"{len(rows)} document{'s' if len(rows) != 1 else ''}").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            for d in rows:
+                _lbl, _col = _TYPE.get(d.get("doc_type"), ("Document", COLORS["text_muted"]))
+                with ui.row().classes("w-full items-center gap-3").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                        "border-radius:8px;padding:8px 10px;"):
+                    ui.label(_lbl.upper()).style(
+                        f"background:{_col}22;color:{_col};font-size:var(--fs-micro);font-weight:700;"
+                        "letter-spacing:.04em;padding:2px 8px;border-radius:10px;white-space:nowrap;")
+                    with ui.column().classes("gap-0 flex-1").style("min-width:0;"):
+                        _who = " · ".join(x for x in (d.get("firm"), d.get("contact")) if x) or "—"
+                        ui.label(_who).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
+                        _meta = " · ".join(x for x in (d.get("filename"), str(d.get("uploaded_at") or "")[:10],
+                                                       d.get("source")) if x)
+                        ui.label(_meta).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                    ui.button("Preview", icon="visibility",
+                              on_click=lambda i=d["id"], f=d.get("filename"): _open_attachment_preview(i, f)).props(
+                        "flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
+                    ui.button("Download", icon="download",
+                              on_click=lambda i=d["id"]: _download(i)).props("flat dense size=sm").style(
+                        f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
+
+    _toggle.on_value_change(lambda e: (state.update(type=e.value), _render()))
+    _search.on_value_change(lambda e: (state.update(q=e.value or ""), _render()))
+    _render()
 
 
 def _render_ir_knowledge_editor():

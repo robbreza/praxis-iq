@@ -7290,8 +7290,9 @@ def _render_linked_documents(contact, firm):
     works whether the document was attached from Schedule Meeting, from
     Post-Meeting Notes, or (once wired) pulled in from the IR inbox."""
     model_doc = documents.get_latest_document(contact=contact, firm=firm, doc_type="model")
+    research_doc = documents.get_latest_document(contact=contact, firm=firm, doc_type="research_note")
     note_doc = documents.get_latest_document(contact=contact, firm=firm, doc_type="note_attachment")
-    if not (model_doc or note_doc):
+    if not (model_doc or research_doc or note_doc):
         return
 
     def _download(doc_id):
@@ -7301,14 +7302,13 @@ def _render_linked_documents(contact, firm):
             ui.download(raw, filename=fname)
 
     with ui.row().classes("w-full gap-2").style("margin-top:4px;flex-wrap:wrap;"):
-        if model_doc:
-            ui.button(f"Latest model — {model_doc['filename']}",
-                      on_click=lambda doc_id=model_doc["id"]: _download(doc_id)) \
-                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
-        if note_doc:
-            ui.button(f"Latest note attachment — {note_doc['filename']}",
-                      on_click=lambda doc_id=note_doc["id"]: _download(doc_id)) \
-                .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
+        for _label, _doc in (("Latest model", model_doc),
+                             ("Latest research note", research_doc),
+                             ("Latest note attachment", note_doc)):
+            if _doc:
+                ui.button(f"{_label} — {_doc['filename']}",
+                          on_click=lambda doc_id=_doc["id"]: _download(doc_id)) \
+                    .props("flat dense size=sm").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
 
 
 def _hub_metric(label, value, hint="", active=False, on_click=None):

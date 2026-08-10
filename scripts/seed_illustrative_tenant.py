@@ -1424,6 +1424,14 @@ That concludes today's question-and-answer session. Thank you for joining.
     seed_targeting_extras(CID)
     seed_ndr_crm_extras(CID)
     seed_lighthouse(CID)
+    # Analyst research notes (PDF) into the documents store, so IR Inbox → Research Library shows a
+    # believable mix alongside the seeded models. Idempotent; safe to re-run.
+    try:
+        from scripts.seed_research_library import seed_research_library
+        _n = seed_research_library(CID)
+        print(f"  seeded {_n} research note(s) into the Research Library")
+    except Exception as _e:
+        print(f"  [warn] research-library seed skipped: {_e}")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short
