@@ -1327,10 +1327,10 @@ def main_page(request: Request = None):
     ).props("width=280 bordered")
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
-        # Drawer toggle — only needed below 1024px, where the drawer is an off-canvas overlay. On
-        # desktop the drawer is docked and always visible, so the ☰ is redundant and hidden by CSS
-        # (.drawer-toggle @media min-width:1024px).
-        ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round").classes("drawer-toggle")
+        # Drawer toggle (☰). Kept at every width for now — on a phone the drawer is an off-canvas
+        # overlay and this is the only way to open the full nav. Removing it on desktop is deferred
+        # until the mobile nav is sorted (so we don't strand phone users). See the mobile pass.
+        ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round")
         # Tenant identity / switcher. Options are the tenants THIS user may see
         # (auth.allowed_clients) — so a client_user never gets a switcher (one tenant ->
         # static label), and staff switch only within their allowed set. The switch handler
@@ -2055,9 +2055,6 @@ ui.add_head_html(
     ".resp-wide{display:none !important;}"                # hide the wide table on phones...
     ".resp-stack{display:block !important;}"              # ...and show the stacked cards instead
     "}"
-    # The header ☰ drawer toggle is redundant on desktop (drawer is docked/visible there) — hide it
-    # at the docking breakpoint, keep it on tablet/phone where the drawer is an overlay.
-    "@media (min-width:1024px){.drawer-toggle{display:none !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width
