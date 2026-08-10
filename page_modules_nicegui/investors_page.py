@@ -8311,7 +8311,7 @@ def _render_sec_intelligence_tab():
         _nobo_inst = 0
     ui.label("Universe by data source").classes("font-bold").style("margin-top:12px;")
     ui.label(f"{len(_merged)} distinct names in the tracked universe · plus {_nobo_inst} institutional NOBO "
-             "holders (Market Intelligence → NOBO). Hand-typed seed today; refresh below to grow the real "
+             "holders (Ownership → NOBO Ownership). Hand-typed seed today; refresh below to grow the real "
              "SEC-sourced names live from EDGAR.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     with ui.row().classes("w-full gap-2 flex-wrap").style("margin-top:4px;"):
         for _src, _n in _by_src.most_common():

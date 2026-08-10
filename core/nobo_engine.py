@@ -1,7 +1,7 @@
 """
 core/nobo_engine.py — NOBO (Non-Objecting Beneficial Owner) ownership analytics.
 
-Pure computation, no UI — the Market Intelligence > NOBO Ownership tab renders
+Pure computation, no UI — the Ownership > NOBO Ownership tab renders
 what these functions return. Same engine pattern as core/guidance_engine.py.
 
 The analytics a CFA would run on a NOBO list:

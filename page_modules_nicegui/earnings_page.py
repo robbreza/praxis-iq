@@ -2109,7 +2109,7 @@ def _render_guidance_decision(ss, context="script"):
     same tab; enforced by placement here instead).
 
     context="markets" is passed when this same engine is rendered inline on
-    the Market Intelligence guidance card (so the CFO can set the decision
+    the Consensus & Estimates guidance card (so the CFO can set the decision
     there and have it write through to the script) — it only adjusts the
     Workflow note, which otherwise refers to the CEO narrative "below" that
     exists on the script page but not on Markets."""

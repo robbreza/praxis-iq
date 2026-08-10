@@ -143,7 +143,7 @@ NAV_GROUPS = [
         ("Roadshow",  "route", "Outbound\nreach & track", "Meeting Hub · NDR · CRM"),
     ]),
     ("MARKET INTELLIGENCE", [
-        ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
+        ("Markets",   "trending_up", "Consensus & Estimates\nwhere the Street stands", "Consensus · PT tracker · Peer benchmarking"),
         ("Lighthouse", "lightbulb", "Lighthouse\nWhy is the stock moving?", "Expected vs actual · Residual · Events · Technicals · CEO read"),
     ]),
     ("EARNINGS", [
