@@ -397,15 +397,74 @@ def count_contacts():
         conn.close()
 
 
+# ── Illustrative-tenant contacts ────────────────────────────────────────────
+# The demo tenant is fully self-contained: it must NEVER read the real EDGAR contact store (that
+# would surface real people — a real firm name like "Chartwell Investment Partners" carries a real
+# signing officer). Instead every fund resolves to a DETERMINISTIC fictional IR contact, generated
+# on demand from the firm name, so no card ever reads "no contact on file" and no real person appears.
+_DEMO_FIRST = ["James", "Sarah", "Michael", "Jennifer", "David", "Emily", "Robert", "Laura", "Daniel",
+               "Rachel", "Andrew", "Megan", "Brian", "Katherine", "Steven", "Allison", "Thomas",
+               "Christine", "Kevin", "Nicole", "Paul", "Diana", "Mark", "Julia", "Eric", "Susan",
+               "Gregory", "Amanda", "Peter", "Claire"]
+_DEMO_LAST = ["Whitfield", "Carraway", "Donnelly", "Ashford", "Pruitt", "Langley", "Hollis", "Bramble",
+              "Foxwell", "Renner", "Calder", "Winslow", "Marsh", "Delgado", "Okafor", "Sorensen",
+              "Halloway", "Beckett", "Vance", "Emerson", "Kirby", "Talbot", "Rowan", "Mercer",
+              "Padilla", "Ferris", "Bright", "Nash", "Ellery", "Quill"]
+_DEMO_TITLE = ["Head of Investor Relations", "Portfolio Manager", "Director of Research",
+               "Managing Director", "Senior Analyst", "Principal", "Partner", "VP, Investor Relations"]
+_DEMO_AREA = ["212", "617", "415", "312", "215", "214", "206", "404", "305", "303"]
+
+
+def gen_demo_contact(firm):
+    """A stable fictional IR contact for one firm — name/title/email/phone, deterministic from the
+    firm name (same every render, no randomness). Phones use the 555-0100..0199 range reserved for
+    fiction, so nothing dials a real person."""
+    firm = (firm or "").strip()
+    h = sum(ord(c) for c in firm) if firm else 0
+    first = _DEMO_FIRST[h % len(_DEMO_FIRST)]
+    last = _DEMO_LAST[(h // 7) % len(_DEMO_LAST)]
+    title = _DEMO_TITLE[(h // 13) % len(_DEMO_TITLE)]
+    area = _DEMO_AREA[(h // 17) % len(_DEMO_AREA)]
+    words = [w for w in re.sub(r"[^A-Za-z ]", " ", firm).split()
+             if w.lower() not in ("the", "and", "of", "lp", "llc", "inc", "co", "group", "company", "l", "p")]
+    dom = ("".join(words[:2]).lower() or "firm") + ".com"
+    return {"name": f"{first} {last}", "title": title,
+            "email": f"{first.lower()}.{last.lower()}@{dom}",
+            "phone": f"({area}) 555-{100 + (h % 100):04d}"}
+
+
+class _GenDemoContacts(dict):
+    """Contact map for illustrative tenants: any firm queried yields a generated fictional contact
+    (cached), so `.get(firm, {})` never returns empty for a real fund name."""
+    def get(self, key, default=None):
+        if not key or not str(key).strip():
+            return {} if default is None else default
+        if dict.__contains__(self, key):
+            return dict.get(self, key)
+        c = gen_demo_contact(key)
+        dict.__setitem__(self, key, c)
+        return c
+
+
 def institution_contacts_map():
     """`{firm_name: {name, email, title, phone}}` — the shape the app's existing callers expect
     (investors_page meeting contacts / autocomplete, mail_gateway's contact_lookup, search).
     Backed by the real contacts store now instead of the fabricated seed. One primary person per
     firm (the first by name); the full list is available via list_contacts(firm=...).
 
+    Illustrative/demo tenants get a fully fictional, self-generating contact book instead of the
+    real store (see _GenDemoContacts) — no real person ever surfaces on a marketing demo.
+
     MEMOISED (60s): this replaced a module-level constant, and several call sites invoke it inside
     per-row loops — without the memo that's one Postgres round-trip per meeting row. Writes clear
     the memo, so edits show up immediately."""
+    try:
+        from config.client_config import get_active_client_id
+        from core.curated_targets import _is_illustrative
+        if _is_illustrative(get_active_client_id()):
+            return _GenDemoContacts()
+    except Exception:
+        pass
     hit = _MAP_MEMO.get("val")
     if hit is not None and (datetime.now() - _MAP_MEMO["at"]).total_seconds() < 60:
         return hit

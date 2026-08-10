@@ -73,12 +73,17 @@ def list_accounts(cid=None):
 
     # seeds are keyed by the FILER-name norm (so they overlay real holders); resolve each
     # by its filer so the row's key + open_name match what the profile will resolve.
+    # SKIP the global relationship seeds on an illustrative/demo tenant — those are real firms
+    # (Fidelity, T. Rowe, Mairs & Power) with the user's real qualitative reads, and must never
+    # bleed into a self-contained marketing demo.
+    from core.curated_targets import _is_illustrative
     seed_by_key = {}
-    for s in relationship_notes._SEED.values():
-        filer = s.get("filer") or s.get("name")
-        k = accounts.resolve(filer, register=False) if filer else None
-        if k:
-            seed_by_key[k] = s
+    if not _is_illustrative(cid):
+        for s in relationship_notes._SEED.values():
+            filer = s.get("filer") or s.get("name")
+            k = accounts.resolve(filer, register=False) if filer else None
+            if k:
+                seed_by_key[k] = s
 
     keys = set(seed_by_key)
     keys |= set(relationship_notes._store().keys())

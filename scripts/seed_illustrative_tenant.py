@@ -369,6 +369,15 @@ def seed_inbox_model(cid=CID):
     (conference invites, shareholder inquiries, the already-filed Meridian model) are left alone."""
     from core import demo_model, documents, inbox_queue
 
+    # Purge any NON-illustrative inbox item — the live mail poller used to route real inbound mail
+    # (real personal email, TEST senders) into this demo tenant. Only items this seeder writes
+    # ("illustrative-*" source) belong here; everything else is a leak.
+    _q0 = db.load_json("inbox_queue.json", [], client_id=cid) or []
+    _q1 = [it for it in _q0 if str(it.get("source", "")).startswith("illustrative")]
+    if len(_q1) != len(_q0):
+        db.save_json("inbox_queue.json", _q1, client_id=cid)
+        print(f"[demo] purged {len(_q0) - len(_q1)} leaked (non-illustrative) inbox item(s)")
+
     # Clear prior copies of THIS model — queue items and their documents (by filename).
     queue = db.load_json("inbox_queue.json", [], client_id=cid) or []
     stale = {it.get("doc_id") for it in queue
