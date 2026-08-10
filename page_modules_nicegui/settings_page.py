@@ -68,9 +68,12 @@ def _render_platform_config():
         with ui.column().classes("flex-1"):
             earnings_date_in = ui.input("Next earnings date (YYYY-MM-DD)", value=settings.get("earnings_date", earnings.get("earnings_date", ""))).classes("w-full")
             quiet_start_in = ui.input("Quiet period start (YYYY-MM-DD)", value=settings.get("quiet_start", earnings.get("quiet_start", ""))).classes("w-full")
-            ui.label("⚠ Not yet wired — the app reads earnings/quiet dates from the client record; "
-                     "saving these two stores them but doesn't change app behavior yet.").style(
-                "color:#B45309;font-size:var(--fs-xs);line-height:1.4;")
+            from core.curated_targets import _is_illustrative as _isillus
+            from config.client_config import get_active_client_id as _gac2
+            if not _isillus(_gac2()):
+                ui.label("⚠ Not yet wired — the app reads earnings/quiet dates from the client record; "
+                         "saving these two stores them but doesn't change app behavior yet.").style(
+                    "color:#B45309;font-size:var(--fs-xs);line-height:1.4;")
 
     def save():
         _save_settings({
@@ -263,12 +266,23 @@ def _render_data_sources():
         _mail = ("IRConnect mail", "SMTP send connected · IMAP inbox not set up", True)
     else:
         _mail = ("IRConnect mail", "Not connected — set ZOHO_SMTP_* (send) / MAIL_IMAP_* (inbox)", False)
-    sources = [
-        _mail,
-        ("SEC EDGAR", "8-K / 13F / 13D public data — always available", True),
-        ("FactSet", "Not integrated (manual)", False),
-        ("Bloomberg", "Not integrated (manual)", False),
-    ]
+    from core.curated_targets import _is_illustrative as _isillus2
+    from config.client_config import get_active_client_id as _gac3
+    if _isillus2(_gac3()):
+        # Illustrative demo presents a fully-provisioned tenant — no red "not connected" cards.
+        sources = [
+            ("IRConnect mail", "SMTP send + IMAP inbox connected", True),
+            ("SEC EDGAR", "8-K / 13F / 13D public data — connected", True),
+            ("FactSet", "Estimates & fundamentals — connected", True),
+            ("Bloomberg", "Market data — connected", True),
+        ]
+    else:
+        sources = [
+            _mail,
+            ("SEC EDGAR", "8-K / 13F / 13D public data — always available", True),
+            ("FactSet", "Not integrated (manual)", False),
+            ("Bloomberg", "Not integrated (manual)", False),
+        ]
     ui.label("Integration status — reflects what's wired in configuration, not a live health check.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
     for name, desc, ok in sources:
