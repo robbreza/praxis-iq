@@ -90,6 +90,35 @@ _NOTES = [
 ]
 
 
+def dedupe_documents(cid="demo", doc_types=("model", "research_note")):
+    """Remove exact-duplicate analyst-research documents (same firm + filename + doc_type), keeping the
+    newest, so the Research Library never shows the same model twice. Scoped to model / research_note
+    only (NOT email_attachment, which can be linked from Calendar events) and never deletes a document
+    an inbox item points at via doc_id. Idempotent. Returns the number deleted."""
+    from collections import defaultdict
+
+    from core import documents, inbox_queue
+    referenced = set()
+    for cat in ("model", "research_note", "ndr_request", "conference_invite",
+                "meeting_confirmation", "speak_to_management", "shareholder_inquiry"):
+        for it in (inbox_queue.list_items_by_category(cat, client_id=cid) or []):
+            if it.get("doc_id") is not None:
+                referenced.add(it["doc_id"])
+
+    groups = defaultdict(list)
+    for d in documents.list_documents(client_id=cid):        # newest first
+        if d.get("doc_type") in doc_types:
+            groups[(d.get("firm"), d.get("filename"), d.get("doc_type"))].append(d["id"])
+    deleted = 0
+    for _key, ids in groups.items():
+        for stale in ids[1:]:                                # ids[0] is newest — keep it
+            if stale in referenced:
+                continue
+            documents.delete_document(stale, client_id=cid)
+            deleted += 1
+    return deleted
+
+
 def seed_research_library(cid="demo"):
     from core import documents
     made = 0
@@ -112,4 +141,5 @@ if __name__ == "__main__":
     reload_registry()
     set_active_client_id("demo")
     n = seed_research_library("demo")
-    print(f"Seeded {n} research note(s) into the demo Research Library.")
+    d = dedupe_documents("demo")
+    print(f"Seeded {n} research note(s); removed {d} duplicate model/research doc(s).")

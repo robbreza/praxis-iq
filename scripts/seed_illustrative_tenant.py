@@ -1427,9 +1427,10 @@ That concludes today's question-and-answer session. Thank you for joining.
     # Analyst research notes (PDF) into the documents store, so IR Inbox → Research Library shows a
     # believable mix alongside the seeded models. Idempotent; safe to re-run.
     try:
-        from scripts.seed_research_library import seed_research_library
+        from scripts.seed_research_library import dedupe_documents, seed_research_library
         _n = seed_research_library(CID)
-        print(f"  seeded {_n} research note(s) into the Research Library")
+        _d = dedupe_documents(CID)
+        print(f"  seeded {_n} research note(s); removed {_d} duplicate doc(s) from the Research Library")
     except Exception as _e:
         print(f"  [warn] research-library seed skipped: {_e}")
 
