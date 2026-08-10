@@ -685,17 +685,19 @@ def render_earnings_page():
     scroll_to_guidance = _earnings_tab_target == "guidance"
 
     with ui.tabs().classes("w-full") as tabs:
+        # Tab order mirrors the sidebar's Prep / The Call / After grouping (NAV_SUBGROUPS):
+        #   Prep      → Prior Qtr Review · Script Generation · Prep Brief · Consensus Tracker
+        #   The Call  → Call Transcripts
+        #   After     → Narrative Momentum · Morning After
         t1 = ui.tab("Prior Qtr Review")
         t2 = ui.tab("Script Generation")
         t_prep = ui.tab("Prep Brief")
-        # Narrative Momentum — promoted from a section inside Script Generation →
-        # Tomorrow's Setup to its own tab. Same shared renderer (narrative_engine
-        # via markets_page._render_narrative_momentum); Tomorrow's Setup keeps its
-        # own synthesis view, this is the direct destination. Declared here so it
-        # sits right after Script Generation in the tab order.
-        t5 = ui.tab("Narrative Momentum")
         t3 = ui.tab("Consensus Tracker")
         t4 = ui.tab("Call Transcripts")
+        # Narrative Momentum — "is the story landing?" A post-call read (same shared renderer,
+        # narrative_engine via markets_page._render_narrative_momentum), so it groups under After
+        # with Morning After and sits after Call Transcripts in the tab order.
+        t5 = ui.tab("Narrative Momentum")
         # Morning After — the post-call critique (core.morning_after). Sits last
         # because it's the end of the cycle: the call has happened, the tape has
         # voted, and this is what feeds next quarter's Prior Qtr Review (t1).
@@ -731,11 +733,6 @@ def render_earnings_page():
                 _render_prep_brief_tab()
             else:
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t5) as p5:
-            if default_tab is t5:
-                _render_narrative_momentum_tab()
-            else:
-                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t3) as p3:
             if default_tab is t3:
                 _render_surprise_tracker_tab()
@@ -744,6 +741,11 @@ def render_earnings_page():
         with ui.tab_panel(t4) as p4:
             if default_tab is t4:
                 _render_transcripts_tab()
+            else:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        with ui.tab_panel(t5) as p5:
+            if default_tab is t5:
+                _render_narrative_momentum_tab()
             else:
                 ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
         with ui.tab_panel(t6) as p6:
@@ -772,9 +774,9 @@ def render_earnings_page():
         t1.props["name"]: (p1, _render_lookback_tab),
         t2.props["name"]: (p2, _render_script_workflow_tab),
         t_prep.props["name"]: (p_prep, _render_prep_brief_tab),
-        t5.props["name"]: (p5, _render_narrative_momentum_tab),
         t3.props["name"]: (p3, _render_surprise_tracker_tab),
         t4.props["name"]: (p4, _render_transcripts_tab),
+        t5.props["name"]: (p5, _render_narrative_momentum_tab),
         t6.props["name"]: (p6, _render_morning_after_tab),
     }
     from core import lazy_tab_probe

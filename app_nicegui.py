@@ -194,8 +194,8 @@ NAV_SUBITEMS = {
     # Ownership / Targeting are DELIBERATELY absent here — they render as plain rail sections (no
     # sub-item expander), so their tabs live only on the page (one menu, not two). Deep-links
     # (go_to(section, tab)) still work — the target tab is consumed by the page.
-    "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
-                  "Consensus Tracker", "Call Transcripts", "Morning After"],
+    "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Consensus Tracker",
+                  "Call Transcripts", "Narrative Momentum", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
                   "Peer & Market Analysis", "Reg FD & Compliance",
                   "Automation Tracker"],
@@ -212,7 +212,16 @@ NAV_SUBITEMS = {
 # groups here MUST equal its NAV_SUBITEMS list, in order (asserted by tests/test_nav_subitems.py).
 # (Investor Targeting's old three intent-groups are now their own top-level rail sections —
 # Ownership / Targeting / Roadshow — so no intra-page sub-grouping is needed here.)
-NAV_SUBGROUPS = {}
+NAV_SUBGROUPS = {
+    # Earnings Cycle's 7 tabs, clustered by where they sit in the earnings timeline so the
+    # densest item in the menu reads as three clear phases. The concatenation (in order) MUST
+    # equal NAV_SUBITEMS["Earnings"] and the page's tab order — see tests/test_nav_subitems.py.
+    "Earnings": [
+        ("Prep", "before the call", ["Prior Qtr Review", "Script Generation", "Prep Brief", "Consensus Tracker"]),
+        ("The Call", "the transcript", ["Call Transcripts"]),
+        ("After", "the post-mortem", ["Narrative Momentum", "Morning After"]),
+    ],
+}
 
 # Plain-language gloss for the JARGON sub-items (the audit's P3 — the Lighthouse "Why is the stock
 # moving?" pattern, applied where a label is an acronym or insider term). Self-explanatory items
