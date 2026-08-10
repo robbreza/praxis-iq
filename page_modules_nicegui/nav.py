@@ -15,7 +15,7 @@ the NEWEST tab — the tab you clicked would appear to do nothing. With several
 IRconnect tabs open that is exactly what happened. So every callback and every
 bit of nav state is keyed by the current client id and cleaned up on disconnect.
 
-Any page can call nav.go_to("Investors") — or nav.go_to("Reports", tab="90-Day
+Any page can call nav.go_to("Ownership") — or nav.go_to("Reports", tab="90-Day
 IR Plan") to deep-link straight to a specific tab — and it behaves exactly like
 clicking that item (or sub-item) in the sidebar of the SAME tab.
 

@@ -220,7 +220,7 @@ def _tel_href(phone):
 
 
 def _refresh():
-    nav.go_to("Investors")
+    nav.go_to("Ownership")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1354,7 +1354,12 @@ def _merge_sec_universe(seed_institutions, client_id):
 # ─────────────────────────────────────────────────────────────────────────
 # Main entry point
 # ─────────────────────────────────────────────────────────────────────────
-def render_investors_page():
+def render_investors_page(section="ownership"):
+    """Investor Targeting, split into three focused rail sections that share this render:
+      • ownership — Buyside · NOBO · Website  (with the "who owns you" Big Picture + mode toggle)
+      • targeting — Target Database · Peer Prospects · Import
+      • roadshow  — NDR Planner · Meeting Hub · Accounts (CRM)
+    Each shows only its own ~3 tabs, so no page carries the old nine-tab strip."""
     client_id = get_active_client_id()
     mode_state = _load_json("buyside_mode.json", {})
     earnings_date_str = CE().get("earnings_date", "2026-08-12")
@@ -1401,13 +1406,13 @@ def render_investors_page():
     _enrich_engagement_signals(raw_institutions, client_id)
     institutions = _score_institutions(raw_institutions, mode, q2_listeners, meeting_log)
 
-    ui.label(f"{CT('name')} — Investor Targeting").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    _TITLES = {"ownership": "Ownership — who owns you",
+               "targeting": "Targeting — who should own you",
+               "roadshow": "Roadshow & CRM"}
+    ui.label(f"{CT('name')} — {_TITLES.get(section, 'Investor Targeting')}").classes(
+        "text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
-    # Mode-dependent sections re-render in place when the Pre/Post toggle
-    # changes — no full page reload (which was fragile on a reconnecting tab
-    # and reset the whole page). Only the parts that actually depend on mode
-    # refresh: Big Picture, the mode description, and the Buy-Side tab (the
-    # other four tabs don't use mode).
+    # Mode-dependent sections re-render in place when the Pre/Post toggle changes — no full reload.
     _mode_ctx = {"mode": mode, "institutions": institutions}
 
     @ui.refreshable
@@ -1422,106 +1427,66 @@ def render_investors_page():
     def _buyside_section():
         _render_buyside_tab(_mode_ctx["institutions"], meeting_log, _mode_ctx["mode"])
 
+    _invalidate_mode_tabs = lambda: None      # real impl assigned once loaded_tabs exists (below)
+
     def on_mode_change(new_mode):
         _mode_ctx["mode"] = new_mode
         _mode_ctx["institutions"] = _score_institutions(raw_institutions, new_mode, q2_listeners, meeting_log)
         mode_state["mode"] = new_mode
         _save_json("buyside_mode.json", mode_state)
-        _big_picture_section.refresh()
+        if section == "ownership":
+            _big_picture_section.refresh()
+            _buyside_section.refresh()
         _mode_desc_section.refresh()
-        _buyside_section.refresh()
         _invalidate_mode_tabs()
 
-    _big_picture_section()
-    ui.markdown("---")
-    _render_mode_toggle_control(_mode_ctx["mode"], on_mode_change)
-    _mode_desc_section()
-    ui.markdown("---")
+    # Preamble: the "who owns you" Big Picture leads the Ownership section only. The Pre/Post-earnings
+    # mode toggle drives scoring for Ownership + Targeting so it shows on both; Roadshow opens
+    # straight into its tools using the saved mode.
+    if section == "ownership":
+        _big_picture_section()
+        ui.markdown("---")
+    if section in ("ownership", "targeting"):
+        _render_mode_toggle_control(_mode_ctx["mode"], on_mode_change)
+        _mode_desc_section()
+        ui.markdown("---")
+
+    # Each section's ~3 tabs: (label, build fn, mode-dependent?). Only the active section is built.
+    _SPECS = {
+        # ── Ownership — who owns the stock
+        "ownership": [("Buyside Ownership", lambda: _buyside_section(), False),
+                      ("NOBO Ownership", lambda: _render_nobo_tab(), False),
+                      ("Website Ownership", lambda: _render_web_flow_tab(client_id), False)],
+        # ── Targeting — who should own it
+        "targeting": [("Target Database", lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id), True),
+                      ("Peer Prospects", lambda: _render_peer_prospects_tab(client_id), False),
+                      ("Import list", lambda: _render_import_verify_tab(client_id), False)],
+        # ── Roadshow & CRM — reach & track
+        "roadshow":  [("NDR Planner", lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"]), True),
+                      ("Meeting Hub", lambda: _render_meeting_hub_tab(), False),
+                      ("Accounts (CRM)", lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"]), False)],
+    }
+    specs = _SPECS.get(section, _SPECS["ownership"])
 
     with ui.tabs().classes("w-full") as tabs:
-        # Tabs are ordered by INTENT to match the sidebar's three clusters, so the strip reads
-        # left-to-right as Ownership → Targeting → Engagement (variable names kept stable; only
-        # the on-screen order changed). See NAV_SUBGROUPS / NAV_SUBITEMS["Investors"].
-        # ── Ownership — who owns the stock
-        # (SEC Intelligence moved to Settings — it's a data-audit view, not a targeting workflow.)
-        t1 = ui.tab("Buyside Ownership")
-        t6 = ui.tab("NOBO Ownership")
-        t9 = ui.tab("Website Ownership")
-        # ── Targeting — who should own it
-        t4 = ui.tab("Target Database")
-        t7 = ui.tab("Peer Prospects")
-        t10 = ui.tab("Import list")
-        # ── Engagement — reach & track
-        t2 = ui.tab("NDR Planner")
-        t3 = ui.tab("Meeting Hub")
-        t8 = ui.tab("Accounts (CRM)")
-
-    # Lazy tab loading — this page used to build ALL FIVE tabs' content
-    # (each with its own set of database reads) on every single visit,
-    # whether or not the user ever looked past "Buy-Side Intelligence".
-    # That's the actual cause behind "I click Investor Targeting and
-    # nothing happens": ui.tab_panels builds every panel's Python content
-    # immediately regardless of which one is selected — only the CSS
-    # visibility toggles client-side, the server-side work (and every
-    # Neon query in it) already happened for all 5 tabs before anything
-    # painted. Now only the default-open tab (Buy-Side Intelligence) is
-    # built eagerly; the other four start as a placeholder and are built
-    # for real — with a visible spinner while that happens — the first
-    # time each one is actually clicked, then cached so switching back
-    # doesn't rebuild it again.
-    # A sidebar sub-item can deep-link straight to any tab; map the label back to
-    # its tab object so lazy loading opens (and eager-builds) the right one. All
-    # tabs are lazy now — whichever we open on is built by the eager block below.
-    _by_name = {t.props["name"]: t for t in (t1, t2, t3, t4, t6, t7, t8, t9, t10)}
-    default_tab = _by_name.get(nav.consume_target_tab(), t1)
+        _tabobjs = {name: ui.tab(name) for name, _fn, _md in specs}
+    # A deep-link (go_to(section, tab)) can open on any of the section's tabs; else the first.
+    default_tab = _tabobjs.get(nav.consume_target_tab()) or next(iter(_tabobjs.values()))
+    _panels = {}
     with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
-        with ui.tab_panel(t1) as p1:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t2) as p2:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t3) as p3:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t4) as p4:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t6) as p6:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t7) as p7:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t8) as p8:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t9) as p9:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
-        with ui.tab_panel(t10) as p10:
-            ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+        for _name, _tobj in _tabobjs.items():
+            with ui.tab_panel(_tobj) as _pnl:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+            _panels[_name] = _pnl
 
-    # NDR Planner and Target Database read the mode-scored institutions, so
-    # they pull from _mode_ctx (current mode) rather than capturing the initial
-    # list — a tab built after a mode toggle uses the fresh scores.
-    # Order matches the intent-grouped tab strip / sidebar clusters (Ownership → Targeting →
-    # Engagement) so lazy_tab_probe (and the nav drift test) see the same order as the nav.
-    lazy_panels = {
-        # ── Ownership
-        t1.props["name"]: (p1, lambda: _buyside_section()),
-        # NOBO Ownership relocated here from Market Intelligence — its render (with the Broadridge
-        # upload) is the shared one in markets_page, called cross-module like Earnings' narrative.
-        t6.props["name"]: (p6, lambda: _render_nobo_tab()),
-        t9.props["name"]: (p9, lambda: _render_web_flow_tab(client_id)),
-        # ── Targeting
-        t4.props["name"]: (p4, lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id)),
-        t7.props["name"]: (p7, lambda: _render_peer_prospects_tab(client_id)),
-        t10.props["name"]: (p10, lambda: _render_import_verify_tab(client_id)),
-        # ── Engagement
-        t2.props["name"]: (p2, lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"])),
-        t3.props["name"]: (p3, lambda: _render_meeting_hub_tab()),
-        t8.props["name"]: (p8, lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"])),
-    }
+    # Lazy tab loading — a tab's content is built the first time it's opened, then cached, so a
+    # section never runs every tab's Neon queries up front.
+    lazy_panels = {name: (_panels[name], fn) for name, fn, _md in specs}
     from core import lazy_tab_probe
-    lazy_tab_probe.register("Investors", lazy_panels)   # no-op unless smoke is capturing
+    lazy_tab_probe.register(section.title(), lazy_panels)   # no-op unless smoke is capturing
     loaded_tabs = set()
-    # A mode toggle also invalidates the two mode-dependent lazy tabs so they
-    # rebuild with fresh scores next time they're opened (harmless no-op if
-    # they haven't been built yet).
-    _mode_dependent_tabs = (t2.props["name"], t4.props["name"])
+    # A mode toggle invalidates the section's mode-dependent tabs so they rebuild with fresh scores.
+    _mode_dependent_tabs = tuple(name for name, _fn, md in specs if md)
     _invalidate_mode_tabs = lambda: [loaded_tabs.discard(n) for n in _mode_dependent_tabs]
 
     async def _load_tab_on_demand(e):
@@ -1579,6 +1544,21 @@ def render_investors_page():
     _dcont.clear()
     with _dcont:
         _dbuild()
+
+
+# The three rail sections Investor Targeting was split into — each dispatched by the app as
+# render_{section}_page() and rendering only its own tabs. render_investors_page stays as the
+# Ownership entry point (and back-compat alias for anything that still calls it).
+def render_ownership_page():
+    render_investors_page("ownership")
+
+
+def render_targeting_page():
+    render_investors_page("targeting")
+
+
+def render_roadshow_page():
+    render_investors_page("roadshow")
 
 
 def _render_import_verify_tab(client_id):

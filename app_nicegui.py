@@ -127,20 +127,28 @@ _install_event_tenant_hook()
 # Nav icons are Material Symbols names (rendered via ui.icon), not emoji — a
 # consistent monochrome line set reads more professional and inherits the
 # nav's text color (graphite inactive, navy active) instead of fixed emoji.
+# The rail is the map: top-level SECTIONS only (each answers "where am I"). A page's own sub-views
+# live on the page as tabs (answering "which view"), never mirrored in the rail — so there is one
+# menu, not two. "Investor Targeting" was one overloaded section with 9 tabs across three different
+# jobs; it's now three focused sections (Ownership / Targeting / Roadshow), each a page with ~3 tabs.
 NAV_GROUPS = [
     ("OVERVIEW", [
         ("Today",     "space_dashboard", "Today", "Morning brief · Alerts · Actions due"),
         ("Inbox",     "inbox", "IR Inbox", "The IRconnect inbox — parsed models, research notes and requests, filed automatically"),
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
+    ]),
+    ("INVESTOR TARGETING", [
+        ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
+        ("Targeting", "my_location", "Targeting\nwho should own you", "Target database · Peer prospects · Import"),
+        ("Roadshow",  "route", "Roadshow & CRM\nreach & track", "NDR planner · Meeting hub · Accounts"),
+    ]),
+    ("MARKET INTELLIGENCE", [
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
         ("Lighthouse", "lightbulb", "Lighthouse\nWhy is the stock moving?", "Expected vs actual · Residual · Events · Technicals · CEO read"),
     ]),
-    ("CORE WORKFLOWS", [
-        ("Investors", "groups", "Investor Targeting\nCRM, NDR, Peer Prospects", "Accounts CRM · NDR planner · Peer prospects · Buy-side intel · Meeting hub · Target database"),
-        # Outreach (Mail Gateway) hidden from the sidebar for the demo — the
-        # IMAP/SMTP mail workflow isn't ported to this interface yet, so it would
-        # only surface a "use app.py" placeholder. Re-add this line to restore it;
-        # its render mapping stays in PORTED below.
+    ("EARNINGS", [
+        # Outreach (Mail Gateway) hidden from the sidebar for the demo — the IMAP/SMTP mail workflow
+        # isn't ported to this interface yet; its render mapping stays in PORTED below.
         ("Earnings",  "description", "Earnings Cycle\nScript Generation", "Script generation · Prior qtr review · Consensus tracker"),
     ]),
     ("REPORTS & SETTINGS", [
@@ -167,7 +175,7 @@ _MOBILE_TABS = [
     ("Home", "home", "Home", None),
     ("Lighthouse", "lightbulb", "Lighthouse", None),
     ("Calendar", "calendar_month", "Calendar", None),
-    ("Investors", "route", "NDR", "NDR Planner"),
+    ("Roadshow", "route", "NDR", "NDR Planner"),
     ("Markets", "trending_up", "Markets", None),
 ]
 
@@ -180,12 +188,10 @@ _MOBILE_TABS = [
 # single-view and render as plain nav buttons with no expander.
 NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
-    # Investor Targeting's 10 destinations, grouped by INTENT (see NAV_SUBGROUPS below) — the flat
-    # order here IS the group order, and must match the page's tab strip order (guarded by
-    # tests/test_nav_subitems.py).
-    "Investors": ["Buyside Ownership", "NOBO Ownership", "Website Ownership",
-                  "Target Database", "Peer Prospects", "Import list",
-                  "NDR Planner", "Meeting Hub", "Accounts (CRM)"],
+    # Ownership / Targeting / Roadshow are DELIBERATELY absent here — they render as plain rail
+    # sections (no sub-item expander), so their tabs live only on the page (one menu, not two).
+    # Deep-links (go_to(section, tab)) still work — the target tab is consumed by the page, it does
+    # not need a NAV_SUBITEMS entry.
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
                   "Consensus Tracker", "Call Transcripts", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
@@ -202,13 +208,9 @@ NAV_SUBITEMS = {
 # flat siblings → 3 buckets). Each group is (label, one-line intent, [sub-item names]). A page NOT
 # listed here renders its NAV_SUBITEMS as a flat list, unchanged. The concatenation of a page's
 # groups here MUST equal its NAV_SUBITEMS list, in order (asserted by tests/test_nav_subitems.py).
-NAV_SUBGROUPS = {
-    "Investors": [
-        ("Ownership",  "who owns the stock", ["Buyside Ownership", "NOBO Ownership", "Website Ownership"]),
-        ("Targeting",  "who should own it",  ["Target Database", "Peer Prospects", "Import list"]),
-        ("Engagement", "reach & track",      ["NDR Planner", "Meeting Hub", "Accounts (CRM)"]),
-    ],
-}
+# (Investor Targeting's old three intent-groups are now their own top-level rail sections —
+# Ownership / Targeting / Roadshow — so no intra-page sub-grouping is needed here.)
+NAV_SUBGROUPS = {}
 
 # Plain-language gloss for the JARGON sub-items (the audit's P3 — the Lighthouse "Why is the stock
 # moving?" pattern, applied where a label is an acronym or insider term). Self-explanatory items
@@ -234,7 +236,11 @@ PORTED = {
     "Home": "page_modules_nicegui.mobile_page",
     "Today": "page_modules_nicegui.today_page",
     "Inbox": "page_modules_nicegui.inbox_page",
-    "Investors": "page_modules_nicegui.investors_page",
+    # Investor Targeting, split into three focused sections — all rendered by the same module via
+    # render_ownership_page / render_targeting_page / render_roadshow_page (each shows ~3 tabs).
+    "Ownership": "page_modules_nicegui.investors_page",
+    "Targeting": "page_modules_nicegui.investors_page",
+    "Roadshow": "page_modules_nicegui.investors_page",
     "Earnings": "page_modules_nicegui.earnings_page",
     "Markets": "page_modules_nicegui.markets_page",
     "Outreach": "page_modules_nicegui.outreach",

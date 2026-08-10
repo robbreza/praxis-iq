@@ -323,7 +323,7 @@ DEFAULT_CLIENT_ID = "usio"
 # matching key in the client's "executives" dict. A client whose executives
 # dict omits a role simply doesn't offer that role in the selector — nothing
 # else changes. Access level per page is one of: "full", "read", "none".
-PAGES = ["Home", "Today", "Calendar", "Markets", "Investors",
+PAGES = ["Home", "Today", "Calendar", "Markets", "Ownership", "Targeting", "Roadshow",
          "Outreach", "Earnings", "Reports", "Settings", "Lighthouse", "Inbox"]
 
 ROLE_PERMISSIONS = {
@@ -346,7 +346,8 @@ ROLE_PERMISSIONS = {
     "CEO": {
         "label": "CEO",
         "pages": {"Home": "full", "Inbox": "read", "Today": "full", "Earnings": "full", "Calendar": "full",
-                  "Markets": "read", "Reports": "read", "Investors": "none",
+                  "Markets": "read", "Reports": "read",
+                  "Ownership": "none", "Targeting": "none", "Roadshow": "none",
                   "Outreach": "none", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
         "can_send_email": False,
@@ -355,7 +356,8 @@ ROLE_PERMISSIONS = {
         "label": "CRO",
         # Owns investor demand/outreach + carries a script persona. Can DRAFT
         # outreach but NOT send — send is IR-only per client policy.
-        "pages": {"Home": "full", "Inbox": "full", "Investors": "full", "Outreach": "full", "Calendar": "full",
+        "pages": {"Home": "full", "Inbox": "full", "Outreach": "full", "Calendar": "full",
+                  "Ownership": "full", "Targeting": "full", "Roadshow": "full",
                   "Markets": "full", "Earnings": "full", "Reports": "read",
                   "Today": "read", "Settings": "none", "Lighthouse": "read"},
         "can_change_settings": False,
@@ -365,7 +367,8 @@ ROLE_PERMISSIONS = {
         "label": "Legal",
         # Disclosure/sign-off focus: FLS checklist in Earnings + the Reg FD log.
         "pages": {"Home": "read", "Inbox": "read", "Earnings": "full", "Reports": "full", "Today": "read",
-                  "Calendar": "read", "Investors": "none", "Outreach": "none",
+                  "Calendar": "read", "Outreach": "none",
+                  "Ownership": "none", "Targeting": "none", "Roadshow": "none",
                   "Markets": "none", "Settings": "none"},
         "can_change_settings": False,
         "can_send_email": False,

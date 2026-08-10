@@ -135,7 +135,7 @@ def check_ndr_planning_render(cid):
     from config.client_config import set_active_client_id
     from core import ui_context, targets as tm
     set_active_client_id(cid)
-    ui_context.set_page_context("IR", "Investors")
+    ui_context.set_page_context("IR", "Roadshow")
     import page_modules_nicegui.investors_page as IP
     try:
         raw = IP._merge_sec_universe(tm.targets_as_institutions(cid), cid)
@@ -216,10 +216,10 @@ def main():
         # Targeted regression: NDR Active-cards panel must render a PLANNING NDR whose metro holds an
         # unscored candidate (the crash that hid a just-planned NDR's card). Runs when Investors is in
         # scope, once per tenant.
-        if not args.page or args.page == "Investors":
+        if not args.page or args.page == "Roadshow":
             ok_ndr, ndr_detail = check_ndr_planning_render(cid)
             checked += 1
-            _lbl = "Investors › Active NDRs (Planning-card regression)"
+            _lbl = "Roadshow › Active NDRs (Planning-card regression)"
             if not ok_ndr:
                 render_fails.append((cid, _lbl, ndr_detail))
                 print(f"  RENDER FAIL  {_lbl}")

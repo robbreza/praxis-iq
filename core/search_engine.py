@@ -53,7 +53,7 @@ def _fund_results(q, cid):
             sub = f"{i.get('Metro', '')} · {'Holder' if i.get('USIO_Holder') else 'Non-holder'}"
             if i.get("Contact_Name"):
                 sub += f" · {i['Contact_Name']}"
-            out.append(_result("Fund", fund, sub, "Investors", "Target Database",
+            out.append(_result("Fund", fund, sub, "Targeting", "Target Database",
                                prefill=fund, score=_score(q, fund) if q in fund.lower() else 45))
     return out
 
@@ -67,7 +67,7 @@ def _prospect_results(q, cid):
         if q in hay:
             out.append(_result("Prospect", fund,
                                f"{p.get('metro', '—')} · {p.get('style', '—')} · prospect",
-                               "Investors", "Target Database", prefill=fund,
+                               "Targeting", "Target Database", prefill=fund,
                                score=_score(q, fund) if q in fund.lower() else 45))
     return out
 
@@ -86,7 +86,7 @@ def _nobo_results(q, cid):
             out.append(_result("NOBO holder", name,
                                f"{h.get('type', '')} · {h.get('city', '')}, {h.get('state', '')} · "
                                f"{h.get('shares', 0):,} sh",
-                               "Investors", "NOBO Ownership", score=_score(q, name) if q in name.lower() else 45))
+                               "Ownership", "NOBO Ownership", score=_score(q, name) if q in name.lower() else 45))
     return out
 
 

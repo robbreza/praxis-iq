@@ -1505,7 +1505,7 @@ def _render_nobo():
                 _lb = ui.button("Log outreach", on_click=_log).props("flat dense color=primary")
                 if ui_context.is_read_only():
                     _lb.disable()
-        ui.button("Open Investor Targeting →", on_click=lambda: nav.go_to("Investors")).props(
+        ui.button("Open Investor Targeting →", on_click=lambda: nav.go_to("Ownership")).props(
             "flat dense").style("margin-top:2px;")
         if xref["untracked"]:
             _ut = ", ".join(f"{h['name']} ({h['shares']:,})" for h in xref["untracked"])

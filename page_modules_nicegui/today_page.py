@@ -1136,9 +1136,9 @@ def _render_investor_pipeline():
     # so don't offer a dead-end button; explain instead.
     from core import ui_context
     from config.client_config import role_can_view
-    if role_can_view(ui_context.current_role(), "Investors"):
+    if role_can_view(ui_context.current_role(), "Targeting"):
         ui.button("Open Full Investor Pipeline →",
-                  on_click=lambda: nav.go_to("Investors", "Target Database")).props("color=primary")
+                  on_click=lambda: nav.go_to("Targeting", "Target Database")).props("color=primary")
     else:
         ui.label("The full pipeline lives in Investor Targeting — your current role doesn't have access to "
                  "that page.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")

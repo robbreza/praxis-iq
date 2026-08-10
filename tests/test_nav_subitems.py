@@ -33,7 +33,9 @@ def _page_tabs(page_name, module_path, render_fn, cid="usio"):
 
 
 @pytest.mark.parametrize("page_name,module,fn", [
-    ("Investors", "page_modules_nicegui.investors_page", "investors"),
+    # Investor Targeting was split into three rail SECTIONS (Ownership / Targeting / Roadshow) whose
+    # tabs live only on the page — they deliberately have no NAV_SUBITEMS, so this drift check no
+    # longer applies to them. Earnings still surfaces its tabs as sidebar sub-items.
     ("Earnings", "page_modules_nicegui.earnings_page", "earnings"),
 ])
 def test_sidebar_subitems_match_page_tabs(page_name, module, fn):
