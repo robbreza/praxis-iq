@@ -494,10 +494,155 @@ def seed_transcripts(cid="demo"):
     return len(_TRANSCRIPTS)
 
 
+# ── 3. Script workflow — the Q2 2026 script, mid-flight. q2_numbers are DEVELOPED from the Q1 2026
+# transcript (net rev $25.3M, integrated +28%, NRR 112%, take-rate ~46bps, ~20% EBITDA margin) and
+# carried forward to Q2 actuals; the three Street KPIs the CFO enters are Integrated Volume (TPV) + YoY,
+# Net Revenue Retention, and Net Take-Rate. Persona scripts read at Northlake's scale, not USIO's.
+_Q2_NUMBERS = {
+    "rev": 25.9, "integrated": 16.1, "legacy": 9.8,
+    "gp": 15.1, "gm": 58.3, "ebitda": 5.4, "eps": 0.13, "sga": 9.7,
+    "tpv": 3.42, "tpv_yoy": 27.0, "nrr": 112.0, "take_rate": 47.0, "cash": 44.0,
+    # Prior quarter (Q1 2026), from the transcript — the baseline the input is carried forward from.
+    "prior": {"rev": 25.3, "eps": 0.12, "gm": 57.5, "ebitda": 5.1, "integrated_mix": 60.0,
+              "tpv": 3.29, "tpv_yoy": 28.0, "nrr": 112.0, "take_rate": 46.0},
+    "what_new": ("Q2 net revenue of $25.9M beat the $25.6–26.0M guide. Integrated payments led again — "
+                 "TPV +27% YoY and 62% of net revenue. Net take-rate expanded to 47 bps and net revenue "
+                 "retention held above 110%. Adj. EBITDA of $5.4M, ~21% margin. We're raising the FY range "
+                 "to $104–106M and, as promised on the Q1 call, the gross-to-net bridge is in the deck."),
+    "submitted_by": "Priya Raman (CFO)",
+}
+
+_SCRIPT_TEXT = {
+    "ir_open": (
+        "Good afternoon, and thank you for joining Northlake Payments' second quarter fiscal 2026 earnings "
+        "call. I'm Dana Whitfield, Director of Investor Relations. With me are Marcus Ellery, Chief "
+        "Executive Officer, and Priya Raman, Chief Financial Officer. Before we begin, today's call "
+        "contains forward-looking statements subject to risks and uncertainties; please refer to the risk "
+        "factors in our most recent SEC filings. We'll also reference non-GAAP measures, reconciled in "
+        "today's release. With that, I'll turn the call over to Marcus."),
+    "cfo_fin": (
+        "Turning to the financials. Second-quarter net revenue was $25.9 million, up 18% year over year and "
+        "above the high end of our $25.6 to $26.0 million guidance. Integrated payments led the quarter and "
+        "now represents 62% of net revenue, up from 60% last quarter, which drove net take-rate to 47 basis "
+        "points from 46. Gross margin expanded to 58.3%, adjusted EBITDA was $5.4 million — a margin of "
+        "roughly 21% — and adjusted EPS was $0.13. Net revenue retention held above 110%, and we ended the "
+        "quarter with $44 million in cash and no debt. As we promised on the first-quarter call, today's "
+        "deck includes the gross-to-net revenue bridge. For the third quarter we expect net revenue of "
+        "$26.4 to $26.9 million, and for the full year we are raising our guidance to $104 to $106 million, "
+        "reflecting first-half momentum and the back-half-weighted go-live cadence."),
+    "cro_ops": (
+        "On the operational metrics the Street tracks. Integrated payments volume — our TPV — was $3.42 "
+        "billion in the quarter, up 27% year over year, as new-partner go-lives and rising attach across "
+        "the installed base both contributed. Net revenue retention was 112%, our fifth consecutive quarter "
+        "above 110%, which reflects how durable the partner book is once payments are embedded. And net "
+        "take-rate expanded to 47 basis points, entirely from the mix shift toward integrated acquiring — "
+        "we did not change pricing. Partner onboarding accelerated again this quarter, and our ISV pipeline "
+        "into the second half is the strongest it has been."),
+    "ceo_narrative": (
+        "Northlake delivered another record quarter, and more importantly the strategy continues to "
+        "compound. The story is unchanged and it is working: as our software partners turn on integrated "
+        "payments and their merchants adopt, our net take-rate steps up and the economics become more "
+        "software-like. This quarter integrated payments reached 62% of net revenue, net revenue retention "
+        "stayed above 110%, and TPV grew 27%. We are converting the installed base and adding new partners "
+        "at the strongest pace in the company's history. Given that first-half trajectory, we are raising "
+        "the full-year range to $104 to $106 million, and we continue to expect the second half to be "
+        "stronger than the first as new-partner go-lives ramp. We remain focused on the attach motion, "
+        "because that is where durable, recurring economics live, and we have years of runway from the "
+        "merchants already sitting inside our partners' software."),
+}
+
+_ADVERSARIAL_QA = [
+    "Integrated is now 62% of net revenue and TPV grew 27% — is that attach durable, or are you pulling "
+    "forward adoption from the installed base?",
+    "You delivered the gross-to-net bridge this quarter — does it change how the Street should value "
+    "Northlake versus the net-revenue peers?",
+    "Net take-rate expanded to 47 basis points on mix — how much take-rate expansion is left as integrated "
+    "approaches 70–80% of revenue?",
+    "You raised the full-year guide — how much is the first-half beat versus genuine second-half confidence "
+    "in the go-live cadence?",
+    "Net revenue retention has held around 112% for five quarters — what would cause it to step down, and "
+    "how concentrated is the partner book?",
+    "Prepaid float — with rates where they are, is the contribution still immaterial, or does it become a "
+    "swing factor into next year?",
+    "Adjusted EBITDA margin is roughly 21% — what's the path to the mid-20s, and would you slow onboarding "
+    "investment to get there faster?",
+]
+
+
+def seed_script_workflow(cid="demo"):
+    """Write the demo's Q2 2026 script workflow at Northlake scale (was USIO's $102.5M / $8.9B). q2_numbers
+    are developed from the Q1 transcript and include the three Street KPIs; the four persona sections are
+    pre-drafted to match. Mid-flight (Exec Review active) so readiness reads real."""
+    import datetime as _dt
+
+    from core import db
+    now = _dt.datetime.now()
+
+    def _ago(days):
+        return (now - _dt.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+
+    q2 = dict(_Q2_NUMBERS)
+    q2["submitted_at"] = _ago(6)
+    _persona_keys = ("ir_open", "cfo_fin", "cro_ops", "ceo_narrative")
+    state = {
+        "version": 1,
+        "current_stage": "exec_review",
+        "q2_numbers": q2,
+        "q2_ops_metrics": {},
+        "script_text": dict(_SCRIPT_TEXT),
+        "persona_notes": {k: {"whats_new": "", "final_notes": ""} for k in _persona_keys},
+        # Guidance seeded (with text) so the auto-draft doesn't regenerate it off USIO seasonality.
+        "guidance_decision": {
+            "decision": "RAISE",
+            "text": ("Raising full-year FY2026 net-revenue guidance to $104–106M (from $103–105M) and "
+                     "reiterating an adjusted EBITDA margin of roughly 21%, reflecting first-half momentum "
+                     "and the back-half-weighted new-partner go-live cadence."),
+        },
+        "fls_checklist": {},
+        "versions": [{"tag": "v1", "note": "Draft v1 — CFO numbers populated, all sections drafted",
+                      "by": "Priya Raman (CFO)", "at": _ago(6)}],
+        "reviewers": {r: {"status": ("complete" if r == "IR" else "pending"),
+                          "sent": None, "received": (_ago(3) if r == "IR" else None), "notes": ""}
+                      for r in ("IR", "CFO", "CEO", "CRO", "Legal")},
+        "full_script_override": "",
+        "full_script_override_saved_at": None,
+        "first_pass_complete": True,
+        "stages": {
+            "cfo_numbers":   {"status": "complete", "completed_at": _ago(6), "notes": ""},
+            "ir_review":     {"status": "complete", "completed_at": _ago(3), "notes": ""},
+            "exec_review":   {"status": "active",   "completed_at": None, "notes": ""},
+            "consolidate":   {"status": "pending",  "completed_at": None, "notes": ""},
+            "legal_signoff": {"status": "pending",  "completed_at": None, "notes": ""},
+        },
+        "adversarial_qa": {
+            "generated_at": _ago(2),
+            "items": [{"question": q, "why": "", "angle": ""} for q in _ADVERSARIAL_QA],
+        },
+        "prep_vs_actual": {
+            "Q1 2026": {
+                "generated_at": _ago(90),
+                "script": {"delivered": ["Net revenue $25.3M (+19%)", "Integrated volume +28%",
+                                         "Gross margin +180 bps"],
+                           "dropped": ["Gross-to-net bridge (promised, not shown)"],
+                           "improvised": ["Adjacent-vertical framing"]},
+                "qa": {"hits": [{"pred": "PayFac attach sustainability",
+                                 "actual": "asked whether 28% is a baseline or a pull-forward"}],
+                       "misses": ["Gross-to-net bridge detail", "Take-rate ceiling", "Capital allocation",
+                                  "Churn / concentration", "Macro sensitivity"],
+                       "surprises": ["Competitive moat vs larger processors", "Partner unit economics / LTV"],
+                       "hit_rate": 22},
+                "had_predictions": True, "accrued": {"new_global": 0, "new_client": 4}},
+        },
+    }
+    db.save_json("script_workflow_state.json", state, client_id=cid)
+    return len(_SCRIPT_TEXT)
+
+
 def seed_earnings_demo(cid="demo"):
     n_s = seed_surprise_log(cid)
     n_t = seed_transcripts(cid)
-    return {"surprises": n_s, "transcripts": n_t}
+    n_w = seed_script_workflow(cid)
+    return {"surprises": n_s, "transcripts": n_t, "script_sections": n_w}
 
 
 if __name__ == "__main__":
@@ -508,4 +653,5 @@ if __name__ == "__main__":
     reload_registry()
     set_active_client_id("demo")
     out = seed_earnings_demo("demo")
-    print(f"Earnings demo seeded: {out['surprises']} surprise quarters, {out['transcripts']} transcript(s).")
+    print(f"Earnings demo seeded: {out['surprises']} surprise quarters, {out['transcripts']} transcript(s), "
+          f"{out['script_sections']} script sections.")

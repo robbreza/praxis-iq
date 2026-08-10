@@ -1139,11 +1139,10 @@ def seed():
     print(f"[demo] seeded {len(actions)} dated rating actions")
 
     # 6. Earnings script workflow — mid-flight, so readiness shows a real mix.
-    # q2_numbers holds the just-closed Q2 actuals the CFO entered at Stage 1; the
-    # Guidance Decision Engine reads rev from here (YTD = Q1 actual + Q2). A Q2 of
-    # $102.5M beats the $100M guide and the $102M street, and with YTD running
-    # ~1.4pp above seasonal pace the engine lands on "RAISE LOW END" — a clean,
-    # positive story. Detail lines sum to revenue so the Stage-1 form reads real.
+    # NOTE: this writes a USIO-scale placeholder; scripts/seed_earnings_demo.seed_script_workflow()
+    # (called later in this seed) OVERWRITES it with Northlake-scale numbers, the three Street KPIs
+    # (TPV / NRR / take-rate) developed from the Q1 transcript, and NLKP persona scripts. Kept as a
+    # fallback so the workflow still exists if the earnings-demo seed is skipped.
     db.save_json("script_workflow_state.json", {
         "version": 1,
         "current_stage": "exec_review",
@@ -1438,7 +1437,8 @@ That concludes today's question-and-answer session. Thank you for joining.
     try:
         from scripts.seed_earnings_demo import seed_earnings_demo
         _e = seed_earnings_demo(CID)
-        print(f"  seeded earnings demo: {_e['surprises']} surprise quarters, {_e['transcripts']} transcripts")
+        print(f"  seeded earnings demo: {_e['surprises']} surprise quarters, {_e['transcripts']} transcripts, "
+              f"{_e['script_sections']} NLKP script sections")
     except Exception as _ex:
         print(f"  [warn] earnings-demo seed skipped: {_ex}")
 

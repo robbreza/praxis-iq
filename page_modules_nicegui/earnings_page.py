@@ -3755,7 +3755,93 @@ def _render_script_canvas(ss):
 # ─────────────────────────────────────────────────────────────────────────
 # Tab 1 — Script Generation: 5-stage pipeline (see module docstring)
 # ─────────────────────────────────────────────────────────────────────────
+def _render_stage1_illustrative(ss):
+    """Stage 1 CFO Numbers for the illustrative demo (Northlake) — net-revenue segments, the standard
+    profitability lines, and the three Street KPIs the CFO enters: Integrated Volume (TPV) + YoY, Net
+    Revenue Retention, and Net Take-Rate. The baseline is carried forward from the prior quarter's
+    transcript (Prior Qtr Review); this is developed for the first demo, not auto-extracted yet."""
+    _hdr = lambda s: ui.label(s).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
+    ui.label("Stage 1 — CFO Final Numbers").classes("font-bold")
+    ui.label("CFO submits Q2 actuals. Submitting activates Stage 2 (IR Review).").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+    n = ss.get("q2_numbers", {}) or {}
+    prior = n.get("prior", {}) or {}
+    ui.label("Baseline carried forward from the Q1 2026 earnings call (Prior Qtr Review) — update to Q2 actuals.").style(
+        f"background:{COLORS['surface_hover_bg']};border-left:3px solid {COLORS['accent']};border-radius:6px;"
+        f"padding:6px 10px;color:{COLORS['text_body']};font-size:var(--fs-xs);margin:6px 0;")
+    with ui.row().classes("w-full gap-4"):
+        with ui.column().classes("flex-1"):
+            _hdr("NET REVENUE ($M)")
+            fn_rev = ui.number("Total Net Revenue", value=n.get("rev"), step=0.1).classes("w-full")
+            fn_integ = ui.number("Integrated Payments", value=n.get("integrated"), step=0.1).classes("w-full")
+            fn_legacy = ui.number("Legacy Processing", value=n.get("legacy"), step=0.1).classes("w-full")
+            _hdr("CASH")
+            fn_cash = ui.number("Cash ($M)", value=n.get("cash"), step=0.1).classes("w-full")
+        with ui.column().classes("flex-1"):
+            _hdr("PROFITABILITY")
+            fn_gp = ui.number("Gross Profit ($M)", value=n.get("gp"), step=0.1).classes("w-full")
+            fn_gm = ui.number("Gross Margin (%)", value=n.get("gm"), step=0.1).classes("w-full")
+            fn_ebitda = ui.number("Adj. EBITDA ($M)", value=n.get("ebitda"), step=0.1).classes("w-full")
+            fn_eps = ui.number("Adj. EPS ($)", value=n.get("eps"), step=0.01).classes("w-full")
+            fn_sga = ui.number("SG&A ($M)", value=n.get("sga"), step=0.1).classes("w-full")
+        with ui.column().classes("flex-1"):
+            _hdr("STREET KPIs")
+            fn_tpv = ui.number("Integrated Volume / TPV ($B)", value=n.get("tpv"), step=0.01).classes("w-full")
+            fn_tpv_yoy = ui.number("TPV YoY (%)", value=n.get("tpv_yoy"), step=0.5).classes("w-full")
+            fn_nrr = ui.number("Net Revenue Retention (%)", value=n.get("nrr"), step=0.5).classes("w-full")
+            fn_take = ui.number("Net Take-Rate (bps)", value=n.get("take_rate"), step=0.5).classes("w-full")
+            if prior:
+                ui.label(f"Q1: TPV +{prior.get('tpv_yoy', 0):.0f}% · NRR {prior.get('nrr', 0):.0f}% · "
+                         f"take-rate {prior.get('take_rate', 0):.0f} bps").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+    fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).classes("w-full")
+    _team_opts = team_labels()
+    _default_by = n.get("submitted_by")
+    if _default_by not in _team_opts:
+        _default_by = _team_opts[0] if _team_opts else None
+    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").classes("w-full")
+
+    def submit():
+        if fn_rev.value is None:
+            ui.notify("Total Net Revenue is required.", type="warning")
+            return
+        nz = lambda v: v if v is not None else 0.0
+        ss["q2_numbers"] = {
+            "rev": nz(fn_rev.value), "integrated": nz(fn_integ.value), "legacy": nz(fn_legacy.value),
+            "gp": nz(fn_gp.value), "gm": nz(fn_gm.value), "ebitda": nz(fn_ebitda.value),
+            "eps": nz(fn_eps.value), "sga": nz(fn_sga.value),
+            "tpv": nz(fn_tpv.value), "tpv_yoy": nz(fn_tpv_yoy.value), "nrr": nz(fn_nrr.value),
+            "take_rate": nz(fn_take.value), "cash": nz(fn_cash.value), "prior": prior,
+            "what_new": fn_new.value, "submitted_by": fn_by.value,
+            "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        ss["version"] = 1
+        ss["stages"]["cfo_numbers"].update({"status": "complete", "completed_at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+        ss["stages"]["ir_review"]["status"] = "active"
+        ss["current_stage"] = "ir_review"
+        _ensure_script_drafted(ss)   # fills only EMPTY sections — the seeded NLKP script is preserved
+        _add_version(ss, "v1", "Draft v1 — CFO numbers populated", fn_by.value)
+        _save_json("script_workflow_state.json", ss)
+        ui.notify("Numbers submitted. Stage 2 (IR Review) active.")
+        _refresh()
+
+    ui.button("Submit for Draft Generation", on_click=submit).props("color=primary").style("margin-top:8px;")
+
+    if ss["stages"]["cfo_numbers"]["status"] == "complete":
+        _ensure_script_drafted(ss)
+        ui.markdown("---")
+        ui.label("Auto-Generated Script — one last look before it moves to IR").classes("font-bold").style(
+            f"color:{COLORS['accent_light']};font-size:var(--fs-md);")
+        ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly")
+
+
 def _render_stage1(ss):
+    from config.client_config import get_active_client_id
+    from core.curated_targets import _is_illustrative
+    if _is_illustrative(get_active_client_id()):
+        _render_stage1_illustrative(ss)   # Northlake schema: net-revenue segments + the 3 Street KPIs
+        return
     ui.label("Stage 1 — CFO Final Numbers").classes("font-bold")
     ui.label("CFO submits Q2 actuals. Submitting activates Stage 2 (IR Review).").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     n = ss.get("q2_numbers", {})
