@@ -518,6 +518,47 @@ def _enrich_peer_holdings_with_live_13f(institutions, peer_tickers):
         }
 
 
+def _enrich_engagement_signals(institutions, client_id):
+    """Populate each institution's IR-website + call-listener signals.
+
+    - Web-flow (ALL tenants): where a tracked fund matches an IR-site visitor, fold in real visit
+      count / last-visit / digital-intent. This is what makes the Website Ownership tab and the
+      Buy-Side cards agree, and it's honest for real tenants (only fires on a matched visitor).
+    - Illustrative tenants ONLY: fill the REMAINING call-listener / visit signals with believable
+      illustrative values, so the demo reads as an actively-covered book instead of "no call data /
+      no visit data" on every card. Real tenants keep the honest "no data" — no integration exists.
+    Deterministic (hash of the fund name) so it's stable across renders and reseeds."""
+    from core.curated_targets import _is_illustrative
+    from core import web_flow
+    illus = _is_illustrative(client_id)
+    _wmap = web_flow.intent_map(client_id)
+    _dur = ["Full call (42 min)", "Full call (42 min)", "Q&A only (18 min)", "Replay — first 15 min"]
+    for inst in institutions:
+        fund = inst.get("Fund") or ""
+        v = web_flow.intent_for(fund, _map=_wmap) if _wmap else None
+        if v:
+            if v.get("visits") is not None:
+                inst["IR_Visits_30d"] = v["visits"]
+            if v.get("last_visit"):
+                inst["Last_Visit"] = v["last_visit"]
+            if v.get("intent") is not None:
+                inst["Digital_Intent_Score"] = v["intent"]
+        if not illus:
+            continue
+        h = sum(ord(c) for c in fund)
+        if inst.get("Call_Listener") is None:            # ~60% listened; the rest a measured "no"
+            listened = (h % 5) < 3
+            inst["Call_Listener"] = listened
+            inst["Listen_Duration"] = _dur[h % len(_dur)] if listened else None
+        if inst.get("IR_Visits_30d") is None:            # web-flow value wins; else a small count
+            n = h % 4
+            inst["IR_Visits_30d"] = n
+            if n:
+                inst["Last_Visit"] = (datetime.now() - timedelta(days=2 + (h % 20))).strftime("%b %d")
+        if not inst.get("Digital_Intent_Score"):
+            inst["Digital_Intent_Score"] = 25 + (h % 60)
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Data provenance — every name in the universe carries a Source tag so the UI
 # shows where it came from. The seed is "Seed (demo)"; real SEC-sourced names
@@ -1343,6 +1384,10 @@ def render_investors_page():
     from core.curated_targets import _is_illustrative
     if not _is_illustrative(client_id):
         _enrich_peer_holdings_with_live_13f(raw_institutions, [p["ticker"] for p in _load_peer_universe()])
+    # Populate the IR-website + call-listener engagement signals BEFORE scoring, so the Engagement
+    # Score actually reflects the inputs its tooltip advertises (and the demo shows an active book
+    # instead of "no call/visit data" on every card).
+    _enrich_engagement_signals(raw_institutions, client_id)
     institutions = _score_institutions(raw_institutions, mode, q2_listeners, meeting_log)
 
     ui.label(f"{CT('name')} — Investor Targeting").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
@@ -3938,7 +3983,7 @@ def _candidate_to_inst(c):
     so the Add-to-NDR checkbox still routes through _shortlist_record."""
     nm = c.get("filer") or c.get("Fund") or "—"
     comps = sorted((c.get("comps") or {}).keys())
-    return {
+    out = {
         "Fund": nm,
         "Engagement_Score": round(c.get("conviction") or 0),
         "USIO_Holder": False,
@@ -3955,6 +4000,9 @@ def _candidate_to_inst(c):
         "filer": c.get("filer"), "comps": c.get("comps"),
         "city": c.get("city"), "state": c.get("state"), "conviction": c.get("conviction"),
     }
+    # Same engagement fill as the tracked universe so non-holder cards don't read "no call/visit data".
+    _enrich_engagement_signals([out], get_active_client_id())
+    return out
 
 
 def _institution_card(inst, meeting_log, contacts):
@@ -4107,9 +4155,16 @@ def _open_outreach_dialog(inst, contact):
     if not peer_lines:
         peer_lines = [f"{CT('ticker')}'s upcoming print is shaping up as a re-rating catalyst — EPS inflection, "
                        "multiple expansion, and analyst coverage resumption all in view."]
-    engagement_line = (f"Given {inst['Fund']}'s "
-                        f"{('attention to the call replay (' + inst['Listen_Duration'] + ')') if inst['Call_Listener'] else 'recent interest in our materials'} "
-                        f"and {inst['IR_Visits_30d']} IR site visit(s) in the last 30 days, this feels like the right moment to reconnect ahead of the print.")
+    # Guard every signal — a real tenant with no call/web feed carries None here, and interpolating
+    # it printed a literal "None IR site visit(s)" mid-sentence.
+    _call_clause = (f"attention to the call replay ({inst['Listen_Duration']})"
+                    if inst.get("Call_Listener") and inst.get("Listen_Duration")
+                    else "recent interest in our materials")
+    _visits = inst.get("IR_Visits_30d")
+    _visit_clause = (f" and {_visits} IR site visit(s) in the last 30 days"
+                     if _visits else "")
+    engagement_line = (f"Given {inst['Fund']}'s {_call_clause}{_visit_clause}, this feels like "
+                       "the right moment to reconnect ahead of the print.")
     greeting = contact.get("name", "[Contact Name]").split()[0] if contact.get("name") else "[Contact Name]"
     subject = f"{CT('ticker')} Pre-Earnings Note — {inst['Fund']}"
     body = (f"Hi {greeting},\n\n{peer_lines[0]}\n" + "\n".join(peer_lines[1:]) + f"\n\n{engagement_line}\n\n"
