@@ -5445,7 +5445,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         fmt_badge = "" if m.get("format") in ("Zoom", "Teams") else ""
                         with ui.row().classes("w-full items-center gap-2").style(
                                 f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
-                            ui.label(f"{fmt_badge} {m.get('time','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);width:110px;")
+                            ui.label(f"{fmt_badge} {_meeting_time_range(m)}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);width:150px;")
                             with ui.row().classes("flex-1 items-center gap-1").style("min-width:0;"):
                                 ui.label(f"{nh_badge} {pretty_name(m.get('institution',''))}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                                 if m.get("source") == "inbound":
