@@ -13,9 +13,10 @@ from datetime import timedelta
 import numpy as np
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 
 
-def _conn(): return psycopg2.connect(get_database_url())
+def _conn(): return _db.get_connection()
 
 
 def _isoweek(d): return d.isocalendar()[:2]

@@ -19,10 +19,11 @@ import hashlib
 
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 
 
 def _conn():
-    return psycopg2.connect(get_database_url())
+    return _db.get_connection()
 
 
 def _writes_disabled() -> bool:

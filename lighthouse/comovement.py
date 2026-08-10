@@ -15,6 +15,7 @@ signal — the winners can then feed the point-in-time factor model as a challen
 pure-numpy OLS + forward selection, separated from the data fetch and unit-tested.
 """
 from __future__ import annotations
+from core import db as _db
 import numpy as np
 import pandas as pd
 
@@ -170,7 +171,7 @@ def compute(issuer="USIO", client_id="usio", universe=None) -> dict:
         from lighthouse.config.usio import USIO
         defined = USIO["business_peers"]                          # per-client defined peers (USIO MVP)
         uni = universe or candidate_universe(issuer, client_id=client_id, defined_peers=defined)
-        conn = psycopg2.connect(get_database_url())
+        conn = _db.get_connection()
         rets = data.returns_frame([issuer] + list(uni) + defined, conn=conn)
         conn.close()
         return discover(issuer, rets, defined, universe=uni)

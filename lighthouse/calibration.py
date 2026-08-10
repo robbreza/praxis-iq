@@ -18,6 +18,7 @@ is how you score a forecaster, not a leak into the live signal. The pure scoring
 separated from the DB fetch so it is unit-tested on synthetic arrays.
 """
 from __future__ import annotations
+from core import db as _db
 import numpy as np
 
 # Abnormality buckets aligned to the confidence thresholds (rarity = normal-tail mass within ±|z|).
@@ -61,7 +62,7 @@ def calibrate(issuer="USIO", window=126, fwd_k=5, lookback_days=10, conn=None) -
         from lighthouse import data
         from lighthouse.factor_model import attribution
         from lighthouse.shadow import SHADOW_TICKERS
-        conn = conn or psycopg2.connect(get_database_url())
+        conn = conn or _db.get_connection()
         rets = data.returns_frame(SHADOW_TICKERS, conn=conn)
         m = attribution(rets, issuer, window=window)
         if m.empty:

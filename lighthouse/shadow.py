@@ -10,6 +10,7 @@ recent window so the IR-review track record is useful on day one.
 from __future__ import annotations
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 from lighthouse import data, events, ceo
 from lighthouse.factor_model import attribution
 from lighthouse.factors import FACTOR_ETFS
@@ -22,7 +23,7 @@ _MARKET_ETFS = sorted(set(BENCHMARK_TICKERS) | set(FACTOR_ETFS))
 SHADOW_TICKERS = ["USIO"] + _MARKET_ETFS + USIO["business_peers"]
 
 
-def _conn(): return psycopg2.connect(get_database_url())
+def _conn(): return _db.get_connection()
 
 
 def _exists(cur, client_id, ticker, d):

@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 from lighthouse import data
 from lighthouse.attribution import market_peer_model
 
@@ -36,7 +37,7 @@ def validate(issuer="USIO", market="IWM", peers=None, window=126) -> dict:
     from lighthouse import events
     thr = np.quantile(np.abs(r), 0.90)
     big_days = [d for d, row in model.iterrows() if abs(row["residual"]) >= thr]
-    conn = psycopg2.connect(get_database_url())
+    conn = _db.get_connection()
     explained = 0
     for d in big_days:
         win = events.window_for_day(issuer, d, lookback_days=10, conn=conn)

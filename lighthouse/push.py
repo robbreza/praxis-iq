@@ -21,13 +21,14 @@ import base64
 
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 
 _STATE_KEY = "lighthouse_vapid.json"
 _STATE_CLIENT = "_lighthouse"
 
 
 def _conn():
-    return psycopg2.connect(get_database_url())
+    return _db.get_connection()
 
 
 def _ensure(cur):

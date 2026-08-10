@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta, time
 import psycopg2
 from core import sec_filings as sf
 from core.security import get_database_url
+from core import db as _db
 
 CLOSE_UTC = time(20, 0)   # ~16:00 ET
 
@@ -27,7 +28,7 @@ FORM_KIND = {"8-K": "announcement", "10-Q": "earnings", "10-K": "earnings", "DEF
              "S-1": "capital_raise", "S-3": "capital_raise", "424B": "capital_raise"}
 
 
-def _conn(): return psycopg2.connect(get_database_url())
+def _conn(): return _db.get_connection()
 
 
 def fetch_sec_events(ticker, client_id, cik=None, limit=120) -> list[dict]:

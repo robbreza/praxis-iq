@@ -16,9 +16,10 @@ import numpy as np
 import pandas as pd
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 
 
-def _conn(): return psycopg2.connect(get_database_url())
+def _conn(): return _db.get_connection()
 
 
 def _ohlcv(ticker, day, as_of, cur) -> pd.DataFrame:

@@ -17,6 +17,7 @@ statistical abnormality (z, FDR p) is left UNTOUCHED — liquidity is a separate
 stays interpretable, not a single muddied score.
 """
 from __future__ import annotations
+from core import db as _db
 import math
 import numpy as np
 import pandas as pd
@@ -53,7 +54,7 @@ def liquidity_frame(ticker, conn=None, lookback: int = 20) -> pd.DataFrame:
     try:
         import psycopg2
         from core.security import get_database_url
-        conn = conn or psycopg2.connect(get_database_url())
+        conn = conn or _db.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT d, adj_close, volume FROM lh_ohlcv WHERE ticker=%s ORDER BY d", (ticker,))
         rows = cur.fetchall()

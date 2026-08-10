@@ -16,6 +16,7 @@ import json
 
 import psycopg2
 from core.security import get_database_url
+from core import db as _db
 from lighthouse.replay import AsOf
 from lighthouse import events, technician
 
@@ -23,7 +24,7 @@ _CONF_NUM = {"HIGH": 0.85, "MODERATE": 0.6, "LOW": 0.3, "ROUTINE": 0.15}
 _MATERIAL = ("10-Q", "10-K", "8-K")
 
 
-def _conn(): return psycopg2.connect(get_database_url())
+def _conn(): return _db.get_connection()
 
 
 def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None) -> dict:
