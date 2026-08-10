@@ -80,30 +80,37 @@ def _save(book):
     db.save_json(_STORE, book)
 
 
-def address_for(fund_name):
-    """The best-known street address string for a fund, or None. Exact match
-    first, then a normalized-name match so 'Vanguard Group Inc' finds a record
-    stored as 'VANGUARD GROUP INC'."""
-    if not fund_name:
-        return None
-    book = _load()
+def _rec_lookup(book, fund_name):
+    """Exact match, then a normalized-name match so 'Vanguard Group Inc' finds a
+    record stored as 'VANGUARD GROUP INC'."""
     rec = book.get(fund_name)
     if not rec:
         key = _norm(fund_name)
         rec = next((v for k, v in book.items() if _norm(k) == key), None)
-    return (rec or {}).get("address") or None
+    return rec
+
+
+def _as_record(rec):
+    """Normalize a stored value to a dict record. Entries are usually the structured
+    {address, hq_metro, source, cik} dict (SEC form-ADV), but some tenants store a bare
+    street-address STRING — tolerate both so no caller has to care which shape it got."""
+    if isinstance(rec, str):
+        return {"address": rec.strip()} if rec.strip() else {}
+    return dict(rec) if isinstance(rec, dict) else {}
+
+
+def address_for(fund_name):
+    """The best-known street address string for a fund, or None."""
+    if not fund_name:
+        return None
+    return _as_record(_rec_lookup(_load(), fund_name)).get("address") or None
 
 
 def record_for(fund_name):
     """Full stored record (address, hq_metro, source, cik) or {}."""
     if not fund_name:
         return {}
-    book = _load()
-    rec = book.get(fund_name)
-    if not rec:
-        key = _norm(fund_name)
-        rec = next((v for k, v in book.items() if _norm(k) == key), None)
-    return dict(rec or {})
+    return _as_record(_rec_lookup(_load(), fund_name))
 
 
 def set_address(fund_name, address, source="manual", hq_metro=None, cik=None):

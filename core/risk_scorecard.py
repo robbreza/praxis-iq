@@ -279,7 +279,7 @@ def _investor_narrative_risk(period="Q2 2026E"):
         # core/fit_score.py's heuristic classes.
         items.append(("KPI Understanding", "YELLOW",
                        f"{len(objections)} objection(s) logged from NDR debriefs — most recent from \"{objections[-1]['trip']}\": "
-                       f"\"{objections[-1]['objection'] or objections[-1]['narrative_gap']}\". Review in NDR Planner → Post-NDR Debrief."))
+                       f"\"{objections[-1]['objection'] or objections[-1]['narrative_gap']}\". Review in Outbound → NDR → Post-NDR Debrief."))
         items.append(("Investor Objection Trend", "YELLOW",
                        f"{with_gap} of the last {len(recent)} debrief(s) logged a narrative gap (a question the script doesn't "
                        f"currently answer) — feed these into the next Script Generation cycle's Q&A prep."))

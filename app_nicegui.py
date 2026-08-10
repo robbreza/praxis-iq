@@ -140,7 +140,7 @@ NAV_GROUPS = [
     ("INVESTOR TARGETING", [
         ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
         ("Targeting", "my_location", "Targeting\nwho should own you", "Target database · Peer prospects · Import"),
-        ("Roadshow",  "route", "Roadshow & CRM\nreach & track", "NDR planner · Meeting hub · Accounts"),
+        ("Roadshow",  "route", "Outbound\nreach & track", "Meeting Hub · NDR · CRM"),
     ]),
     ("MARKET INTELLIGENCE", [
         ("Markets",   "trending_up", "Market Intelligence\nConsensus Estimates", "Consensus · PT tracker · Peer benchmarking"),
@@ -175,7 +175,7 @@ _MOBILE_TABS = [
     ("Home", "home", "Home", None),
     ("Lighthouse", "lightbulb", "Lighthouse", None),
     ("Calendar", "calendar_month", "Calendar", None),
-    ("Roadshow", "route", "NDR", "NDR Planner"),
+    ("Roadshow", "route", "NDR", "NDR"),
     ("Markets", "trending_up", "Markets", None),
 ]
 
@@ -188,10 +188,12 @@ _MOBILE_TABS = [
 # single-view and render as plain nav buttons with no expander.
 NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
-    # Ownership / Targeting / Roadshow are DELIBERATELY absent here — they render as plain rail
-    # sections (no sub-item expander), so their tabs live only on the page (one menu, not two).
-    # Deep-links (go_to(section, tab)) still work — the target tab is consumed by the page, it does
-    # not need a NAV_SUBITEMS entry.
+    # Outbound (page key "Roadshow") surfaces its three destinations as sidebar pointers — the labels
+    # match the page's ui.tab identities exactly so each one deep-links straight to its tab.
+    "Roadshow":  ["Meeting Hub", "NDR", "CRM"],
+    # Ownership / Targeting are DELIBERATELY absent here — they render as plain rail sections (no
+    # sub-item expander), so their tabs live only on the page (one menu, not two). Deep-links
+    # (go_to(section, tab)) still work — the target tab is consumed by the page.
     "Earnings":  ["Prior Qtr Review", "Script Generation", "Prep Brief", "Narrative Momentum",
                   "Consensus Tracker", "Call Transcripts", "Morning After"],
     "Reports":   ["Board IR Reports", "90-Day IR Plan",
@@ -221,7 +223,8 @@ NAV_SUBITEM_GLOSS = {
     "PT Drift Tracker":    "how price targets have moved",
     "SEC Intelligence":    "13D / 13G / 13F filings",
     "NOBO Ownership":      "who your retail holders are",
-    "NDR Planner":         "non-deal roadshow scheduling",
+    "NDR":                 "non-deal roadshow scheduling",
+    "CRM":                 "the relationship book · Account 360",
     "Narrative Momentum":  "is the story landing?",
     "Prep Brief":          "one-page earnings prep",
     "Morning After":       "post-call critique",
@@ -1324,7 +1327,10 @@ def main_page(request: Request = None):
     ).props("width=280 bordered")
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
-        ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round")
+        # Drawer toggle — only needed below 1024px, where the drawer is an off-canvas overlay. On
+        # desktop the drawer is docked and always visible, so the ☰ is redundant and hidden by CSS
+        # (.drawer-toggle @media min-width:1024px).
+        ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round").classes("drawer-toggle")
         # Tenant identity / switcher. Options are the tenants THIS user may see
         # (auth.allowed_clients) — so a client_user never gets a switcher (one tenant ->
         # static label), and staff switch only within their allowed set. The switch handler
@@ -2049,6 +2055,9 @@ ui.add_head_html(
     ".resp-wide{display:none !important;}"                # hide the wide table on phones...
     ".resp-stack{display:block !important;}"              # ...and show the stacked cards instead
     "}"
+    # The header ☰ drawer toggle is redundant on desktop (drawer is docked/visible there) — hide it
+    # at the docking breakpoint, keep it on tablet/phone where the drawer is an overlay.
+    "@media (min-width:1024px){.drawer-toggle{display:none !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width

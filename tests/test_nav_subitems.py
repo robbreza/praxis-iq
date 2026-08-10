@@ -33,10 +33,12 @@ def _page_tabs(page_name, module_path, render_fn, cid="usio"):
 
 
 @pytest.mark.parametrize("page_name,module,fn", [
-    # Investor Targeting was split into three rail SECTIONS (Ownership / Targeting / Roadshow) whose
-    # tabs live only on the page — they deliberately have no NAV_SUBITEMS, so this drift check no
-    # longer applies to them. Earnings still surfaces its tabs as sidebar sub-items.
+    # Ownership / Targeting were split into rail SECTIONS whose tabs live only on the page — they
+    # deliberately have no NAV_SUBITEMS, so this drift check doesn't apply to them. Outbound
+    # (page key "Roadshow") DOES surface its tabs as sidebar pointers (Meeting Hub / NDR / CRM), as
+    # does Earnings — so both are guarded here.
     ("Earnings", "page_modules_nicegui.earnings_page", "earnings"),
+    ("Roadshow", "page_modules_nicegui.investors_page", "roadshow"),
 ])
 def test_sidebar_subitems_match_page_tabs(page_name, module, fn):
     tabs = _page_tabs(page_name, module, fn)

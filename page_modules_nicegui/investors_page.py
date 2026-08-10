@@ -1101,7 +1101,7 @@ def _open_metro_select_dialog(metro, funds, holders=None):
                 msg += f" · skipped {quant_skip} quant shop(s) — no 1×1"
             if dup:
                 msg += f" · {dup} already on it"
-            ui.notify(msg + ". Find it in NDR Planner → Active NDRs.", type="positive")
+            ui.notify(msg + ". Find it in Outbound → NDR → Active NDRs.", type="positive")
             dlg.close()
         add_btn.on_click(_do_add)
     dlg.open()
@@ -1358,7 +1358,7 @@ def render_investors_page(section="ownership"):
     """Investor Targeting, split into three focused rail sections that share this render:
       • ownership — Buyside · NOBO · Website  (with the "who owns you" Big Picture + mode toggle)
       • targeting — Target Database · Peer Prospects · Import
-      • roadshow  — NDR Planner · Meeting Hub · Accounts (CRM)
+      • roadshow  — Meeting Hub · NDR · CRM
     Each shows only its own ~3 tabs, so no page carries the old nine-tab strip."""
     client_id = get_active_client_id()
     mode_state = _load_json("buyside_mode.json", {})
@@ -1461,10 +1461,11 @@ def render_investors_page(section="ownership"):
         "targeting": [("Target Database", lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id), True),
                       ("Peer Prospects", lambda: _render_peer_prospects_tab(client_id), False),
                       ("Import list", lambda: _render_import_verify_tab(client_id), False)],
-        # ── Roadshow & CRM — reach & track
-        "roadshow":  [("NDR Planner", lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"]), True),
-                      ("Meeting Hub", lambda: _render_meeting_hub_tab(), False),
-                      ("Accounts (CRM)", lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"]), False)],
+        # ── Outbound — reach & track. Tab identities are short (Meeting Hub / NDR / CRM) and match the
+        # sidebar's NAV_SUBITEMS["Roadshow"] pointers exactly, so each pointer deep-links to its tab.
+        "roadshow":  [("Meeting Hub", lambda: _render_meeting_hub_tab(), False),
+                      ("NDR", lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"]), True),
+                      ("CRM", lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"]), False)],
     }
     specs = _SPECS.get(section, _SPECS["ownership"])
 
@@ -3279,7 +3280,7 @@ def _render_big_picture(institutions):
                             _m += f" · skipped {quant_skip} quant shop(s) — no 1×1"
                         if dup:
                             _m += f" · {dup} already on it"
-                        ui.notify(_m + ". Find it in NDR Planner → Active NDRs.", type="positive")
+                        ui.notify(_m + ". Find it in Outbound → NDR → Active NDRs.", type="positive")
                         _drill_dialog.close()
                     add_btn.on_click(_do_add)
                 if _n_lineups:
@@ -3332,7 +3333,7 @@ def _render_big_picture(institutions):
         'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
         '<span v-else style="opacity:.4;">—</span></q-td>'))
     geo_table.on("cellClick", _open_cell_drill)
-    geo_table.on("openndr", lambda e: nav.go_to("Roadshow", "NDR Planner"))
+    geo_table.on("openndr", lambda e: nav.go_to("Roadshow", "NDR"))
     geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
         e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
         holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
@@ -3752,7 +3753,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             skipped = len(picked) - added
             ui.notify(f"Shortlisted {added} to '{tname}'"
                       + (f" · {skipped} already on it" if skipped else "")
-                      + ". See NDR Planner → Active NDRs.", type="positive")
+                      + ". See Outbound → NDR → Active NDRs.", type="positive")
         ui.button("Add selected", icon="playlist_add", on_click=_bs_add).props("dense color=primary")
 
     list_container = ui.column().classes("w-full gap-3")
@@ -5705,10 +5706,12 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             # Street addresses (where available) so you can see WHERE each candidate is
                             # before adding it — and so an added filler carries the address into the
                             # itinerary's routed drive-time calc.
-                            _faddr = _load_json("fund_addresses.json", {}) or {}
+                            from core import fund_addresses
                             for c in _fillers:
                                 cc = get_institution_contacts().get(c["Fund"], {})
-                                _c_addr = _faddr.get(c["Fund"], "")
+                                # Canonical accessor — normalizes both stored shapes (structured
+                                # dict for SEC-sourced tenants, bare string for the demo) to a str.
+                                _c_addr = fund_addresses.address_for(c["Fund"]) or ""
                                 with ui.row().classes("w-full items-center gap-2").style(
                                         f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:4px 8px;margin:2px 0;"):
                                     _cs = _score_val(c)
@@ -7066,7 +7069,7 @@ def _render_pending_inbox_items():
                         })
                         _save_ndr_requests(reqs)
                         inbox_queue.mark_confirmed(item_id, outcome=f"Logged NDR request for {n_city.value}")
-                        ui.notify(f"NDR request from {contact} logged — see NDR Planner → Requests.")
+                        ui.notify(f"NDR request from {contact} logged — see Outbound → NDR → Meeting Requests.")
                         _refresh()
                     confirm_label = "Log NDR Request"
 
