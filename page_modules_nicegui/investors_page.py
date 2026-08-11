@@ -1469,7 +1469,12 @@ def render_investors_page(section="ownership"):
     }
     specs = _SPECS.get(section, _SPECS["ownership"])
 
-    with ui.tabs().classes("w-full") as tabs:
+    # Outbound (roadshow) alone has sidebar sub-items (Meeting Hub · NDR · CRM in NAV_SUBITEMS), which
+    # deep-link to these exact tabs via consume_target_tab() below — so its on-page strip is redundant
+    # on desktop, same as Markets/Earnings: hide it via .page-tabstrip (kept <1024px, no docked sidebar).
+    # Ownership/Targeting have NO sidebar sub-items, so their strips are the only nav — keep them shown.
+    _tabstrip_cls = "w-full page-tabstrip" if section == "roadshow" else "w-full"
+    with ui.tabs().classes(_tabstrip_cls) as tabs:
         _tabobjs = {name: ui.tab(name) for name, _fn, _md in specs}
     # A deep-link (go_to(section, tab)) can open on any of the section's tabs; else the first.
     default_tab = _tabobjs.get(nav.consume_target_tab()) or next(iter(_tabobjs.values()))
