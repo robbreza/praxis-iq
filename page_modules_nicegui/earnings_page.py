@@ -2581,13 +2581,16 @@ def _bridge_measure_chips(m):
 
 
 def _bridge_detail_lines(m):
-    """The full measurement, one line each — the wall, now behind a click."""
+    """The full measurement, one line each — the wall, now behind a click. DELTAS are shown SIGNED so a
+    change is never misread as a level (the "New mid vs Street FY" line used to print the +$0.01 delta with
+    no sign, which read like the new mid itself was $0.01)."""
     f = m["fmt"]
+    _sgn = lambda v: (("+" if v >= 0 else "−") + _fmt_metric(abs(v), f))  # a delta, shown as a change
     out = []
     r = m.get("range")
     if r:
-        out.append(("Range flow-through", f"low {_fmt_metric(r['d_low'],f)} · mid {_fmt_metric(r['d_mid'],f)} · "
-                    f"high {_fmt_metric(r['d_high'],f)} — {m.get('pass_through',{}).get('characterization','')}"))
+        out.append(("Range flow-through", f"low {_sgn(r['d_low'])} · mid {_sgn(r['d_mid'])} · "
+                    f"high {_sgn(r['d_high'])} — {m.get('pass_through',{}).get('characterization','')}"))
     imp = m.get("implied", {})
     if imp.get("implied_growth_low") is not None:
         out.append(("Implied remaining", f"{_fmt_metric(imp['remaining_low'],f)}–{_fmt_metric(imp['remaining_high'],f)} "
@@ -2595,20 +2598,20 @@ def _bridge_detail_lines(m):
                     f"{imp.get('read','')} vs the current run-rate"))
     vf = m.get("vs_street_fy")
     if vf:
-        out.append(("New mid vs Street FY", f"{_fmt_metric(vf['delta'],f)} vs {_fmt_metric(vf['street_fy'],f)} "
-                    f"→ {vf['revision']} estimate revisions"))
+        out.append(("New mid vs Street FY", f"new mid {_fmt_metric(vf['new_mid'],f)} vs Street "
+                    f"{_fmt_metric(vf['street_fy'],f)} ({_sgn(vf['delta'])}) → {vf['revision']} estimate revisions"))
     ny = m.get("next_year")
     if ny:
         _n = f"Street {_fmt_metric(ny['street'],f)} (+{ny.get('growth_off_guide_pct',0):.0f}% off the raised guide)"
         if ny.get("exit_run_rate") is not None:
             _n += f" · Q4 exit run-rate {_fmt_metric(ny['exit_run_rate'],f)} → +{ny.get('growth_off_exit_pct',0):.0f}% off exit"
         if ny.get("roll_forward_lift"):
-            _n += f" · roll-forward lift {_fmt_metric(ny['roll_forward_lift'],f)}"
+            _n += f" · roll-forward lift {_sgn(ny['roll_forward_lift'])}"
         out.append(("Next year (FY+1)", _n))
         if ny.get("read"):
             out.append(("Implication", ny["read"]))
     if "vs_whisper" in m and m["vs_whisper"]["beat_pct"] is not None:
-        out.append(("vs Whisper", f"{_fmt_metric(m['vs_whisper']['beat'],f)} ({m['vs_whisper']['beat_pct']:+.1f}%) · "
+        out.append(("vs Whisper", f"{_sgn(m['vs_whisper']['beat'])} ({m['vs_whisper']['beat_pct']:+.1f}%) · "
                     f"2-yr stack {m.get('two_yr_stack_pct','—')}%"))
     return out
 
