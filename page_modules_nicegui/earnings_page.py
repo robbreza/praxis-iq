@@ -5028,6 +5028,23 @@ def _render_workflow_content():
     ui.label("Earnings Script Approval Workflow").classes("text-lg font-bold")
     ui.label("5-stage approval pipeline · CFO numbers in → IR → CFO+CEO+CRO → Consolidation → Legal sign-off").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
+    # The stage cards below ARE the navigation now — each is clickable and drives these tab_panels —
+    # so the plain tab bar that used to sit under them is redundant. Keep the ui.tabs element in the
+    # DOM (the tab_panels model needs it) but hide it entirely via .hidden-tabstrip; the cards carry
+    # both the status AND the "click to open" affordance. FINAL (post legal sign-off) has no tab of
+    # its own — it maps to Legal Sign-Off, where the finalized-script card renders.
+    with ui.tabs().classes("w-full hidden-tabstrip") as sw_tabs:
+        sw1 = ui.tab("1 · CFO Numbers")
+        sw2 = ui.tab("2 · IR Review")
+        sw3 = ui.tab("3 · CEO+CFO+CRO Review")
+        sw4 = ui.tab("4 · Consolidation")
+        sw5 = ui.tab("5 · Legal Sign-Off")
+    _stage_to_tab = {
+        "cfo_numbers": sw1, "ir_review": sw2, "exec_review": sw3,
+        "consolidate": sw4, "legal_signoff": sw5, "FINAL": sw5,
+    }
+    default_sw_tab = _stage_to_tab.get(ss.get("current_stage"), sw1)
+
     with ui.row().classes("w-full gap-2"):
         for stage in STAGES:
             status = ss["stages"][stage["id"]]["status"]
@@ -5046,34 +5063,15 @@ def _render_workflow_content():
                 bc, tc, ico, label_tc, name_tc = "#E8EEF7", "#1E40AF", "", "#1E3A8A", "#0F172A"
             else:
                 bc, tc, ico, label_tc, name_tc = COLORS["surface_bg"], COLORS["text_muted"], "", COLORS["accent_light2"], COLORS["text_heading"]
-            with ui.card().classes("flex-1 text-center").style(f"background:{bc};border:1px solid {COLORS['border']};"):
+            _card = ui.card().classes("flex-1 text-center cursor-pointer stage-card").style(
+                f"background:{bc};border:1px solid {COLORS['border']};")
+            _card.on("click", lambda _e, t=_stage_to_tab.get(stage["id"]): sw_tabs.set_value(t))
+            _card.tooltip(f"Open {stage['name']}")
+            with _card:
                 ui.label(stage["icon"]).style("font-size:var(--fs-2xl);")
                 ui.label(stage["label"]).style(f"color:{label_tc};font-size:var(--fs-xs);font-weight:bold;text-transform:uppercase;")
                 ui.label(stage["name"]).classes("font-bold").style(f"color:{name_tc};font-size:var(--fs-base);")
                 ui.label(f"{ico} {status.capitalize()}").style(f"color:{tc};font-size:var(--fs-sm);font-weight:600;")
-
-    ui.markdown("---")
-    with ui.tabs().classes("w-full") as sw_tabs:
-        sw1 = ui.tab("1 · CFO Numbers")
-        sw2 = ui.tab("2 · IR Review")
-        sw3 = ui.tab("3 · CEO+CFO+CRO Review")
-        sw4 = ui.tab("4 · Consolidation")
-        sw5 = ui.tab("5 · Legal Sign-Off")
-
-    # Land on whichever tab is actually the workflow's current stage,
-    # instead of always defaulting to Tab 1. Previously this was hardcoded
-    # to sw1 regardless of ss["current_stage"] — so a CFO/CEO reviewer
-    # opening the page while Stage 3 was active would see the read-only
-    # Stage 1 numbers-entry form (which looks like a self-contained page,
-    # nothing on it hints there's a Stage 3 tab to click) instead of
-    # landing on the actual review work waiting for them. FINAL (post
-    # legal sign-off) has no tab of its own — stays on Legal Sign-Off,
-    # which is where the finalized-script card renders.
-    _stage_to_tab = {
-        "cfo_numbers": sw1, "ir_review": sw2, "exec_review": sw3,
-        "consolidate": sw4, "legal_signoff": sw5, "FINAL": sw5,
-    }
-    default_sw_tab = _stage_to_tab.get(ss.get("current_stage"), sw1)
     with ui.tab_panels(sw_tabs, value=default_sw_tab).classes("w-full"):
         with ui.tab_panel(sw1):
             _render_stage1(ss)
