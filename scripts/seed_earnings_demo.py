@@ -38,7 +38,7 @@ _SURPRISES = [
     {"quarter": "Q1 2026", "date": "2026-05-13", "rev_actual": 25.3, "rev_consensus": 24.4,
      "rev_whisper": 24.9, "eps_actual": 0.12, "eps_consensus": 0.09, "ah_move": 0.086,
      "implied_move": 0.060, "3day_move": 0.072, "sector_3day": 0.010, "stock_pre_close": 30.20,
-     "guidance_vs_embedded": "Above", "guidance_action": "Maintained", "eps_prior_year": 0.08,
+     "guidance_vs_embedded": "Above", "guidance_action": "Maintained", "eps_prior_year": 0.09,
      "pt_changes": 3, "pt_change_avg": 2.00,
      "notes": "Record Q1 — PayFac attach +28% drove the beat and net take-rate stepped up again. Prepaid "
               "float held despite the rate backdrop. Reiterated FY guide with an explicit upside bias into "
