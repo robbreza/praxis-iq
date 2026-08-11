@@ -2841,6 +2841,15 @@ def _render_guidance_decision(ss, context="script"):
     _ch = _ge.characterize_range_change(_prior, _new)          # the numbers → the action (calculated, not picked)
     _iu = _ge.implied_upside(_new, _load_json("earnings_surprise_log.json", None))   # the sandbag gap
 
+    # NEXT YEAR (FY+1) — companies guide ONE year out, so FY27 is the STREET's number plus what the FY26
+    # raise implies for it (roll-forward lifts the base). Never presented as company guidance.
+    _rev_in = (((ss.get("guidance_inputs") or {}).get("metrics") or {}).get("rev") or {})
+    _nfs = _rev_in.get("next_fy_street")
+    _new_mid = (_new[0] + _new[1]) / 2
+    _prior_mid = (_prior[0] + _prior[1]) / 2
+    _goff = (_nfs - _new_mid) / _new_mid * 100 if _nfs else None
+    _rfl = (_new_mid * (_nfs / _prior_mid) - _nfs) if (_nfs and _prior_mid) else None
+
     # Implied YoY growth at each end of the range vs prior-year FY revenue — the number the guide really
     # states (a $M level is meaningless without its growth rate). Trend = is the new guide raising or
     # lowering the implied growth rate vs the prior guide.
@@ -2860,23 +2869,16 @@ def _render_guidance_decision(ss, context="script"):
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:5px solid {COLORS['accent']};border-radius:10px;padding:14px 16px;"):
         with ui.row().classes("w-full gap-4 items-stretch flex-wrap"):
-            with ui.column().classes("flex-1").style(
-                    f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
-                    "padding:11px 14px;min-width:210px;gap:2px;"):
-                ui.label("Revenue — Prior Guide").style(
-                    f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                ui.label(f"${_prior[0]:.1f}–{_prior[1]:.1f}M").style(
-                    f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
-                ui.label(_grow_line(_prior)).style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
-                ui.label(f"midpoint ${(_prior[0] + _prior[1]) / 2:.1f}M · what the Street embedded").style(
-                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            with ui.column().classes("flex-1").style(
+            # ── THIS YEAR (FY26) — the decision. Prior guide shrinks to a subline; the new range is the input.
+            with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
-                    "padding:11px 14px;min-width:270px;gap:4px;"):
-                ui.label("New Guidance Range").style(
+                    "padding:11px 14px;min-width:300px;gap:4px;"):
+                ui.label("This Year — FY2026 · your guidance").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                with ui.row().classes("items-end gap-2 flex-wrap"):
+                ui.label(f"Was ${_prior[0]:.1f}–{_prior[1]:.1f}M · {_grow_line(_prior).replace('growth: ', '')} "
+                         "· what the Street embedded").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
+                with ui.row().classes("items-end gap-2 flex-wrap").style("margin-top:2px;"):
                     _low_in = ui.number("New low", value=_new[0], step=0.5).props("outlined dense").style("width:104px;")
                     _hi_in = ui.number("New high", value=_new[1], step=0.5).props("outlined dense").style("width:104px;")
 
@@ -2906,6 +2908,27 @@ def _render_guidance_decision(ss, context="script"):
                         _arw = "↑" if _trend_pp > 0.05 else "↓" if _trend_pp < -0.05 else "→"
                         ui.label(f"{_arw} implied growth {_trend_pp:+.1f}pp vs prior guide").style(
                             f"color:{_tc};font-size:var(--fs-xs);font-weight:700;margin-left:4px;")
+            # ── NEXT YEAR (FY27) — the Street's out-year. Companies guide one year out, so this is derived
+            # from the FY26 guide (roll-forward), never presented as company guidance.
+            with ui.column().classes("flex-[2]").style(
+                    f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
+                    "padding:11px 14px;min-width:230px;gap:3px;"):
+                ui.label("Next Year — FY2027 · Street (not guided)").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
+                if _nfs:
+                    ui.label(f"${_nfs:.1f}M").style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
+                    ui.label(f"Street consensus · +{_goff:.0f}% off your ${_new_mid:.1f}M midpoint").style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
+                    if _rfl is not None:
+                        ui.label(f"your FY26 raise lifts the FY27 base ~${_rfl:+.1f}M (roll-forward)").style(
+                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:600;font-variant-numeric:tabular-nums;")
+                    ui.label("Companies guide one year out — FY27 is the Street's number, not yours. The read: "
+                             "does the trend say it's a low bar? (see ② below).").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
+                else:
+                    ui.label("No FY+1 Street estimate on file.").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         _tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
         with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
             ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
