@@ -851,27 +851,32 @@ def _render_illustrative_lookback(prior_q, rec):
                     ui.label(lbl).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
                     ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-    ui.label(f"{prior_q} call summary").classes("font-bold").style("margin-top:12px;")
-    ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);line-height:1.5;")
+    _card_style = f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;"
 
-    with ui.row().classes("w-full gap-4 items-start").style("margin-top:6px;"):
-        with ui.column().classes("flex-1"):
+    with ui.card().classes("w-full").style(f"{_card_style}margin-top:12px;"):
+        ui.label(f"{prior_q} call summary").classes("font-bold").style(f"color:{COLORS['accent_light']};")
+        ui.label(rec["ai_summary"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);line-height:1.5;")
+
+    with ui.row().classes("w-full gap-4 items-stretch").style("margin-top:4px;"):
+        with ui.card().classes("flex-1").style(_card_style):
             kqs = rec.get("key_quotes") or []
             if kqs:
-                ui.label("What management said").classes("font-bold").style("font-size:var(--fs-sm);")
+                ui.label("What management said").classes("font-bold").style(
+                    f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
                 for kq in kqs:
                     ui.label(f"“{kq.get('quote','')}” — {kq.get('speaker','')}").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
             guid = rec.get("guidance_language") or []
             if guid:
-                ui.label("Guidance language").classes("font-bold").style("font-size:var(--fs-sm);margin-top:8px;")
+                ui.label("Guidance language").classes("font-bold").style(
+                    f"color:{COLORS['accent_light']};font-size:var(--fs-sm);margin-top:8px;")
                 for g in guid:
                     ui.label(f"• {g}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-        with ui.column().classes("flex-1"):
+        with ui.card().classes("flex-1").style(_card_style):
             topics = rec.get("qa_risk_topics") or []
             if topics:
                 ui.label("What analysts pressed on — carry into the Q2 script").classes("font-bold").style(
-                    "font-size:var(--fs-sm);")
+                    f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
                 sev = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
                 for t in topics:
                     clr = sev.get(t.get("severity"), "#64748B")
