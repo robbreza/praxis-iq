@@ -922,15 +922,31 @@ def _render_lookback_tab():
     ui.label(f"{prior_q} Call Post-Mortem — What the Script Taught Us").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Every Q2 script decision should start here. What worked, what was missed, and what analysts actually cared about.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
+    # Two ways to revisit last quarter's call, each a single clickable card (was: a replay card + a
+    # separate "Play on Chorus Call" link doing the same thing + a text blurb with a "Go to Call
+    # Transcripts" button). The whole card is the action now — think a big link.
     with ui.row().classes("w-full gap-3 items-stretch"):
-        with ui.card().classes("flex-[2]").style("background:#E8EEF7;border:1px solid #D3DBE4;border-radius:8px;"):
-            ui.label(f"{prior_q} earnings call replay").classes("font-bold").style("color:#0F172A;")
-            ui.label(call_meta).style("color:#475569;font-size:var(--fs-sm);")
-        ui.link("Play on Chorus Call", "https://www.choruscall.com", new_tab=True).classes("flex-1 text-center").style(
-            f"background:{COLORS['accent']};color:white;padding:10px;border-radius:8px;")
-        with ui.column().classes("flex-1"):
-            ui.label("Upload the transcript PDF in the Call Transcripts tab for full-text search and AI summary.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);padding:8px;")
-            ui.button("Go to Call Transcripts", on_click=lambda: nav.go_to("Earnings", "Call Transcripts")).props("flat dense")
+        # LISTEN — the whole card opens the Chorus Call replay (folds in the old separate Play link).
+        _listen = ui.card().classes("flex-1 cursor-pointer click-card").style(
+            "background:#E8EEF7;border:1px solid #D3DBE4;border-radius:10px;")
+        _listen.on("click", lambda: ui.navigate.to("https://www.choruscall.com", new_tab=True))
+        _listen.tooltip("Play the replay on Chorus Call")
+        with _listen, ui.row().classes("items-center gap-3 w-full no-wrap"):
+            ui.icon("play_circle").style(f"color:{COLORS['accent']};font-size:var(--fs-3xl);")
+            with ui.column().classes("gap-0"):
+                ui.label(f"Listen — {prior_q} earnings call replay").classes("font-bold").style("color:#0F172A;")
+                ui.label(f"{call_meta}  ·  Play on Chorus Call ↗").style("color:#475569;font-size:var(--fs-sm);")
+        # READ — the whole card opens Call Transcripts (full-text search + the AI summary live there).
+        _read = ui.card().classes("flex-1 cursor-pointer click-card").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;")
+        _read.on("click", lambda: nav.go_to("Earnings", "Call Transcripts"))
+        _read.tooltip("Open the Call Transcripts tab — full-text search + AI summary")
+        with _read, ui.row().classes("items-center gap-3 w-full no-wrap"):
+            ui.icon("description").style(f"color:{COLORS['accent']};font-size:var(--fs-3xl);")
+            with ui.column().classes("gap-0"):
+                ui.label("Read the transcript").classes("font-bold").style(f"color:{COLORS['text_heading']};")
+                ui.label("Full-text search + AI summary  ·  Go to Call Transcripts ↗").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     # Everything below (reaction stats, section timing, Q&A topics, note alignment) is USIO's real,
     # ingested Q1 2026 transcript analysis — one specific quarter's data, NOT per-tenant config. It
@@ -5063,7 +5079,7 @@ def _render_workflow_content():
                 bc, tc, ico, label_tc, name_tc = "#E8EEF7", "#1E40AF", "", "#1E3A8A", "#0F172A"
             else:
                 bc, tc, ico, label_tc, name_tc = COLORS["surface_bg"], COLORS["text_muted"], "", COLORS["accent_light2"], COLORS["text_heading"]
-            _card = ui.card().classes("flex-1 text-center cursor-pointer stage-card").style(
+            _card = ui.card().classes("flex-1 text-center cursor-pointer click-card").style(
                 f"background:{bc};border:1px solid {COLORS['border']};")
             _card.on("click", lambda _e, t=_stage_to_tab.get(stage["id"]): sw_tabs.set_value(t))
             _card.tooltip(f"Open {stage['name']}")

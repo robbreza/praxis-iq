@@ -2081,9 +2081,10 @@ ui.add_head_html(
     # .hidden-tabstrip: a tab bar kept in the DOM (its tab_panels model needs it) but never shown at
     # any width — used where clickable status cards ARE the navigation (Earnings workflow stages).
     ".hidden-tabstrip{display:none !important;}"
-    # Clickable stage cards read as buttons: lift + accent ring on hover so the affordance is obvious.
-    ".stage-card{transition:box-shadow .12s ease,transform .12s ease;}"
-    ".stage-card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(15,23,42,.14);"
+    # Clickable cards read as buttons: lift + accent ring on hover so the affordance is obvious.
+    # Generic (used by the workflow stage cards and the Prior-Qtr replay/transcript cards).
+    ".click-card{transition:box-shadow .12s ease,transform .12s ease;}"
+    ".click-card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(15,23,42,.14);"
     f"border-color:{COLORS['accent']} !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
