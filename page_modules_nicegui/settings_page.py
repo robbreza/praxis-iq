@@ -100,8 +100,7 @@ def _render_routing_key():
     settings = _load_settings()
     configured = bool((settings.get("routing_api_key") or "").strip())
 
-    ui.markdown("---")
-    with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
+    with ui.row().classes("items-center gap-2"):
         ui.icon("check_circle" if configured else "error_outline").style(
             f"color:{'#15803D' if configured else '#B45309'};font-size:var(--fs-xl);")
         ui.label("NDR routing — OpenRouteService (driving miles & time)").style(
@@ -151,9 +150,8 @@ def _render_lexicon_licence():
     settings = _load_settings()
     current = settings.get("lm_license") or "unlicensed"
 
-    ui.markdown("---")
     ok = current in ("commercial", "academic")
-    with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
+    with ui.row().classes("items-center gap-2"):
         ui.icon("check_circle" if ok else "gpp_maybe").style(
             f"color:{'#15803D' if ok else '#B45309'};font-size:var(--fs-xl);")
         ui.label("Script hedging analytics — Loughran-McDonald dictionary").style(
@@ -208,8 +206,7 @@ def _render_zoom_creds():
     configured = all((settings.get(k) or "").strip()
                      for k in ("zoom_account_id", "zoom_client_id", "zoom_client_secret"))
 
-    ui.markdown("---")
-    with ui.row().classes("items-center gap-2").style("margin-top:4px;"):
+    with ui.row().classes("items-center gap-2"):
         ui.icon("check_circle" if configured else "error_outline").style(
             f"color:{'#15803D' if configured else '#B45309'};font-size:var(--fs-xl);")
         ui.label("Zoom meetings — auto-create join links").style(
@@ -292,9 +289,11 @@ def _render_data_sources():
                 ui.icon("check_circle" if ok else "error_outline").style(f"color:{clr};font-size:var(--fs-xl);")
                 ui.label(f"{name} — {desc}").style(f"color:{clr};font-weight:600;font-size:var(--fs-base);")
 
-    _render_routing_key()
-    _render_zoom_creds()
-    _render_lexicon_licence()
+    _sec_card = (f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                 "border-radius:10px;padding:12px 16px;margin-top:12px;")
+    for _section in (_render_routing_key, _render_zoom_creds, _render_lexicon_licence):
+        with ui.card().classes("w-full").style(_sec_card):
+            _section()
 
     # ── Data pulls ──────────────────────────────────────────────────────────
     # The single, deliberate place to kick off an expensive network refresh, so

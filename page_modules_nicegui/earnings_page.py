@@ -2815,7 +2815,7 @@ def _render_persona_steps(ss, role, key):
                 refine_input = ui.input(
                     label="Refine with AI — instruction (your edits are kept)",
                     placeholder="e.g. tighten to 4 sentences · less promotional · work in the RTP win · firmer guidance",
-                ).classes("flex-grow").props("dense")
+                ).classes("flex-grow").props("dense outlined")
 
                 def refine(box=box, key=key, role=role, refine_input=refine_input, pace_label=pace_label):
                     instr = (refine_input.value or "").strip()
@@ -3831,7 +3831,7 @@ def _render_qa_bank_editor():
                     with ui.row().classes("w-full items-end gap-2").style("margin-top:4px;"):
                         _nq = ui.input(label="Add a question to the house bank",
                                        placeholder="e.g. How exposed are you to interchange-fee regulation?").classes(
-                            "flex-grow").props("dense")
+                            "flex-grow").props("dense outlined")
                         _sec_sel = ui.select({_csec: f"{_csec} only", "universal": "All sectors"},
                                              value=_csec, label="Applies to").props("dense outlined").classes(
                             "min-w-[150px]")
@@ -3946,7 +3946,7 @@ def _render_script_canvas(ss):
             all_instr = ui.input(
                 label="Instruction for every section",
                 placeholder="e.g. make the whole script less promotional · tighten throughout · warmer, plainer tone",
-            ).classes("flex-grow").props("dense")
+            ).classes("flex-grow").props("dense outlined")
 
             def refine_all(all_instr=all_instr):
                 instr = (all_instr.value or "").strip()
