@@ -2871,8 +2871,10 @@ def _render_guidance_decision(ss, context="script"):
                                    "action": _ge.characterize_range_change(_prior, [_low_in.value, _hi_in.value])["action_key"]})
                         ss["guidance_decision"] = gd
                         _save_json("script_workflow_state.json", ss)
-                        ui.notify("Range applied — the read below re-runs on this range.", type="positive")
-                        _refresh()
+                        ui.notify(f"Applied ${_low_in.value:.1f}–{_hi_in.value:.1f}M — recalculated below.", type="positive")
+                        # Re-render AND scroll back to the guidance engine (not the top of the page) so the
+                        # updated read is right in front of you — same path as the Markets deep-link.
+                        nav.go_to("Earnings", "Script Generation", earnings_tab="guidance")
                     ui.button("Apply →", icon="analytics", on_click=_apply).props("color=primary dense")
                 ui.label(_grow_line(_new)).style(
                     f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
