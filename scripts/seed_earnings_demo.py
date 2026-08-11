@@ -22,21 +22,24 @@ _SURPRISES = [
     {"quarter": "Q3 2025", "date": "2025-11-06", "rev_actual": 23.2, "rev_consensus": 22.7,
      "rev_whisper": 23.0, "eps_actual": 0.08, "eps_consensus": 0.06, "ah_move": 0.041,
      "implied_move": 0.060, "3day_move": 0.038, "sector_3day": 0.005, "stock_pre_close": 27.10,
-     "guidance_vs_embedded": "In-line", "pt_changes": 1, "pt_change_avg": 1.00,
+     "guidance_vs_embedded": "In-line", "guidance_action": "Maintained", "eps_prior_year": 0.055,
+     "pt_changes": 1, "pt_change_avg": 1.00,
      "notes": "Solid quarter; PayFac attach +21%. Prepaid float stable. Guide reiterated — market wanted "
               "a raise and didn't get one, so a modest AH pop only.",
      "pre_empt_score": 7, "call_score": 58},
     {"quarter": "Q4 2025", "date": "2026-02-19", "rev_actual": 24.6, "rev_consensus": 24.1,
      "rev_whisper": 24.4, "eps_actual": 0.10, "eps_consensus": 0.09, "ah_move": 0.028,
      "implied_move": 0.055, "3day_move": 0.031, "sector_3day": -0.004, "stock_pre_close": 29.40,
-     "guidance_vs_embedded": "Above", "pt_changes": 2, "pt_change_avg": 1.50,
+     "guidance_vs_embedded": "Above", "guidance_action": "Initiated", "eps_prior_year": 0.07,
+     "pt_changes": 2, "pt_change_avg": 1.50,
      "notes": "Clean beat and an above-consensus FY26 initial guide. Take-rate expansion the story; two "
               "PT raises. Prepaid-float durability the lone pushback in Q&A.",
      "pre_empt_score": 8, "call_score": 63},
     {"quarter": "Q1 2026", "date": "2026-05-13", "rev_actual": 25.3, "rev_consensus": 24.4,
      "rev_whisper": 24.9, "eps_actual": 0.12, "eps_consensus": 0.09, "ah_move": 0.086,
      "implied_move": 0.060, "3day_move": 0.072, "sector_3day": 0.010, "stock_pre_close": 30.20,
-     "guidance_vs_embedded": "Above", "pt_changes": 3, "pt_change_avg": 2.00,
+     "guidance_vs_embedded": "Above", "guidance_action": "Maintained", "eps_prior_year": 0.08,
+     "pt_changes": 3, "pt_change_avg": 2.00,
      "notes": "Record Q1 — PayFac attach +28% drove the beat and net take-rate stepped up again. Prepaid "
               "float held despite the rate backdrop. Reiterated FY guide with an explicit upside bias into "
               "H2; three PT raises the next morning.",

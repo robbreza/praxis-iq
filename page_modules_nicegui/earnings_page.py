@@ -837,15 +837,25 @@ def _render_illustrative_lookback(prior_q, rec):
     if surp:
         ui.label(f"{prior_q} · as reported").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);letter-spacing:.05em;margin-top:2px;")
-        _G, _B, _N = "#15803D", "#1E40AF", "#64748B"
+        _G, _B, _N, _R = "#15803D", "#1E40AF", "#64748B", "#B91C1C"
         beat = surp["rev_actual"] > surp["rev_consensus"]
+        # EPS card carries YoY growth (needs a prior-year EPS on the record; omit the clause if absent).
+        _epy = surp.get("eps_prior_year")
+        _eps_yoy = f" · {(surp['eps_actual'] - _epy) / _epy * 100:+.0f}% YoY" if _epy else ""
+        # Guidance card leads with the ACTION in professional IR terms (Raised / Maintained / Lowered /
+        # Initiated), with the vs-Street read demoted to the subtitle. Falls back to the old vs-embedded
+        # value if a record predates the guidance_action field.
+        _gact = surp.get("guidance_action") or surp.get("guidance_vs_embedded") or "—"
+        _gclr = {"Raised": _G, "Initiated": _G, "Maintained": _B, "Reiterated": _B, "Lowered": _R}.get(_gact, _B)
+        _gsub = (f"{surp['guidance_vs_embedded']} the embedded bar"
+                 if surp.get("guidance_vs_embedded") else "vs embedded bar")
         cards = [
             (f"{'+' if surp['ah_move'] >= 0 else ''}{surp['ah_move']*100:.1f}%", "AH Reaction",
-             f"{surp['date']} · vs {surp['implied_move']*100:.0f}% implied", _G if surp["ah_move"] >= 0 else "#B91C1C"),
+             f"{surp['date']} · vs {surp['implied_move']*100:.0f}% implied", _G if surp["ah_move"] >= 0 else _R),
             (f"${surp['rev_actual']:.1f}M", "Revenue", f"vs ${surp['rev_consensus']:.1f}M cons "
-             f"({'+' if beat else ''}{(surp['rev_actual']-surp['rev_consensus'])/surp['rev_consensus']*100:.1f}%)", _G if beat else "#B91C1C"),
-            (f"${surp['eps_actual']:.2f}", "Adj. EPS", f"vs ${surp['eps_consensus']:.2f} cons", _G),
-            (f"{surp['guidance_vs_embedded']}", "Guidance", "vs embedded bar", _B),
+             f"({'+' if beat else ''}{(surp['rev_actual']-surp['rev_consensus'])/surp['rev_consensus']*100:.1f}%)", _G if beat else _R),
+            (f"${surp['eps_actual']:.2f}", "Adj. EPS", f"vs ${surp['eps_consensus']:.2f} cons{_eps_yoy}", _G),
+            (_gact, "Guidance", _gsub, _gclr),
             (f"{surp['pt_changes']} PT raises", "Sell-side", f"avg +${surp['pt_change_avg']:.2f}", _N),
         ]
         with ui.row().classes("w-full gap-3"):
