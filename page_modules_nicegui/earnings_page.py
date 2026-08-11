@@ -2228,6 +2228,35 @@ def _fmt_metric(v, fmt):
     return f"${v:.1f}M"
 
 
+def _qa_anchor(m):
+    """One-line callback prep for a metric's DIRECTION question — what management should anchor to if an
+    analyst asks 'how is X trending?', so the answer stays consistent with what the guide/model implies.
+    Uses the guided per-quarter path where there is one, else the modeled KPI path."""
+    imp = m.get("implied", {})
+    path = imp.get("by_quarter") or m.get("path")
+    if not path or len(path) < 2:
+        return None
+    f = m["fmt"]
+    vals = [(q.get("implied") if q.get("implied") is not None else q.get("value")) for q in path]
+    if any(v is None for v in vals):
+        return None
+    span = vals[-1] - vals[0]
+    rising = span > abs(vals[0]) * 0.004
+    falling = span < -abs(vals[0]) * 0.004
+    if f == "bps":
+        dirn = "continued expansion" if rising else ("compression" if falling else "roughly stable")
+    elif f == "pct":
+        dirn = "stepping higher" if rising else ("slipping" if falling else "holding the level")
+    else:
+        dirn = "continued acceleration" if rising else ("moderation" if falling else "a steady step-up")
+    src = "your guidance implies" if m.get("range") else "the Street models"
+    seq = " → ".join(f"{q['q']} {_fmt_metric(vals[i], f)}" for i, q in enumerate(path))
+    warn = ("keep the answer consistent with the raise — an off-hand “it's flattening” undercuts the guide"
+            if rising or f == "bps" else
+            "flag the moderation proactively so it doesn't read later as a miss")
+    return (f"“How is {m['label']} trending?” — {src} {dirn} ({seq}). {warn}.")
+
+
 def _render_guidance_bridge(ss):
     """The CFA guidance read: every reported number measured QoQ / YoY / vs Street / vs its own guide,
     then the beat/miss flowed through the full-year range (low·mid·high each), and what the new guide
@@ -2368,6 +2397,21 @@ def _render_guidance_bridge(ss):
                     if cc.get("read"):
                         ui.label(cc["read"]).style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+
+    # Callback Q&A prep — analysts probe metric/KPI DIRECTION on callbacks ("how's take-rate trending?")
+    # and pause; management must anchor to what the guidance implies or they'll answer inconsistently.
+    _anchors = [a for a in (_qa_anchor(m) for m in b["metrics"]) if a]
+    if _anchors:
+        with ui.card().classes("w-full").style(
+                f"background:rgba(37,99,235,.06);border:1px solid {COLORS['accent']};margin-top:8px;"):
+            ui.label("Callback Q&A prep — what to say if asked how each number is trending").style(
+                f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+            ui.label("On analyst callbacks the direction question comes with a pause. Anchor every answer to "
+                     "what the guidance / model implies below — a casual “it's flattening” contradicts the raise "
+                     "and hands the analyst a downgrade angle.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
+            for _a in _anchors:
+                ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
 
 
 def _render_guidance_decision(ss, context="script"):
