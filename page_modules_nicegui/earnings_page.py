@@ -2912,79 +2912,100 @@ def _render_guidance_decision(ss, context="script"):
     ui.label("The ranges are set on the CFO screen (Stage 1); this reads what they mean for each period and "
              "feeds the guidance language in the script below.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+    # Per-metric FY guided analysis (every line the company gives) + the Q3 range from the FY guide.
+    def _fyg(rng, base):   # YoY growth of the guide range vs prior-year FY actual, at low/mid/high
+        return None if not base else [(rng[0] / base - 1) * 100, ((rng[0] + rng[1]) / 2 / base - 1) * 100,
+                                      (rng[1] / base - 1) * 100]
+    _guided = []
+    for _gk, _gn, _gf in (("rev", "Revenue", "money"), ("eps", "Adj. EPS", "eps"), ("ebitda", "Adj. EBITDA", "money")):
+        _gm = _gim.get(_gk, {})
+        _gp, _gw = _gm.get("prior_fy_range"), (_gm.get("new_fy_range") or _gm.get("prior_fy_range"))
+        if not (_gp and _gw and _gp[0] is not None and _gw[0] is not None):
+            continue
+        _gbase = _gm.get("prior_fy_actual") or (_pfr if _gk == "rev" else None)
+        _guided.append({"nm": _gn, "fmt": _gf, "pr": _gp, "nw": _gw, "ch": _ge.characterize_range_change(_gp, _gw),
+                        "g": _fyg(_gw, _gbase), "nfs": _gm.get("next_fy_street"), "mid": (_gw[0] + _gw[1]) / 2})
+    _q3rng = None
+    if _q3 and _ytd is not None and _q3.get("prior_yr"):
+        _fr3, _py3 = _q3.get("weight", 0) / _tw, _q3["prior_yr"]
+        _lo3, _mi3, _hi3 = (_new[0] - _ytd) * _fr3, (_new_mid - _ytd) * _fr3, (_new[1] - _ytd) * _fr3
+        _q3rng = {"q": _q3.get("q"), "rows": [("Low", _lo3, (_lo3 / _py3 - 1) * 100),
+                                              ("Mid", _mi3, (_mi3 / _py3 - 1) * 100),
+                                              ("High", _hi3, (_hi3 / _py3 - 1) * 100)]}
+    _hcell = (f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);text-transform:uppercase;"
+              "letter-spacing:.03em;font-weight:700;")
+
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:5px solid {COLORS['accent']};border-radius:10px;padding:14px 16px;"):
         with ui.row().classes("w-full gap-4 items-stretch flex-wrap"):
-            # ── NEXT QUARTER (Q3) — implied by the full-year guide; derived, recalculates with the range.
+            # ── NEXT QUARTER (Q3) — the revenue RANGE the FY guide implies (low/mid/high), YoY on each.
             with ui.column().classes("flex-[2]").style(
                     f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
-                    "padding:11px 14px;min-width:180px;gap:3px;"):
-                ui.label(f"Next Quarter — {_q3_lbl or 'Q3'} · implied").style(
+                    "padding:11px 14px;min-width:210px;gap:4px;"):
+                ui.label(f"Next Quarter — {(_q3rng or {}).get('q', 'Q3')} · from the FY guide").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                if _q3_impl is not None:
-                    ui.label(f"~${_q3_impl:.1f}M").style(
-                        f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
-                    if _q3_yoy is not None:
-                        _qc = COLORS["positive"] if _q3_yoy >= 0 else COLORS["danger"]
-                        ui.label(f"{_q3_yoy:+.0f}% YoY").style(f"color:{_qc};font-size:var(--fs-xs);font-weight:700;")
-                    ui.label("implied by your full-year guide (seasonal split) — not separately guided").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
+                if _q3rng:
+                    with ui.element("div").style("display:grid;grid-template-columns:auto auto auto;gap:2px 12px;align-items:baseline;"):
+                        for _lb, _vv, _yy in _q3rng["rows"]:
+                            ui.label(_lb).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                            ui.label(f"${_vv:.1f}M").style(
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
+                            _yc = COLORS["positive"] if _yy >= 0 else COLORS["danger"]
+                            ui.label(f"{_yy:+.0f}% YoY").style(
+                                f"color:{_yc};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                    ui.label("Revenue — the Q3 seasonal share of your full-year guide; a range, not a point.").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.4;margin-top:2px;")
                 else:
                     ui.label("No seasonal split on file.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            # ── FULL YEAR (FY26) — the GUIDED year: all three lines the company gives (Revenue, EPS,
-            # EBITDA), Was → Now with the action per line. Analysis only — the ranges are set on the CFO
-            # screen, exactly how the guidance is spoken on the call.
-            with ui.column().classes("flex-[3]").style(
+            # ── FULL YEAR (FY26) — TABLE: every guided line, Prior → New, action, YoY growth (low·mid·high).
+            with ui.column().classes("flex-[4]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
-                    "padding:11px 14px;min-width:300px;gap:5px;"):
+                    "padding:11px 14px;min-width:360px;gap:5px;"):
                 ui.label("Full Year — FY2026 · the guide").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                for _nm, _prg, _nwg, _fg in (("Revenue", _prior, _new, "money"),
-                                             ("Adj. EPS", _eps_pr, _eps_nw, "eps"),
-                                             ("Adj. EBITDA", _ebd_pr, _ebd_nw, "money")):
-                    if not (_prg and _nwg and _prg[0] is not None and _nwg[0] is not None):
-                        continue
-                    _cg = _ge.characterize_range_change(_prg, _nwg)
-                    _tg = _cg["tag"]
-                    _tcg = COLORS[_BR_TAG.get(_tg, "warning")] if _BR_TAG.get(_tg) else COLORS["accent"]
-                    with ui.row().classes("w-full items-baseline gap-2 flex-wrap"):
-                        ui.label(_nm).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:84px;flex:none;")
-                        ui.label(f"{_fmt_metric(_prg[0], _fg)}–{_fmt_metric(_prg[1], _fg)} → "
-                                 f"{_fmt_metric(_nwg[0], _fg)}–{_fmt_metric(_nwg[1], _fg)}").style(
-                            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
-                        ui.label(_cg["action"]).style(
-                            f"background:{_tcg}22;color:{_tcg};font-size:var(--fs-micro);font-weight:700;"
-                            "padding:1px 8px;border-radius:9px;white-space:nowrap;")
-                ui.label(f"Implied FY revenue growth: {_grow_line(_new).replace('growth: ', '')}").style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;margin-top:3px;")
-                if _trend_pp is not None:
-                    _tc = (COLORS["positive"] if _trend_pp > 0.05 else COLORS["danger"] if _trend_pp < -0.05
-                           else COLORS["text_muted"])
-                    _arw = "↑" if _trend_pp > 0.05 else "↓" if _trend_pp < -0.05 else "→"
-                    ui.label(f"{_arw} implied revenue growth {_trend_pp:+.1f}pp vs the prior guide").style(
-                        f"color:{_tc};font-size:var(--fs-xs);font-weight:700;")
-            # ── NEXT YEAR (FY27) — the Street's out-year. Companies guide one year out, so this is derived
-            # from the FY26 guide (roll-forward), never presented as company guidance.
-            with ui.column().classes("flex-[2]").style(
+                with ui.element("div").style(
+                        "display:grid;grid-template-columns:auto 1fr auto auto;gap:4px 12px;align-items:baseline;width:100%;"):
+                    for _h in ("Line", "Prior → New guide", "", "YoY growth  low·mid·high"):
+                        ui.label(_h).style(_hcell)
+                    for _e in _guided:
+                        _tc2 = COLORS[_BR_TAG.get(_e["ch"]["tag"], "warning")] if _BR_TAG.get(_e["ch"]["tag"]) else COLORS["accent"]
+                        ui.label(_e["nm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                        ui.label(f"{_fmt_metric(_e['pr'][0], _e['fmt'])}–{_fmt_metric(_e['pr'][1], _e['fmt'])} → "
+                                 f"{_fmt_metric(_e['nw'][0], _e['fmt'])}–{_fmt_metric(_e['nw'][1], _e['fmt'])}").style(
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                        ui.label(_e["ch"]["tag"]).style(
+                            f"background:{_tc2}22;color:{_tc2};font-size:var(--fs-2xs);font-weight:700;"
+                            "padding:1px 7px;border-radius:8px;white-space:nowrap;text-align:center;")
+                        ui.label((f"+{_e['g'][0]:.0f}% · +{_e['g'][1]:.0f}% · +{_e['g'][2]:.0f}%") if _e["g"] else "—").style(
+                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+            # ── NEXT YEAR (FY27) — TABLE: carry ALL three lines' Street out-year + growth off the FY26 mid.
+            with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
-                    "padding:11px 14px;min-width:230px;gap:3px;"):
+                    "padding:11px 14px;min-width:240px;gap:4px;"):
                 ui.label("Next Year — FY2027 · Street (not guided)").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                if _nfs:
-                    ui.label(f"${_nfs:.1f}M").style(
-                        f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
-                    ui.label(f"Street consensus · +{_goff:.0f}% off your ${_new_mid:.1f}M midpoint").style(
-                        f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
-                    if _rfl is not None:
-                        ui.label(f"your FY26 raise lifts the FY27 base ~${_rfl:+.1f}M (roll-forward)").style(
-                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:600;font-variant-numeric:tabular-nums;")
-                    ui.label("Companies guide one year out — FY27 is the Street's number, not yours. The read: "
-                             "does the trend say it's a low bar? (see ② below).").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
-                else:
-                    ui.label("No FY+1 Street estimate on file.").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                with ui.element("div").style(
+                        "display:grid;grid-template-columns:auto auto auto;gap:4px 12px;align-items:baseline;width:100%;"):
+                    for _h in ("Line", "Street FY27", "off FY26 mid"):
+                        ui.label(_h).style(_hcell)
+                    for _e in _guided:
+                        ui.label(_e["nm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
+                        if _e["nfs"]:
+                            ui.label(_fmt_metric(_e["nfs"], _e["fmt"])).style(
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                            _go2 = (_e["nfs"] - _e["mid"]) / _e["mid"] * 100 if _e["mid"] else None
+                            ui.label((f"+{_go2:.0f}%") if _go2 is not None else "—").style(
+                                f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                        else:
+                            ui.label("—").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                            ui.label("").style("color:transparent;")
+                if _rfl is not None:
+                    ui.label(f"Your FY26 raise lifts the FY27 base ~${_rfl:+.1f}M (roll-forward).").style(
+                        f"color:{COLORS['positive']};font-size:var(--fs-2xs);font-weight:600;line-height:1.4;")
+                ui.label("Street's number, not yours — the read is whether the trend makes it a low bar (② below).").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.4;")
         _tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
         with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
             ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
