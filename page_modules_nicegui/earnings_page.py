@@ -2302,6 +2302,13 @@ def _render_guidance_bridge(ss):
                              f"(+{imp['implied_growth_low']:.0f}% to +{imp['implied_growth_high']:.0f}% vs prior-year) — "
                              f"{imp.get('read', '')} vs the current run-rate").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                if imp.get("by_quarter"):
+                    _pq = "   ".join(
+                        f"{q['q']} ~{_fmt_metric(q['implied'], f)}"
+                        + (f" ({q['yoy_pct']:+.0f}% YoY)" if q.get("yoy_pct") is not None else "")
+                        for q in imp["by_quarter"])
+                    ui.label(f"Implied per-quarter path: {_pq}").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                 if m.get("vs_street_fy"):
                     _vf = m["vs_street_fy"]
                     ui.label(f"New guide midpoint vs Street FY ({_fmt_metric(_vf['street_fy'], f)}): "
@@ -2313,8 +2320,8 @@ def _render_guidance_bridge(ss):
 
     # Cross-metric synthesis: did the beat convert to profit, and can we trust the guide?
     syn = b.get("synthesis", {})
-    ft, cr = syn.get("flow_through"), syn.get("credibility")
-    if ft or cr:
+    ft, cr, cc = syn.get("flow_through"), syn.get("credibility"), syn.get("cash_conversion")
+    if ft or cr or cc:
         with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:4px;flex-wrap:wrap;"):
             if ft:
                 with ui.card().classes("flex-1").style(
@@ -2341,6 +2348,18 @@ def _render_guidance_bridge(ss):
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                     if cr.get("read"):
                         ui.label(cr["read"]).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            if cc:
+                with ui.card().classes("flex-1").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
+                    ui.label("Cash conversion").style(
+                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+                    _cl = f"FCF ${cc['fcf']:.1f}M · {cc['conversion_pct']:.0f}% of EBITDA"
+                    if cc.get("prior_conversion_pct") is not None:
+                        _cl += f" (was {cc['prior_conversion_pct']:.0f}%)"
+                    ui.label(_cl).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                    if cc.get("read"):
+                        ui.label(cc["read"]).style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
 
 

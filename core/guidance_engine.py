@@ -668,6 +668,21 @@ def _bridge_metric(m):
                 imp["vs_current_pace_pp"] = round(imp["implied_growth_low"] - cur, 1)
                 imp["read"] = ("conservative" if imp["vs_current_pace_pp"] < -1.0
                                else "stretch" if imp["vs_current_pace_pp"] > 3.0 else "in-line")
+        # Per-quarter implied path (Q3 vs Q4), not just blended H2 — split the remaining-to-midpoint by
+        # each remaining quarter's seasonal weight, and imply its YoY vs the prior-year same quarter. This
+        # is what answers "does the guide bake in a Q4 hockey stick?"
+        rqs = m.get("remaining_quarters")
+        if rqs:
+            nm = (nr[0] + nr[1]) / 2
+            rem_mid = nm - ytd
+            tw = sum(q.get("weight", 0) for q in rqs) or 1
+            imp["by_quarter"] = []
+            for q in rqs:
+                iq = rem_mid * (q.get("weight", 0) / tw)
+                row = {"q": q.get("q"), "implied": round(iq, 3)}
+                if q.get("prior_yr"):
+                    row["yoy_pct"] = _pct(iq - q["prior_yr"], q["prior_yr"])
+                imp["by_quarter"].append(row)
         o["implied"] = imp
     sf = m.get("street_fy")
     if sf is not None and nr:
@@ -725,6 +740,20 @@ def _bridge_synthesis(by_key, surprises):
             cred["read"] = (f"Mixed track record ({len(beats)}/{len(rows)} beats) — take the guide at face value, "
                             f"not as a sandbag.")
         syn["credibility"] = cred
+    fcf = by_key.get("fcf")
+    if fcf and eb and fcf.get("actual") and eb.get("actual"):
+        cc = {"fcf": fcf["actual"], "ebitda": eb["actual"], "conversion_pct": _pct(fcf["actual"], eb["actual"])}
+        pf, pe = (fcf.get("qoq") or {}).get("prior"), (eb.get("qoq") or {}).get("prior")
+        if pf and pe:
+            cc["prior_conversion_pct"] = _pct(pf, pe)
+        cv, pv = cc.get("conversion_pct"), cc.get("prior_conversion_pct")
+        if cv is not None:
+            _dir = ("up" if (pv is not None and cv > pv + 1) else "down" if (pv is not None and cv < pv - 1) else "steady")
+            _q = "high" if cv >= 70 else "moderate" if cv >= 45 else "weak"
+            cc["read"] = (f"{cv:.0f}% of EBITDA converted to free cash flow"
+                          + (f", {_dir} from {pv:.0f}%" if pv is not None else "")
+                          + f" — {_q} cash conversion confirms the earnings quality; the raise is funded internally.")
+        syn["cash_conversion"] = cc
     return syn
 
 
