@@ -770,12 +770,24 @@ def _bridge_metric(m):
             nm = (nr[0] + nr[1]) / 2
             rem_mid = nm - ytd
             tw = sum(q.get("weight", 0) for q in rqs) or 1
+            # Comp adjustment: a flagged prior-year one-time inflates the base of the affected quarters, so
+            # the REPORTED YoY compresses mechanically. Allocate the one-time across those quarters (pro-rata
+            # to prior-year size) and recompute ORGANIC YoY off the clean base — the only honest way to tell a
+            # base-effect step-down from a real demand slowdown.
+            _ca = m.get("comp_adjust") or {}
+            _caper, _caamt = set(_ca.get("periods") or []), (_ca.get("prior_yr_one_time") or 0)
+            _aff = [q for q in rqs if q.get("q") in _caper and q.get("prior_yr")]
+            _abase = sum(q.get("prior_yr", 0) for q in _aff) or 1
+            _alloc = {q.get("q"): _caamt * (q.get("prior_yr", 0) / _abase) for q in _aff} if _caamt else {}
             imp["by_quarter"] = []
             for q in rqs:
                 iq = rem_mid * (q.get("weight", 0) / tw)
                 row = {"q": q.get("q"), "implied": round(iq, 3)}
                 if q.get("prior_yr"):
                     row["yoy_pct"] = _pct(iq - q["prior_yr"], q["prior_yr"])
+                    _ob = q["prior_yr"] - _alloc.get(q.get("q"), 0)
+                    if q.get("q") in _alloc and _ob > 0:
+                        row["yoy_organic_pct"] = _pct(iq - _ob, _ob)   # off the ex-one-time base
                 imp["by_quarter"].append(row)
         o["implied"] = imp
     # NEXT YEAR (FY+1) — the quarter/raise doesn't just affect this year: it resets the BASE next year
@@ -842,9 +854,24 @@ def _bridge_metric(m):
     for row in ((o.get("implied") or {}).get("by_quarter") or o.get("path") or []):
         fp.append({"q": row.get("q"),
                    "value": row.get("implied") if row.get("implied") is not None else row.get("value"),
-                   "yoy_pct": row.get("yoy_pct"), "actual": False})
+                   "yoy_pct": row.get("yoy_pct"), "yoy_organic_pct": row.get("yoy_organic_pct"),
+                   "actual": False})
+    # Two-year STACKED CAGR per quarter — a model-free trend check that needs no comp assumption. A one-time
+    # that inflated the prior-year base also inflated the prior-year GROWTH, so a two-year compound rate
+    # washes the spike out: if the 1-yr YoY steps down but the 2-yr CAGR holds, the step-down is the base.
+    _tyb = m.get("two_yr_base") or {}
+    if _tyb:
+        for row in fp:
+            b = _tyb.get(row.get("q"))
+            if b and row.get("value"):
+                row["two_yr_cagr_pct"] = round(((row["value"] / b) ** 0.5 - 1) * 100, 1)
     if sum(1 for x in fp if x.get("value") is not None) >= 2:
         o["full_path"] = fp
+    # Surface the comp adjustment (label + quantum) so the trend read can name what it stripped out.
+    _ca = m.get("comp_adjust") or {}
+    if _ca.get("prior_yr_one_time"):
+        o["comp_adjust"] = {"label": _ca.get("label", "a prior-year one-time"),
+                            "amount": _ca.get("prior_yr_one_time"), "periods": _ca.get("periods") or []}
     rec = _bridge_recommendation(o)
     if rec:
         o["recommendation"] = {"tag": rec[0], "note": rec[1]}

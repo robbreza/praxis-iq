@@ -2469,67 +2469,142 @@ def _bridge_rangebar(m):
                 f"color:{COLORS['warning']};font-size:var(--fs-micro);margin-left:82px;")
 
 
-def _bridge_trend_read(full_path, comp_note=None):
-    """The trend IS the signal — read it on BOTH bases. YoY normalizes seasonality; QoQ shows sequential
-    momentum; and when they DISAGREE that is the insight (a YoY decel that's still growing sequentially is
-    a comp, not a slowdown). A break in the trend re-rates the stock in either direction. Returns up to two
-    (color, text) lines, most-important first."""
+def _classify_trend(vals, tol=0.5):
+    """Direction of a growth-rate sequence. tol (pp) filters rounding-level wiggle from a real turn."""
+    if len(vals) < 2:
+        return None
+    diffs = [vals[i + 1] - vals[i] for i in range(len(vals) - 1)]
+    delta = vals[-1] - vals[0]
+    if any(diffs[i] * diffs[i + 1] < 0 and abs(diffs[i]) > tol and abs(diffs[i + 1]) > tol
+           for i in range(len(diffs) - 1)):
+        return "inflecting"
+    if delta > 1.0 and all(d >= -tol for d in diffs):
+        return "accelerating"
+    if delta < -1.0 and all(d <= tol for d in diffs):
+        return "decelerating"
+    return "steady"
+
+
+def _bridge_trend_read(full_path, comp_note=None, comp_adjust=None):
+    """The trend IS the signal — but a YoY rate is current ÷ prior-year, so a step-down can be the numerator
+    (real demand slowing) OR the denominator (a prior-year comp inflating the base). We DO NOT call it a
+    deceleration until we've ruled it out with TWO independent legs: (1) ORGANIC YoY — strip the flagged
+    one-time from the prior-year base and recompute; (2) the two-year STACKED CAGR — model-free, needs no
+    comp assumption, because a spike that inflates the base also inflated the prior-year growth. Only a
+    step-down that survives these is a genuine slowdown. YoY already nets out seasonality; QoQ confirms
+    sequential momentum. Returns up to two (color, text) lines, most-important first."""
     rows = [x for x in full_path if x.get("value") is not None]
     if len(rows) < 2:
         return []
     out = []
-    # ── YoY (seasonally normalized) — the primary read ──
     ys = [(x.get("q"), x["yoy_pct"]) for x in rows if x.get("yoy_pct") is not None]
     yoy_kind = None
     if len(ys) >= 2:
-        seq = " → ".join(f"{y:+.0f}%" for _, y in ys)
-        diffs = [ys[i + 1][1] - ys[i][1] for i in range(len(ys) - 1)]
-        delta = ys[-1][1] - ys[0][1]
-        _tol = 0.5  # pp — a real direction change, not a rounding-level wiggle, to count as an inflection
-        _infl = any(diffs[i] * diffs[i + 1] < 0 and abs(diffs[i]) > _tol and abs(diffs[i + 1]) > _tol
-                    for i in range(len(diffs) - 1))
-        if _infl:
-            yoy_kind = "inflecting"
-        elif delta > 1.0 and all(d >= -_tol for d in diffs):
-            yoy_kind = "accelerating"
-        elif delta < -1.0 and all(d <= _tol for d in diffs):
+        rep_vals = [y for _, y in ys]
+        rep_kind = _classify_trend(rep_vals)
+        seq = " → ".join(f"{y:+.0f}%" for y in rep_vals)
+        # Leg 1 — ORGANIC (ex-comp) YoY: the recomputed rate where the engine stripped a one-time, else the
+        # reported rate for unaffected quarters.
+        _orgmap = {x.get("q"): x.get("yoy_organic_pct") for x in rows}
+        has_org = any(v is not None for v in _orgmap.values())
+        org_vals = [(_orgmap.get(q) if _orgmap.get(q) is not None else y) for q, y in ys]
+        org_kind = _classify_trend(org_vals) if has_org else None
+        org_seq = " → ".join(f"{v:+.0f}%" for v in org_vals) if has_org else None
+        # Leg 2 — two-year STACKED CAGR: model-free, no comp assumption.
+        _stk = [x.get("two_yr_cagr_pct") for x in rows if x.get("two_yr_cagr_pct") is not None]
+        has_stk = len(_stk) >= 2
+        stk_kind = _classify_trend(_stk) if has_stk else None
+        stk_seq = " → ".join(f"{v:+.0f}%" for v in _stk) if has_stk else None
+        stk_avg = (sum(_stk) / len(_stk)) if has_stk else None
+        _stk_word = {"steady": "flat", "accelerating": "rising", "inflecting": "holding",
+                     "decelerating": "falling"}.get(stk_kind, "")
+
+        # Build the independent proof legs (each holds if it does NOT itself decelerate).
+        _legs, _fail = [], False
+        if has_org:
+            if org_kind != "decelerating":
+                _amt = (comp_adjust or {}).get("amount"); _lbl = (comp_adjust or {}).get("label", "a prior-year one-time")
+                _amt_s = f"~${_amt:.0f}M " if _amt else ""
+                _legs.append(f"strip the {_amt_s}{_lbl} and organic YoY holds ({org_seq})")
+            else:
+                _fail = True
+        if has_stk:
+            if stk_kind != "decelerating":
+                _legs.append(f"the model-free 2-yr stacked CAGR is {_stk_word} at ~{stk_avg:.0f}% ({stk_seq})")
+            else:
+                _fail = True
+
+        if rep_kind == "decelerating" and _legs and not _fail:
+            # PROVEN base effect on every available leg — reported falls but the normalized trend holds.
+            _hdr = ("Two independent checks confirm" if len(_legs) >= 2 else "The comp check confirms")
+            out.append((COLORS["positive"],
+                        f"Reported YoY steps down ({seq}) — but that's the COMP, not demand. {_hdr} the underlying "
+                        f"trend holds: " + "; ".join(_legs) + ". YoY already nets out seasonality, so the residual "
+                        f"is the base — lead with these and the Street can't re-rate a comp as a slowdown."))
+            yoy_kind = "comp_driven"
+        elif rep_kind == "decelerating" and _fail and not _legs:
+            # Every available leg ALSO decelerates — the slowdown survives normalization. It's real.
+            _proof = (f"the 2-yr stacked CAGR ({stk_seq})" if has_stk and stk_kind == "decelerating"
+                      else f"ex-comp organic YoY ({org_seq})")
+            out.append((COLORS["warning"],
+                        f"YoY trend — decelerating: {seq}. And {_proof} steps down too — the slowdown survives the "
+                        f"comp adjustment, so it's real demand. Caps the multiple."))
             yoy_kind = "decelerating"
+        elif rep_kind == "decelerating" and _legs and _fail:
+            # Legs disagree — one normalizes the step-down away, another doesn't. Don't assert; flag the split.
+            out.append((COLORS["warning"],
+                        f"Reported YoY steps down ({seq}) and the normalization is mixed — one check clears it "
+                        f"({'; '.join(_legs)}) but another still declines. Resolve which base is right before "
+                        f"concluding; don't cap the multiple on an unresolved comp."))
+            yoy_kind = "comp_flagged"
+        elif rep_kind == "decelerating" and (comp_note or comp_adjust):
+            # A comp is flagged but not quantified — refuse the wrong conclusion; demand the normalization.
+            out.append((COLORS["warning"],
+                        f"Reported YoY steps down ({seq}), but a prior-year comp is flagged — normalize the base "
+                        f"before concluding. A comp-driven step-down does NOT cap the multiple; only one that "
+                        f"survives the comp adjustment does."))
+            yoy_kind = "comp_flagged"
         else:
-            yoy_kind = "steady"
-        _clr = {"accelerating": COLORS["positive"], "decelerating": COLORS["warning"],
-                "inflecting": COLORS["accent"], "steady": COLORS["text_muted"]}[yoy_kind]
-        _con = {"accelerating": "expands the multiple — lead with it",
-                "decelerating": "caps the multiple unless the reason is clear",
-                "inflecting": "is what analysts re-rate on — own the reason",
-                "steady": "holds the multiple — reinforce the consistency"}[yoy_kind]
-        out.append((_clr, f"YoY trend — {yoy_kind}: {seq}. {_con}."))
-    # ── QoQ (sequential momentum) — and the divergence, which is the money insight ──
+            yoy_kind = rep_kind
+            _clr = {"accelerating": COLORS["positive"], "decelerating": COLORS["warning"],
+                    "inflecting": COLORS["accent"], "steady": COLORS["text_muted"]}[rep_kind]
+            _con = {"accelerating": "expands the multiple — lead with it",
+                    "decelerating": "caps the multiple — survives the comp check, so it's real demand",
+                    "inflecting": "is what analysts re-rate on — own the reason",
+                    "steady": "holds the multiple — reinforce the consistency"}[rep_kind]
+            out.append((_clr, f"YoY trend — {rep_kind}: {seq}. {_con}."))
+            if has_stk and stk_kind and stk_kind != rep_kind:
+                out.append((COLORS["text_muted"], f"2-yr stacked CAGR: {stk_seq} — {_stk_word}."))
+            elif has_org and org_kind and org_kind != rep_kind:
+                out.append((COLORS["text_muted"], f"Ex-comp (organic) YoY: {org_seq} — {org_kind}."))
+    # ── QoQ (sequential momentum) — confirms the underlying read ──
     qs = []
     for i in range(1, len(rows)):
         p, c = rows[i - 1]["value"], rows[i]["value"]
         if p:
             qs.append((c - p) / p * 100)
-    if qs:
+    if qs and len(out) < 2:
         qseq = " → ".join(f"{v:+.1f}%" for v in qs)
         seq_pos = all(v > -0.5 for v in qs)
-        if yoy_kind == "decelerating" and seq_pos:
-            _t = f"But sequentially it's still growing (QoQ {qseq}) — "
-            _t += ("the YoY step-down is the COMP, not demand; separate them or the Street re-rates a comp as "
-                   "a broken trend." if comp_note else
-                   "the slowdown is seasonal/optical, not sequential — make the Street see it.")
-            out.append((COLORS["positive"], _t))
+        if yoy_kind in ("comp_driven", "comp_flagged") and seq_pos:
+            out.append((COLORS["positive"], f"Sequentially still growing (QoQ {qseq}) — the step-down is in the "
+                        "year-ago base, not this year's momentum."))
         elif yoy_kind == "accelerating" and seq_pos:
             out.append((COLORS["positive"], f"Confirmed sequentially (QoQ {qseq}) — both lenses point up; "
                         "the highest-conviction setup."))
+        elif yoy_kind == "decelerating" and seq_pos:
+            out.append((COLORS["text_muted"], f"Still growing sequentially (QoQ {qseq}) — a slowdown in the "
+                        "rate, not a contraction."))
         elif yoy_kind:
             out.append((COLORS["text_muted"], f"Sequentially (QoQ): {qseq}."))
     return out
 
 
-def _bridge_quarterbars(full_path, fmt, comp_note=None):
+def _bridge_quarterbars(full_path, fmt, comp_note=None, comp_adjust=None):
     """The quarter path as bars, with the YoY growth RATE on every quarter (H1 reported, H2 implied), and
     the TREND read underneath — analysts read the direction of the rate, not just the level: decelerating
-    caps the multiple, accelerating expands it, a break re-rates the stock."""
+    caps the multiple, accelerating expands it, a break re-rates the stock. Where a prior-year comp is
+    stripped, the organic (ex-comp) rate is shown under the reported one so the base effect is visible."""
     rows = [x for x in full_path if x.get("value") is not None]
     if len(rows) < 2:
         return
@@ -2551,11 +2626,14 @@ def _bridge_quarterbars(full_path, fmt, comp_note=None):
                 if x.get("yoy_pct") is not None:
                     _yc = COLORS["positive"] if x["yoy_pct"] >= 0 else COLORS["danger"]
                     ui.label(f"{x['yoy_pct']:+.0f}% YoY").style(f"color:{_yc};font-size:var(--fs-micro);font-weight:700;")
+                    if x.get("yoy_organic_pct") is not None:
+                        ui.label(f"{x['yoy_organic_pct']:+.0f}% ex-comp").style(
+                            f"color:{COLORS['positive']};font-size:var(--fs-micro);font-weight:700;")
                 else:
                     ui.label("reported" if x["actual"] else "est.").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
     # The trend read — YoY + QoQ, the signal that matters more than any single number.
-    for _i, (_clr, _txt) in enumerate(_bridge_trend_read(rows, comp_note)):
+    for _i, (_clr, _txt) in enumerate(_bridge_trend_read(rows, comp_note, comp_adjust)):
         with ui.row().classes("w-full items-start no-wrap").style(
                 f"gap:8px;background:{_clr}12;border-left:3px solid {_clr};border-radius:6px;padding:7px 11px;"
                 f"margin-top:{'8px' if _i == 0 else '4px'};"):
@@ -2647,7 +2725,7 @@ def _bridge_metric_full(m):
                 _bridge_measure_chips(m)
             _bridge_rangebar(m)
             if m.get("full_path"):
-                _bridge_quarterbars(m["full_path"], f, m.get("comp_note"))
+                _bridge_quarterbars(m["full_path"], f, m.get("comp_note"), m.get("comp_adjust"))
             if m.get("comp_note"):
                 with ui.row().classes("w-full items-start no-wrap").style(
                         f"gap:8px;background:{COLORS['surface_bg']};border-radius:8px;padding:8px 11px;margin-top:12px;"):
@@ -2685,7 +2763,7 @@ def _bridge_metric_compact(m):
             with ui.expansion("Show the full bridge").classes("w-full panel-tinted").props("dense").style(
                     "border-top:1px solid " + COLORS["border"] + ";"):
                 if m.get("full_path"):
-                    _bridge_quarterbars(m["full_path"], f, m.get("comp_note"))
+                    _bridge_quarterbars(m["full_path"], f, m.get("comp_note"), m.get("comp_adjust"))
                 for k, v in _lines:
                     with ui.row().classes("w-full items-start no-wrap").style("gap:10px;padding:4px 0;"):
                         ui.label(k).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;width:150px;flex:none;")
@@ -2966,27 +3044,41 @@ def _render_guidance_decision(ss, context="script"):
                         f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.4;margin-top:2px;")
                 else:
                     ui.label("No seasonal split on file.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            # ── FULL YEAR (FY26) — TABLE: every guided line, Prior → New, action, YoY growth (low·mid·high).
+            # ── FULL YEAR (FY26) — TABLE: every guided line, Prior → New (each on ONE line), action, YoY low·mid·high.
+            # One compact range per cell (Prior in its own column, New in its own) so a row never stacks four
+            # numbers into a wrapped pile — Prior range → New range → three growth numbers, left to right.
+            def _rngc(rng, fmt):
+                lo, hi = rng
+                if fmt == "eps":
+                    return f"${lo:.2f}–{hi:.2f}"
+                _n = lambda v: (f"{v:.1f}".rstrip("0").rstrip("."))   # 104.0→"104", 21.5→"21.5"
+                return f"${_n(lo)}–{_n(hi)}M"
             with ui.column().classes("flex-[4]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
-                    "padding:11px 14px;min-width:360px;gap:5px;"):
+                    "padding:11px 14px;min-width:420px;gap:5px;"):
                 ui.label("Full Year — FY2026 · the guide").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
                 with ui.element("div").style(
-                        "display:grid;grid-template-columns:auto 1fr auto auto;gap:4px 12px;align-items:baseline;width:100%;"):
-                    for _h in ("Line", "Prior → New guide", "", "YoY growth  low·mid·high"):
+                        "display:grid;grid-template-columns:auto auto auto auto auto;gap:6px 14px;"
+                        "align-items:baseline;width:100%;overflow-x:auto;"):
+                    for _h in ("Line", "Prior", "New guide", "Action", "YoY growth  low·mid·high"):
                         ui.label(_h).style(_hcell)
                     for _e in _guided:
                         _tc2 = COLORS[_BR_TAG.get(_e["ch"]["tag"], "warning")] if _BR_TAG.get(_e["ch"]["tag"]) else COLORS["accent"]
-                        ui.label(_e["nm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;")
-                        ui.label(f"{_fmt_metric(_e['pr'][0], _e['fmt'])}–{_fmt_metric(_e['pr'][1], _e['fmt'])} → "
-                                 f"{_fmt_metric(_e['nw'][0], _e['fmt'])}–{_fmt_metric(_e['nw'][1], _e['fmt'])}").style(
-                            f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                        ui.label(_e["nm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;white-space:nowrap;")
+                        ui.label(_rngc(_e["pr"], _e["fmt"])).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;"
+                            "white-space:nowrap;font-variant-numeric:tabular-nums;")
+                        with ui.row().classes("items-baseline no-wrap").style("gap:5px;"):
+                            ui.label("→").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);font-weight:800;")
+                            ui.label(_rngc(_e["nw"], _e["fmt"])).style(
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:800;"
+                                "white-space:nowrap;font-variant-numeric:tabular-nums;")
                         ui.label(_e["ch"]["tag"]).style(
                             f"background:{_tc2}22;color:{_tc2};font-size:var(--fs-2xs);font-weight:700;"
                             "padding:1px 7px;border-radius:8px;white-space:nowrap;text-align:center;")
                         ui.label((f"+{_e['g'][0]:.0f}% · +{_e['g'][1]:.0f}% · +{_e['g'][2]:.0f}%") if _e["g"] else "—").style(
-                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;")
             # ── NEXT YEAR (FY27) — TABLE: carry ALL three lines' Street out-year + growth off the FY26 mid.
             with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"

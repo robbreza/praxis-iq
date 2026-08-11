@@ -643,6 +643,16 @@ _GUIDANCE_INPUTS = {
                 "comp_note": ("Second-half YoY comps are tough — prior-year H2 (Q3–Q4 2025) carried ~$3M "
                               "from a government payments program now unwinding, so the implied H2 "
                               "deceleration is a comp effect, not softening demand. Frame it proactively."),
+                # Structured so the engine can PROVE the comp, not just assert it: strip the one-time from the
+                # prior-year base of the affected quarters and recompute organic YoY. This is what stops the
+                # trend read from calling a base-effect step-down a demand deceleration.
+                "comp_adjust": {"periods": ["Q3", "Q4"], "prior_yr_one_time": 3.0,
+                                "label": "government payments program (now unwinding)"},
+                # FY2024 quarterly revenue — the two-years-ago base for the two-year STACKED CAGR, a SECOND,
+                # model-free proof: it needs no assumption about the program. 2025 H2 was elevated by the
+                # program, so the 1-yr YoY compresses in 2026 H2, but the 2-yr CAGR washes the spike out and
+                # holds ~19% flat — independent confirmation the underlying trend is intact.
+                "two_yr_base": {"Q1": 17.9, "Q2": 18.3, "Q3": 18.4, "Q4": 19.5},
                 "remaining_quarters": [{"q": "Q3", "weight": 0.255, "prior_yr": 23.2},
                                        {"q": "Q4", "weight": 0.270, "prior_yr": 24.6}]},
         "eps": {"label": "Adj. EPS", "unit": "$", "fmt": "eps", "actual": 0.13, "prior_q": 0.12,
