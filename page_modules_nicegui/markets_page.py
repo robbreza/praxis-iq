@@ -115,7 +115,10 @@ def render_markets_page():
     # st.session_state["highlight_analyst"] pattern (set, shown once, cleared).
     highlighted_analyst = nav.pop_highlight("highlight_analyst", None)
 
-    with ui.tabs().classes("w-full") as tabs:
+    # Redundant with the sidebar's Markets sub-items (IR Risk Dashboard · Consensus / Guidance · PT
+    # Drift Tracker — an exact match), each of which deep-links here via consume_target_tab() below.
+    # Hide the strip on desktop (.page-tabstrip rule) like Earnings; kept below 1024px (no sidebar).
+    with ui.tabs().classes("w-full page-tabstrip") as tabs:
         t1 = ui.tab("IR Risk Dashboard")
         t2 = ui.tab("Consensus / Guidance")
         t3 = ui.tab("PT Drift Tracker")
