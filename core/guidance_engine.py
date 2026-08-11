@@ -689,6 +689,17 @@ def _bridge_metric(m):
         nm = (nr[0] + nr[1]) / 2
         o["vs_street_fy"] = {"street_fy": sf, "new_mid": round(nm, 3), "delta": round(nm - sf, 3),
                              "revision": "upward" if nm > sf + 1e-9 else "downward" if nm < sf - 1e-9 else "in-line"}
+    # Modeled per-quarter path — for KPIs (TPV/NRR/take-rate), which aren't guided with a range but ARE
+    # modeled forward by the Street. Given values, with YoY where the metric is additive (a level like
+    # NRR/take-rate carries no prior_yr, so it shows the level only).
+    pqs = m.get("path_quarters")
+    if pqs:
+        o["path"] = []
+        for q in pqs:
+            row = {"q": q.get("q"), "value": q.get("value")}
+            if q.get("prior_yr") and q.get("value") is not None:
+                row["yoy_pct"] = _pct(q["value"] - q["prior_yr"], q["prior_yr"])
+            o["path"].append(row)
     rec = _bridge_recommendation(o)
     if rec:
         o["recommendation"] = {"tag": rec[0], "note": rec[1]}

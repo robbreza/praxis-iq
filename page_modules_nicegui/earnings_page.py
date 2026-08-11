@@ -2317,6 +2317,13 @@ def _render_guidance_bridge(ss):
                 if m.get("recommendation", {}).get("note"):
                     ui.label(m["recommendation"]["note"]).style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")
+            if m.get("path"):   # KPIs — modeled forward trajectory (no company guidance range)
+                _pp = "   ".join(
+                    f"{q['q']} ~{_fmt_metric(q['value'], f)}"
+                    + (f" ({q['yoy_pct']:+.0f}% YoY)" if q.get("yoy_pct") is not None else "")
+                    for q in m["path"])
+                ui.label(f"Modeled per-quarter path: {_pp}").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
 
     # Cross-metric synthesis: did the beat convert to profit, and can we trust the guide?
     syn = b.get("synthesis", {})

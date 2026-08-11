@@ -601,11 +601,15 @@ _GUIDANCE_INPUTS = {
         "fcf": {"label": "Free Cash Flow", "unit": "$M", "fmt": "money", "actual": 4.1, "prior_q": 3.6,
                 "prior_yr_q": 2.4},
         "tpv": {"label": "Integrated Volume (TPV)", "unit": "$B", "fmt": "volume", "actual": 3.42,
-                "prior_q": 3.29, "prior_yr_q": 2.69},
+                "prior_q": 3.29, "prior_yr_q": 2.69,
+                "path_quarters": [{"q": "Q3", "value": 3.55, "prior_yr": 2.77},
+                                  {"q": "Q4", "value": 3.78, "prior_yr": 2.93}]},
         "nrr": {"label": "Net Revenue Retention", "unit": "%", "fmt": "pct", "actual": 112.0,
-                "prior_q": 112.0, "prior_yr_q": 111.0},
+                "prior_q": 112.0, "prior_yr_q": 111.0,
+                "path_quarters": [{"q": "Q3", "value": 112.0}, {"q": "Q4", "value": 113.0}]},
         "take_rate": {"label": "Net Take-Rate", "unit": "bps", "fmt": "bps", "actual": 47.0,
-                      "prior_q": 46.0, "prior_yr_q": 44.0},
+                      "prior_q": 46.0, "prior_yr_q": 44.0,
+                      "path_quarters": [{"q": "Q3", "value": 48.0}, {"q": "Q4", "value": 49.0}]},
     },
 }
 
