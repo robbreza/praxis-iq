@@ -3636,7 +3636,7 @@ def _render_qa_prep_tab(ss):
                             ui.label("Prepared answer: " + it["angle"]).style(
                                 f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-style:italic;")
                         continue
-                    _q = ui.input("Question", value=it.get("question", "")).props("dense").classes(
+                    _q = ui.input("Question", value=it.get("question", "")).props("dense outlined").classes(
                         "w-full").style("font-size:var(--fs-sm);")
                     _q.on_value_change(lambda e, it=it: (it.__setitem__("question", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
@@ -3644,7 +3644,7 @@ def _render_qa_prep_tab(ss):
                         ui.label("What invites it: " + it["why"]).style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     _a = ui.textarea("Prepared answer (Reg FD-safe — public info only)",
-                                     value=it.get("angle", "")).props("dense autogrow").classes(
+                                     value=it.get("angle", "")).props("dense autogrow outlined").classes(
                         "w-full").style("font-size:var(--fs-sm);")
                     _a.on_value_change(lambda e, it=it: (it.__setitem__("angle", e.value),
                                                          _save_json("script_workflow_state.json", ss)))
@@ -3704,8 +3704,8 @@ def _render_qa_prep_tab(ss):
                         "padding:8px 10px;margin-top:4px;"):
                     ui.label("Add your own Q&A").classes("font-bold").style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                    _nq = ui.input("Question").props("dense").classes("w-full").style("font-size:var(--fs-sm);")
-                    _na = ui.textarea("Prepared answer (public info only)").props("dense autogrow").classes(
+                    _nq = ui.input("Question").props("dense outlined").classes("w-full").style("font-size:var(--fs-sm);")
+                    _na = ui.textarea("Prepared answer (public info only)").props("dense autogrow outlined").classes(
                         "w-full").style("font-size:var(--fs-sm);")
 
                     def _add_qa(_nq=_nq, _na=_na):
@@ -5442,28 +5442,40 @@ def _render_surprise_tracker_tab():
                 ui.label("No quarters logged yet.").style(f"color:{COLORS['text_muted']};")
 
         with ui.tab_panel(e2):
+            def _scol():
+                return ui.column().classes("flex-1 gap-2").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                    "border-radius:10px;padding:14px 16px;")
+
+            def _sh(s):
+                return ui.label(s).classes("font-bold").style(
+                    f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
+
+            with ui.row().classes("w-full gap-4 items-stretch"):
+                with _scol():
+                    _sh("QUARTER & SETUP")
+                    s_q = ui.input("Quarter", placeholder="Q2 2026").props("outlined dense").classes("w-full")
+                    s_dt = ui.input("Date (YYYY-MM-DD)", value=CE().get("earnings_date", "")).props("outlined dense").classes("w-full")
+                    s_pc = ui.number("Pre-earnings close ($)", value=0.0, step=0.01).props("outlined dense").classes("w-full")
+                    s_imp = ui.number("Implied move %", value=0.0, step=0.5).props("outlined dense").classes("w-full")
+                with _scol():
+                    _sh("RESULTS vs STREET")
+                    s_ra = ui.number("Actual revenue ($M)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
+                    s_rc = ui.number("Consensus ($M)", value=25.1, step=0.1).props("outlined dense").classes("w-full")
+                    s_rw = ui.number("Whisper ($M)", value=24.5, step=0.1).props("outlined dense").classes("w-full")
+                    s_ea = ui.number("Actual EPS ($)", value=0.0, step=0.01).props("outlined dense").classes("w-full")
+                    s_ec = ui.number("EPS consensus ($)", value=0.01, step=0.01).props("outlined dense").classes("w-full")
+                with _scol():
+                    _sh("STOCK REACTION")
+                    s_ah = ui.number("AH move (%)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
+                    s_3d = ui.number("3-day move (%)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
+                    s_ptn = ui.number("PT changes", value=0).props("outlined dense").classes("w-full")
+                    s_pta = ui.number("Avg PT change ($)", value=0.0, step=0.25).props("outlined dense").classes("w-full")
             with ui.row().classes("w-full gap-4"):
-                with ui.column().classes("flex-1"):
-                    s_q = ui.input("Quarter", placeholder="Q2 2026").classes("w-full")
-                    s_dt = ui.input("Date (YYYY-MM-DD)", value=CE().get("earnings_date", "")).classes("w-full")
-                    s_pc = ui.number("Pre-earnings close ($)", value=0.0, step=0.01)
-                    s_imp = ui.number("Implied move %", value=0.0, step=0.5)
-                with ui.column().classes("flex-1"):
-                    s_ra = ui.number("Actual revenue ($M)", value=0.0, step=0.1)
-                    s_rc = ui.number("Consensus ($M)", value=25.1, step=0.1)
-                    s_rw = ui.number("Whisper ($M)", value=24.5, step=0.1)
-                    s_ea = ui.number("Actual EPS ($)", value=0.0, step=0.01)
-                    s_ec = ui.number("EPS consensus ($)", value=0.01, step=0.01)
-                with ui.column().classes("flex-1"):
-                    s_ah = ui.number("AH move (%)", value=0.0, step=0.1)
-                    s_3d = ui.number("3-day move (%)", value=0.0, step=0.1)
-                    s_ptn = ui.number("PT changes", value=0)
-                    s_pta = ui.number("Avg PT change ($)", value=0.0, step=0.25)
-            with ui.row().classes("w-full gap-4"):
-                s_gve = ui.select(["Beat", "In-line", "Below"], value="In-line").classes("flex-1").props("label='Guidance vs embedded'")
-                s_pre = ui.number("Pre-empt score (0-12)", value=0, min=0, max=12).classes("flex-1")
-                s_cs = ui.number("Call score (0-100)", value=0, min=0, max=100).classes("flex-1")
-            s_notes = ui.textarea("Notes").classes("w-full")
+                s_gve = ui.select(["Beat", "In-line", "Below"], value="In-line").classes("flex-1").props("outlined dense label='Guidance vs embedded'")
+                s_pre = ui.number("Pre-empt score (0-12)", value=0, min=0, max=12).props("outlined dense").classes("flex-1")
+                s_cs = ui.number("Call score (0-100)", value=0, min=0, max=100).props("outlined dense").classes("flex-1")
+            s_notes = ui.textarea("Notes").props("outlined autogrow").classes("w-full")
 
             def log_quarter():
                 if not s_q.value:
@@ -5550,11 +5562,11 @@ def _render_surprise_tracker_tab():
 
             precall = _load_json("q2_precall.json", {})
             with ui.row().classes("w-full gap-4"):
-                pc_imp = ui.number("Options implied move %", value=precall.get("implied", 0.0), step=0.5)
-                pc_wh = ui.number("Whisper ($M)", value=precall.get("whisper", 24.5), step=0.1)
-                pc_30d = ui.number(f"{CT('ticker')} 30d vs FINX (%)", value=precall.get("30d_sector", 0.0), step=0.5)
-                pc_si = ui.number("Short interest % float", value=precall.get("short", 0.02), step=0.01)
-            pc_notes = ui.textarea("Positioning notes", value=precall.get("notes", "")).classes("w-full")
+                pc_imp = ui.number("Options implied move %", value=precall.get("implied", 0.0), step=0.5).props("outlined dense").classes("flex-1")
+                pc_wh = ui.number("Whisper ($M)", value=precall.get("whisper", 24.5), step=0.1).props("outlined dense").classes("flex-1")
+                pc_30d = ui.number(f"{CT('ticker')} 30d vs FINX (%)", value=precall.get("30d_sector", 0.0), step=0.5).props("outlined dense").classes("flex-1")
+                pc_si = ui.number("Short interest % float", value=precall.get("short", 0.02), step=0.01).props("outlined dense").classes("flex-1")
+            pc_notes = ui.textarea("Positioning notes", value=precall.get("notes", "")).props("outlined autogrow").classes("w-full")
 
             def save_precall():
                 data = {"implied": pc_imp.value, "whisper": pc_wh.value, "30d_sector": pc_30d.value,
@@ -5602,8 +5614,8 @@ def _render_transcripts_tab():
     ui.markdown("---")
     with ui.expansion("Ingest a transcript", value=True).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
-            t_quarter = ui.input("Quarter", placeholder="Q1 2026", value=CE().get("current_quarter", "")).classes("flex-1")
-            t_date = ui.input("Call date (YYYY-MM-DD)").classes("flex-1")
+            t_quarter = ui.input("Quarter", placeholder="Q1 2026", value=CE().get("current_quarter", "")).props("outlined dense").classes("flex-1")
+            t_date = ui.input("Call date (YYYY-MM-DD)").props("outlined dense").classes("flex-1")
         ui.label("Upload the PDF exported from ChorusCall:").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
         pdf_status = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         pasted_text_holder = {"text": None, "filename": None}
@@ -5625,7 +5637,7 @@ def _render_transcripts_tab():
         ui.upload(on_upload=handle_pdf_upload, auto_upload=True).props("accept=.pdf").classes("w-full")
 
         ui.label("...or paste the transcript text directly:").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
-        t_paste = ui.textarea(placeholder="Paste the full call transcript text here").classes("w-full").props("rows=6")
+        t_paste = ui.textarea(placeholder="Paste the full call transcript text here").classes("w-full").props("rows=6 outlined")
 
         def ingest():
             if not t_quarter.value:
@@ -5649,7 +5661,7 @@ def _render_transcripts_tab():
     ui.markdown("---")
     ui.label("Search across all calls").classes("font-bold")
     with ui.row().classes("w-full gap-2"):
-        search_input = ui.input(placeholder="e.g. margin, PayFac, guidance").classes("flex-1")
+        search_input = ui.input(placeholder="e.g. margin, PayFac, guidance").props("outlined dense").classes("flex-1")
         search_results = ui.column().classes("w-full")
 
         def do_search():
