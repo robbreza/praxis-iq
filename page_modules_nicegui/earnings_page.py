@@ -3205,23 +3205,25 @@ def _render_guidance_decision(ss, context="script"):
                 ui.label("Street's number, not yours — the read is whether the trend makes it a low bar (② below).").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.4;")
         _tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
-        with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
-            ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            ui.label(_ch["action"]).style(f"color:{_tagclr};font-weight:800;font-size:var(--fs-sm);")
-            ui.label(f"· midpoint {_ch['d_mid']:+.1f}M · range {_ch['width_change']}").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
-        ui.label(_ch["signal"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
+        # ONE green paragraph: what you did + the single insight that adds value (consensus re-anchors above
+        # your high end → the guide is a floor). Condensed from the old grey "You did" line + "signal" line +
+        # long upside callout, which restated "you raised" three ways.
         if _iu:
+            _one = (f"<b>{_ch['action']}</b> — midpoint {_ch['d_mid']:+.1f}M, range {_ch['width_change']}. You've cleared "
+                    f"Street {_iu['beat_rate']} quarters (avg +{_iu['avg_beat_pct']:.1f}%), so consensus re-anchors "
+                    f"near ~${_iu['street_implied']:.1f}M — about ${_iu['above_high']:.1f}M above your "
+                    f"${_iu['new_high']:.1f}M high end. The guide is a floor; that's where the whisper sits.")
             with ui.row().classes("w-full items-start no-wrap").style(
                     f"gap:8px;background:{COLORS['positive']}12;border-left:3px solid {COLORS['positive']};"
-                    "border-radius:6px;padding:8px 11px;margin-top:9px;"):
+                    "border-radius:6px;padding:9px 12px;margin-top:10px;"):
                 ui.label("↗").style(f"color:{COLORS['positive']};flex:none;font-weight:800;")
-                ui.label(f"Implied upside not in the print — you've beaten Street {_iu['beat_rate']} quarters "
-                         f"(avg +{_iu['avg_beat_pct']:.1f}%), so the Street will likely carry ~${_iu['street_implied']:.1f}M: "
-                         f"about ${_iu['above_high']:.1f}M above your ${_iu['new_high']:.1f}M high end "
-                         f"(${_iu['above_mid']:.1f}M above the ${_iu['new_mid']:.1f}M midpoint). Your guide is a floor — "
-                         f"that's where the whisper sits.").style(
-                    f"color:{COLORS['positive']};font-size:var(--fs-sm);line-height:1.5;font-weight:500;")
+                ui.html(_one).style(f"color:{COLORS['positive']};font-size:var(--fs-sm);line-height:1.5;font-weight:500;")
+        else:
+            with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
+                ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                ui.label(_ch["action"]).style(f"color:{_tagclr};font-weight:800;font-size:var(--fs-sm);")
+                ui.label(f"· midpoint {_ch['d_mid']:+.1f}M · range {_ch['width_change']}").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
 
     # ── ② READ THE IMPACT — the bridge, driven by the range set above ──
     ui.label("② Read the impact").classes("font-bold").style("font-size:var(--fs-md);margin-top:12px;")
