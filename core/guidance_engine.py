@@ -208,6 +208,67 @@ def reporting_fy_label():
     return f"FY {year}E" if year else None
 
 
+def characterize_range_change(prior, new):
+    """The numbers ARE the decision — derive the ACTION (and the SIGNAL it sends the Street) from the
+    geometry of the range change, instead of asking the CFO to pick a verb. `prior`/`new` are [low, high].
+    Reads Δlow / Δhigh / Δmidpoint / Δwidth and returns the verb, a Street-signal read, and an action_key
+    that maps to the language templates (raise_low / raise_mid / narrow / reiterate)."""
+    pl, ph = float(prior[0]), float(prior[1])
+    nl, nh = float(new[0]), float(new[1])
+    pm, nm = (pl + ph) / 2, (nl + nh) / 2
+    pw, nw = ph - pl, nh - nl
+    d_low, d_high, d_mid, d_width = round(nl - pl, 2), round(nh - ph, 2), round(nm - pm, 2), round(nw - pw, 2)
+    eps = 0.05
+    if d_mid < -eps:
+        action, tag, key = "Cut", "CUT", "reiterate"
+        signal = "a cut — the Street will ask why immediately; never do it at Q2 without a clear bridge."
+    elif abs(d_mid) <= eps and d_width < -eps:
+        action, tag, key = "Narrowed (no raise)", "REITERATED", "narrow"
+        signal = "narrowed without raising — signals H2 VISIBILITY but not CONFIDENCE."
+    elif abs(d_mid) <= eps:
+        action, tag, key = "Reiterated", "REITERATED", "reiterate"
+        signal = "held the range — read as conservative; back it with specific H2 visibility, not generic optimism."
+    elif d_low > eps and abs(d_high) <= eps:
+        action, tag, key = "Raised the low end", "RAISED LOW END", "raise_low"
+        signal = "raised the floor, held the ceiling — downside removed; a measured, credible raise."
+    elif d_high > eps and abs(d_low) <= eps:
+        action, tag, key = "Raised the high end", "RAISED HIGH END", "raise_mid"
+        signal = "raised the ceiling only — bolder, but the floor didn't move; the Street watches the low end."
+    elif abs(d_low - d_high) <= eps:
+        action, tag, key = "Raised the full range", "RAISED", "raise_mid"
+        signal = "parallel shift up — the whole range moved; the cleanest, strongest raise."
+    else:
+        action, tag, key = "Raised the midpoint", "RAISED", "raise_mid"
+        signal = "raised the midpoint — the most powerful signal on the call."
+    width = "narrowed" if d_width < -eps else "widened" if d_width > eps else "held"
+    return {"action": action, "tag": tag, "action_key": key, "signal": signal,
+            "d_low": d_low, "d_high": d_high, "d_mid": d_mid, "d_width": d_width,
+            "prior_mid": round(pm, 2), "new_mid": round(nm, 2), "width_change": width}
+
+
+def implied_upside(new_range, surprises):
+    """The sandbag gap — what the Street will likely CARRY above the printed guide, from the beat track
+    record INCLUDING this quarter. Only when the record is a CONSISTENT beat (a mixed record implies no
+    upside). Measured off the high end (the clean 'not in the print' number), midpoint as support. The
+    beat is vs Street consensus, so this is 'if consensus revises to the raised midpoint, the history
+    implies actuals ~X' — the whisper, quantified."""
+    rows = [s for s in (surprises or []) if s.get("rev_actual") is not None and s.get("rev_consensus")]
+    if len(rows) < 2:
+        return None
+    beats = [s for s in rows if s["rev_actual"] > s["rev_consensus"]]
+    if len(beats) < len(rows):
+        return None                                   # not a consistent beater — no upside to imply
+    avg = sum((s["rev_actual"] - s["rev_consensus"]) / s["rev_consensus"] for s in rows) / len(rows)
+    if avg <= 0:
+        return None
+    nl, nh = float(new_range[0]), float(new_range[1])
+    nm = (nl + nh) / 2
+    implied = nm * (1 + avg)
+    return {"avg_beat_pct": round(avg * 100, 1), "beat_rate": f"{len(beats)}/{len(rows)}",
+            "street_implied": round(implied, 1), "above_high": round(implied - nh, 1),
+            "above_mid": round(implied - nm, 1), "new_mid": round(nm, 1), "new_high": round(nh, 1)}
+
+
 def commit_fy_guidance(new_low, new_hi, client_id=None):
     """Write a decided FY revenue range's midpoint into the canonical
     period_guidance store (preserving the existing FY EPS/EBITDA), so a

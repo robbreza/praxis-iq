@@ -2810,274 +2810,181 @@ def _render_guidance_decision(ss, context="script"):
     exists on the script page but not on Markets."""
     gd = ss.setdefault("guidance_decision", {})
     math_ = _guidance_math(ss)
+    from core import guidance_engine as _ge
 
-    # Deep-link anchor — the Markets "Open the Guidance Decision Engine"
-    # buttons scroll here (see render_earnings_page's scroll_to_guidance).
+    # Deep-link anchor — Markets "Open the Guidance Decision Engine" scrolls here.
     ui.html('<div id="guidance-engine-anchor" style="scroll-margin-top:80px"></div>')
 
-    with ui.card().classes("w-full").style("background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);"):
-        ui.label("Workflow note").classes("font-bold").style("color:#92400E;font-size:var(--fs-base);")
-        _note_tail = ("finalizing the CEO narrative in Script Generation" if context == "markets"
-                      else "drafting the CEO narrative below")
-        ui.label(f"Complete this Guidance Decision before {_note_tail} — the tone, H2 "
-                  "confidence language, and closing should all flow from whichever action you pick here.").style(
-            "color:#B45309;font-size:var(--fs-sm);")
+    # WAS (prior guide) and IS (the decided range, else the recommended action's range as a starting point).
+    _prior = ((((ss.get("guidance_inputs") or {}).get("metrics") or {}).get("rev") or {}).get("prior_fy_range")
+              or [math_["fy_low"], math_["fy_hi"]])
+    if gd.get("new_low") is not None and gd.get("new_hi") is not None:
+        _new = [float(gd["new_low"]), float(gd["new_hi"])]
+    else:
+        _dl, _dh, _ = _ge.apply_action(
+            {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate"), math_)
+        _new = [round(_dl, 1), round(_dh, 1)]
+    _ch = _ge.characterize_range_change(_prior, _new)          # the numbers → the action (calculated, not picked)
+    _iu = _ge.implied_upside(_new, _load_json("earnings_surprise_log.json", None))   # the sandbag gap
 
-    # Framed as the same Step 1 (review) / Step 2 (decide) / Step 3 (generate)
-    # flow the persona Script Canvases use (_render_persona_steps), so the
-    # guidance section matches the rest of the script-generation cycle instead of
-    # being a differently-shaped page.
-    ui.label("Guidance & Outlook Decision Engine").classes("font-bold").style("margin-top:8px;")
-    ui.label("CFO and CEO decide · Platform drafts language for each scenario · Every word signals to the Street").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-
-    ui.label("Guidance Step 1 — Review: What the Street Expects & Where Guidance Stands").classes("font-bold").style(
-        "font-size:var(--fs-base);margin-top:8px;")
-    _render_guidance_bridge(ss)   # the CFA read — every number measured + beat/miss → range flow-through
-    # The Street-expectations briefing renders FIRST — open by default — so the
-    # CFO reads what the Street looks for before working the decision below
-    # (moved above the metrics/action selector 2026-07-14 at the user's ask).
-    # Rendered as structured labels inside a carded expansion (not ui.markdown): the panel reads as a
-    # designed reference card rather than floating text, and plain-label dollar signs render literally
-    # (the old markdown needed \\$ escapes to dodge MathJax, which then showed the backslash on screen).
-    with ui.expansion("IR Guidance Protocol — What the Street Expects at Each Quarter (read before finalizing)",
-                      value=True).classes("w-full panel-tinted").style(
-            f"margin-top:6px;background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"
-            "border-radius:10px;"):
-        _gp_h = lambda t: ui.label(t).classes("font-bold").style(
-            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);margin-top:10px;")
-        _gp_p = lambda t: ui.label(t).style(
-            f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.6;")
-        _gp_b = lambda t: ui.label(f"•  {t}").style(
-            f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;margin-left:10px;")
-
-        _gp_h("Why guidance language is the most consequential section of the call")
-        _gp_p("Every institutional investor on this call is doing the same math in real time. They know your "
-              "H1 numbers, they know your full-year range, and they're listening for one thing: does management "
-              "have enough H2 visibility to justify their model, and is the tone confident or hedged?")
-        _gp_h("Q1 earnings — what the Street expects")
-        _gp_p("Companies almost never raise full-year guidance after Q1. The standard is reiteration — raising "
-              "after one quarter signals either management sandbagged the range or is getting ahead of data it "
-              "doesn't have yet.")
-        _gp_h("Q2 earnings — the first real decision point")
-        _gp_p("H1 is complete and the Street has half-year data, so a raise is expected if the beat is meaningful.")
-        for _b in ("Beat > $1M vs Street and YTD > 50% of midpoint → raise the low end at minimum.",
-                   "Beat plus strong H2 catalyst visibility → raise the midpoint — the most powerful signal on the call.",
-                   "In line or a small beat → reiterate, but with specific H2 visibility language, not generic optimism.",
-                   "Miss → reiterate the range (widen slightly if needed) with a specific recovery narrative; "
-                   "never cut guidance at Q2 without a clear bridge."):
-            _gp_b(_b)
-        _gp_h(f"Current situation ({math_['scenario']})")
-        _gp_p(f"YTD banked ${math_['ytd_rev']:.1f}M ({math_['ytd_pct_of_mid']:.1f}% of ${math_['fy_mid']:.1f}M "
-              f"midpoint) · H2 needed for the low end ${math_['h2_needed_low']:.1f}M "
-              f"({math_['h2_growth_needed']:+.1f}% YoY vs H2 2025's ${math_['h2_2025_rev']:.1f}M) · "
-              f"Beat vs Street {math_['beat_vs_street']:+.2f}M.")
-        _gp_h("Phrases that signal confidence vs. caution to the Street")
-        for _b in ('"We are raising our full-year revenue guidance..." → maximum positive signal',
-                   '"We are narrowing our guidance range to reflect improved H2 visibility..." → positive but measured',
-                   '"We continue to expect..." / "We are reiterating..." → neutral, read as conservative',
-                   '"We are updating our guidance to reflect..." → typically precedes a cut — Street will ask why immediately'):
-            _gp_b(_b)
-
-    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-        _metric("YTD vs seasonal pace", f"{math_['pace_vs_seasonal']:+.1f}pp", f"{math_['ytd_pct_of_mid']:.1f}% of midpoint banked")
-        _metric("FY implied from H1", f"${math_['fy_implied_from_h1']:.1f}M", f"vs ${math_['fy_low']:.1f}-{math_['fy_hi']:.1f}M range")
-        _metric("H2 needed (low end)", f"${math_['h2_needed_low']:.1f}M", f"{math_['h2_growth_needed']:+.1f}% YoY vs H2 2025")
-        _metric("Beat vs Street", f"{math_['beat_vs_street']:+.2f}M", "")
-
-    # Restored from the original engine: what each remaining quarter must
-    # actually produce to hold the range (the "can H2 get there?" reality
-    # check), the range itself, and the H2 growth ask.
-    with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-        _metric("Seasonal Q3 target", f"${math_['q3_target_mid']:.1f}M",
-                f"needs {math_['q3_yoy_needed']:+.0f}% vs {math_['prior_fy_label']} Q3")
-        _metric("Seasonal Q4 target", f"${math_['q4_target_mid']:.1f}M",
-                f"needs {math_['q4_yoy_needed']:+.0f}% vs {math_['prior_fy_label']} Q4")
-        _metric("Guidance range", f"${math_['fy_low']:.1f}–{math_['fy_hi']:.1f}M", f"midpoint ${math_['fy_mid']:.1f}M")
-        _metric("H2 YoY growth needed", f"{math_['h2_growth_needed']:+.0f}%",
-                f"vs {math_['prior_fy_label']} H2 ${math_['h2_2025_rev']:.1f}M")
-
-    if math_["comp_note"]:
-        with ui.card().classes("w-full").style(
-                "background:rgba(180,83,9,.06);border:1px solid rgba(180,83,9,.28);margin-top:6px;"):
-            ui.label(f"Comp distortion — {math_['comp_note']}").style("color:#B45309;font-size:var(--fs-sm);")
-
-    with ui.card().classes("w-full").style("background:rgba(59,130,246,.08);border:2px solid rgba(59,130,246,.3);margin-top:6px;"):
-        ui.label(f"RECOMMENDED ACTION: {math_['scenario_label']}").classes("font-bold").style("color:#1E3A8A;")
-        ui.label("Based on YTD revenue as % of guidance midpoint, beat/miss vs Street, and H2 growth required vs "
-                  "prior-year H2. CFO and CEO must confirm before finalizing script language.").style(
-            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-
-    # Morning-after read — the same synthesis the Markets 'Update guidance'
-    # panel shows, built from the shared core.guidance_engine, so the CFO sees
-    # the buy-side reaction next to the action buttons that drive it.
-    _q2_actual = ss.get("q2_numbers", {}).get("rev") or 0
-    _street_q2 = round(_q2_actual - math_["beat_vs_street"], 2)
-    _dec_backend = guidance_engine.backend_weighting(math_["fy_implied_from_h1"], math_["ytd_rev"])
-    _dec_parts = guidance_engine.morning_read_parts(
-        "Q2 2026E", "FY 2026E", _q2_actual, _street_q2,
-        round(math_["fy_implied_from_h1"], 1), math_["fy_mid"], _dec_backend)
-    if _dec_parts:
-        with ui.card().classes("w-full").style(
-                "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
-                "border-radius:8px;margin-top:6px;"):
-            ui.label("THE MORNING-AFTER READ — what the buy-side detects first").style(
-                "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
-            ui.label(" ".join(_dec_parts)).style(
-                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.65;font-weight:500;margin-top:4px;")
-
-    ui.label("Guidance Step 2 — Decide: Choose Your Guidance Action").classes("font-bold").style(
-        "margin-top:8px;font-size:var(--fs-base);")
-    ui.label("The script adapts automatically to the action you pick.").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    default_action = {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate")
-    action_select = ui.radio({a: lbl for a, lbl in _GUIDANCE_ACTIONS},
-                              value=gd.get("action", default_action)).classes("w-full")
-    ack_label = ui.label(_GUIDANCE_ACK.get(action_select.value, "")).style(
-        f"color:{COLORS['accent_light']};font-size:var(--fs-sm);font-style:italic;")
-
-    def on_action_change(e, ack_label=ack_label):
-        ack_label.text = _GUIDANCE_ACK.get(e.value, "")
-
-    action_select.on_value_change(on_action_change)
-
-    # ── THE guidance range input — the single number that drives both the analysis above AND the language
-    # below. It defaults to what the action implies; confirm or override, then Apply to re-run the bridge
-    # on this exact range. (This is the "where do I put the range" answer: right here, one source.)
-    _dl, _dh, _ = guidance_engine.apply_action(action_select.value, math_)
+    # ── ① SET GUIDANCE — the first thing on the page; the whole script derives from it ──
+    ui.label("① Set guidance").classes("font-bold").style("font-size:var(--fs-md);")
     with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};border-radius:8px;"
-            "padding:10px 14px;margin-top:8px;"):
-        ui.label("New full-year revenue range — drives the analysis and the language (confirm or override)").style(
-            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
-        with ui.row().classes("items-end gap-3 flex-wrap"):
-            range_low_in = ui.number("New low ($M)", value=gd.get("new_low", round(_dl, 1)), step=0.5).props(
-                "outlined dense").style("width:128px;")
-            range_hi_in = ui.number("New high ($M)", value=gd.get("new_hi", round(_dh, 1)), step=0.5).props(
-                "outlined dense").style("width:128px;")
-            _mid_lbl = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            f"border-left:5px solid {COLORS['accent']};border-radius:10px;padding:14px 16px;"):
+        with ui.row().classes("w-full gap-4 items-stretch flex-wrap"):
+            with ui.column().classes("flex-1").style(
+                    f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
+                    "padding:11px 14px;min-width:210px;gap:2px;"):
+                ui.label("WAS — prior guide").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
+                ui.label(f"${_prior[0]:.1f}–{_prior[1]:.1f}M").style(
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
+                ui.label(f"midpoint ${(_prior[0] + _prior[1]) / 2:.1f}M · what the Street embedded").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            with ui.column().classes("flex-1").style(
+                    f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
+                    "padding:11px 14px;min-width:270px;gap:4px;"):
+                ui.label("IS — new guide (set it here)").style(
+                    f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
+                with ui.row().classes("items-end gap-2 flex-wrap"):
+                    _low_in = ui.number("New low", value=_new[0], step=0.5).props("outlined dense").style("width:104px;")
+                    _hi_in = ui.number("New high", value=_new[1], step=0.5).props("outlined dense").style("width:104px;")
 
-            def _upd_mid():
-                _lo, _hi = range_low_in.value or 0, range_hi_in.value or 0
-                _mid_lbl.text = (f"midpoint ${(_lo + _hi) / 2:.1f}M   ·   prior "
-                                 f"${math_['fy_low']:.1f}–{math_['fy_hi']:.1f}M")
-            _upd_mid()
-            range_low_in.on_value_change(lambda e: _upd_mid())
-            range_hi_in.on_value_change(lambda e: _upd_mid())
+                    def _apply(_low_in=_low_in, _hi_in=_hi_in):
+                        gd.update({"new_low": _low_in.value, "new_hi": _hi_in.value,
+                                   "action": _ge.characterize_range_change(_prior, [_low_in.value, _hi_in.value])["action_key"]})
+                        ss["guidance_decision"] = gd
+                        _save_json("script_workflow_state.json", ss)
+                        ui.notify("Range applied — the read below re-runs on this range.", type="positive")
+                        _refresh()
+                    ui.button("Apply →", icon="analytics", on_click=_apply).props("color=primary dense")
+                with ui.row().classes("items-center gap-1 flex-wrap"):
+                    ui.label("quick:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
+                    for _lbl, _akey in (("Raise low", "raise_low"), ("Raise mid", "raise_mid"), ("Reiterate", "reiterate")):
+                        def _preset(_akey=_akey, _low_in=_low_in, _hi_in=_hi_in):
+                            _pl, _ph, _ = _ge.apply_action(_akey, math_)
+                            _low_in.value = round(_pl, 1)
+                            _hi_in.value = round(_ph, 1)
+                        ui.button(_lbl, on_click=_preset).props("flat dense size=sm").style(f"color:{COLORS['accent_light']};")
+        _tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
+        with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
+            ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            ui.label(_ch["action"]).style(f"color:{_tagclr};font-weight:800;font-size:var(--fs-sm);")
+            ui.label(f"· midpoint {_ch['d_mid']:+.1f}M · range {_ch['width_change']}").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
+        ui.label(_ch["signal"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
+        if _iu:
+            with ui.row().classes("w-full items-start no-wrap").style(
+                    f"gap:8px;background:{COLORS['positive']}12;border-left:3px solid {COLORS['positive']};"
+                    "border-radius:6px;padding:8px 11px;margin-top:9px;"):
+                ui.label("↗").style(f"color:{COLORS['positive']};flex:none;font-weight:800;")
+                ui.label(f"Implied upside not in the print — you've beaten Street {_iu['beat_rate']} quarters "
+                         f"(avg +{_iu['avg_beat_pct']:.1f}%), so the Street will likely carry ~${_iu['street_implied']:.1f}M: "
+                         f"about ${_iu['above_high']:.1f}M above your ${_iu['new_high']:.1f}M high end "
+                         f"(${_iu['above_mid']:.1f}M above the ${_iu['new_mid']:.1f}M midpoint). Your guide is a floor — "
+                         f"that's where the whisper sits.").style(
+                    f"color:{COLORS['positive']};font-size:var(--fs-sm);line-height:1.5;font-weight:500;")
 
-            def _apply_range():
-                gd.update({"action": action_select.value, "new_low": range_low_in.value,
-                           "new_hi": range_hi_in.value})
-                ss["guidance_decision"] = gd
-                _save_json("script_workflow_state.json", ss)
-                ui.notify("Range applied — the analysis above now runs on this exact range.", type="positive")
-                _refresh()
-            ui.button("Apply range → re-run analysis", icon="analytics", on_click=_apply_range).props(
-                "color=primary dense")
+    # ── ② READ THE IMPACT — the bridge, driven by the range set above ──
+    ui.label("② Read the impact").classes("font-bold").style("font-size:var(--fs-md);margin-top:12px;")
+    _render_guidance_bridge(ss)
 
-    # When the action changes, snap the range to what that action implies (a starting point to override).
-    def _snap_range(e):
-        _nl, _nh, _ = guidance_engine.apply_action(e.value, math_)
-        range_low_in.value = round(_nl, 1)
-        range_hi_in.value = round(_nh, 1)
-    action_select.on_value_change(_snap_range)
-
-    # Language consistency — match the prior script's structure, and verify the words state THIS range.
+    # ── ③ DRAFT THE LANGUAGE — from the decision, matched to last quarter, numbers verified ──
+    ui.label("③ Draft the language").classes("font-bold").style("font-size:var(--fs-md);margin-top:12px;")
     _prior_guid = _guidance_prior_language()
     _cons = _guidance_consistency(gd)
     if _prior_guid or _cons:
         with ui.card().classes("w-full").style(
-                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
-                "padding:10px 14px;margin-top:6px;"):
-            ui.label("Language consistency — match the prior script, state the decided range").style(
-                f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;padding:10px 14px;"):
             if _prior_guid:
                 ui.label(f"Prior quarter's wording (match this structure): “{_prior_guid}”").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
             if _cons:
                 _c = COLORS["positive"] if _cons["ok"] else COLORS["warning"]
                 if _cons["ok"]:
-                    _msg = (f"✓ The drafted guidance language states the decided "
-                            f"${_cons['low']:.1f}–{_cons['high']:.1f}M range — consistent.")
+                    _m = f"✓ The drafted language states the decided ${_cons['low']:.1f}–{_cons['high']:.1f}M range."
                 else:
-                    _missing = ", ".join(x for x, ok in (("low end", _cons["low_ok"]), ("high end", _cons["high_ok"])) if not ok)
-                    _msg = (f"⚠ The drafted guidance language does NOT clearly state the decided "
-                            f"${_cons['low']:.1f}–{_cons['high']:.1f}M range ({_missing} missing) — regenerate or fix "
-                            "the words before it ships, so the script can't quote a range nobody decided.")
-                ui.label(_msg).style(f"color:{_c};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
+                    _miss = ", ".join(x for x, ok in (("low end", _cons["low_ok"]), ("high end", _cons["high_ok"])) if not ok)
+                    _m = (f"⚠ The drafted language does NOT state the decided ${_cons['low']:.1f}–{_cons['high']:.1f}M "
+                          f"range ({_miss} missing) — regenerate before it ships.")
+                ui.label(_m).style(f"color:{_c};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
 
     guidance_context_input = ui.input(
-        "Add any H2 visibility or guidance context before drafting:",
-        placeholder="e.g. 'We are raising the low end. H2 visibility is good because school voucher starts Q3 "
-                    "and PostCredit onboarding begins.'",
-        value=gd.get("context", ""),
-    ).props("outlined dense").classes("w-full").style("margin-top:8px;")
+        "Add any H2 visibility or context before drafting (optional):",
+        placeholder="e.g. H2 visibility good — new-partner go-lives ramp in Q3.",
+        value=gd.get("context", "")).props("outlined dense").classes("w-full").style("margin-top:6px;")
 
-    # Same fix as _render_persona_steps's draft box: render_guidance_draft_box
-    # reads draft_area as a plain closure variable (resolved when actually
-    # called) instead of a default arg, so draft_area can be created AFTER
-    # the Generate button below — Generate now visually comes first.
     def render_guidance_draft_box(text):
         draft_area.clear()
         with draft_area:
-            ui.label("Guidance draft — edit as needed, then submit to script (all [FLS] blocks need Legal review):").style(
+            ui.label("Guidance draft — edit as needed, then submit (all [FLS] blocks need Legal review):").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             box = ui.textarea(value=text).classes("w-full").props("rows=10 outlined")
-            pace_note, pace_clr = _pacing_estimate(text, "guidance")
-            pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:var(--fs-xs);")
+            _pn, _pcl = _pacing_estimate(text, "guidance")
+            pace_label = ui.label(_pn).style(f"color:{_pcl};font-size:var(--fs-xs);")
 
             def save_edit(e, pace_label=pace_label):
                 gd["text"] = e.value
                 ss["guidance_decision"] = gd
                 _save_json("script_workflow_state.json", ss)
-                note, clr = _pacing_estimate(e.value, "guidance")
-                pace_label.text = note
-                pace_label.style(f"color:{clr};font-size:var(--fs-xs);")
-
+                _n, _cl = _pacing_estimate(e.value, "guidance")
+                pace_label.text = _n
+                pace_label.style(f"color:{_cl};font-size:var(--fs-xs);")
             box.on_value_change(save_edit)
 
             def submit(box=box):
                 gd["text"] = box.value
                 ss["guidance_decision"] = gd
                 _save_json("script_workflow_state.json", ss)
-                # Write-through: the decided FY range flows into the canonical
-                # period_guidance store, so the Markets consensus matrix and
-                # impact analysis reflect this decision — one number, one store.
-                fy = (guidance_engine.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
+                fy = (_ge.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
                       if gd.get("new_low") is not None else None)
-                msg = "Guidance & Outlook submitted to script."
-                if fy:
-                    msg += f" {fy} guidance updated across the platform."
-                ui.notify(msg, type="positive")
-
+                ui.notify("Guidance submitted to script." + (f" {fy} updated across the platform." if fy else ""),
+                          type="positive")
             ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
 
-    def generate_guidance(action_select=action_select, guidance_context_input=guidance_context_input):
+    def generate_guidance(guidance_context_input=guidance_context_input):
         ui.notify("Generating guidance draft…", type="info")
         try:
-            action = action_select.value
-            new_low, new_hi, rationale = _guidance_range_for_action(action, math_)
-            draft, was_ai = _generate_guidance_draft(ss, action, new_low, new_hi, rationale, guidance_context_input.value)
-            gd.update({"action": action, "new_low": new_low, "new_hi": new_hi, "rationale": rationale,
+            nl2, nh2 = gd.get("new_low"), gd.get("new_hi")
+            if nl2 is None:
+                nl2, nh2 = _new
+            _ch2 = _ge.characterize_range_change(_prior, [nl2, nh2])
+            action, rationale = _ch2["action_key"], _ch2["signal"]
+            draft, was_ai = _generate_guidance_draft(ss, action, nl2, nh2, rationale, guidance_context_input.value)
+            gd.update({"action": action, "new_low": nl2, "new_hi": nh2, "rationale": rationale,
                        "context": guidance_context_input.value, "text": draft})
             ss["guidance_decision"] = gd
             _save_json("script_workflow_state.json", ss)
             render_guidance_draft_box(draft)
-            ui.notify("Drafted with AI — review below, then Submit." if was_ai else
-                      "AI unavailable — used the templated draft for this action. Review below, then Submit.",
+            ui.notify("Drafted — review below, then Submit." if was_ai else
+                      "AI unavailable — templated draft. Review, then Submit.",
                       type="positive" if was_ai else "warning")
         except Exception as exc:
             ui.notify(f"Guidance draft generation failed: {exc}", type="negative")
             raise
 
-    ui.label("Guidance Step 3 — Generate Draft").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
-    ui.button("Draft Guidance Section with AI", on_click=generate_guidance).props("color=primary dense").style("margin-top:4px;")
-
+    ui.button("Draft the guidance language with AI", icon="auto_awesome",
+              on_click=generate_guidance).props("color=primary dense").style("margin-top:4px;")
     draft_area = ui.column().classes("w-full").style("margin-top:8px;")
+    if gd.get("text"):
+        render_guidance_draft_box(gd["text"])
 
-    existing_text = gd.get("text", "")
-    if existing_text:
-        render_guidance_draft_box(existing_text)
+    # Reference — what the Street expects each quarter (collapsed; an IR pro rarely needs it open).
+    with ui.expansion("Reference — what the Street expects at each quarter").classes(
+            "w-full panel-tinted").props("dense").style("margin-top:10px;"):
+        _rh = lambda t: ui.label(t).classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);margin-top:8px;")
+        _rp = lambda t: ui.label(t).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.55;")
+        _rh("Q1 — the Street expects reiteration")
+        _rp("Raising after one quarter signals a sandbagged range or getting ahead of the data.")
+        _rh("Q2 — the first real decision point")
+        _rp("H1 is banked, so a raise is expected if the beat is meaningful: beat + YTD>50% of midpoint → raise the "
+            "low end; beat + strong H2 visibility → raise the midpoint; in-line → reiterate with specific H2 "
+            "language; miss → hold with a recovery bridge, never cut without one.")
+        _rh("The phrases signal intent")
+        _rp("“Raising” = max positive · “Narrowing to reflect improved visibility” = positive but measured · "
+            "“Continue to expect / reiterating” = conservative · “Updating our guidance” = usually precedes a cut.")
 
     ui.markdown("---")
 
@@ -3095,14 +3002,9 @@ def _render_persona_steps(ss, role, key):
     CEO gets an extra Guidance & Outlook Decision Engine ahead of Step 1 —
     see _render_guidance_decision. IR gets the locked Call Opening (operator
     + Reg FD/safe-harbor reading) ahead of Step 1 — see _render_call_opening."""
-    # The Guidance & Outlook Decision Engine renders for CEO and IR both. It used
-    # to be CEO-only, which broke the Markets "Open the Guidance Decision Engine →"
-    # deep-link for every other seat: that button is visible to all roles and
-    # scrolls to this engine's anchor, but as an IR Director you'd land in Script
-    # Generation with no engine rendered and nothing to scroll to. Guidance
-    # strategy (raise/reiterate/narrow) is core IR work anyway, not CEO-only.
-    if role in ("CEO", "IR"):
-        _render_guidance_decision(ss)
+    # The Guidance & Outlook Decision Engine used to render here, inside the IR and CEO persona panels
+    # (twice on the page, buried three screens down). It's the keystone the whole script derives from, so
+    # it now renders ONCE at the top of the Script Canvas (_render_script_canvas), ahead of every persona.
     if role == "IR":
         _render_call_opening(ss)
 
@@ -4315,9 +4217,14 @@ def _full_script_text(ss):
 
 def _render_script_canvas(ss):
     _ensure_script_drafted(ss)
-    ui.label("Script Canvas").classes("font-bold")
-    ui.label("Every speaker's section, in order — scroll through IR, then CFO, then Business Operations, then "
-              "CEO, then Q&A Prep and the assembled Full Script at the bottom. Nothing is behind a tab click.").style(
+    # Guidance is the keystone — ① Set it → ② read the impact → ③ draft the language — so it renders
+    # FIRST, ahead of the personas. Everything below (tone, H2 confidence, closing) flows from it.
+    _render_guidance_decision(ss)
+
+    # ── ④ BUILD THE SCRIPT — the personas; tone flows from the guidance action above ──
+    ui.label("④ Build the script").classes("font-bold").style("font-size:var(--fs-md);")
+    ui.label("Every speaker's section, in order — IR, then CFO, then Business Operations, then CEO, then Q&A "
+             "Prep and the assembled Full Script at the bottom. Tone follows the guidance decision above.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     # Previously this was three levels of nested Quasar tabs deep (page tabs
     # -> 5-stage tabs -> these persona tabs), which on a normal window width
