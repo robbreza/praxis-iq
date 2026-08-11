@@ -581,8 +581,9 @@ _GUIDANCE_INPUTS = {
     "metrics": {
         "rev": {"label": "Revenue", "unit": "$M", "fmt": "money", "actual": 25.9, "prior_q": 25.3,
                 "prior_yr_q": 21.9, "prior_q_yoy_pct": 19.0, "prior_yr_yoy_pct": 22.0, "consensus": 25.7,
-                "own_guide": [25.6, 26.0], "prior_fy_range": [103.0, 105.0], "new_fy_range": [104.0, 106.0],
-                "ytd": 51.2, "prior_yr_remaining": 47.8, "quarters_actual": 2, "street_fy": 103.7},
+                "whisper": 25.85, "own_guide": [25.6, 26.0], "prior_fy_range": [103.0, 105.0],
+                "new_fy_range": [104.0, 106.0], "ytd": 51.2, "prior_yr_remaining": 47.8,
+                "quarters_actual": 2, "street_fy": 103.7},
         "eps": {"label": "Adj. EPS", "unit": "$", "fmt": "eps", "actual": 0.13, "prior_q": 0.12,
                 "prior_yr_q": 0.08, "consensus": 0.12, "own_guide": [0.12, 0.13],
                 "prior_fy_range": [0.52, 0.55], "new_fy_range": [0.53, 0.56], "ytd": 0.25,

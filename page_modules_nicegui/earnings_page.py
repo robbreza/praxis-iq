@@ -2236,7 +2236,8 @@ def _render_guidance_bridge(ss):
     if not inputs:
         return
     from core import guidance_engine
-    b = guidance_engine.guidance_bridge(inputs)
+    _surprises = _load_json("earnings_surprise_log.json", None)   # for the credibility / beat-track-record read
+    b = guidance_engine.guidance_bridge(inputs, surprises=_surprises)
     meta = b["meta"]
     _TAG = {"RAISED": COLORS["positive"], "RAISED LOW END": COLORS["positive"],
             "RAISED HIGH END": COLORS["positive"], "REITERATED": COLORS["warning"], "CUT": COLORS["danger"]}
@@ -2280,6 +2281,9 @@ def _render_guidance_bridge(ss):
                 if "vs_street" in m and m["vs_street"]["beat_pct"] is not None:
                     _bt = m["vs_street"]
                     _chip("vs Street", f"{_fmt_metric(_bt['beat'], f)} ({_bt['beat_pct']:+.1f}%)", _bt["beat"] >= 0)
+                if "vs_whisper" in m and m["vs_whisper"]["beat_pct"] is not None:
+                    _wh = m["vs_whisper"]
+                    _chip("vs Whisper", f"{_fmt_metric(_wh['beat'], f)} ({_wh['beat_pct']:+.1f}%)", _wh["cleared"])
             # The range bridge + flow-through + implied
             if "range" in m:
                 r = m["range"]
@@ -2306,6 +2310,38 @@ def _render_guidance_bridge(ss):
                 if m.get("recommendation", {}).get("note"):
                     ui.label(m["recommendation"]["note"]).style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")
+
+    # Cross-metric synthesis: did the beat convert to profit, and can we trust the guide?
+    syn = b.get("synthesis", {})
+    ft, cr = syn.get("flow_through"), syn.get("credibility")
+    if ft or cr:
+        with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:4px;flex-wrap:wrap;"):
+            if ft:
+                with ui.card().classes("flex-1").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
+                    ui.label("Flow-through to profit").style(
+                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+                    _bits = []
+                    if ft.get("quarter_incremental_margin_pct") is not None:
+                        _bits.append(f"Incremental EBITDA margin (YoY) {ft['quarter_incremental_margin_pct']:.0f}%")
+                    if ft.get("guide_flow_through_pct") is not None:
+                        _bits.append(f"{ft['guide_flow_through_pct']:.0f}% of the revenue raise dropped to EBITDA")
+                    if ft.get("steady_margin_pct") is not None:
+                        _bits.append(f"vs {ft['steady_margin_pct']:.0f}% corporate margin")
+                    ui.label(" · ".join(_bits)).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                    if ft.get("read"):
+                        ui.label(ft["read"]).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            if cr:
+                with ui.card().classes("flex-1").style(
+                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
+                    ui.label("Guidance credibility — beat track record").style(
+                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+                    ui.label(f"Beat consensus {cr['beat_rate']} quarters · avg +{cr['avg_beat_pct']:.1f}% vs Street").style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                    if cr.get("read"):
+                        ui.label(cr["read"]).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
 
 
 def _render_guidance_decision(ss, context="script"):

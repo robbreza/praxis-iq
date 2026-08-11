@@ -630,6 +630,10 @@ def _bridge_metric(m):
         beat = round(a - cons, 3)
         o["vs_street"] = {"consensus": cons, "beat": beat, "beat_pct": _pct(beat, cons),
                           "beat_pct_of_actual": _pct(beat, a)}
+    w = m.get("whisper")   # the buy-side embedded bar the stock actually trades off, above published consensus
+    if a is not None and w is not None:
+        o["vs_whisper"] = {"whisper": w, "beat": round(a - w, 3), "beat_pct": _pct(a - w, w),
+                           "cleared": a >= w}
     og = m.get("own_guide")
     if a is not None and og:
         gm = (og[0] + og[1]) / 2
@@ -676,7 +680,55 @@ def _bridge_metric(m):
     return o
 
 
-def guidance_bridge(inputs):
+def _bridge_synthesis(by_key, surprises):
+    """Cross-metric reads: (1) FLOW-THROUGH — did the revenue beat/raise convert to profit, or was it
+    spent; (2) CREDIBILITY — does management sandbag (beat every quarter) so the raised guide is likely
+    still conservative, from the beat/miss track record."""
+    syn = {}
+    rev, eb = by_key.get("rev"), by_key.get("ebitda")
+    if rev and eb:
+        ft = {}
+        if rev.get("actual") and eb.get("actual"):
+            ft["steady_margin_pct"] = _pct(eb["actual"], rev["actual"])
+        rq = (rev.get("yoy") or {}).get("delta")
+        eq = (eb.get("yoy") or {}).get("delta")
+        if rq:
+            ft["quarter_incremental_margin_pct"] = _pct(eq, rq)      # ΔEBITDA / ΔRevenue, YoY
+        rr = (rev.get("range") or {}).get("d_mid")
+        er = (eb.get("range") or {}).get("d_mid")
+        if rr:
+            ft["guide_flow_through_pct"] = _pct(er, rr)              # how much of the revenue raise dropped to EBITDA
+        sm, qim = ft.get("steady_margin_pct"), ft.get("quarter_incremental_margin_pct")
+        if sm is not None and qim is not None:
+            if qim > sm + 2:
+                ft["read"] = (f"High-quality growth — incremental EBITDA margin ({qim:.0f}%) is running above the "
+                              f"{sm:.0f}% corporate margin: operating leverage, and the raise is margin-accretive.")
+            elif qim < sm - 2:
+                ft["read"] = (f"Watch the mix — incremental margin ({qim:.0f}%) is below the {sm:.0f}% corporate "
+                              f"margin; the top-line beat isn't fully dropping through to profit.")
+            else:
+                ft["read"] = f"Incremental margin ({qim:.0f}%) roughly matches the {sm:.0f}% corporate margin — steady flow-through."
+        syn["flow_through"] = ft
+    rows = [s for s in (surprises or []) if s.get("rev_actual") is not None and s.get("rev_consensus")]
+    if rows:
+        beats = [s for s in rows if s["rev_actual"] > s["rev_consensus"]]
+        avg = sum((s["rev_actual"] - s["rev_consensus"]) / s["rev_consensus"] for s in rows) / len(rows) * 100
+        cred = {"beat_rate": f"{len(beats)}/{len(rows)}", "avg_beat_pct": round(avg, 1),
+                "quarters": [s.get("quarter") for s in rows]}
+        if len(beats) == len(rows) and avg > 0:
+            cred["read"] = (f"Beat consensus in all {len(rows)} tracked quarters (avg +{avg:.1f}%) — a consistent "
+                            f"sandbagger; the raised guide is likely still conservative and sets up another beat.")
+        elif len(beats) >= len(rows) * 0.6:
+            cred["read"] = (f"Beat in {len(beats)} of {len(rows)} quarters (avg +{avg:.1f}%) — a generally "
+                            f"credible, modestly conservative guide.")
+        else:
+            cred["read"] = (f"Mixed track record ({len(beats)}/{len(rows)} beats) — take the guide at face value, "
+                            f"not as a sandbag.")
+        syn["credibility"] = cred
+    return syn
+
+
+def guidance_bridge(inputs, surprises=None):
     """The full CFA guidance read for a set of reported metrics. `inputs`:
         {"reporting_quarter", "prior_quarter", "prior_year_quarter", "order":[keys],
          "metrics": {key: metric_dict}}
@@ -696,4 +748,5 @@ def guidance_bridge(inputs):
     return {"meta": {"reporting_quarter": inputs.get("reporting_quarter"),
                      "prior_quarter": inputs.get("prior_quarter"),
                      "prior_year_quarter": inputs.get("prior_year_quarter")},
-            "metrics": reads}
+            "metrics": reads,
+            "synthesis": _bridge_synthesis({r["key"]: r for r in reads}, surprises)}
