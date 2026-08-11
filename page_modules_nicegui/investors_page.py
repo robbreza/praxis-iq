@@ -3421,7 +3421,7 @@ def _size_calibration_note(client_id):
             "border-radius:8px;padding:6px 10px;font-size:var(--fs-sm);font-weight:600;margin:6px 0;")
         return
     ui.label(f"Sized as a {tier}-cap issuer ({cap_str}) — peer targeting is calibrated to this: {div}. "
-             "Set at onboarding; a different size (e.g. a mid-cap like SARO) reshapes the whole book.").style(
+             "Set at onboarding; a different size band (e.g. a mid-cap) reshapes the whole book.").style(
         f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};border-radius:8px;"
         "padding:6px 10px;font-size:var(--fs-sm);margin:6px 0;")
 
@@ -7436,7 +7436,7 @@ def _render_target_db_tab(institutions, client_id):
         with db_cards_row:
             _hub_metric("All targets", len(c), "Tracked + prospects",
                         _db_filter["mode"] == "all", lambda: set_db_filter("all"))
-            _hub_metric("Current holders", sum(1 for x in c if x["USIO_Holder"]), "Own USIO now",
+            _hub_metric("Current holders", sum(1 for x in c if x["USIO_Holder"]), f"Own {CT('ticker')} now",
                         _db_filter["mode"] == "holders", lambda: set_db_filter("holders"))
             _hub_metric("Non-holders", sum(1 for x in c if not x["USIO_Holder"]), "Conversion targets",
                         _db_filter["mode"] == "nonholders", lambda: set_db_filter("nonholders"))
@@ -7587,7 +7587,7 @@ def _render_target_db_tab(institutions, client_id):
                 ac_pt = ui.number("Price target ($)", value=0.0, step=0.25).props("outlined dense")
                 ac_rating = ui.select(["Buy", "Neutral", "Sell"], value="Buy").props("outlined dense")
                 ac_sector = ui.input("Sector").classes("w-full").props("outlined dense")
-                ac_relevance = ui.number("USIO relevance (0-100)", value=50, min=0, max=100).props("outlined dense")
+                ac_relevance = ui.number(f"{CT('ticker')} relevance (0-100)", value=50, min=0, max=100).props("outlined dense")
                 ac_bridge = ui.textarea("Why holders of this ticker are prospects").classes("w-full").props("outlined autogrow")
 
                 def add_coverage_entry():
@@ -7620,7 +7620,7 @@ def _render_target_db_tab(institutions, client_id):
         else:
             analyst_keys2 = list(coverage2.keys())
             auto_analyst = ui.select(analyst_keys2, value=analyst_keys2[0], label="Analyst coverage network").classes("w-full").props("outlined dense")
-            ui.label("Minimum USIO relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            ui.label(f"Minimum {CT('ticker')} relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             auto_threshold = ui.slider(min=0, max=100, value=50, step=5).props("label-always")
             auto_results = ui.column().classes("w-full")
 

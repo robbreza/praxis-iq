@@ -450,6 +450,24 @@ def _render_board_reports_tab(reviews, review_path):
 def _render_peer_market_tab(reviews, review_path):
     ui.label("Peer & Market Analysis Reports").classes("text-lg font-bold")
 
+    # These reports (valuation comp, footnote forensics, peer benchmarking) are computed from REAL SEC
+    # filings and a curated real-peer set — they name the tenant and its peers throughout. For an
+    # illustrative demo issuer (fictional NLKP) they'd both be meaningless AND leak the real MVP tenant's
+    # ticker (USIO) onto the demo, so gate them with an honest notice instead. (Caught by the smoke test's
+    # cross-tenant guard.)
+    from config.client_config import get_active_client_id
+    from core.curated_targets import _is_illustrative
+    if _is_illustrative(get_active_client_id()):
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+                f"border-left:4px solid {COLORS['accent']};border-radius:10px;margin-top:6px;"):
+            ui.label("Not available for an illustrative demo issuer").classes("font-bold").style(
+                f"color:{COLORS['text_heading']};")
+            ui.label("Peer valuation, footnote forensics, and benchmarking are computed from real SEC "
+                     "filings and a curated peer set. They run for a live client with filed financials.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        return
+
     # Peer Benchmarking Report v2 — now a LIVE analysis. It used to render a
     # single static image (the gross-margin page); the other four pages never
     # existed in report_images.py, so the rest of the analysis was simply

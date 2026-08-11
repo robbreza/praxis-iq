@@ -281,10 +281,10 @@ def _render_weekly_context_mirror():
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid #B4530955;border-left:3px solid #B45309;"
             f"border-radius:12px;margin-top:4px;"):
-        def _open_lighthouse():
+        def _open_lighthouse(_tk=_tk):
             try:
                 from lighthouse import telemetry as _tel
-                _tel.record_view(get_active_client_id(), "USIO", "today_mirror_click")
+                _tel.record_view(get_active_client_id(), _tk, "today_mirror_click")
             except Exception:
                 pass
             nav.go_to("Lighthouse")
@@ -292,8 +292,9 @@ def _render_weekly_context_mirror():
         with ui.row().classes("w-full justify-between items-center"):
             ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").classes("t-eyebrow").style("color:#B45309;")
             ui.button("Full band on Lighthouse →", on_click=_open_lighthouse).props("flat dense size=sm")
-        # the punchline — the number with its comparison, never alone
-        ui.label(f"USIO {wk['context_read']}").style(
+        # the punchline — the number with its comparison, never alone. Ticker is the ACTIVE tenant's, never
+        # a hardcoded "USIO" (that mislabeled every other tenant's own data as USIO's).
+        ui.label(f"{_tk} {wk['context_read']}").style(
             f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.5;")
         # the two comps the model actually uses, as compact inline chips
         with ui.row().classes("items-center gap-2").style("flex-wrap:wrap;margin-top:2px;"):
@@ -304,7 +305,7 @@ def _render_weekly_context_mirror():
                         f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:3px 10px;"):
                     ui.label(f"{c['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     ui.label(f"{c['ret']*100:+.1f}%").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
-                    ui.label(f"· USIO {rel*100:+.1f} pts").style(f"color:{rc};font-size:var(--fs-sm);")
+                    ui.label(f"· {_tk} {rel*100:+.1f} pts").style(f"color:{rc};font-size:var(--fs-sm);")
         # the drift, stated only after the yardstick
         with ui.row().classes("items-baseline gap-2").style("margin-top:2px;"):
             ui.label("After market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")

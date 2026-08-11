@@ -81,6 +81,26 @@ def _client_text(client):
     return "\n".join(chunks)
 
 
+def _cross_tenant_leaks(cid, text):
+    """For an ILLUSTRATIVE (fictional) tenant, ANY real client's ticker is a leak — the demo is
+    self-contained NLKP data and must never render another tenant's ticker (this is exactly how the
+    Today "This Week in Context" mirror showed 'USIO' on the Northlake demo: a hardcoded ticker). Returns
+    the leaked tickers found (word-boundary), scoped to illustrative tenants so real peer mentions on real
+    tenants don't false-positive."""
+    try:
+        from core.curated_targets import _is_illustrative
+        if not _is_illustrative(cid):
+            return []
+        import re
+        from config.client_config import CLIENT_REGISTRY, get_client
+        own = (get_client(cid).get("ticker") or "").upper()
+        others = {(_c.get("ticker") or "").upper() for k, _c in CLIENT_REGISTRY.items() if k != cid}
+        others = {t for t in others if t and t != own}
+        return sorted(f"cross-tenant:{t}" for t in others if re.search(r"\b" + re.escape(t) + r"\b", text))
+    except Exception:
+        return []
+
+
 def render_one(module_path, render_fn_name, client_id, role="IR"):
     """Render a single page for a single tenant. Returns (ok, detail, demo_hits, lazy) where
     `lazy` is a list of (tab_name, ok, detail, hits) for the page's LAZY tab-panels — content that
@@ -103,7 +123,7 @@ def render_one(module_path, render_fn_name, client_id, role="IR"):
         with client:
             fn()
         text = _client_text(client)
-        hits = sorted({tok for tok in DEMO_TOKENS if tok in text})
+        hits = sorted(set({tok for tok in DEMO_TOKENS if tok in text}) | set(_cross_tenant_leaks(client_id, text)))
     except Exception:
         return False, traceback.format_exc(), [], []
 
@@ -116,7 +136,8 @@ def render_one(module_path, render_fn_name, client_id, role="IR"):
             sub = Client(page("/"), request=None)
             with sub:
                 build_fn()
-            th = sorted({tok for tok in DEMO_TOKENS if tok in _client_text(sub)})
+            _sub_text = _client_text(sub)
+            th = sorted(set({tok for tok in DEMO_TOKENS if tok in _sub_text}) | set(_cross_tenant_leaks(client_id, _sub_text)))
             lazy.append((tab, True, "", th))
         except Exception:
             lazy.append((tab, False, traceback.format_exc(), []))
