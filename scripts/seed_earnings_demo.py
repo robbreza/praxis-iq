@@ -441,6 +441,51 @@ _TRANSCRIPTS = {
              "why": "Recurring concern on float durability if rates normalize; management framed exposure as limited."},
         ],
     },
+    # Prior-year SAME quarter, two years back — onboarding downloads two years of transcripts per client,
+    # so the script generator can frame YoY and pre-empt topics that recur year after year. Concise.
+    "Q2 2025": {
+        "call_date": "2025-05-14",
+        "full_text": ("Operator\n00:00:00\nGood afternoon, and welcome to Northlake Payments' second quarter "
+                      "2025 earnings conference call.\n\nMarcus Ellery, Chief Executive Officer\n00:02:30\n"
+                      "Second-quarter revenue was $21.9 million, up 22% year over year. Integrated payments "
+                      "now represent roughly 48% of net revenue as PayFac attach continues to build across "
+                      "our ISV partners. We are reiterating our full-year guidance.\n\nOperator\n00:12:00\n"
+                      "We will now begin the question-and-answer session."),
+        "ai_summary": ("Q2 2025: net revenue $21.9M (+22% YoY); integrated payments ~48% of net revenue as "
+                       "PayFac attach built. Management introduced the net-take-rate framing and reiterated "
+                       "full-year FY2025 guidance."),
+        "key_quotes": [{"quote": "Integrated payments are now roughly half our net revenue.",
+                        "speaker": "Marcus Ellery, CEO"}],
+        "guidance_language": ["Reiterated full-year FY2025 guidance."],
+        "qa_risk_topics": [
+            {"severity": "MEDIUM", "topic": "PayFac attach sustainability",
+             "why": "Analysts questioned whether attach growth was durable this early."},
+            {"severity": "LOW", "topic": "Prepaid float rate sensitivity",
+             "why": "Recurring question on float durability."},
+        ],
+    },
+    "Q2 2024": {
+        "call_date": "2024-05-15",
+        "full_text": ("Operator\n00:00:00\nGood afternoon, welcome to Northlake Payments' second quarter "
+                      "2024 earnings call.\n\nMarcus Ellery, Chief Executive Officer\n00:02:30\nSecond-quarter "
+                      "revenue was $18.0 million. We are early in the transition from processor to "
+                      "embedded-payments platform — integrated payments are roughly 35% of net revenue — and "
+                      "we are building the ISV partner base.\n\nOperator\n00:11:00\nWe will now begin the "
+                      "question-and-answer session."),
+        "ai_summary": ("Q2 2024: net revenue ~$18.0M; early integrated-payments transition (~35% of net "
+                       "revenue). Management emphasized the ISV partner model and the path to margin expansion."),
+        "key_quotes": [{"quote": "We're early in a transition from processor to embedded-payments platform.",
+                        "speaker": "Marcus Ellery, CEO"}],
+        "guidance_language": ["Introduced preliminary FY2024 framework."],
+        "qa_risk_topics": [
+            {"severity": "MEDIUM", "topic": "PayFac attach sustainability",
+             "why": "Early questions on whether the attach model would scale."},
+            {"severity": "MEDIUM", "topic": "Path to profitability",
+             "why": "Analysts pressed on the margin trajectory."},
+            {"severity": "LOW", "topic": "Prepaid float rate sensitivity",
+             "why": "Float contribution questioned."},
+        ],
+    },
 }
 _STALE_TRANSCRIPTS = ["Q2 2026"]   # a future call has no transcript — remove any seeded stub
 
@@ -508,7 +553,10 @@ _Q2_NUMBERS = {
     "what_new": ("Q2 net revenue of $25.9M beat the $25.6–26.0M guide. Integrated payments led again — "
                  "TPV +27% YoY and 62% of net revenue. Net take-rate expanded to 47 bps and net revenue "
                  "retention held above 110%. Adj. EBITDA of $5.4M, ~21% margin. We're raising the FY range "
-                 "to $104–106M and, as promised on the Q1 call, the gross-to-net bridge is in the deck."),
+                 "to $104–106M and, as promised on the Q1 call, the gross-to-net bridge is in the deck. "
+                 "Heads-up on H2: last year's second half carried a government payments program now "
+                 "unwinding, so the YoY comp is tough in the back half — flag it proactively so the "
+                 "deceleration doesn't read as softness."),
     "submitted_by": "Priya Raman (CFO)",
 }
 
@@ -546,7 +594,10 @@ _SCRIPT_TEXT = {
         "stayed above 110%, and TPV grew 27%. We are converting the installed base and adding new partners "
         "at the strongest pace in the company's history. Given that first-half trajectory, we are raising "
         "the full-year range to $104 to $106 million, and we continue to expect the second half to be "
-        "stronger than the first as new-partner go-lives ramp. We remain focused on the attach motion, "
+        "stronger than the first as new-partner go-lives ramp. One framing point on the second half: our "
+        "year-ago second half included a government payments program that is now unwinding, so the "
+        "year-over-year comparison is tougher in the back half — the underlying attach momentum is intact, "
+        "and the optics there are a comp effect, not a change in demand. We remain focused on the attach motion, "
         "because that is where durable, recurring economics live, and we have years of runway from the "
         "merchants already sitting inside our partners' software."),
 }
@@ -584,6 +635,9 @@ _GUIDANCE_INPUTS = {
                 "whisper": 25.85, "own_guide": [25.6, 26.0], "prior_fy_range": [103.0, 105.0],
                 "new_fy_range": [104.0, 106.0], "ytd": 51.2, "prior_yr_remaining": 47.8,
                 "quarters_actual": 2, "street_fy": 103.7, "next_fy_street": 118.4,
+                "comp_note": ("Second-half YoY comps are tough — prior-year H2 (Q3–Q4 2025) carried ~$3M "
+                              "from a government payments program now unwinding, so the implied H2 "
+                              "deceleration is a comp effect, not softening demand. Frame it proactively."),
                 "remaining_quarters": [{"q": "Q3", "weight": 0.255, "prior_yr": 23.2},
                                        {"q": "Q4", "weight": 0.270, "prior_yr": 24.6}]},
         "eps": {"label": "Adj. EPS", "unit": "$", "fmt": "eps", "actual": 0.13, "prior_q": 0.12,
@@ -649,7 +703,10 @@ def seed_script_workflow(cid="demo"):
             "decision": "RAISE",
             "text": ("Raising full-year FY2026 net-revenue guidance to $104–106M (from $103–105M) and "
                      "reiterating an adjusted EBITDA margin of roughly 21%, reflecting first-half momentum "
-                     "and the back-half-weighted new-partner go-live cadence."),
+                     "and the back-half-weighted new-partner go-live cadence. Framing note for the call: "
+                     "H2 year-over-year comps are tough — prior-year H2 included a government payments "
+                     "program now unwinding — so the implied second-half growth understates the underlying "
+                     "attach momentum; call it out proactively so the deceleration doesn't read as softness."),
         },
         "fls_checklist": {},
         "versions": [{"tag": "v1", "note": "Draft v1 — CFO numbers populated, all sections drafted",

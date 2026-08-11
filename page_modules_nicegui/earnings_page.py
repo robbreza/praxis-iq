@@ -1189,6 +1189,43 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
     return ""
 
 
+def _prior_year_quarters(cq, back=2):
+    """['Q2 2025', 'Q2 2024'] from 'Q2 2026' — the SAME quarter across the prior `back` years. Onboarding
+    downloads two years of transcripts per client, so the script generator frames YoY and pre-empts topics
+    that recur year after year, not just react to last quarter."""
+    import re as _re
+    m = _re.match(r"Q([1-4])\s+(\d{4})", cq or "")
+    if not m:
+        return []
+    qn, yr = int(m.group(1)), int(m.group(2))
+    return [f"Q{qn} {yr - i}" for i in range(1, back + 1)]
+
+
+def _prior_year_context():
+    """Prompt context from the SAME quarter over the prior two years — summaries for YoY framing, plus the
+    Q&A topics that RECUR across those calls (the persistent analyst concerns to pre-empt). Empty for a
+    newly-onboarded client with no prior-year transcripts on file yet."""
+    from core import transcripts
+    cq = CE().get("current_quarter", "")
+    ctx, topic_years = [], {}
+    for pyq in _prior_year_quarters(cq, back=2):
+        rec = transcripts.get_transcript(pyq)
+        if rec and rec.get("ai_summary"):
+            ctx.append(f"{pyq} — {rec['ai_summary']}")
+            for t in (rec.get("qa_risk_topics") or []):
+                _t = (t.get("topic") or "").strip()
+                if _t:
+                    topic_years.setdefault(_t, set()).add(pyq)
+    if not ctx:
+        return ""
+    line = " Same quarter over the prior two years, for YoY framing: " + "  ||  ".join(ctx)
+    recurring = [t for t, yrs in topic_years.items() if len(yrs) >= 2]
+    if recurring:
+        line += (" Q&A topics that RECUR in this quarter year after year — pre-empt them proactively rather "
+                 "than let them surface: " + ", ".join(recurring[:5]) + ".")
+    return line
+
+
 def _generate_persona_draft(role, ss, context=""):
     """context is the combined Step 2 ("what's new") + Step 3 (final notes)
     text from that persona's script-canvas panel; falls back to Stage 1's
@@ -1313,6 +1350,12 @@ def _generate_persona_draft(role, ss, context=""):
                f"{what_new or 'continued execution against the long-term plan'}. Confident but not "
                f"promotional, plain text (no markdown), 4-6 sentences.",
     }
+    # Prior TWO years of the same quarter (onboarding downloads two years of transcripts) — YoY framing +
+    # recurring-topic pre-emption, appended to every persona prompt so the script isn't just reacting to
+    # last quarter. Empty (no-op) for a client with no prior-year transcripts on file.
+    _pyc = _prior_year_context()
+    if _pyc:
+        prompts = {k: v + _pyc for k, v in prompts.items()}
     draft = _call_claude_script(prompts.get(role, ""), 500)
     if draft:
         return draft, True
@@ -2356,6 +2399,9 @@ def _render_guidance_bridge(ss):
                     if ny.get("read"):
                         ui.label(f"Implication: {ny['read']}.").style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+                if m.get("comp_note"):
+                    ui.label(f"⚠ Comp watch: {m['comp_note']}").style(
+                        f"color:{COLORS['warning']};font-size:var(--fs-sm);margin-top:2px;")
                 if m.get("recommendation", {}).get("note"):
                     ui.label(m["recommendation"]["note"]).style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")

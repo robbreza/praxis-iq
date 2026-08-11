@@ -616,6 +616,8 @@ def _bridge_metric(m):
     a = m.get("actual")
     o = {"key": m.get("key"), "label": m.get("label", ""), "unit": m.get("unit", ""),
          "fmt": m.get("fmt", "money"), "actual": a}
+    if m.get("comp_note"):
+        o["comp_note"] = m["comp_note"]   # e.g. a tough YoY comp to frame proactively (gov-deal unwind)
     pq, pyq = m.get("prior_q"), m.get("prior_yr_q")
     if a is not None and pq is not None:
         o["qoq"] = {"prior": pq, "delta": round(a - pq, 3), "pct": _pct(a - pq, pq)}
