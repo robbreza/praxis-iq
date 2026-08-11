@@ -2381,31 +2381,60 @@ def _bridge_rangebar(m):
 
 
 def _bridge_trend_read(full_path, comp_note=None):
-    """The trend IS the signal — the growth RATE's direction matters more than the level, and a break in
-    it re-rates the stock. Characterize the YoY sequence (accelerating / decelerating / inflecting /
-    steady) and say what it implies for the multiple + the callback. Returns (kind, text, color) or None."""
-    ys = [(x.get("q"), x["yoy_pct"]) for x in full_path if x.get("yoy_pct") is not None]
-    if len(ys) < 2:
-        return None
-    seq = " → ".join(f"{y:+.0f}%" for _, y in ys)
-    diffs = [ys[i + 1][1] - ys[i][1] for i in range(len(ys) - 1)]
-    delta = ys[-1][1] - ys[0][1]
-    inflects = any(diffs[i] * diffs[i + 1] < 0 for i in range(len(diffs) - 1))
-    if delta > 1.0 and all(d >= -0.4 for d in diffs):
-        return ("accel", f"Trend — accelerating: {seq}. The growth rate is expanding; a clean acceleration is "
-                "what earns multiple expansion. Lead with it.", COLORS["positive"])
-    if delta < -1.0 and all(d <= 0.4 for d in diffs):
-        base = f"Trend — decelerating: {seq}. "
-        if comp_note:
-            return ("decel", base + "But the step-down is a tough-COMP effect, not softening demand — frame it "
-                    "proactively so the Street doesn't re-rate a broken trend.", COLORS["warning"])
-        return ("decel", base + "A decelerating rate caps the multiple — have the why ready before the callback, "
-                "because that's the first question.", COLORS["warning"])
-    if inflects:
-        return ("inflect", f"Trend — inflecting: {seq}. The rate changes direction; an inflection is exactly what "
-                "analysts probe (and re-rate) on the callback. Own the reason.", COLORS["accent"])
-    return ("steady", f"Trend — steady: {seq}. The growth rate is holding; consistency itself supports the "
-            "multiple. Reinforce it.", COLORS["text_muted"])
+    """The trend IS the signal — read it on BOTH bases. YoY normalizes seasonality; QoQ shows sequential
+    momentum; and when they DISAGREE that is the insight (a YoY decel that's still growing sequentially is
+    a comp, not a slowdown). A break in the trend re-rates the stock in either direction. Returns up to two
+    (color, text) lines, most-important first."""
+    rows = [x for x in full_path if x.get("value") is not None]
+    if len(rows) < 2:
+        return []
+    out = []
+    # ── YoY (seasonally normalized) — the primary read ──
+    ys = [(x.get("q"), x["yoy_pct"]) for x in rows if x.get("yoy_pct") is not None]
+    yoy_kind = None
+    if len(ys) >= 2:
+        seq = " → ".join(f"{y:+.0f}%" for _, y in ys)
+        diffs = [ys[i + 1][1] - ys[i][1] for i in range(len(ys) - 1)]
+        delta = ys[-1][1] - ys[0][1]
+        _tol = 0.5  # pp — a real direction change, not a rounding-level wiggle, to count as an inflection
+        _infl = any(diffs[i] * diffs[i + 1] < 0 and abs(diffs[i]) > _tol and abs(diffs[i + 1]) > _tol
+                    for i in range(len(diffs) - 1))
+        if _infl:
+            yoy_kind = "inflecting"
+        elif delta > 1.0 and all(d >= -_tol for d in diffs):
+            yoy_kind = "accelerating"
+        elif delta < -1.0 and all(d <= _tol for d in diffs):
+            yoy_kind = "decelerating"
+        else:
+            yoy_kind = "steady"
+        _clr = {"accelerating": COLORS["positive"], "decelerating": COLORS["warning"],
+                "inflecting": COLORS["accent"], "steady": COLORS["text_muted"]}[yoy_kind]
+        _con = {"accelerating": "expands the multiple — lead with it",
+                "decelerating": "caps the multiple unless the reason is clear",
+                "inflecting": "is what analysts re-rate on — own the reason",
+                "steady": "holds the multiple — reinforce the consistency"}[yoy_kind]
+        out.append((_clr, f"YoY trend — {yoy_kind}: {seq}. {_con}."))
+    # ── QoQ (sequential momentum) — and the divergence, which is the money insight ──
+    qs = []
+    for i in range(1, len(rows)):
+        p, c = rows[i - 1]["value"], rows[i]["value"]
+        if p:
+            qs.append((c - p) / p * 100)
+    if qs:
+        qseq = " → ".join(f"{v:+.1f}%" for v in qs)
+        seq_pos = all(v > -0.5 for v in qs)
+        if yoy_kind == "decelerating" and seq_pos:
+            _t = f"But sequentially it's still growing (QoQ {qseq}) — "
+            _t += ("the YoY step-down is the COMP, not demand; separate them or the Street re-rates a comp as "
+                   "a broken trend." if comp_note else
+                   "the slowdown is seasonal/optical, not sequential — make the Street see it.")
+            out.append((COLORS["positive"], _t))
+        elif yoy_kind == "accelerating" and seq_pos:
+            out.append((COLORS["positive"], f"Confirmed sequentially (QoQ {qseq}) — both lenses point up; "
+                        "the highest-conviction setup."))
+        elif yoy_kind:
+            out.append((COLORS["text_muted"], f"Sequentially (QoQ): {qseq}."))
+    return out
 
 
 def _bridge_quarterbars(full_path, fmt, comp_note=None):
@@ -2436,13 +2465,12 @@ def _bridge_quarterbars(full_path, fmt, comp_note=None):
                 else:
                     ui.label("reported" if x["actual"] else "est.").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
-    # The trend read — the signal that matters more than any single number.
-    tr = _bridge_trend_read(rows, comp_note)
-    if tr:
-        _kind, _txt, _clr = tr
+    # The trend read — YoY + QoQ, the signal that matters more than any single number.
+    for _i, (_clr, _txt) in enumerate(_bridge_trend_read(rows, comp_note)):
         with ui.row().classes("w-full items-start no-wrap").style(
-                f"gap:8px;background:{_clr}12;border-left:3px solid {_clr};border-radius:6px;padding:7px 11px;margin-top:8px;"):
-            ui.label("📈").style("flex:none;font-size:var(--fs-sm);")
+                f"gap:8px;background:{_clr}12;border-left:3px solid {_clr};border-radius:6px;padding:7px 11px;"
+                f"margin-top:{'8px' if _i == 0 else '4px'};"):
+            ui.label("📈" if _i == 0 else "↔").style("flex:none;font-size:var(--fs-sm);")
             ui.label(_txt).style(f"color:{_clr};font-size:var(--fs-sm);font-weight:600;line-height:1.45;")
 
 

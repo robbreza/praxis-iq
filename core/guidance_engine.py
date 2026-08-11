@@ -703,7 +703,11 @@ def _bridge_metric(m):
             exitr = bq[-1]["implied"] * 4
             ny["exit_run_rate"] = round(exitr, 3)
             ny["growth_off_exit_pct"] = _pct(nfs - exitr, exitr)
-        flags = []
+        # The compsheet is tightly modeled for the CURRENT year; the dispersion — and the opportunity —
+        # is in FY+1, where fewer analysts carry rigorous models. So the trend (big picture), not the
+        # out-year consensus point, is what should anchor the FY+1 view. Lead the read with that.
+        flags = ["FY+1 is where Street estimates disperse (the current year is tightly modeled), so the "
+                 "trend — not the out-year consensus point — is what sets it"]
         goe = ny.get("growth_off_exit_pct")
         if goe is not None:
             flags.append("low bar — the Q4 exit run-rate already covers most of next year" if goe < 8
