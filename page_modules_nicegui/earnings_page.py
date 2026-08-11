@@ -2525,29 +2525,47 @@ def _render_guidance_decision(ss, context="script"):
     # The Street-expectations briefing renders FIRST — open by default — so the
     # CFO reads what the Street looks for before working the decision below
     # (moved above the metrics/action selector 2026-07-14 at the user's ask).
+    # Rendered as structured labels inside a carded expansion (not ui.markdown): the panel reads as a
+    # designed reference card rather than floating text, and plain-label dollar signs render literally
+    # (the old markdown needed \\$ escapes to dodge MathJax, which then showed the backslash on screen).
     with ui.expansion("IR Guidance Protocol — What the Street Expects at Each Quarter (read before finalizing)",
-                      value=True).classes("w-full").style("margin-top:6px;"):
-        ui.markdown(f"""
-**Why guidance language is the most consequential section of the call**
+                      value=True).classes("w-full panel-tinted").style(
+            f"margin-top:6px;background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;"):
+        _gp_h = lambda t: ui.label(t).classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);margin-top:10px;")
+        _gp_p = lambda t: ui.label(t).style(
+            f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.6;")
+        _gp_b = lambda t: ui.label(f"•  {t}").style(
+            f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;margin-left:10px;")
 
-Every institutional investor on this call is doing the same math in real time. They know your H1 numbers, they know your full-year range, and they're listening for one thing: does management have enough H2 visibility to justify their model, and is the tone confident or hedged?
-
-**Q1 earnings — what the Street expects:** companies almost never raise full-year guidance after Q1. The standard is reiteration — raising after one quarter signals either management sandbagged the range or is getting ahead of data it doesn't have yet.
-
-**Q2 earnings — the first real decision point:** H1 is complete and the Street has half-year data, so a raise is *expected* if the beat is meaningful.
-- Beat > \\$1M vs Street and YTD > 50% of midpoint → raise the low end at minimum.
-- Beat plus strong H2 catalyst visibility → raise the midpoint — the most powerful signal on the call.
-- In line or a small beat → reiterate, but with *specific* H2 visibility language, not generic optimism.
-- Miss → reiterate the range (widen slightly if needed) with a specific recovery narrative; never cut guidance at Q2 without a clear bridge.
-
-**Current situation ({math_['scenario']}):** YTD banked \\${math_['ytd_rev']:.1f}M ({math_['ytd_pct_of_mid']:.1f}% of \\${math_['fy_mid']:.1f}M midpoint) · H2 needed for the low end \\${math_['h2_needed_low']:.1f}M ({math_['h2_growth_needed']:+.1f}% YoY vs H2 2025's \\${math_['h2_2025_rev']:.1f}M) · Beat vs Street {math_['beat_vs_street']:+.2f}M.
-
-**Phrases that signal confidence vs. caution to the Street:**
-- "We are raising our full-year revenue guidance..." → maximum positive signal
-- "We are narrowing our guidance range to reflect improved H2 visibility..." → positive but measured
-- "We continue to expect..." / "We are reiterating..." → neutral, read as conservative
-- "We are updating our guidance to reflect..." → typically precedes a cut — Street will ask why immediately
-""")
+        _gp_h("Why guidance language is the most consequential section of the call")
+        _gp_p("Every institutional investor on this call is doing the same math in real time. They know your "
+              "H1 numbers, they know your full-year range, and they're listening for one thing: does management "
+              "have enough H2 visibility to justify their model, and is the tone confident or hedged?")
+        _gp_h("Q1 earnings — what the Street expects")
+        _gp_p("Companies almost never raise full-year guidance after Q1. The standard is reiteration — raising "
+              "after one quarter signals either management sandbagged the range or is getting ahead of data it "
+              "doesn't have yet.")
+        _gp_h("Q2 earnings — the first real decision point")
+        _gp_p("H1 is complete and the Street has half-year data, so a raise is expected if the beat is meaningful.")
+        for _b in ("Beat > $1M vs Street and YTD > 50% of midpoint → raise the low end at minimum.",
+                   "Beat plus strong H2 catalyst visibility → raise the midpoint — the most powerful signal on the call.",
+                   "In line or a small beat → reiterate, but with specific H2 visibility language, not generic optimism.",
+                   "Miss → reiterate the range (widen slightly if needed) with a specific recovery narrative; "
+                   "never cut guidance at Q2 without a clear bridge."):
+            _gp_b(_b)
+        _gp_h(f"Current situation ({math_['scenario']})")
+        _gp_p(f"YTD banked ${math_['ytd_rev']:.1f}M ({math_['ytd_pct_of_mid']:.1f}% of ${math_['fy_mid']:.1f}M "
+              f"midpoint) · H2 needed for the low end ${math_['h2_needed_low']:.1f}M "
+              f"({math_['h2_growth_needed']:+.1f}% YoY vs H2 2025's ${math_['h2_2025_rev']:.1f}M) · "
+              f"Beat vs Street {math_['beat_vs_street']:+.2f}M.")
+        _gp_h("Phrases that signal confidence vs. caution to the Street")
+        for _b in ('"We are raising our full-year revenue guidance..." → maximum positive signal',
+                   '"We are narrowing our guidance range to reflect improved H2 visibility..." → positive but measured',
+                   '"We continue to expect..." / "We are reiterating..." → neutral, read as conservative',
+                   '"We are updating our guidance to reflect..." → typically precedes a cut — Street will ask why immediately'):
+            _gp_b(_b)
 
     with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
         _metric("YTD vs seasonal pace", f"{math_['pace_vs_seasonal']:+.1f}pp", f"{math_['ytd_pct_of_mid']:.1f}% of midpoint banked")

@@ -496,6 +496,14 @@ def apply_theme():
         .q-expansion-item__container > .q-item {{ color:{COLORS["text_heading"]} !important; }}
         .q-expansion-item__container > .q-item .q-item__label {{
             color:{COLORS["text_heading"]} !important; font-weight:600; }}
+        /* Tinted-panel expansion: a reusable NON-WHITE collapse box. Quasar's q-card/content inside an
+           expansion defaults to a white surface that ignores the inline background on the root, so an
+           expansion styled as a panel kept showing a white body. Force the header row AND the content
+           to the tinted surface with !important so the whole box is one non-white panel, permanently. */
+        .panel-tinted, .panel-tinted > .q-expansion-item__container,
+        .panel-tinted .q-expansion-item__container > .q-item,
+        .panel-tinted .q-expansion-item__content {{
+            background:{COLORS["surface_hover_bg"]} !important; }}
         /* Status colour utilities — tied to tokens, replacing hardcoded hexes */
         .c-pos    {{ color:{COLORS["positive"]}; }}
         .c-neg    {{ color:{COLORS["negative"]}; }}
