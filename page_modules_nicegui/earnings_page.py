@@ -2770,27 +2770,91 @@ def _bridge_metric_compact(m):
                         ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);line-height:1.5;")
 
 
+_KPI_ROLE = {"demand": "demand driver", "pricing": "pricing / mix", "retention": "retention",
+             "efficiency": "efficiency", "volume": "volume driver"}
+
+
+def _kpi_trend(m):
+    """Read a KPI's trend the way an analyst does — on the growth RATE where the metric has a YoY comp
+    (volume/dollar KPIs), or on the LEVEL direction where it's a ratio (NRR, take-rate). Returns
+    (forward_rows, headline_word, detail_seq, color)."""
+    f = m["fmt"]
+    path = m.get("full_path") or []
+    fwd = [x for x in path if not x.get("actual") and x.get("value") is not None]
+    yoys = [x["yoy_pct"] for x in path if x.get("yoy_pct") is not None]
+    dk = m.get("driver_kind")
+    if len(yoys) >= 2:                                   # growth-rate trend (same honest classifier as revenue)
+        kind = _classify_trend(yoys)
+        word = {"accelerating": "Accelerating", "decelerating": "Decelerating",
+                "steady": "Steady", "inflecting": "Inflecting"}[kind]
+        detail = "YoY " + " → ".join(f"{y:+.0f}%" for y in yoys)
+        clr = {"accelerating": COLORS["positive"], "decelerating": COLORS["warning"],
+               "steady": COLORS["text_muted"], "inflecting": COLORS["accent"]}[kind]
+        return fwd, word, detail, clr
+    lvls = [v for v in ([m.get("actual")] + [x["value"] for x in fwd]) if v is not None]
+    if len(lvls) >= 2:                                   # level metric — direction of the ratio
+        d = lvls[-1] - lvls[0]
+        kind = "rising" if d > 1e-9 else "easing" if d < -1e-9 else "holding"
+        word = ({"pricing": {"rising": "Expanding"}, "retention": {"rising": "Stepping higher"}}
+                .get(dk, {}).get(kind) or {"rising": "Rising", "easing": "Easing", "holding": "Holding"}[kind])
+        detail = " → ".join(_fmt_metric(v, f) for v in lvls)
+        clr = COLORS["positive"] if kind == "rising" else COLORS["warning"] if kind == "easing" else COLORS["text_muted"]
+        return fwd, word, detail, clr
+    return fwd, None, "", COLORS["text_muted"]
+
+
 def _bridge_kpi_strip(kpis):
-    """Street KPIs — the operating drivers, as a compact grid with the modeled level trend (Q3→Q4)."""
+    """Street KPIs — the operating drivers. Each card is a mini-analysis, not a bare number: the reported
+    level, its TREND (growth-rate for volume metrics, level direction for ratios), the modeled forward path
+    (clearly Street estimates — NOT a counterfactual), and how that driver UNDERPINS the guide."""
     if not kpis:
         return
-    ui.label("Street KPIs — the operating drivers").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px;")
-    with ui.row().classes("w-full gap-2 flex-wrap"):
+    ui.label("Street KPIs — the operating drivers (what moves the guide)").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:12px 0 4px;")
+    with ui.row().classes("w-full gap-3 flex-wrap items-stretch"):
         for m in kpis:
             f = m["fmt"]
-            path = m.get("full_path") or []
-            fwd = [x for x in path if not x["actual"] and x.get("value") is not None]
-            with ui.card().classes("flex-1").style(
-                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:170px;padding:11px 14px;"):
-                ui.label(m["label"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.03em;font-weight:700;")
-                ui.label(_fmt_metric(m["actual"], f)).style(
-                    f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-lg);font-variant-numeric:tabular-nums;")
+            _rqs = ((m.get("position") or {}).get("reporting_q") or m.get("reporting_q") or "").split()
+            rq = _rqs[0] if _rqs else "current"
+            fwd, word, detail, clr = _kpi_trend(m)
+            yoy = (m.get("yoy") or {}).get("pct")
+            with ui.column().classes("flex-1").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:9px;"
+                    "min-width:270px;padding:12px 14px;gap:6px;"):
+                with ui.row().classes("w-full items-center no-wrap").style("gap:6px;"):
+                    ui.label(m["label"].upper()).style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.03em;font-weight:700;")
+                    ui.space()
+                    if m.get("driver_kind"):
+                        ui.label(_KPI_ROLE.get(m["driver_kind"], m["driver_kind"])).style(
+                            f"background:{COLORS['accent']}18;color:{COLORS['accent']};font-size:var(--fs-2xs);"
+                            "font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap;")
+                # A ratio (NRR, take-rate) moves in POINTS, not percent — an analyst says "+3 bps", never
+                # "+7% YoY". So show pp/bps for ratios and percent growth for volume/dollar KPIs.
+                _yd = (m.get("yoy") or {}).get("delta")
+                if f == "bps" and _yd is not None:
+                    _suf = f" · {_yd:+.0f} bps YoY"
+                elif f == "pct" and _yd is not None:
+                    _suf = f" · {_yd:+.0f} pp YoY"
+                elif yoy is not None:
+                    _suf = f" · {yoy:+.0f}% YoY"
+                else:
+                    _suf = ""
+                with ui.row().classes("items-baseline no-wrap").style("gap:8px;"):
+                    ui.label(_fmt_metric(m["actual"], f)).style(
+                        f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-lg);font-variant-numeric:tabular-nums;")
+                    ui.label(f"{rq} actual{_suf}").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);white-space:nowrap;")
+                if word:
+                    ui.label(f"{word} — {detail}").style(
+                        f"color:{clr};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
                 if fwd:
-                    _tr = " → ".join(_fmt_metric(x["value"], f) for x in fwd)
-                    _yo = next((x.get("yoy_pct") for x in reversed(fwd) if x.get("yoy_pct") is not None), None)
-                    _t = f"implied {_tr}" + (f" · {_yo:+.0f}% YoY" if _yo is not None else "")
-                    ui.label(_t).style(f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:600;")
+                    _mp = " → ".join(f"{x['q']} {_fmt_metric(x['value'], f)}" for x in fwd)
+                    ui.label(f"Modeled {_mp} · Street estimates (not guided)").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
+                if m.get("supports"):
+                    ui.label(m["supports"]).style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-2xs);line-height:1.45;margin-top:1px;")
 
 
 def _bridge_verdict(metrics, syn):
@@ -2897,22 +2961,46 @@ def _render_guidance_bridge(ss):
         for _m in guided[1:]:
             _bridge_metric_compact(_m)      # EPS, EBITDA — compact rows, full bridge behind a click
     _bridge_kpi_strip(kpis)                # Street KPIs — the operating-driver strip
+    # NOTE: the "Callback Q&A prep" block moved to the Q&A Prep tab (_render_callback_qa_prep) — it's prep
+    # for the call, not part of the guidance decision. See _render_qa_prep_tab.
 
 
-    # Callback Q&A prep — analysts probe metric/KPI DIRECTION on callbacks ("how's take-rate trending?")
-    # and pause; management must anchor to what the guidance implies or they'll answer inconsistently.
-    _anchors = [a for a in (_qa_anchor(m) for m in b["metrics"]) if a]
-    if _anchors:
-        with ui.card().classes("w-full").style(
-                f"background:rgba(37,99,235,.06);border:1px solid {COLORS['accent']};margin-top:8px;"):
-            ui.label("Callback Q&A prep — what to say if asked how each number is trending").style(
-                f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
-            ui.label("On analyst callbacks the direction question comes with a pause. Anchor every answer to "
-                     "what the guidance / model implies below — a casual “it's flattening” contradicts the raise "
-                     "and hands the analyst a downgrade angle.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
-            for _a in _anchors:
-                ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
+def _callback_qa_anchors(ss):
+    """Build the callback Q&A direction anchors from the live guidance bridge (same single-source-of-truth
+    range the bridge uses). Returns a list of anchor strings, one per number that has a trend to defend."""
+    inputs = ss.get("guidance_inputs")
+    if not inputs:
+        return []
+    from core import guidance_engine
+    gd = ss.get("guidance_decision") or {}
+    if gd.get("new_low") is not None and gd.get("new_hi") is not None:
+        import copy as _copy
+        inputs = _copy.deepcopy(inputs)
+        _rev = (inputs.get("metrics") or {}).get("rev")
+        if _rev is not None:
+            _rev["new_fy_range"] = [float(gd["new_low"]), float(gd["new_hi"])]
+    b = guidance_engine.guidance_bridge(inputs, surprises=_load_json("earnings_surprise_log.json", None))
+    return [a for a in (_qa_anchor(m) for m in b["metrics"]) if a]
+
+
+def _render_callback_qa_prep(ss):
+    """Callback Q&A prep — what to say if asked how each number is trending. Analysts probe metric/KPI
+    DIRECTION on callbacks ("how's take-rate trending?") and pause; management must anchor to what the
+    guidance implies or they answer inconsistently and hand over a downgrade angle. Lives in the Q&A Prep
+    area (moved out of the guidance bridge — it's call prep, not part of the decision)."""
+    _anchors = _callback_qa_anchors(ss)
+    if not _anchors:
+        return
+    with ui.card().classes("w-full").style(
+            f"background:rgba(37,99,235,.06);border:1px solid {COLORS['accent']};border-radius:9px;margin:4px 0 8px;"):
+        ui.label("Callback Q&A prep — what to say if asked how each number is trending").style(
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+        ui.label("On analyst callbacks the direction question comes with a pause. Anchor every answer to "
+                 "what the guidance / model implies — a casual “it's flattening” contradicts the raise "
+                 "and hands the analyst a downgrade angle.").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
+        for _a in _anchors:
+            ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
 
 
 def _render_guidance_decision(ss, context="script"):
@@ -4143,6 +4231,9 @@ def _render_qa_prep_tab(ss):
              "quarter's open topics), the AI adversarial pass over your script, and your own additions. Edit any "
              "answer, add your own, promote a good answer to the approved-answer KB, or export the sheet for the "
              "call.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    # Callback direction anchors — how to answer "which way is each number trending?" consistently with the
+    # guide. Moved here from the guidance bridge: it's call prep, and this is where prep lives.
+    _render_callback_qa_prep(ss)
     # Unify the sources: fold the deterministic recurring questions into the single editable list.
     _sync_recurring_into_prep(ss)
 

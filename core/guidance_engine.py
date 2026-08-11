@@ -710,6 +710,11 @@ def _bridge_metric(m):
          "fmt": m.get("fmt", "money"), "actual": a}
     if m.get("comp_note"):
         o["comp_note"] = m["comp_note"]   # e.g. a tough YoY comp to frame proactively (gov-deal unwind)
+    for _k in ("driver_kind", "supports"):   # KPI operating-driver analysis: what lever it is, how it backs the guide
+        if m.get(_k):
+            o[_k] = m[_k]
+    if m.get("reporting_q"):
+        o["reporting_q"] = m["reporting_q"]   # so the KPI card can label the reported quarter (e.g. "Q2 actual")
     pq, pyq = m.get("prior_q"), m.get("prior_yr_q")
     if a is not None and pq is not None:
         o["qoq"] = {"prior": pq, "delta": round(a - pq, 3), "pct": _pct(a - pq, pq)}

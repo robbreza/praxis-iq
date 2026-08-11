@@ -669,15 +669,24 @@ _GUIDANCE_INPUTS = {
                                           {"q": "Q4", "weight": 0.270, "prior_yr": 4.95}]},
         "fcf": {"label": "Free Cash Flow", "unit": "$M", "fmt": "money", "actual": 4.1, "prior_q": 3.6,
                 "prior_yr_q": 2.4},
+        # KPIs carry driver_kind (what lever they are) + supports (how the trend underpins the guide), so the
+        # operating-driver card reads as analysis, not a bare number: trend → what it drives → why the guide holds.
         "tpv": {"label": "Integrated Volume (TPV)", "unit": "$B", "fmt": "volume", "actual": 3.42,
-                "prior_q": 3.29, "prior_yr_q": 2.69,
+                "prior_q": 3.29, "prior_yr_q": 2.69, "driver_kind": "demand",
+                "supports": ("Revenue ≈ volume × take-rate, so TPV is the demand engine. Its YoY is "
+                             "ACCELERATING while headline revenue YoY optically slows — the clean tell that the "
+                             "revenue step-down is the prior-year comp, not softening demand."),
                 "path_quarters": [{"q": "Q3", "value": 3.55, "prior_yr": 2.77},
                                   {"q": "Q4", "value": 3.78, "prior_yr": 2.93}]},
         "nrr": {"label": "Net Revenue Retention", "unit": "%", "fmt": "pct", "actual": 112.0,
-                "prior_q": 112.0, "prior_yr_q": 111.0,
+                "prior_q": 112.0, "prior_yr_q": 111.0, "driver_kind": "retention",
+                "supports": ("Above 100% means the installed base grows before any new logo — it compounds the "
+                             "revenue base the guide sits on and lowers reliance on new-partner timing."),
                 "path_quarters": [{"q": "Q3", "value": 112.0}, {"q": "Q4", "value": 113.0}]},
         "take_rate": {"label": "Net Take-Rate", "unit": "bps", "fmt": "bps", "actual": 47.0,
-                      "prior_q": 46.0, "prior_yr_q": 44.0,
+                      "prior_q": 46.0, "prior_yr_q": 44.0, "driver_kind": "pricing",
+                      "supports": ("Net economics per dollar of volume. A rising take-rate lifts revenue faster "
+                                   "than volume alone as integrated mix builds toward 65%+ — margin-accretive growth."),
                       "path_quarters": [{"q": "Q3", "value": 48.0}, {"q": "Q4", "value": 49.0}]},
     },
 }
