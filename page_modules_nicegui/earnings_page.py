@@ -2214,6 +2214,100 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     return _guidance_template_draft(action, new_low, new_hi, rationale), False
 
 
+def _fmt_metric(v, fmt):
+    if v is None:
+        return "—"
+    if fmt == "eps":
+        return f"${v:.2f}"
+    if fmt == "pct":
+        return f"{v:.0f}%"
+    if fmt == "bps":
+        return f"{v:.0f} bps"
+    if fmt == "volume":
+        return f"${v:.2f}B"
+    return f"${v:.1f}M"
+
+
+def _render_guidance_bridge(ss):
+    """The CFA guidance read: every reported number measured QoQ / YoY / vs Street / vs its own guide,
+    then the beat/miss flowed through the full-year range (low·mid·high each), and what the new guide
+    implies for the rest of the year. Driven by core.guidance_engine.guidance_bridge."""
+    inputs = ss.get("guidance_inputs")
+    if not inputs:
+        return
+    from core import guidance_engine
+    b = guidance_engine.guidance_bridge(inputs)
+    meta = b["meta"]
+    _TAG = {"RAISED": COLORS["positive"], "RAISED LOW END": COLORS["positive"],
+            "RAISED HIGH END": COLORS["positive"], "REITERATED": COLORS["warning"], "CUT": COLORS["danger"]}
+
+    ui.label("Guidance Bridge — every number measured, and how the beat/miss flows to the range").classes(
+        "font-bold").style("font-size:var(--fs-base);margin-top:8px;")
+    ui.label(f"{meta['reporting_quarter']} actuals vs {meta['prior_quarter']} (QoQ), {meta['prior_year_quarter']} "
+             "(YoY), Street consensus and the company's own guide — then the full-year range bridge (prior → new) "
+             "and what it implies for the rest of the year.").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
+
+    def _chip(label, val, good=None):
+        clr = COLORS["text_muted"] if good is None else (COLORS["positive"] if good else COLORS["danger"])
+        with ui.row().classes("items-baseline gap-1").style(
+                f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:2px 8px;"):
+            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
+            ui.label(val).style(f"color:{clr};font-size:var(--fs-sm);font-weight:600;")
+
+    for m in b["metrics"]:
+        f = m["fmt"]
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};padding:8px 12px;margin:3px 0;"):
+            with ui.row().classes("w-full items-center gap-2"):
+                ui.label(m["label"]).style(f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
+                ui.label(_fmt_metric(m["actual"], f)).style(f"color:{COLORS['accent_light']};font-weight:700;")
+                ui.space()
+                if m.get("recommendation"):
+                    tag = m["recommendation"]["tag"]; clr = _TAG.get(tag, COLORS["text_muted"])
+                    ui.label(tag).style(f"background:{clr}22;color:{clr};font-size:var(--fs-xs);font-weight:700;"
+                                        "padding:2px 10px;border-radius:10px;")
+            # The quarter, three ways
+            with ui.row().classes("items-center gap-2 flex-wrap").style("margin-top:2px;"):
+                if "qoq" in m and m["qoq"]["pct"] is not None:
+                    _chip("QoQ", f"{m['qoq']['pct']:+.1f}%", m["qoq"]["pct"] >= 0)
+                if "yoy" in m and m["yoy"]["pct"] is not None:
+                    _chip("YoY", f"{m['yoy']['pct']:+.1f}%", m["yoy"]["pct"] >= 0)
+                if "two_yr_stack_pct" in m:
+                    _chip("2-yr stack", f"{m['two_yr_stack_pct']:.0f}%")
+                if "accel_pp" in m:
+                    _chip("accel", f"{m['accel_pp']:+.1f}pp", m["accel_pp"] >= 0)
+                if "vs_street" in m and m["vs_street"]["beat_pct"] is not None:
+                    _bt = m["vs_street"]
+                    _chip("vs Street", f"{_fmt_metric(_bt['beat'], f)} ({_bt['beat_pct']:+.1f}%)", _bt["beat"] >= 0)
+            # The range bridge + flow-through + implied
+            if "range" in m:
+                r = m["range"]
+                ui.label(f"Full-year guide: {_fmt_metric(r['prior'][0], f)}–{_fmt_metric(r['prior'][1], f)} → "
+                         f"{_fmt_metric(r['new'][0], f)}–{_fmt_metric(r['new'][1], f)}   ·   "
+                         f"low {_fmt_metric(r['d_low'], f)} · mid {_fmt_metric(r['d_mid'], f)} · "
+                         f"high {_fmt_metric(r['d_high'], f)}").style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
+                if m.get("pass_through"):
+                    ui.label(m["pass_through"]["characterization"]).style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                imp = m.get("implied", {})
+                if imp.get("implied_growth_low") is not None:
+                    ui.label(f"Implied remaining periods: "
+                             f"{_fmt_metric(imp['remaining_low'], f)}–{_fmt_metric(imp['remaining_high'], f)} "
+                             f"(+{imp['implied_growth_low']:.0f}% to +{imp['implied_growth_high']:.0f}% vs prior-year) — "
+                             f"{imp.get('read', '')} vs the current run-rate").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                if m.get("vs_street_fy"):
+                    _vf = m["vs_street_fy"]
+                    ui.label(f"New guide midpoint vs Street FY ({_fmt_metric(_vf['street_fy'], f)}): "
+                             f"{_fmt_metric(_vf['delta'], f)} → {_vf['revision']} estimate revisions").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                if m.get("recommendation", {}).get("note"):
+                    ui.label(m["recommendation"]["note"]).style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")
+
+
 def _render_guidance_decision(ss, context="script"):
     """Guidance & Outlook Decision Engine — renders ahead of the CEO's own
     Step 1 review in _render_persona_steps, since the CEO narrative's tone/
@@ -2252,6 +2346,7 @@ def _render_guidance_decision(ss, context="script"):
 
     ui.label("Guidance Step 1 — Review: What the Street Expects & Where Guidance Stands").classes("font-bold").style(
         "font-size:var(--fs-base);margin-top:8px;")
+    _render_guidance_bridge(ss)   # the CFA read — every number measured + beat/miss → range flow-through
     # The Street-expectations briefing renders FIRST — open by default — so the
     # CFO reads what the Street looks for before working the decision below
     # (moved above the metrics/action selector 2026-07-14 at the user's ask).

@@ -540,3 +540,160 @@ def seasonal_read(ss):
         "q3_yoy_needed": q3_yoy_needed, "q4_yoy_needed": q4_yoy_needed,
         "comp_note": comp_note, "prior_fy_label": prior_fy_label,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Guidance bridge — the CFA read. Every reported number is measured QoQ, YoY,
+# vs Street and (where guided) vs its own guide; the beat/miss is FLOWED THROUGH
+# to the full-year range (low / mid / high each measured); and what the new guide
+# IMPLIES for the remaining periods is checked against the current run-rate.
+# Inputs are the ACTUAL management ranges (prior standing guide + the new guide
+# issued this quarter), not a seasonal proxy. See guidance_bridge()'s docstring.
+# ─────────────────────────────────────────────────────────────────────────
+
+def _pct(delta, base):
+    return round(delta / base * 100, 1) if base else None
+
+
+def _characterize_passthrough(beat, rng):
+    """Plain-English read of how the beat/miss flowed into the range move."""
+    dl, dm, dh = rng["d_low"], rng["d_mid"], rng["d_high"]
+    if dl == 0 and dm == 0 and dh == 0:
+        if beat > 0.01:
+            return ("Held the range unchanged — absorbed the beat rather than passing it through "
+                    "(implies caution or an offsetting headwind).")
+        if beat < -0.01:
+            return ("Held the range unchanged despite the miss — signaling a timing issue, not a "
+                    "full-year problem.")
+        return "Held the range unchanged — in line, no change warranted."
+    if dl < 0 or dh < 0:
+        return "Cut part of the range — a guidance reset; the beat/raise story is off the table."
+    parallel = abs(dl - dh) < max(0.01, 0.15 * abs(dm))
+    if parallel and dl > 0:
+        mult = f" (~{dm / beat:.0f}× the beat)" if beat > 0.01 else ""
+        return (f"Raised the full range — low, mid and high all up{mult}: a genuine raise, not just "
+                "flow-through of the beat.")
+    if dl > 0 and dh <= 0.01:
+        return "Raised the floor, held the ceiling — de-risking the low end while keeping the upside (narrowing up)."
+    if dh > 0 and dl <= 0.01:
+        return "Raised the ceiling, held the floor — adding upside optionality without committing the base."
+    return "Raised the range unevenly — read the low / mid / high moves individually."
+
+
+def _bridge_recommendation(o):
+    """The raise/reiterate call as an OUTPUT of the measured bridge — not a heuristic ladder."""
+    rng = o.get("range")
+    if not rng:
+        return None
+    imp = o.get("implied", {})
+    beat = (o.get("vs_street") or {}).get("beat") or 0
+    dl, dm, dh = rng["d_low"], rng["d_mid"], rng["d_high"]
+    if dl == 0 and dm == 0 and dh == 0:
+        return ("REITERATED", "Guidance held; the beat was banked as cushion, not passed through."
+                if beat > 0 else "Guidance held, in line with the print.")
+    if dl < 0 or dh < 0:
+        return ("CUT", "Range lowered — a reset.")
+    parallel = abs(dl - dh) < max(1e-9, 0.15 * abs(dm))
+    if dl > 0 and dh > 0 and parallel:
+        tag, msg = "RAISED", "Full range moved up (parallel shift)."
+    elif dl > 0 and dh == 0:
+        tag, msg = "RAISED LOW END", "Floor raised, ceiling held — de-risking the year."
+    elif dh > 0 and dl == 0:
+        tag, msg = "RAISED HIGH END", "Ceiling raised, floor held — adding upside."
+    else:
+        tag, msg = "RAISED", "Range moved up."
+    read = imp.get("read")
+    if read == "conservative":
+        msg += " Implied remaining-period growth sits BELOW the current run-rate — the guide looks conservative (room to beat again)."
+    elif read == "stretch":
+        msg += " Implied remaining-period growth sits ABOVE the current run-rate — the guide requires acceleration; expect H2-bridge questions."
+    elif read == "in-line":
+        msg += " Implied remaining-period growth is in line with the current run-rate."
+    return (tag, msg)
+
+
+def _bridge_metric(m):
+    a = m.get("actual")
+    o = {"key": m.get("key"), "label": m.get("label", ""), "unit": m.get("unit", ""),
+         "fmt": m.get("fmt", "money"), "actual": a}
+    pq, pyq = m.get("prior_q"), m.get("prior_yr_q")
+    if a is not None and pq is not None:
+        o["qoq"] = {"prior": pq, "delta": round(a - pq, 3), "pct": _pct(a - pq, pq)}
+    if a is not None and pyq is not None:
+        o["yoy"] = {"prior": pyq, "delta": round(a - pyq, 3), "pct": _pct(a - pyq, pyq)}
+        if m.get("prior_yr_yoy_pct") is not None and o["yoy"]["pct"] is not None:
+            o["two_yr_stack_pct"] = round(o["yoy"]["pct"] + m["prior_yr_yoy_pct"], 1)
+        if m.get("prior_q_yoy_pct") is not None and o["yoy"]["pct"] is not None:
+            o["accel_pp"] = round(o["yoy"]["pct"] - m["prior_q_yoy_pct"], 1)
+    cons = m.get("consensus")
+    if a is not None and cons is not None:
+        beat = round(a - cons, 3)
+        o["vs_street"] = {"consensus": cons, "beat": beat, "beat_pct": _pct(beat, cons),
+                          "beat_pct_of_actual": _pct(beat, a)}
+    og = m.get("own_guide")
+    if a is not None and og:
+        gm = (og[0] + og[1]) / 2
+        o["vs_own_guide"] = {"low": og[0], "high": og[1], "mid": round(gm, 3),
+                             "delta_mid": round(a - gm, 3), "above_high": a > og[1], "below_low": a < og[0]}
+    pr, nr = m.get("prior_fy_range"), m.get("new_fy_range")
+    if pr and nr:
+        pl, ph = pr; nl, nh = nr; pm = (pl + ph) / 2; nm = (nl + nh) / 2
+        o["range"] = {"prior": [pl, ph], "new": [nl, nh], "prior_mid": round(pm, 3), "new_mid": round(nm, 3),
+                      "d_low": round(nl - pl, 3), "d_mid": round(nm - pm, 3), "d_high": round(nh - ph, 3),
+                      "d_low_pct": _pct(nl - pl, pl), "d_mid_pct": _pct(nm - pm, pm), "d_high_pct": _pct(nh - ph, ph),
+                      "width_prior": round(ph - pl, 3), "width_new": round(nh - nl, 3),
+                      "width_change": round((nh - nl) - (ph - pl), 3)}
+        if cons is not None:
+            beat = a - cons
+            o["pass_through"] = {"beat": round(beat, 3), "d_mid": o["range"]["d_mid"],
+                                 "ratio": round(o["range"]["d_mid"] / beat, 1) if abs(beat) > 1e-9 else None,
+                                 "characterization": _characterize_passthrough(beat, o["range"])}
+    ytd = m.get("ytd")
+    if ytd is not None and nr:
+        nl, nh = nr
+        o["position"] = {"reporting_q": m.get("reporting_q"), "quarters_actual": m.get("quarters_actual"),
+                         "ytd": ytd, "in_books_pct_of_low": _pct(ytd, nl)}
+        pyr = m.get("prior_yr_remaining")
+        imp = {"remaining_low": round(nl - ytd, 3), "remaining_high": round(nh - ytd, 3)}
+        if pyr:
+            imp["prior_yr_remaining"] = pyr
+            imp["implied_growth_low"] = _pct(imp["remaining_low"] - pyr, pyr)
+            imp["implied_growth_high"] = _pct(imp["remaining_high"] - pyr, pyr)
+            cur = (o.get("yoy") or {}).get("pct")
+            if cur is not None and imp["implied_growth_low"] is not None:
+                imp["vs_current_pace_pp"] = round(imp["implied_growth_low"] - cur, 1)
+                imp["read"] = ("conservative" if imp["vs_current_pace_pp"] < -1.0
+                               else "stretch" if imp["vs_current_pace_pp"] > 3.0 else "in-line")
+        o["implied"] = imp
+    sf = m.get("street_fy")
+    if sf is not None and nr:
+        nm = (nr[0] + nr[1]) / 2
+        o["vs_street_fy"] = {"street_fy": sf, "new_mid": round(nm, 3), "delta": round(nm - sf, 3),
+                             "revision": "upward" if nm > sf + 1e-9 else "downward" if nm < sf - 1e-9 else "in-line"}
+    rec = _bridge_recommendation(o)
+    if rec:
+        o["recommendation"] = {"tag": rec[0], "note": rec[1]}
+    return o
+
+
+def guidance_bridge(inputs):
+    """The full CFA guidance read for a set of reported metrics. `inputs`:
+        {"reporting_quarter", "prior_quarter", "prior_year_quarter", "order":[keys],
+         "metrics": {key: metric_dict}}
+    metric_dict may carry: label, unit, fmt ('money'|'eps'|'pct'|'bps'|'volume'), actual, prior_q,
+    prior_yr_q, prior_q_yoy_pct, prior_yr_yoy_pct, consensus, own_guide[lo,hi], prior_fy_range[lo,hi],
+    new_fy_range[lo,hi], ytd, prior_yr_remaining, quarters_actual, street_fy.
+    Returns {"meta": {...}, "metrics": [per-metric reads, in order]}."""
+    metrics = inputs.get("metrics", {})
+    order = inputs.get("order") or list(metrics.keys())
+    reads = []
+    for k in order:
+        if k not in metrics:
+            continue
+        m = dict(metrics[k]); m["key"] = k
+        m.setdefault("reporting_q", inputs.get("reporting_quarter"))
+        reads.append(_bridge_metric(m))
+    return {"meta": {"reporting_quarter": inputs.get("reporting_quarter"),
+                     "prior_quarter": inputs.get("prior_quarter"),
+                     "prior_year_quarter": inputs.get("prior_year_quarter")},
+            "metrics": reads}

@@ -569,6 +569,38 @@ _ADVERSARIAL_QA = [
 ]
 
 
+# Inputs to the CFA guidance bridge (core.guidance_engine.guidance_bridge). Developed from the Q1
+# transcript + the Q2 numbers: each metric carries the reported actual, prior quarter, prior-year
+# quarter, the Street bar, the company's own quarterly guide, and — for the guided P&L lines — the
+# PRIOR standing FY range and the NEW range management issues this quarter (the raise), plus YTD and
+# prior-year remaining-period for the implied read. KPIs (TPV/NRR/take-rate) aren't formally guided,
+# so they carry only the quarter comparisons.
+_GUIDANCE_INPUTS = {
+    "reporting_quarter": "Q2 2026", "prior_quarter": "Q1 2026", "prior_year_quarter": "Q2 2025",
+    "order": ["rev", "eps", "ebitda", "tpv", "nrr", "take_rate"],
+    "metrics": {
+        "rev": {"label": "Revenue", "unit": "$M", "fmt": "money", "actual": 25.9, "prior_q": 25.3,
+                "prior_yr_q": 21.9, "prior_q_yoy_pct": 19.0, "prior_yr_yoy_pct": 22.0, "consensus": 25.7,
+                "own_guide": [25.6, 26.0], "prior_fy_range": [103.0, 105.0], "new_fy_range": [104.0, 106.0],
+                "ytd": 51.2, "prior_yr_remaining": 47.8, "quarters_actual": 2, "street_fy": 103.7},
+        "eps": {"label": "Adj. EPS", "unit": "$", "fmt": "eps", "actual": 0.13, "prior_q": 0.12,
+                "prior_yr_q": 0.08, "consensus": 0.12, "own_guide": [0.12, 0.13],
+                "prior_fy_range": [0.52, 0.55], "new_fy_range": [0.53, 0.56], "ytd": 0.25,
+                "prior_yr_remaining": 0.18, "quarters_actual": 2, "street_fy": 0.53},
+        "ebitda": {"label": "Adj. EBITDA", "unit": "$M", "fmt": "money", "actual": 5.4, "prior_q": 5.1,
+                   "prior_yr_q": 3.9, "consensus": 5.3, "own_guide": [5.2, 5.5],
+                   "prior_fy_range": [21.0, 23.0], "new_fy_range": [21.5, 23.5], "ytd": 10.5,
+                   "prior_yr_remaining": 8.0, "quarters_actual": 2, "street_fy": 22.0},
+        "tpv": {"label": "Integrated Volume (TPV)", "unit": "$B", "fmt": "volume", "actual": 3.42,
+                "prior_q": 3.29, "prior_yr_q": 2.69},
+        "nrr": {"label": "Net Revenue Retention", "unit": "%", "fmt": "pct", "actual": 112.0,
+                "prior_q": 112.0, "prior_yr_q": 111.0},
+        "take_rate": {"label": "Net Take-Rate", "unit": "bps", "fmt": "bps", "actual": 47.0,
+                      "prior_q": 46.0, "prior_yr_q": 44.0},
+    },
+}
+
+
 def seed_script_workflow(cid="demo"):
     """Write the demo's Q2 2026 script workflow at Northlake scale (was USIO's $102.5M / $8.9B). q2_numbers
     are developed from the Q1 transcript and include the three Street KPIs; the four persona sections are
@@ -589,6 +621,7 @@ def seed_script_workflow(cid="demo"):
         "current_stage": "exec_review",
         "q2_numbers": q2,
         "q2_ops_metrics": {},
+        "guidance_inputs": _GUIDANCE_INPUTS,   # feeds core.guidance_engine.guidance_bridge (the CFA read)
         "script_text": dict(_SCRIPT_TEXT),
         "persona_notes": {k: {"whats_new": "", "final_notes": ""} for k in _persona_keys},
         # Guidance seeded (with text) so the auto-draft doesn't regenerate it off USIO seasonality.
