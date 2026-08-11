@@ -745,7 +745,7 @@ def _open_models_dialog(state, missing_model_analysts):
             nav.go_to("Today")
 
         ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
-        reason_input = ui.input("Reason (optional, if not sending)").classes("w-full")
+        reason_input = ui.input("Reason (optional, if not sending)").props("outlined dense").classes("w-full")
 
         def mark_noted():
             state["models_marked_noted"] = True
@@ -783,7 +783,7 @@ def _open_guidance_dialog(state):
                 f"models are closely aligned with our stated guidance parameters.\n\nManagement's Q2 guidance "
                 f"midpoint stands at {gm_str}. {street_line} Let me know if you'd like to review the core "
                 f"assumptions.\n\nBest,\n{CI().get('name','')}")
-        ui.textarea("Memo template — edit before sending", value=memo).classes("w-full").props("rows=6")
+        ui.textarea("Memo template — edit before sending", value=memo).classes("w-full").props("rows=6 outlined")
         for a in CA():
             first = a["name"].split()[0]
             _mailto(a.get("email", ""), f"{CT('ticker')} | Q2 Guidance Framework Reminder", memo.replace("[Analyst]", first), f"{first} ({a['firm']})")
@@ -798,7 +798,7 @@ def _open_guidance_dialog(state):
             nav.go_to("Today")
 
         ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
-        reason_input = ui.input("Reason (optional, if not sending)").classes("w-full").style("margin-top:8px;")
+        reason_input = ui.input("Reason (optional, if not sending)").props("outlined dense").classes("w-full").style("margin-top:8px;")
 
         def mark_noted():
             state["guidance_marked_noted"] = True
@@ -840,7 +840,7 @@ def _open_checkin_dialog(state, missing_model_analysts, checkin_days):
             nav.go_to("Today")
 
         ui.button("Mark as sent", on_click=mark_sent).props("color=primary").style("margin-top:8px;")
-        reason_input = ui.input("Reason (optional, if not sending)").classes("w-full").style("margin-top:8px;")
+        reason_input = ui.input("Reason (optional, if not sending)").props("outlined dense").classes("w-full").style("margin-top:8px;")
 
         def mark_noted():
             state["checkin_marked_noted"] = True
@@ -885,7 +885,7 @@ def _open_disconnect_dialog(snap=None, pt_avg=None):
             "Talking point — edit before adding to script",
             value="The gap between our stock price and Street targets reflects thin, aging coverage more than a "
                   "fundamental disagreement — 3 of 5 analysts haven't updated models since before our Q1 beat.",
-        ).classes("w-full").props("rows=4")
+        ).classes("w-full").props("rows=4 outlined")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -935,7 +935,7 @@ def _render_activity_row(state, a):
     with ui.row().classes("w-full items-start justify-between gap-4"):
         with ui.column().classes("flex-[2] gap-0"):
             ui.label(f"{a['name']} — {a['firm']}").classes("font-bold").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
-            status_sel = ui.select(["Sent", "Replied", "Model Received"], value=state.get(status_key, "Sent")).classes("w-full")
+            status_sel = ui.select(["Sent", "Replied", "Model Received"], value=state.get(status_key, "Sent")).props("outlined dense").classes("w-full")
         ui.label(f"Sent {state.get('models_request_sent_date','')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     detail_area = ui.column().classes("w-full")
@@ -951,7 +951,7 @@ def _render_activity_row(state, a):
                     "What did they say? (you type this in — nothing here reads their actual email)",
                     value=state.get(notes_key, ""),
                     placeholder="e.g. Asked for a 10-minute call to clarify Q2 margin assumptions",
-                ).classes("w-full")
+                ).props("outlined autogrow").classes("w-full")
 
                 def save_notes(notes_key=notes_key, notes=notes):
                     state[notes_key] = notes.value

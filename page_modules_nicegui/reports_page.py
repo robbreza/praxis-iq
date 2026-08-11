@@ -2236,22 +2236,22 @@ def _render_regfd_tab():
                 f"color:{COLORS['text_muted']}"
             )
             with ui.row().classes("w-full gap-4"):
-                fd_date = ui.input("Date (YYYY-MM-DD)", value=str(today_d)).classes("flex-1")
+                fd_date = ui.input("Date (YYYY-MM-DD)", value=str(today_d)).classes("flex-1").props("outlined dense")
                 fd_type = ui.select(
                     ["1x1 investor meeting", "Earnings call", "Conference", "Analyst call", "NDR meeting", "Email", "Impromptu contact"],
                     value="1x1 investor meeting", label="Type",
-                ).classes("flex-1")
-                fd_chan = ui.select(["In-person", "Phone", "Video", "Email", "Conference"], value="In-person", label="Channel").classes("flex-1")
+                ).classes("flex-1").props("outlined dense")
+                fd_chan = ui.select(["In-person", "Phone", "Video", "Email", "Conference"], value="In-person", label="Channel").classes("flex-1").props("outlined dense")
             with ui.row().classes("w-full gap-4"):
-                fd_inst = ui.input("Institution *").classes("flex-1")
-                fd_cont = ui.input("Contact name(s)").classes("flex-1")
+                fd_inst = ui.input("Institution *").classes("flex-1").props("outlined dense")
+                fd_cont = ui.input("Contact name(s)").classes("flex-1").props("outlined dense")
                 fd_quiet = ui.checkbox("During quiet period", value=in_quiet)
             fd_team = ui.select(team_labels(), multiple=True,
-                                label=f"{C().get('name','Company')} participants").classes("w-full")
-            fd_topics = ui.select(TOPIC_OPTIONS, multiple=True, label="Topics").classes("w-full")
+                                label=f"{C().get('name','Company')} participants").classes("w-full").props("outlined dense")
+            fd_topics = ui.select(TOPIC_OPTIONS, multiple=True, label="Topics").classes("w-full").props("outlined dense")
             fd_mnpi = ui.radio(MNPI_OPTIONS, value=MNPI_OPTIONS[0]).classes("w-full")
-            fd_summ = ui.textarea("Summary *", placeholder="Key topics, questions asked, information shared. Be specific — this is a legal record.").classes("w-full")
-            fd_fuac = ui.textarea("Follow-up actions").classes("w-full")
+            fd_summ = ui.textarea("Summary *", placeholder="Key topics, questions asked, information shared. Be specific — this is a legal record.").classes("w-full").props("outlined autogrow")
+            fd_fuac = ui.textarea("Follow-up actions").classes("w-full").props("outlined autogrow")
             fd_8k = ui.checkbox("8-K disclosure required or under review")
 
             def log_interaction():

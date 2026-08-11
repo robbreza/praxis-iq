@@ -1124,7 +1124,7 @@ def _open_shortlist_outreach(entry, contact, on_invited):
             f"{ir.get('name', '')}\n{ir.get('title', 'Investor Relations')} · {cname} (NASDAQ: {tkr})")
     with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(520px,94vw);"):
         ui.label(f"Contact — {pretty_name(fund)}").classes("text-lg font-bold")
-        ui.textarea(value=body).classes("w-full").props("rows=10")
+        ui.textarea(value=body).classes("w-full").props("rows=10 outlined")
         email = contact.get("email", "")
         if email:
             _mailto(email, subject, body, f"✉ Open email to {contact.get('name', 'the contact')} ({email})")
@@ -2563,7 +2563,7 @@ def _open_account_profile(rec):
         q_opts = {"": "— quality —", **account_api.QUALITY}
         q_sel = ui.select(q_opts, value=note.get("quality") or "", label="Quality").props(
             "dense outlined").style("min-width:200px;")
-        note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2")
+        note_box = ui.textarea(value=note.get("note") or "", label="Note").classes("w-full").props("rows=2 outlined")
 
         def _save_note():
             account_api.save_relationship(name=name, cik=acct_cik, quality=(q_sel.value or None),
@@ -3670,16 +3670,16 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             # Priority 3 fund regardless of its live Engagement_Score —
             # defaulting to all three so nothing is hidden until a user
             # deliberately narrows it.
-            tier_filter = ui.select({1: "Priority 1", 2: "Priority 2", 3: "Priority 3"}, multiple=True, value=[1, 2, 3]).classes("min-w-[140px]").props("label='Coverage priority'")
-            holder_filter = ui.select(["All", "Current holders", "Non-holders only"], value="All").classes("min-w-[160px]").props("label='Holder status'")
-            score_filter = ui.number(label="Min score", value=0, min=0, max=100)
+            tier_filter = ui.select({1: "Priority 1", 2: "Priority 2", 3: "Priority 3"}, multiple=True, value=[1, 2, 3]).classes("min-w-[140px]").props("outlined dense label='Coverage priority'")
+            holder_filter = ui.select(["All", "Current holders", "Non-holders only"], value="All").classes("min-w-[160px]").props("outlined dense label='Holder status'")
+            score_filter = ui.number(label="Min score", value=0, min=0, max=100).props("outlined dense")
             # Coerce to str: a record with Metro=None makes sorted() raise
             # TypeError('<' not supported between NoneType and str) and takes the whole
             # page down. Defensive here as well as at the source, because this list is fed
             # by several record shapes (13F holders, promoted prospects, SEC universe).
             metro_options = ["All Regions"] + sorted({(i.get("Metro") or "Unknown (SEC)")
                                                       for i in institutions})
-            metro_filter = ui.select(metro_options, value="All Regions").classes("min-w-[160px]").props("label='Metro'")
+            metro_filter = ui.select(metro_options, value="All Regions").classes("min-w-[160px]").props("outlined dense label='Metro'")
         turnover_options = ["Low (Long-Term Value)", "Medium (Growth/GARP)", "High (Hedge/Trading)"]
         # Include any other turnover value actually present in the universe
         # (e.g. "Unknown (SEC)" on real SEC-sourced names) so the default
@@ -3688,13 +3688,13 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         turnover_options = turnover_options + sorted(
             {i["Turnover_Style"] for i in institutions} - set(turnover_options))
         turnover_filter = ui.select(turnover_options, multiple=True,
-                                     value=list(turnover_options)).classes("w-full").props("label='Fund Turnover Style'")
+                                     value=list(turnover_options)).classes("w-full").props("outlined dense label='Fund Turnover Style'")
         # Previously defaulted to 40, hiding any fund with Digital_Intent_Score
         # below that even if its Engagement_Score ranked it top-5 — that score
         # is an intentionally separate, unrelated metric (see
         # core/investor_scoring.py), not something that should gate visibility
         # by default.
-        intent_filter = ui.number(label="Minimum Digital Intent Score (Web Traffic & Call Replays)", value=0, min=0, max=100, step=10).classes("w-full")
+        intent_filter = ui.number(label="Minimum Digital Intent Score (Web Traffic & Call Replays)", value=0, min=0, max=100, step=10).classes("w-full").props("outlined dense")
         ownership_filter = ui.toggle(["All", "Active only", "Passive only"], value="All")
         ui.label("Ownership Type is tagged per manager (not parsed from the 13F itself — filings don't carry an "
                  "active/passive flag). Excluding passive/index holders surfaces who can actually take a 1x1 meeting.").style(
@@ -4171,7 +4171,7 @@ def _open_outreach_dialog(inst, contact):
 
     with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:480px;"):
         ui.label(f"Draft Outreach — {inst['Fund']}").classes("text-lg font-bold")
-        ui.textarea(value=body).classes("w-full").props("rows=12")
+        ui.textarea(value=body).classes("w-full").props("rows=12 outlined")
         to_email = contact.get("email", "")
         if to_email:
             _mailto(to_email, subject, body, f"Email {contact.get('name','Contact')}")
@@ -4218,14 +4218,14 @@ def _open_meeting_log_dialog(inst, fund_meetings, repeat_gap):
         logged_by = CI().get("name") or "IR Team"
 
         ui.markdown("**Log a new meeting**")
-        m_date = ui.input("Date (YYYY-MM-DD)", value=datetime.now().strftime("%Y-%m-%d")).classes("w-full")
+        m_date = ui.input("Date (YYYY-MM-DD)", value=datetime.now().strftime("%Y-%m-%d")).classes("w-full").props("outlined dense")
         m_type = ui.select(["1x1 — Investor Conference", "Intro call", "Follow-up call", "NDR meeting",
-                             "Earnings call Q&A", "Other"], label="Meeting Type", value="Follow-up call").classes("w-full")
-        m_attend = ui.input("Attendees", value=default_attendees).classes("w-full")
-        m_notes = ui.textarea("Notes").classes("w-full")
+                             "Earnings call Q&A", "Other"], label="Meeting Type", value="Follow-up call").classes("w-full").props("outlined dense")
+        m_attend = ui.input("Attendees", value=default_attendees).classes("w-full").props("outlined dense")
+        m_notes = ui.textarea("Notes").classes("w-full").props("outlined autogrow")
         m_outcome = ui.select(["Positive — follow up", "Neutral — maintain", "Warm — send materials",
                                 "Flag — possible exit", "CFO follow-up required", "No clear signal"],
-                               label="Meeting Outcome (scored)", value="Positive — follow up").classes("w-full")
+                               label="Meeting Outcome (scored)", value="Positive — follow up").classes("w-full").props("outlined dense")
         ui.label(f"Outcome feeds this fund's Interaction Score (0–{INTERACTION_SCORE_MAX} pts of the 100-pt "
                  "Engagement Score) — a positive/CFO-escalation outcome raises it, a Flag lowers it.") \
             .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
@@ -4822,7 +4822,7 @@ def _time_picker_input(label="Time", placeholder="e.g. 2:00 PM", value=""):
     field stays hand-editable — the clock just fills it — so a planner can nudge
     a time freely to absorb travel, which is the whole point of an NDR schedule.
     Returns the ui.input element (read .value)."""
-    ti = ui.input(label, placeholder=placeholder, value=value).classes("flex-1")
+    ti = ui.input(label, placeholder=placeholder, value=value).classes("flex-1").props("outlined dense")
     with ti:
         with ui.menu().props("no-parent-event") as _tmenu:
             ui.time(on_change=lambda e: ti.set_value(_fmt_time_12h(e.value)))
@@ -4881,7 +4881,7 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
         # Catered lunch meeting — the Street norm of building lunch INTO a meeting. Runs ~1h15 (so it
         # blocks a bigger chunk of the day) and opens a dietary-requests field for the caterer.
         lunch_in = ui.checkbox("Catered lunch meeting (~1h15)").props("dense")
-        diet_in = ui.input("Dietary requests", placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full")
+        diet_in = ui.input("Dietary requests", placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full").props("outlined dense")
         diet_in.bind_visibility_from(lunch_in, "value")
 
         def _refresh_slots():
@@ -4900,10 +4900,10 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
         _refresh_slots()
         address_in = ui.input("Address / location (optional — powers the travel calc)",
                               value=default_address or "",
-                              placeholder=f"street, {default_metro or 'city'}").classes("w-full")
+                              placeholder=f"street, {default_metro or 'city'}").classes("w-full").props("outlined dense")
         # Virtual meetings carry a join link that flows onto the itinerary. Shown
         # only when the format isn't in-person.
-        link_in = ui.input("Meeting link", placeholder="Zoom / Teams / Meet URL").classes("w-full")
+        link_in = ui.input("Meeting link", placeholder="Zoom / Teams / Meet URL").classes("w-full").props("outlined dense")
         link_in.bind_visibility_from(format_in, "value", backward=lambda v: v != "In-person")
 
         def commit():
@@ -4962,18 +4962,18 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     label="Start from an inbound request (sponsoring bank · city)").classes("w-full").props("outlined")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
-                    name_in = ui.input("NDR name / label", placeholder="Post-Q2 Boston NDR").classes("w-full")
+                    name_in = ui.input("NDR name / label", placeholder="Post-Q2 Boston NDR").classes("w-full").props("outlined dense")
                     # Suggest, don't pre-fill: covering analysts are OFFERED via autocomplete,
                     # but the field starts EMPTY. Auto-filling the first covering bank tagged
                     # every NDR as its sponsor unless someone remembered to change it.
                     bank_options = [f"{a['firm']} — {a['name']}" for a in CA()] + ["Other / Non-Covering Bank"]
                     sponsor_in = ui.input("Sponsoring Bank",
                                           placeholder="Covering bank, or self-sponsored — pick or type",
-                                          autocomplete=bank_options).classes("w-full")
+                                          autocomplete=bank_options).classes("w-full").props("outlined dense")
                     # Calendar-backed date field — click the field (or the
                     # calendar icon) to pick a start/end range; the input shows
                     # a friendly "Aug 20–21, 2026" and is what save_trip stores.
-                    dates_in = ui.input("Dates", placeholder="Click to pick trip dates").classes("w-full")
+                    dates_in = ui.input("Dates", placeholder="Click to pick trip dates").classes("w-full").props("outlined dense")
 
                     def _fmt_ndr_dates():
                         v = _dates_picker.value
@@ -5007,7 +5007,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     # commit a typed city. Typing a metro that isn't tracked yet
                     # just yields no auto-suggested targets.
                     city_in = ui.input("City / Region", placeholder="Type a city, or pick a tracked metro",
-                                       autocomplete=_ndr_location_options(institutions)).classes("w-full")
+                                       autocomplete=_ndr_location_options(institutions)).classes("w-full").props("outlined dense")
                     # Wire the request picker (created above) now that the fields it fills exist.
                     if _req_pick is not None:
                         def _prefill_from_req():
@@ -5028,13 +5028,13 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         "Post-earnings — deliver results story", "Pre-earnings — build anticipation",
                         "New institution discovery", "Existing holder relationship maintenance",
                         "Analyst initiation support", "Other",
-                    ], value=_focus_default).classes("w-full").props("label='NDR focus'")
+                    ], value=_focus_default).classes("w-full").props("outlined dense label='NDR focus'")
                     team_in = ui.select([f"{v['name']} ({k})" for k, v in CT("executives", {}).items()] + [CI().get("name", "")],
-                                         multiple=True).classes("w-full").props("label='Attendees'")
-                    notes_in = ui.textarea("Trip objectives", placeholder="e.g. Re-introduce to Putnam. Get Fidelity Small Cap on record post-print.").classes("w-full")
+                                         multiple=True).classes("w-full").props("outlined dense label='Attendees'")
+                    notes_in = ui.textarea("Trip objectives", placeholder="e.g. Re-introduce to Putnam. Get Fidelity Small Cap on record post-print.").classes("w-full").props("outlined autogrow")
                     with ui.row().classes("w-full gap-3"):
-                        days_in = ui.number("Days", value=_nd["days"], min=1, max=3).classes("flex-1")
-                        slots_in = ui.number("Meetings per day", value=_nd["slots_per_day"], min=3, max=10).classes("flex-1")
+                        days_in = ui.number("Days", value=_nd["days"], min=1, max=3).classes("flex-1").props("outlined dense")
+                        slots_in = ui.number("Meetings per day", value=_nd["slots_per_day"], min=3, max=10).classes("flex-1").props("outlined dense")
                     # Management availability window — the hours the exec team can take meetings.
                     # Set upfront: it bounds the smart slot picker when funds are added to the trip.
                     with ui.row().classes("w-full gap-3"):
@@ -5520,7 +5520,7 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                             with ui.dialog() as _edit_dialog, ui.card().classes("w-96"):
                                 ui.label(f"Edit — {_m_name}").classes("font-bold").style(f"color:{COLORS['text_heading']};")
                                 with ui.row().classes("w-full gap-3 items-end"):
-                                    _e_time = ui.input("Time", value=m.get("time", "")).classes("flex-1")
+                                    _e_time = ui.input("Time", value=m.get("time", "")).classes("flex-1").props("outlined dense")
                                     with _e_time:
                                         with ui.menu().props("no-parent-event") as _etmenu:
                                             ui.time(on_change=lambda e, ti=_e_time: ti.set_value(_fmt_time_12h(e.value)))
@@ -5529,13 +5529,13 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                     _e_fmt = ui.select(["In-person", "Virtual", "Zoom", "Teams", "Phone", "Jitsi"],
                                                        value=m.get("format", "In-person"),
                                                        label="Format").props("dense outlined").classes("w-32")
-                                _e_addr = ui.input("Address / location", value=m.get("address", "")).classes("w-full")
+                                _e_addr = ui.input("Address / location", value=m.get("address", "")).classes("w-full").props("outlined dense")
                                 _e_lunch = ui.checkbox("Catered lunch meeting (~1h15)", value=bool(m.get("lunch"))).props("dense")
                                 _e_diet = ui.input("Dietary requests", value=m.get("dietary", ""),
-                                                   placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full")
+                                                   placeholder="e.g. 2 vegetarian, 1 gluten-free · no nuts").classes("w-full").props("outlined dense")
                                 _e_diet.bind_visibility_from(_e_lunch, "value")
                                 _e_link = ui.input("Meeting link", value=m.get("meeting_link", ""),
-                                                   placeholder="Zoom / Teams / Meet URL").classes("w-full")
+                                                   placeholder="Zoom / Teams / Meet URL").classes("w-full").props("outlined dense")
                                 _e_link.bind_visibility_from(_e_fmt, "value", backward=lambda v: v != "In-person")
 
                                 async def create_zoom(idx=idx, flat_idx=flat_idx, trip=trip, m=m,
@@ -5749,17 +5749,17 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
 
                     with ui.expansion("Add a meeting to this trip by hand").classes("w-full").style("margin-top:6px;"):
                         with ui.row().classes("w-full gap-4"):
-                            inst_in = ui.input("Institution *").classes("flex-1")
+                            inst_in = ui.input("Institution *").classes("flex-1").props("outlined dense")
                             contact_in = ui.input(
                                 "Who you're meeting (name / title)",
-                                placeholder="e.g. Jane Smith, PM; John Doe, Analyst").classes("flex-1")
+                                placeholder="e.g. Jane Smith, PM; John Doe, Analyst").classes("flex-1").props("outlined dense")
                         with ui.row().classes("w-full gap-4"):
                             address_in = ui.input(
                                 "Address / location",
-                                placeholder="e.g. 55 E 52nd St, 12th Fl, New York, NY").classes("flex-1")
+                                placeholder="e.g. 55 E 52nd St, 12th Fl, New York, NY").classes("flex-1").props("outlined dense")
                         with ui.row().classes("w-full gap-4 items-end"):
-                            day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20")
-                            time_in = ui.input("Time", placeholder="e.g. 2:00 PM").classes("flex-1")
+                            day_in = ui.number("Day", value=1, min=1, step=1).classes("w-20").props("outlined dense")
+                            time_in = ui.input("Time", placeholder="e.g. 2:00 PM").classes("flex-1").props("outlined dense")
                             with time_in:
                                 with ui.menu().props("no-parent-event") as _tmenu:
                                     ui.time(on_change=lambda e, ti=time_in: ti.set_value(_fmt_time_12h(e.value)))
@@ -5772,9 +5772,9 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         with ui.row().classes("w-full gap-4 items-end"):
                             holder_in = ui.select(["Non-holder", "Holder"], value="Non-holder",
                                                   label="Holder status").props("dense outlined").classes("w-40")
-                            notes_m = ui.input("Notes").classes("flex-1")
+                            notes_m = ui.input("Notes").classes("flex-1").props("outlined dense")
                         link_m = ui.input("Meeting link (virtual)",
-                                          placeholder="Zoom / Teams / Meet URL").classes("w-full")
+                                          placeholder="Zoom / Teams / Meet URL").classes("w-full").props("outlined dense")
                         link_m.bind_visibility_from(format_in, "value", backward=lambda v: v != "In-person")
 
                         def add_meeting(idx=idx, inst_in=inst_in, contact_in=contact_in, address_in=address_in,
@@ -5992,18 +5992,18 @@ def _render_ndr_requests_tab():
 
     with ui.expansion("Log a new request", value=False).classes("w-full"):
         with ui.row().classes("w-full gap-4"):
-            r_analyst = ui.input("Analyst name *").classes("flex-1")
+            r_analyst = ui.input("Analyst name *").classes("flex-1").props("outlined dense")
             # Suggest covering firms via autocomplete, but start empty — a request can
             # come from any firm; auto-filling the first covering bank mislabeled it.
             bank_options = [a["firm"] for a in CA()] + ["Other / Non-Covering Bank"]
             r_firm = ui.input("Firm", placeholder="Analyst's firm — pick or type",
-                              autocomplete=bank_options).classes("flex-1")
+                              autocomplete=bank_options).classes("flex-1").props("outlined dense")
         with ui.row().classes("w-full gap-4"):
-            r_city = ui.input("City *").classes("flex-1")
+            r_city = ui.input("City *").classes("flex-1").props("outlined dense")
             r_metro = ui.input("Metro region",
-                               autocomplete=sorted({i["Metro"] for i in get_seed_buyside_institutions(get_active_client_id())})).classes("flex-1")
-        r_email = ui.input("Analyst email", placeholder="so Reply pre-fills the recipient").classes("w-full")
-        r_reason = ui.textarea("Reason / context", placeholder="What did they ask for, and why?").classes("w-full")
+                               autocomplete=sorted({i["Metro"] for i in get_seed_buyside_institutions(get_active_client_id())})).classes("flex-1").props("outlined dense")
+        r_email = ui.input("Analyst email", placeholder="so Reply pre-fills the recipient").classes("w-full").props("outlined dense")
+        r_reason = ui.textarea("Reason / context", placeholder="What did they ask for, and why?").classes("w-full").props("outlined autogrow")
 
         def log_request():
             if not (r_analyst.value and r_city.value):
@@ -6271,7 +6271,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     trip_names = [t["name"] for t in trips]
-    trip_sel = ui.select(trip_names, value=trip_names[-1], label="Trip").classes("w-full max-w-md")
+    trip_sel = ui.select(trip_names, value=trip_names[-1], label="Trip").classes("w-full max-w-md").props("outlined dense")
     cards_area = ui.column().classes("w-full")
 
     inst_by_name = {i["Fund"]: i for i in institutions}
@@ -6394,7 +6394,7 @@ def _render_ndr_debrief_tab():
         return
 
     trip_names = [t["name"] for t in completed]
-    trip_sel = ui.select(trip_names, value=trip_names[-1], label="Trip").classes("w-full max-w-md")
+    trip_sel = ui.select(trip_names, value=trip_names[-1], label="Trip").classes("w-full max-w-md").props("outlined dense")
     form_area = ui.column().classes("w-full")
 
     def rebuild_form(e=None):
@@ -6409,23 +6409,23 @@ def _render_ndr_debrief_tab():
 
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
-                    held_in = ui.number("Meetings actually held", value=debrief.get("meetings_held", n_held), min=0).classes("w-full")
-                    eff_in = ui.number("Effectiveness score (0-100)", value=debrief.get("effectiveness", 70), min=0, max=100).classes("w-full")
+                    held_in = ui.number("Meetings actually held", value=debrief.get("meetings_held", n_held), min=0).classes("w-full").props("outlined dense")
+                    eff_in = ui.number("Effectiveness score (0-100)", value=debrief.get("effectiveness", 70), min=0, max=100).classes("w-full").props("outlined dense")
                     meeting_names = [m.get("institution", "") for m in meetings] or ["—"]
                     best_in = ui.select(meeting_names, value=debrief.get("best_meeting", meeting_names[0]),
-                                         label="Best meeting").classes("w-full")
+                                         label="Best meeting").classes("w-full").props("outlined dense")
                 with ui.column().classes("flex-1"):
-                    follow_in = ui.textarea("Follow-ups needed", value=debrief.get("follow_ups", "")).classes("w-full")
-                    new_pos_in = ui.textarea("New positions initiated (if known)", value=debrief.get("new_positions", "")).classes("w-full")
+                    follow_in = ui.textarea("Follow-ups needed", value=debrief.get("follow_ups", "")).classes("w-full").props("outlined autogrow")
+                    new_pos_in = ui.textarea("New positions initiated (if known)", value=debrief.get("new_positions", "")).classes("w-full").props("outlined autogrow")
 
             ui.markdown("---")
             ui.label("Feeds the IR Risk Dashboard (Markets page) once saved:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             with ui.row().classes("w-full gap-4"):
                 objection_in = ui.textarea("Key objection heard", value=debrief.get("key_objection", ""),
-                                            placeholder="e.g. \"Concerned about customer concentration in top 3 accounts.\"").classes("flex-1")
+                                            placeholder="e.g. \"Concerned about customer concentration in top 3 accounts.\"").classes("flex-1").props("outlined autogrow")
                 gap_in = ui.textarea("Narrative gap (question the current deck/script doesn't answer)",
-                                      value=debrief.get("narrative_gap", "")).classes("flex-1")
-            next_in = ui.textarea("Next targets for this metro", value=debrief.get("next_targets", "")).classes("w-full")
+                                      value=debrief.get("narrative_gap", "")).classes("flex-1").props("outlined autogrow")
+            next_in = ui.textarea("Next targets for this metro", value=debrief.get("next_targets", "")).classes("w-full").props("outlined autogrow")
 
             def save_debrief(trip_name=trip["name"]):
                 trips_ = _load_json("ndr_trips.json", [])
@@ -6610,18 +6610,18 @@ def _render_meeting_hub_tab():
             ui.label("Schedule a New Meeting or Callback").classes("font-bold")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
-                    s_contact = ui.input("Contact name *").classes("w-full")
-                    s_firm = ui.input("Firm *", autocomplete=firm_options).classes("w-full")
+                    s_contact = ui.input("Contact name *").classes("w-full").props("outlined dense")
+                    s_firm = ui.input("Firm *", autocomplete=firm_options).classes("w-full").props("outlined dense")
                     s_firm.on_value_change(lambda e: _autofill_contact(e, s_contact))
-                    s_side = ui.select(["Buy-side", "Sell-side"], value="Buy-side").classes("w-full")
-                    s_priority = ui.select(["High", "Medium", "Low"], value="Medium").classes("w-full")
+                    s_side = ui.select(["Buy-side", "Sell-side"], value="Buy-side").classes("w-full").props("outlined dense")
+                    s_priority = ui.select(["High", "Medium", "Low"], value="Medium").classes("w-full").props("outlined dense")
                 with ui.column().classes("flex-1"):
-                    s_date = ui.input("Date (YYYY-MM-DD)", value=(today + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full")
-                    s_time = ui.input("Time", placeholder="e.g. 2:00 PM ET").classes("w-full")
-                    s_status = ui.select(["Confirmed", "Tentative", "Pending", "Requested"], value="Pending").classes("w-full")
+                    s_date = ui.input("Date (YYYY-MM-DD)", value=(today + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full").props("outlined dense")
+                    s_time = ui.input("Time", placeholder="e.g. 2:00 PM ET").classes("w-full").props("outlined dense")
+                    s_status = ui.select(["Confirmed", "Tentative", "Pending", "Requested"], value="Pending").classes("w-full").props("outlined dense")
                     s_type = ui.select(["Intro call", "Follow-up call", "1x1 — Investor Conference", "Model update call",
-                                         "PT discussion", "NDR meeting", "Callback", "Earnings call Q&A", "Other"], value="Intro call").classes("w-full")
-                s_topic = ui.textarea("Topic / agenda").classes("w-full")
+                                         "PT discussion", "NDR meeting", "Callback", "Earnings call Q&A", "Other"], value="Intro call").classes("w-full").props("outlined dense")
+                s_topic = ui.textarea("Topic / agenda").classes("w-full").props("outlined autogrow")
 
             # Optional model/document attach — the file itself is held in
             # memory (pending_upload) until "Add to Meeting Queue" actually
@@ -6669,15 +6669,15 @@ def _render_meeting_hub_tab():
             ui.label("Type your raw notes immediately after the call — an AI model organizes them into questions, concerns, signals, and actions.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             with ui.row().classes("w-full gap-4"):
                 with ui.column().classes("flex-1"):
-                    n_contact = ui.input("Contact name").classes("w-full")
-                    n_firm = ui.input("Firm", autocomplete=firm_options).classes("w-full")
+                    n_contact = ui.input("Contact name").classes("w-full").props("outlined dense")
+                    n_firm = ui.input("Firm", autocomplete=firm_options).classes("w-full").props("outlined dense")
                     n_firm.on_value_change(lambda e: _autofill_contact(e, n_contact))
-                    n_side = ui.select(["Buy-side", "Sell-side"], label="Side", value="Buy-side").classes("w-full")
+                    n_side = ui.select(["Buy-side", "Sell-side"], label="Side", value="Buy-side").classes("w-full").props("outlined dense")
                     n_type = ui.select(["Intro call", "Follow-up call", "1x1 — Investor Conference",
                                          "Model update call", "Callback", "Other", "Remove"],
-                                        label="Meeting Type", value="Intro call").classes("w-full")
+                                        label="Meeting Type", value="Intro call").classes("w-full").props("outlined dense")
                 with ui.column().classes("flex-1"):
-                    n_raw = ui.textarea("Raw notes", placeholder="Type exactly what you heard and said, no need to format").classes("w-full").props("rows=8")
+                    n_raw = ui.textarea("Raw notes", placeholder="Type exactly what you heard and said, no need to format").classes("w-full").props("rows=8 outlined")
 
                     # Topic chips — a blank textarea right after a call tends
                     # to get skipped or filled with two rushed sentences.
@@ -6976,14 +6976,14 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     existing = current["period_estimates"].get(default_period, {}).get(firm, {})
 
                     with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-                        r_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1")
+                        r_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1").props("outlined dense")
                         r_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"],
-                                              value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1")
+                                              value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1").props("outlined dense")
                     with ui.row().classes("w-full gap-3"):
-                        r_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1")
-                        r_eps = ui.number("EPS Est ($)", value=extracted.get("eps_est") or existing.get("EPS Est") or 0.0, step=0.01).classes("flex-1")
-                        r_rev = ui.number("Revenue Est ($M)", value=extracted.get("revenue_est") or existing.get("Revenue Est ($M)") or 0.0, step=0.5).classes("flex-1")
-                        r_ebd = ui.number("EBITDA Est ($M)", value=extracted.get("ebitda_est") or existing.get("EBITDA Est ($M)") or 0.0, step=0.1).classes("flex-1")
+                        r_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1").props("outlined dense")
+                        r_eps = ui.number("EPS Est ($)", value=extracted.get("eps_est") or existing.get("EPS Est") or 0.0, step=0.01).classes("flex-1").props("outlined dense")
+                        r_rev = ui.number("Revenue Est ($M)", value=extracted.get("revenue_est") or existing.get("Revenue Est ($M)") or 0.0, step=0.5).classes("flex-1").props("outlined dense")
+                        r_ebd = ui.number("EBITDA Est ($M)", value=extracted.get("ebitda_est") or existing.get("EBITDA Est ($M)") or 0.0, step=0.1).classes("flex-1").props("outlined dense")
                     if extracted:
                         ui.label("Numbers pre-filled by AI from the attached file — check them before confirming.").style(
                             f"color:{COLORS['warning']};font-size:var(--fs-xs);")
@@ -7035,10 +7035,10 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                         default_period = extracted.get("period") if extracted.get("period") in ALL_PERIODS else ALL_PERIODS[0]
                         existing = current["period_estimates"].get(default_period, {}).get(firm, {})
                         with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
-                            rn_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1")
+                            rn_period = ui.select(ALL_PERIODS, value=default_period, label="Period").classes("flex-1").props("outlined dense")
                             rn_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"],
-                                                   value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1")
-                            rn_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1")
+                                                   value=extracted.get("rating") or existing.get("Rating") or "Buy", label="Rating").classes("flex-1").props("outlined dense")
+                            rn_pt = ui.number("Price Target ($)", value=extracted.get("price_target") or existing.get("Price Target") or 0.0, step=0.25).classes("flex-1").props("outlined dense")
                         rn_update_consensus = ui.checkbox("Also update consensus with this rating/PT", value=True)
                         rn_internal_only = ui.checkbox("Internal Use Only (flag before any further internal circulation)", value=True)
 
@@ -7064,9 +7064,9 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     confirm_label = "Confirm Review"
 
                 elif category == "ndr_request":
-                    n_city = ui.input("City *", value=extracted.get("city") or "").classes("w-full").style("margin-top:6px;")
-                    n_metro = ui.input("Metro region", value=extracted.get("metro") or "").classes("w-full")
-                    n_reason = ui.textarea("Reason / context", value=extracted.get("reason") or "").classes("w-full")
+                    n_city = ui.input("City *", value=extracted.get("city") or "").classes("w-full").style("margin-top:6px;").props("outlined dense")
+                    n_metro = ui.input("Metro region", value=extracted.get("metro") or "").classes("w-full").props("outlined dense")
+                    n_reason = ui.textarea("Reason / context", value=extracted.get("reason") or "").classes("w-full").props("outlined autogrow")
 
                     def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
                                 n_city=n_city, n_metro=n_metro, n_reason=n_reason):
@@ -7086,17 +7086,17 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     confirm_label = "Log NDR Request"
 
                 elif category == "conference_invite":
-                    c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;")
-                    c_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or "").classes("w-full")
-                    c_loc = ui.input("Location", value=extracted.get("location") or "").classes("w-full")
+                    c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;").props("outlined dense")
+                    c_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or "").classes("w-full").props("outlined dense")
+                    c_loc = ui.input("Location", value=extracted.get("location") or "").classes("w-full").props("outlined dense")
                     # Organizer is parsed from the invite (the host running the conference — Baird,
                     # Sidoti…), which is NOT always the sender's firm. Prefill the parsed value and
                     # fall back to the sender firm; it used to be silently overwritten with the firm.
-                    c_org = ui.input("Organizer", value=extracted.get("organizer") or item["firm"] or "").classes("w-full")
+                    c_org = ui.input("Organizer", value=extracted.get("organizer") or item["firm"] or "").classes("w-full").props("outlined dense")
                     # RSVP / confirm-attendance-by date, parsed from the invite → the calendar's
                     # registration-deadline field, so the "reply by" date isn't lost.
                     c_deadline = ui.input("RSVP / confirm by (YYYY-MM-DD)",
-                                          value=extracted.get("rsvp_deadline") or "").classes("w-full")
+                                          value=extracted.get("rsvp_deadline") or "").classes("w-full").props("outlined dense")
 
                     # Who from management is available? The first call an IR person makes on an invite —
                     # who can actually go. CEO and CFO first (the prepared-remarks speakers, same lineup
@@ -7170,9 +7170,9 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     confirm_label = "Add to Calendar"
 
                 elif category == "speak_to_management":
-                    m_contact_role = ui.input("Requested contact", value=extracted.get("requested_contact") or "CFO / IR").classes("w-full").style("margin-top:6px;")
-                    m_topic = ui.textarea("Topic", value=extracted.get("topic") or "").classes("w-full")
-                    m_date = ui.input("Proposed date (YYYY-MM-DD)", value=(datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full")
+                    m_contact_role = ui.input("Requested contact", value=extracted.get("requested_contact") or "CFO / IR").classes("w-full").style("margin-top:6px;").props("outlined dense")
+                    m_topic = ui.textarea("Topic", value=extracted.get("topic") or "").classes("w-full").props("outlined autogrow")
+                    m_date = ui.input("Proposed date (YYYY-MM-DD)", value=(datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full").props("outlined dense")
 
                     def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
                                 m_topic=m_topic, m_date=m_date):
@@ -7191,10 +7191,10 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
 
                 elif category == "meeting_confirmation":
                     mc_type = ui.select(["1x1 call", "Conference call", "Video call", "In-person", "Other"],
-                                         value=extracted.get("meeting_type") or "1x1 call", label="Meeting type").classes("w-full").style("margin-top:6px;")
-                    mc_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")).classes("w-full")
-                    mc_time = ui.input("Time", value=extracted.get("time") or "").classes("w-full")
-                    mc_notes = ui.textarea("Notes", value=extracted.get("notes") or "").classes("w-full")
+                                         value=extracted.get("meeting_type") or "1x1 call", label="Meeting type").classes("w-full").style("margin-top:6px;").props("outlined dense")
+                    mc_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date") or (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")).classes("w-full").props("outlined dense")
+                    mc_time = ui.input("Time", value=extracted.get("time") or "").classes("w-full").props("outlined dense")
+                    mc_notes = ui.textarea("Notes", value=extracted.get("notes") or "").classes("w-full").props("outlined autogrow")
 
                     def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
                                 mc_type=mc_type, mc_date=mc_date, mc_time=mc_time, mc_notes=mc_notes):
@@ -7360,7 +7360,7 @@ def _render_target_db_tab(institutions, client_id):
     _search_exp = ui.expansion("Search by fund name", icon="search", value=False).classes("w-full").style(
         f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;")
     with _search_exp:
-        search_in = ui.input("Search by fund name").classes("w-full")
+        search_in = ui.input("Search by fund name").classes("w-full").props("outlined dense")
         _search_btn_row = ui.row().classes("gap-2 items-center")
         results = ui.column().classes("w-full gap-2")
 
@@ -7453,11 +7453,11 @@ def _render_target_db_tab(institutions, client_id):
 
     ui.markdown("---")
     with ui.expansion("Add a prospect manually").classes("w-full"):
-        p_fund = ui.input("Fund name *").classes("w-full")
-        p_metro = ui.input("Metro / region").classes("w-full")
-        p_style = ui.input("Investment style").classes("w-full")
-        p_score = ui.number("Fit score (0-100)", value=50, min=0, max=100)
-        p_notes = ui.textarea("Notes").classes("w-full")
+        p_fund = ui.input("Fund name *").classes("w-full").props("outlined dense")
+        p_metro = ui.input("Metro / region").classes("w-full").props("outlined dense")
+        p_style = ui.input("Investment style").classes("w-full").props("outlined dense")
+        p_score = ui.number("Fit score (0-100)", value=50, min=0, max=100).props("outlined dense")
+        p_notes = ui.textarea("Notes").classes("w-full").props("outlined autogrow")
 
         def add_prospect():
             if not p_fund.value:
@@ -7478,7 +7478,7 @@ def _render_target_db_tab(institutions, client_id):
                   "tables — copy/paste from those won't preserve columns cleanly through a file upload. Paste raw "
                   "text here instead; it's parsed by tab or by runs of 2+ spaces.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-        bp_raw = ui.textarea("Paste table here", placeholder="Paste tab-separated or space-aligned rows here...").classes("w-full")
+        bp_raw = ui.textarea("Paste table here", placeholder="Paste tab-separated or space-aligned rows here...").classes("w-full").props("outlined autogrow")
         bp_preview = ui.column().classes("w-full")
         bp_state = {"columns": [], "rows": [], "fund_col_idx": 0}
 
@@ -7492,7 +7492,7 @@ def _render_target_db_tab(institutions, client_id):
                     return
                 ui.label(f"Parsed {len(rows)} row(s) — check this looks right before adding.").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                fund_col_sel = ui.select(columns, value=columns[0], label="Which column is the fund/investor name?").classes("w-full")
+                fund_col_sel = ui.select(columns, value=columns[0], label="Which column is the fund/investor name?").classes("w-full").props("outlined dense")
 
                 def set_fund_col():
                     bp_state["fund_col_idx"] = columns.index(fund_col_sel.value)
@@ -7544,7 +7544,7 @@ def _render_target_db_tab(institutions, client_id):
             ui.label("No covering analysts on file yet.").style(f"color:{COLORS['text_muted']};")
         else:
             analyst_keys = list(coverage.keys())
-            analyst_sel = ui.select(analyst_keys, value=analyst_keys[0], label="Select analyst coverage network to mine").classes("w-full")
+            analyst_sel = ui.select(analyst_keys, value=analyst_keys[0], label="Select analyst coverage network to mine").classes("w-full").props("outlined dense")
             coverage_list = ui.column().classes("w-full")
 
             def render_coverage_list():
@@ -7577,13 +7577,13 @@ def _render_target_db_tab(institutions, client_id):
 
             ui.markdown("---")
             with ui.expansion("Add stock to this analyst's coverage").classes("w-full"):
-                ac_ticker = ui.input("Ticker").classes("w-full")
-                ac_name = ui.input("Company name").classes("w-full")
-                ac_pt = ui.number("Price target ($)", value=0.0, step=0.25)
-                ac_rating = ui.select(["Buy", "Neutral", "Sell"], value="Buy")
-                ac_sector = ui.input("Sector").classes("w-full")
-                ac_relevance = ui.number("USIO relevance (0-100)", value=50, min=0, max=100)
-                ac_bridge = ui.textarea("Why holders of this ticker are prospects").classes("w-full")
+                ac_ticker = ui.input("Ticker").classes("w-full").props("outlined dense")
+                ac_name = ui.input("Company name").classes("w-full").props("outlined dense")
+                ac_pt = ui.number("Price target ($)", value=0.0, step=0.25).props("outlined dense")
+                ac_rating = ui.select(["Buy", "Neutral", "Sell"], value="Buy").props("outlined dense")
+                ac_sector = ui.input("Sector").classes("w-full").props("outlined dense")
+                ac_relevance = ui.number("USIO relevance (0-100)", value=50, min=0, max=100).props("outlined dense")
+                ac_bridge = ui.textarea("Why holders of this ticker are prospects").classes("w-full").props("outlined autogrow")
 
                 def add_coverage_entry():
                     if not (ac_ticker.value and ac_name.value):
@@ -7614,7 +7614,7 @@ def _render_target_db_tab(institutions, client_id):
             ui.label("No covering analysts on file — add one above first.").style(f"color:{COLORS['text_muted']};")
         else:
             analyst_keys2 = list(coverage2.keys())
-            auto_analyst = ui.select(analyst_keys2, value=analyst_keys2[0], label="Analyst coverage network").classes("w-full")
+            auto_analyst = ui.select(analyst_keys2, value=analyst_keys2[0], label="Analyst coverage network").classes("w-full").props("outlined dense")
             ui.label("Minimum USIO relevance score to include:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             auto_threshold = ui.slider(min=0, max=100, value=50, step=5).props("label-always")
             auto_results = ui.column().classes("w-full")
@@ -7809,8 +7809,8 @@ def _render_target_db_tab(institutions, client_id):
             nobo_source_options.append("IR Website Visitor Log")
         nobo_source_options.append("Paste names")
 
-        nobo_compare_src = ui.select(nobo_source_options, value="Prospect Queue", label="Compare against:").classes("w-full")
-        nobo_paste = ui.textarea("Paste one name per line").classes("w-full")
+        nobo_compare_src = ui.select(nobo_source_options, value="Prospect Queue", label="Compare against:").classes("w-full").props("outlined dense")
+        nobo_paste = ui.textarea("Paste one name per line").classes("w-full").props("outlined autogrow")
         nobo_paste.set_visibility(False)
         nobo_compare_src.on_value_change(lambda: nobo_paste.set_visibility(nobo_compare_src.value == "Paste names"))
         nobo_results = ui.column().classes("w-full")
@@ -7933,13 +7933,13 @@ def _render_peer_universe_manager(institutions):
 
         ui.label("Add a new peer ticker:").classes("font-bold").style("font-size:var(--fs-base);")
         with ui.row().classes("w-full gap-2"):
-            new_ticker = ui.input("Ticker", placeholder="e.g. PAYO").classes("flex-1")
-            new_name = ui.input("Company name", placeholder="e.g. Payoneer Global").classes("flex-1")
-            new_sector = ui.input("Sector / focus", placeholder="e.g. Cross-Border Payments").classes("flex-1")
-            new_ev = ui.input("EV/Rev (optional)", placeholder="EV/Rev").classes("min-w-[100px]")
+            new_ticker = ui.input("Ticker", placeholder="e.g. PAYO").classes("flex-1").props("outlined dense")
+            new_name = ui.input("Company name", placeholder="e.g. Payoneer Global").classes("flex-1").props("outlined dense")
+            new_sector = ui.input("Sector / focus", placeholder="e.g. Cross-Border Payments").classes("flex-1").props("outlined dense")
+            new_ev = ui.input("EV/Rev (optional)", placeholder="EV/Rev").classes("min-w-[100px]").props("outlined dense")
         with ui.row().classes("w-full gap-2"):
-            new_tier = ui.select(["core", "close", "large"], value="close", label="Fit Score tier").classes("min-w-[120px]")
-            new_weight = ui.number("Fit Score weight", value=1.0, min=0.1, max=5.0, step=0.5).classes("min-w-[120px]")
+            new_tier = ui.select(["core", "close", "large"], value="close", label="Fit Score tier").classes("min-w-[120px]").props("outlined dense")
+            new_weight = ui.number("Fit Score weight", value=1.0, min=0.1, max=5.0, step=0.5).classes("min-w-[120px]").props("outlined dense")
 
         def add_peer():
             tkr = (new_ticker.value or "").upper().strip()
@@ -8019,8 +8019,8 @@ def _render_peer_universe_manager(institutions):
 
     with ui.row().classes("w-full gap-4"):
         peer_select = ui.select(all_tickers, multiple=True, value=all_tickers,
-                                 label="Select peers to cross-reference").classes("flex-1")
-        aum_select = ui.select(["Any", "$100M+", "$500M+", "$1B+"], value="$100M+", label="Min fund AUM").classes("min-w-[140px]")
+                                 label="Select peers to cross-reference").classes("flex-1").props("outlined dense")
+        aum_select = ui.select(["Any", "$100M+", "$500M+", "$1B+"], value="$100M+", label="Min fund AUM").classes("min-w-[140px]").props("outlined dense")
 
     results_area = ui.column().classes("w-full")
 
@@ -8191,7 +8191,7 @@ def _render_peer_universe_manager(institutions):
             for key, label in [("conviction", "Conviction"), ("newbuyer", "New-buyer"), ("fit", "Fit"),
                                 ("turnover", "Turnover"), ("pp", "Purch. power"), ("contact", "Contact")]:
                 weight_inputs[key] = ui.number(label, value=current_weights.get(key, fit_score.DEFAULT_WEIGHTS[key]),
-                                                min=0, max=100, step=1).classes("min-w-[100px]")
+                                                min=0, max=100, step=1).classes("min-w-[100px]").props("outlined dense")
 
         def save_weight_changes():
             new_weights = {k: (inp.value or 0) for k, inp in weight_inputs.items()}

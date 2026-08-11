@@ -385,7 +385,7 @@ def _open_signal_dialog(state, i, sig):
 
         ui.button("Mark Resolved", on_click=mark_resolved).props("color=primary").style("margin-top:10px;")
 
-        reason_input = ui.input("Reason (optional, if noting instead)").classes("w-full").style("margin-top:6px;")
+        reason_input = ui.input("Reason (optional, if noting instead)").props("outlined dense").classes("w-full").style("margin-top:6px;")
 
         def mark_noted():
             state[n_key] = True
@@ -691,7 +691,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
 
     ui.markdown("---")
 
-    period_select = ui.select(ALL_PERIODS, value="Q2 2026E").classes("w-full").props("label='Estimate period'")
+    period_select = ui.select(ALL_PERIODS, value="Q2 2026E").classes("w-full").props("label='Estimate period' outlined dense")
     table_container = ui.column().classes("w-full")
 
     def render_table():
@@ -768,7 +768,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                         f"<b style='color:#1E3A8A;'>{analyst_name_by_firm.get(highlighted_analyst, highlighted_analyst)}</b></div>"
                     )
                 default_firm = highlighted_analyst if deep_linked else firms[0]
-                an_select = ui.select(firms, value=default_firm).classes("w-full").props("label='Analyst / firm'")
+                an_select = ui.select(firms, value=default_firm).classes("w-full").props("label='Analyst / firm' outlined dense")
                 an_container = ui.column().classes("w-full")
 
                 def render_analyst():
@@ -838,12 +838,12 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
 
             ui.markdown("---")
             with ui.expansion("Manually update an analyst estimate").classes("w-full"):
-                e_firm = ui.select(firms, value=firms[0]).classes("w-full")
-                e_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"], value="Buy").classes("w-full")
-                e_pt = ui.number("Price Target ($)", value=0.0, step=0.25)
-                e_eps = ui.number("EPS Estimate ($)", value=0.0, step=0.01)
-                e_rev = ui.number("Revenue Estimate ($M)", value=0.0, step=0.5)
-                e_ebd = ui.number("EBITDA Estimate ($M)", value=0.0, step=0.1)
+                e_firm = ui.select(firms, value=firms[0]).props("outlined dense").classes("w-full")
+                e_rating = ui.select(["Buy", "Hold", "Sell", "Not Rated"], value="Buy").props("outlined dense").classes("w-full")
+                e_pt = ui.number("Price Target ($)", value=0.0, step=0.25).props("outlined dense")
+                e_eps = ui.number("EPS Estimate ($)", value=0.0, step=0.01).props("outlined dense")
+                e_rev = ui.number("Revenue Estimate ($M)", value=0.0, step=0.5).props("outlined dense")
+                e_ebd = ui.number("EBITDA Estimate ($M)", value=0.0, step=0.1).props("outlined dense")
 
                 def save_estimate():
                     consensus_store.update_estimate(
@@ -933,9 +933,9 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                               value=True).classes("w-full"):
                 with ui.row().classes("w-full gap-6 items-start"):
                     with ui.column().classes("flex-1").style("min-width:220px;"):
-                        gu_eps = ui.number("Guidance EPS ($)", value=g["EPS Est"], step=0.01).classes("w-full")
-                        gu_rev = ui.number("Guidance Revenue ($M)", value=g["Revenue Est ($M)"], step=0.5).classes("w-full")
-                        gu_ebd = ui.number("Guidance EBITDA ($M)", value=g["EBITDA Est ($M)"], step=0.1).classes("w-full")
+                        gu_eps = ui.number("Guidance EPS ($)", value=g["EPS Est"], step=0.01).props("outlined dense").classes("w-full")
+                        gu_rev = ui.number("Guidance Revenue ($M)", value=g["Revenue Est ($M)"], step=0.5).props("outlined dense").classes("w-full")
+                        gu_ebd = ui.number("Guidance EBITDA ($M)", value=g["EBITDA Est ($M)"], step=0.1).props("outlined dense").classes("w-full")
 
                         def save_guidance():
                             consensus_store.update_guidance(

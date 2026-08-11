@@ -65,7 +65,7 @@ def _attend_select(current="", client_id=None, cls="w-full"):
         if v not in opts:
             opts.append(v)
     return ui.select(opts, multiple=True, value=vals, label="Attending",
-                     new_value_mode="add-unique").props("use-chips").classes(cls)
+                     new_value_mode="add-unique").props("use-chips outlined dense").classes(cls)
 
 
 def _load_conferences(key):
@@ -104,7 +104,7 @@ def _metric_card(label, value, hint, active, on_click):
 def _date_field(label, default):
     """Text field with a calendar-picker popup, still hand-editable. Value is
     a 'YYYY-MM-DD' string, matching how events are stored and parsed."""
-    inp = ui.input(label, value=default).classes("flex-1")
+    inp = ui.input(label, value=default).props("outlined dense").classes("flex-1")
     with inp:
         with ui.menu().props("no-parent-event") as menu:
             ui.date(value=default).bind_value(inp).props("today-btn")
@@ -192,8 +192,8 @@ def render_calendar_page():
     def open_edit_dialog(ev):
         with ui.dialog() as dialog, ui.card().style(f"background:{COLORS['surface_bg']};min-width:400px;"):
             ui.label(ev["Event"]).classes("text-lg font-bold")
-            status_sel = ui.select(STATUS_OPTIONS, value=ev["Status"], label="Status").classes("w-full")
-            notes_input = ui.textarea("Notes", value=ev.get("Notes", "")).classes("w-full")
+            status_sel = ui.select(STATUS_OPTIONS, value=ev["Status"], label="Status").props("outlined dense").classes("w-full")
+            notes_input = ui.textarea("Notes", value=ev.get("Notes", "")).props("outlined autogrow").classes("w-full")
             attend_input = _attend_select(ev.get("Attending", ""))
 
             def save():
@@ -341,12 +341,12 @@ def render_calendar_page():
 
     with ui.expansion("Add Event to Calendar").classes("w-full").style("margin-top:20px;"):
         with ui.row().classes("w-full gap-4"):
-            name_in = ui.input("Event name *").classes("flex-1")
+            name_in = ui.input("Event name *").props("outlined dense").classes("flex-1")
             type_sel = ui.select(
                 ["Investor Conference", "Earnings", "Industry Conference", "Roadshow", "Other"],
                 value="Investor Conference", label="Type",
-            ).classes("flex-1")
-            priority_sel = ui.select(["High", "Medium", "Low"], value="Medium", label="Priority").classes("flex-1")
+            ).props("outlined dense").classes("flex-1")
+            priority_sel = ui.select(["High", "Medium", "Low"], value="Medium", label="Priority").props("outlined dense").classes("flex-1")
         with ui.row().classes("w-full gap-4"):
             date_in = _date_field("Event date", str(today + timedelta(days=30)))
             deadline_in = _date_field("Registration deadline", str(today + timedelta(days=14)))
@@ -354,12 +354,12 @@ def render_calendar_page():
                 ["Evaluating", "Invited — pending confirmation", "Confirmed",
                  "Needs to be Scheduled", "Not yet contacted"],
                 value="Evaluating", label="Status",
-            ).classes("flex-1")
+            ).props("outlined dense").classes("flex-1")
         with ui.row().classes("w-full gap-4"):
-            location_in = ui.input("Location").classes("flex-1")
-            organizer_in = ui.input("Organizer").classes("flex-1")
+            location_in = ui.input("Location").props("outlined dense").classes("flex-1")
+            organizer_in = ui.input("Organizer").props("outlined dense").classes("flex-1")
             attending_in = _attend_select("", cls="flex-1")
-        notes_in = ui.textarea("Notes / logistics").classes("w-full")
+        notes_in = ui.textarea("Notes / logistics").props("outlined autogrow").classes("w-full")
 
         def add_event():
             if not name_in.value:

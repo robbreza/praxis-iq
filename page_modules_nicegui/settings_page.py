@@ -63,11 +63,11 @@ def _render_platform_config():
 
     with ui.row().classes("w-full gap-4"):
         with ui.column().classes("flex-1"):
-            irconnect_in = ui.input("IRConnect email", value=settings.get("irconnect_email", ir.get("irconnect", ""))).classes("w-full")
-            smtp_in = ui.input("SMTP", value=settings.get("smtp", "smtpout.secureserver.net:465")).classes("w-full")
+            irconnect_in = ui.input("IRConnect email", value=settings.get("irconnect_email", ir.get("irconnect", ""))).classes("w-full").props("outlined dense")
+            smtp_in = ui.input("SMTP", value=settings.get("smtp", "smtpout.secureserver.net:465")).classes("w-full").props("outlined dense")
         with ui.column().classes("flex-1"):
-            earnings_date_in = ui.input("Next earnings date (YYYY-MM-DD)", value=settings.get("earnings_date", earnings.get("earnings_date", ""))).classes("w-full")
-            quiet_start_in = ui.input("Quiet period start (YYYY-MM-DD)", value=settings.get("quiet_start", earnings.get("quiet_start", ""))).classes("w-full")
+            earnings_date_in = ui.input("Next earnings date (YYYY-MM-DD)", value=settings.get("earnings_date", earnings.get("earnings_date", ""))).classes("w-full").props("outlined dense")
+            quiet_start_in = ui.input("Quiet period start (YYYY-MM-DD)", value=settings.get("quiet_start", earnings.get("quiet_start", ""))).classes("w-full").props("outlined dense")
             from core.curated_targets import _is_illustrative as _isillus
             from config.client_config import get_active_client_id as _gac2
             if not _isillus(_gac2()):
@@ -114,7 +114,7 @@ def _render_routing_key():
     key_in = ui.input("OpenRouteService API key",
                       value=settings.get("routing_api_key", ""),
                       password=True, placeholder="paste your ORS token").classes("w-full").props(
-        "autocomplete=off")
+        "autocomplete=off outlined dense")
     result_lbl = ui.label("").style("font-size:var(--fs-sm);margin-top:2px;")
 
     def save():
@@ -219,10 +219,10 @@ def _render_zoom_creds():
              "Leave blank to keep pasting links by hand.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-    acct_in = ui.input("Account ID", value=settings.get("zoom_account_id", "")).classes("w-full").props("autocomplete=off")
-    cid_in = ui.input("Client ID", value=settings.get("zoom_client_id", "")).classes("w-full").props("autocomplete=off")
+    acct_in = ui.input("Account ID", value=settings.get("zoom_account_id", "")).classes("w-full").props("autocomplete=off outlined dense")
+    cid_in = ui.input("Client ID", value=settings.get("zoom_client_id", "")).classes("w-full").props("autocomplete=off outlined dense")
     sec_in = ui.input("Client Secret", value=settings.get("zoom_client_secret", ""),
-                      password=True).classes("w-full").props("autocomplete=off")
+                      password=True).classes("w-full").props("autocomplete=off outlined dense")
     result_lbl = ui.label("").style("font-size:var(--fs-sm);margin-top:2px;")
 
     def save():
