@@ -2203,7 +2203,7 @@ def _metric_card(label, value, sub="", color=None):
             ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
 
-def _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance="", h2_comp=""):
+def _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance="", h2_comp="", catalysts=None):
     """Rule-based fallback if the Claude call fails/no key.
 
     Now a thin delegate to core.guidance_engine.render_guidance_prose(), which
@@ -2211,10 +2211,11 @@ def _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance=
     page render the SAME words from the SAME inputs. Two copies of this template
     is how the prose and the decision drifted apart in the first place.
     `other_guidance` carries the EPS/EBITDA guided lines; `h2_comp` carries the
-    derived, calendar-aware remaining-period comp language — so the fallback states
-    every guided number AND frames the base effect, not revenue alone."""
+    derived, calendar-aware remaining-period comp language; `catalysts` are the
+    H2 drivers derived from Stage 1 — so the fallback states every guided number,
+    frames the base effect, AND cites this quarter's actual pipeline."""
     return guidance_engine.render_guidance_prose(
-        action, new_low, new_hi, rationale, other_guidance=other_guidance, h2_comp=h2_comp)
+        action, new_low, new_hi, rationale, other_guidance=other_guidance, h2_comp=h2_comp, catalysts=catalysts)
 
 
 def _guidance_template_draft_legacy(action, new_low, new_hi, rationale):
@@ -2268,7 +2269,10 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     policy = CGP()
     weights = policy.get("seasonal_weights", {})
     quotes_block = "; ".join(f'{q}: "{t}"' for q, t in _guidance_prior_quotes())
-    catalysts_block = "; ".join(policy.get("known_h2_catalysts", [])) or "none configured"
+    # H2 catalysts DERIVED from this quarter's Stage-1 operating detail (falls back to policy only if Stage 1
+    # is empty) — so the drafted language cites the actual pipeline, not a static list.
+    _cats, _cats_from_stage1 = guidance_engine.catalysts_from_stage1(ss)
+    catalysts_block = "; ".join(_cats) or "none configured"
     range_str = f"${new_low:.1f}M to ${new_hi:.1f}M"
     # The OTHER guided lines (EPS, EBITDA) the company also gives — so the drafted language states EVERY
     # guided number, not just revenue (the analysis feeds the language for all three).
@@ -2295,15 +2299,16 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
         + (f"ALSO state these other full-year guided lines the company gives, verbatim: {_other} " if _other else "")
         + (f"CRITICAL — frame the remaining-period comp exactly as this analysis concludes (do not call it a "
            f"deceleration; it is a prior-year base effect): {_h2} " if _h2 else "")
-        + f"Known H2 catalysts, reference at least 2 (mark speculative specifics as [FLS]...[/FLS]): "
-        f"{catalysts_block}. Writing rules: {_guidance_writing_rules()} "
+        + f"H2 catalysts from this quarter's operating detail, reference at least 2 (mark speculative specifics "
+        f"as [FLS]...[/FLS]): {catalysts_block}. Writing rules: {_guidance_writing_rules()} "
         f"Additional context: {extra_context or 'none provided'}. "
         f"Tone: {tone['label']}. Target 300-350 words, plain text (no markdown)."
     )
     draft = _call_claude_script(prompt, 700)
     if draft:
         return draft, True
-    return _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance=_other, h2_comp=_h2), False
+    return _guidance_template_draft(action, new_low, new_hi, rationale,
+                                    other_guidance=_other, h2_comp=_h2, catalysts=_cats), False
 
 
 def _guidance_prior_language():

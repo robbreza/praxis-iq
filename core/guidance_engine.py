@@ -355,7 +355,8 @@ def set_decision(action, client_id=None):
         gd["text"] = render_guidance_prose(
             action, new_low, new_hi, rationale, gd.get("context", ""),
             other_guidance=guidance_other_lines_sentence((ss.get("guidance_inputs") or {}).get("metrics")),
-            h2_comp=guidance_h2_comp_language(ss.get("guidance_inputs"), new_low, new_hi))
+            h2_comp=guidance_h2_comp_language(ss.get("guidance_inputs"), new_low, new_hi),
+            catalysts=catalysts_from_stage1(ss)[0])
     gd.pop("needs_redraft", None)            # can't be stale — it was just regenerated
     ss["guidance_decision"] = gd
     db.save_json("script_workflow_state.json", ss, client_id=cid)
@@ -513,7 +514,35 @@ def guidance_h2_comp_language(inputs, new_low=None, new_hi=None):
     return _comp_read_sentence(m) if m else ""
 
 
-def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance="", h2_comp=""):
+def catalysts_from_stage1(ss):
+    """Derive the H2 catalyst bullets from what the CFO actually entered in Stage 1 (operating drivers +
+    the free-text new-vertical note), so the guidance script's catalysts reflect THIS quarter's pipeline —
+    not a static policy list. Falls back to the configured policy catalysts only when Stage 1 carries nothing
+    usable (e.g. a client whose Stage-1 schema this doesn't recognize). Returns (catalysts, from_stage1)."""
+    ops = (ss or {}).get("q2_ops_metrics") or {}
+    out = []
+    isv, gol = ops.get("isv_in_impl"), ops.get("new_partner_golives")
+    if isv:
+        _g = f", plus {int(gol)} that went live this quarter" if gol else ""
+        out.append(f"Back-half-weighted new-partner go-lives — {int(isv)} ISV partners in implementation "
+                   f"finishing integration{_g}")
+    mix = ops.get("integrated_mix")
+    if mix:
+        out.append(f"Net take-rate expansion as integrated mix ({mix:.0f}% of net revenue) builds toward a "
+                   f"higher-take, software-like base")
+    nrr = ops.get("nrr")
+    if nrr and nrr > 100:
+        out.append(f"Installed-base attach compounding — net revenue retention at {nrr:.0f}%")
+    vert = (ops.get("new_verticals") or "").strip()
+    if vert:
+        out.append(f"New-vertical entry — {vert.rstrip('.')}")
+    if out:
+        return out, True
+    return list(CGP().get("known_h2_catalysts", [])), False
+
+
+def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance="", h2_comp="",
+                          catalysts=None):
     """Deterministically render the Guidance & Outlook prose FROM the decision. `other_guidance` is the
     pre-built FLS sentence for the OTHER guided lines (EPS, EBITDA) — see guidance_other_lines_sentence —
     so the prose states every guided number, not just revenue.
@@ -530,7 +559,10 @@ def render_guidance_prose(action, new_low, new_hi, rationale="", context="", oth
     fallback when the model is unavailable.
     """
     policy = CGP()
-    catalysts = policy.get("known_h2_catalysts", [])
+    # Catalysts come from Stage 1 (this quarter's operating detail) when the caller supplies them; only a
+    # direct caller that passes nothing falls back to the configured policy list.
+    if catalysts is None:
+        catalysts = policy.get("known_h2_catalysts", [])
     closing_line = (policy.get("closing_line") or "").strip()
     handoff = (policy.get("operator_handoff") or "").strip()
     growth_low, growth_high = policy.get("fy_growth_low"), policy.get("fy_growth_high")
@@ -567,7 +599,7 @@ def render_guidance_prose(action, new_low, new_hi, rationale="", context="", oth
                  "[FLS] We expect the second half of the year to be sequentially stronger than the first half as "
                  "implementations currently in progress begin to scale and as newer initiatives contribute more "
                  "meaningfully to our revenue base. [/FLS]")
-    catalysts_block = "\n".join(f"  {c}" for c in catalysts) or "  [No H2 catalysts configured for this client]"
+    catalysts_block = "\n".join(f"  • {c}" for c in catalysts) or "  • [No H2 drivers entered in Stage 1]"
     closing_bit = f"I thank our shareholders for their trust and support. {closing_line}\n\n" if closing_line else ""
     ctx_bit = f"{context.strip()}\n\n" if (context or "").strip() else ""
     rat_bit = f"{rationale.strip()}\n\n" if (rationale or "").strip() else ""
@@ -579,9 +611,8 @@ def render_guidance_prose(action, new_low, new_hi, rationale="", context="", oth
         f"{_other}"
         f"{tones.get(action, tones['reiterate'])}\n\n"
         f"{rat_bit}{h2_signal}\n\n"
-        f"[SPECIFIC H2 CATALYST LANGUAGE — reference at least 2 named catalysts here]\n"
-        f"[CFO to confirm which are disclosure-appropriate before delivery:]\n{catalysts_block}\n"
-        f"  [Add any Q2-specific new wins from Stage 1 notes]\n\n"
+        f"Second-half drivers, from this quarter's operating detail — reference at least two on the call "
+        f"(CFO to confirm each is disclosure-appropriate before delivery):\n{catalysts_block}\n\n"
         f"{ctx_bit}{closing_bit}{handoff or ''}"
     )
 
