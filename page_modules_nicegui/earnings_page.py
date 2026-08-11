@@ -2606,7 +2606,7 @@ Every institutional investor on this call is doing the same math in real time. T
         placeholder="e.g. 'We are raising the low end. H2 visibility is good because school voucher starts Q3 "
                     "and PostCredit onboarding begins.'",
         value=gd.get("context", ""),
-    ).classes("w-full").style("margin-top:8px;")
+    ).props("outlined dense").classes("w-full").style("margin-top:8px;")
 
     # Same fix as _render_persona_steps's draft box: render_guidance_draft_box
     # reads draft_area as a plain closure variable (resolved when actually
@@ -2617,7 +2617,7 @@ Every institutional investor on this call is doing the same math in real time. T
         with draft_area:
             ui.label("Guidance draft — edit as needed, then submit to script (all [FLS] blocks need Legal review):").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            box = ui.textarea(value=text).classes("w-full").props("rows=10")
+            box = ui.textarea(value=text).classes("w-full").props("rows=10 outlined")
             pace_note, pace_clr = _pacing_estimate(text, "guidance")
             pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:var(--fs-xs);")
 
@@ -2752,7 +2752,7 @@ def _render_persona_steps(ss, role, key):
             notes["whats_new_seeded"] = True
             _save_json("script_workflow_state.json", ss)
 
-    whats_new_input = ui.textarea(placeholder=placeholder, value=notes.get("whats_new", "")).classes("w-full").props("rows=2")
+    whats_new_input = ui.textarea(placeholder=placeholder, value=notes.get("whats_new", "")).classes("w-full").props("rows=2 outlined")
 
     def save_whats_new(e, notes=notes):
         notes["whats_new"] = e.value
@@ -2764,7 +2764,7 @@ def _render_persona_steps(ss, role, key):
     if role in ("IR", "CFO", "CEO"):
         tone = _tone_context(ss)
         ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    final_notes_input = ui.input("Additional notes for this draft (optional)", value=notes.get("final_notes", "")).classes("w-full")
+    final_notes_input = ui.input("Additional notes for this draft (optional)", value=notes.get("final_notes", "")).props("outlined dense").classes("w-full")
 
     def save_final_notes(e, notes=notes):
         notes["final_notes"] = e.value
@@ -2787,7 +2787,7 @@ def _render_persona_steps(ss, role, key):
         with draft_area:
             ui.label("Draft — edit as needed, then submit it into the script:").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            box = ui.textarea(value=text).classes("w-full").props("rows=8")
+            box = ui.textarea(value=text).classes("w-full").props("rows=8 outlined")
             pace_note, pace_clr = _pacing_estimate(text, role)
             pace_label = ui.label(pace_note).style(f"color:{pace_clr};font-size:var(--fs-xs);")
 
@@ -3988,7 +3988,7 @@ def _render_script_canvas(ss):
                   "speakers). Edits autosave as you type, but click Save for an explicit confirmation that "
                   "this exact text is the version moving forward to CFO/CEO review.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        full_box = ui.textarea("Full Script", value=_full_script_text(ss)).classes("w-full").props("rows=16")
+        full_box = ui.textarea("Full Script", value=_full_script_text(ss)).classes("w-full").props("rows=16 outlined")
 
         saved_at = ss.get("full_script_override_saved_at")
         status_label = ui.label(
@@ -4068,38 +4068,48 @@ def _render_stage1_illustrative(ss):
     ui.label("Baseline carried forward from the Q1 2026 earnings call (Prior Qtr Review) — update to Q2 actuals.").style(
         f"background:{COLORS['surface_hover_bg']};border-left:3px solid {COLORS['accent']};border-radius:6px;"
         f"padding:6px 10px;color:{COLORS['text_body']};font-size:var(--fs-xs);margin:6px 0;")
-    with ui.row().classes("w-full gap-4"):
-        with ui.column().classes("flex-1"):
+    def _num(label, key, step):
+        return ui.number(label, value=n.get(key), step=step).props("outlined dense").classes("w-full")
+
+    def _col():
+        return ui.column().classes("flex-1 gap-2").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;padding:14px 16px;")
+
+    with ui.row().classes("w-full gap-4 items-stretch"):
+        with _col():
             _hdr("NET REVENUE ($M)")
-            fn_rev = ui.number("Total Net Revenue", value=n.get("rev"), step=0.1).classes("w-full")
-            fn_integ = ui.number("Integrated Payments", value=n.get("integrated"), step=0.1).classes("w-full")
-            fn_legacy = ui.number("Legacy Processing", value=n.get("legacy"), step=0.1).classes("w-full")
+            fn_rev = _num("Total Net Revenue", "rev", 0.1)
+            fn_integ = _num("Integrated Payments", "integrated", 0.1)
+            fn_legacy = _num("Legacy Processing", "legacy", 0.1)
             _hdr("CASH")
-            fn_cash = ui.number("Cash ($M)", value=n.get("cash"), step=0.1).classes("w-full")
-        with ui.column().classes("flex-1"):
+            fn_cash = _num("Cash ($M)", "cash", 0.1)
+        with _col():
             _hdr("PROFITABILITY")
-            fn_gp = ui.number("Gross Profit ($M)", value=n.get("gp"), step=0.1).classes("w-full")
-            fn_gm = ui.number("Gross Margin (%)", value=n.get("gm"), step=0.1).classes("w-full")
-            fn_ebitda = ui.number("Adj. EBITDA ($M)", value=n.get("ebitda"), step=0.1).classes("w-full")
-            fn_eps = ui.number("Adj. EPS ($)", value=n.get("eps"), step=0.01).classes("w-full")
-            fn_sga = ui.number("SG&A ($M)", value=n.get("sga"), step=0.1).classes("w-full")
-        with ui.column().classes("flex-1"):
+            fn_gp = _num("Gross Profit ($M)", "gp", 0.1)
+            fn_gm = _num("Gross Margin (%)", "gm", 0.1)
+            fn_ebitda = _num("Adj. EBITDA ($M)", "ebitda", 0.1)
+            fn_eps = _num("Adj. EPS ($)", "eps", 0.01)
+            fn_sga = _num("SG&A ($M)", "sga", 0.1)
+        with _col():
             _hdr("STREET KPIs")
-            fn_tpv = ui.number("Integrated Volume / TPV ($B)", value=n.get("tpv"), step=0.01).classes("w-full")
-            fn_tpv_yoy = ui.number("TPV YoY (%)", value=n.get("tpv_yoy"), step=0.5).classes("w-full")
-            fn_nrr = ui.number("Net Revenue Retention (%)", value=n.get("nrr"), step=0.5).classes("w-full")
-            fn_take = ui.number("Net Take-Rate (bps)", value=n.get("take_rate"), step=0.5).classes("w-full")
+            fn_tpv = _num("Integrated Volume / TPV ($B)", "tpv", 0.01)
+            fn_tpv_yoy = _num("TPV YoY (%)", "tpv_yoy", 0.5)
+            fn_nrr = _num("Net Revenue Retention (%)", "nrr", 0.5)
+            fn_take = _num("Net Take-Rate (bps)", "take_rate", 0.5)
             if prior:
                 ui.label(f"Q1: TPV +{prior.get('tpv_yoy', 0):.0f}% · NRR {prior.get('nrr', 0):.0f}% · "
                          f"take-rate {prior.get('take_rate', 0):.0f} bps").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-    fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).classes("w-full")
+    fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).props(
+        "outlined autogrow").classes("w-full").style("margin-top:12px;")
     _team_opts = team_labels()
     _default_by = n.get("submitted_by")
     if _default_by not in _team_opts:
         _default_by = _team_opts[0] if _team_opts else None
-    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").classes("w-full")
+    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").props(
+        "outlined dense").classes("w-full").style("max-width:340px;margin-top:8px;")
 
     def submit():
         if fn_rev.value is None:
@@ -4132,7 +4142,7 @@ def _render_stage1_illustrative(ss):
         ui.markdown("---")
         ui.label("Auto-Generated Script — one last look before it moves to IR").classes("font-bold").style(
             f"color:{COLORS['accent_light']};font-size:var(--fs-md);")
-        ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly")
+        ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly outlined")
 
 
 def _render_stage1(ss):
@@ -4144,36 +4154,48 @@ def _render_stage1(ss):
     ui.label("Stage 1 — CFO Final Numbers").classes("font-bold")
     ui.label("CFO submits Q2 actuals. Submitting activates Stage 2 (IR Review).").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     n = ss.get("q2_numbers", {})
-    with ui.row().classes("w-full gap-4"):
-        with ui.column().classes("flex-1"):
-            ui.label("REVENUE ($M)").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            fn_rev = ui.number("Total Revenue", value=n.get("rev"), step=0.1).classes("w-full")
-            fn_ach = ui.number("ACH Revenue", value=n.get("ach"), step=0.1).classes("w-full")
-            fn_card = ui.number("Card / PayFac", value=n.get("card"), step=0.1).classes("w-full")
-            fn_prepaid = ui.number("Prepaid Revenue", value=n.get("prepaid"), step=0.1).classes("w-full")
-            fn_output = ui.number("Output Solutions", value=n.get("output"), step=0.1).classes("w-full")
-        with ui.column().classes("flex-1"):
-            ui.label("PROFITABILITY").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            fn_gp = ui.number("Gross Profit ($M)", value=n.get("gp"), step=0.1).classes("w-full")
-            fn_gm = ui.number("Gross Margin (%)", value=n.get("gm"), step=0.1).classes("w-full")
-            fn_ebitda = ui.number("Adj. EBITDA ($M)", value=n.get("ebitda"), step=0.1).classes("w-full")
-            fn_eps = ui.number("GAAP EPS ($)", value=n.get("eps"), step=0.01).classes("w-full")
-            fn_sga = ui.number("Total SG&A ($M)", value=n.get("sga"), step=0.1).classes("w-full")
-        with ui.column().classes("flex-1"):
-            ui.label("VOLUME & CASH").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            fn_vol = ui.number("Vol Processed ($B)", value=n.get("vol"), step=0.1).classes("w-full")
-            fn_vol_yoy = ui.number("Volume YoY (%)", value=n.get("vol_yoy"), step=0.5).classes("w-full")
-            fn_txn = ui.number("Transactions (M)", value=n.get("txn"), step=0.1).classes("w-full")
-            fn_cash = ui.number("Cash ($M)", value=n.get("cash"), step=0.1).classes("w-full")
-            fn_buyback = ui.number("Buyback ($K)", value=n.get("buyback"), step=10.0).classes("w-full")
+    _hdr = lambda s: ui.label(s).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
 
-    fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).classes("w-full")
+    def _num(label, key, step):
+        return ui.number(label, value=n.get(key), step=step).props("outlined dense").classes("w-full")
+
+    def _col():
+        return ui.column().classes("flex-1 gap-2").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;padding:14px 16px;")
+
+    with ui.row().classes("w-full gap-4 items-stretch"):
+        with _col():
+            _hdr("REVENUE ($M)")
+            fn_rev = _num("Total Revenue", "rev", 0.1)
+            fn_ach = _num("ACH Revenue", "ach", 0.1)
+            fn_card = _num("Card / PayFac", "card", 0.1)
+            fn_prepaid = _num("Prepaid Revenue", "prepaid", 0.1)
+            fn_output = _num("Output Solutions", "output", 0.1)
+        with _col():
+            _hdr("PROFITABILITY")
+            fn_gp = _num("Gross Profit ($M)", "gp", 0.1)
+            fn_gm = _num("Gross Margin (%)", "gm", 0.1)
+            fn_ebitda = _num("Adj. EBITDA ($M)", "ebitda", 0.1)
+            fn_eps = _num("GAAP EPS ($)", "eps", 0.01)
+            fn_sga = _num("Total SG&A ($M)", "sga", 0.1)
+        with _col():
+            _hdr("VOLUME & CASH")
+            fn_vol = _num("Vol Processed ($B)", "vol", 0.1)
+            fn_vol_yoy = _num("Volume YoY (%)", "vol_yoy", 0.5)
+            fn_txn = _num("Transactions (M)", "txn", 0.1)
+            fn_cash = _num("Cash ($M)", "cash", 0.1)
+            fn_buyback = _num("Buyback ($K)", "buyback", 10.0)
+
+    fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).props(
+        "outlined autogrow").classes("w-full").style("margin-top:12px;")
     # Roster comes from the active client's profile, not hardcoded USIO execs.
     _team_opts = team_labels()
     _default_by = n.get("submitted_by")
     if _default_by not in _team_opts:
         _default_by = _team_opts[0] if _team_opts else None
-    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").classes("w-full")
+    fn_by = ui.select(_team_opts, value=_default_by, label="Submitted by").props(
+        "outlined dense").classes("w-full").style("max-width:340px;margin-top:8px;")
 
     def submit():
         if fn_rev.value is None:
@@ -4226,7 +4248,7 @@ def _render_stage1(ss):
         ui.label("This is the draft that was just generated from the numbers above. You'll formally sign off "
                   "on it (with a notes box) on the \"3 · CEO+CFO Review\" tab after IR's pass.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-        ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly")
+        ui.textarea("Script preview", value=_full_script_text(ss)).classes("w-full").props("rows=14 readonly outlined")
 
 
 # The 9 Q1-disclosed metrics the Disclosure Consistency Rule tracks — if any
@@ -4263,26 +4285,37 @@ def _render_stage1b_illustrative(ss):
              "questions. This feeds the Business Operations draft below in addition to the gap check.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     ops = ss.get("q2_ops_metrics", {}) or {}
-    with ui.row().classes("w-full gap-4"):
-        with ui.column().classes("flex-1"):
+
+    def _onum(label, key, step):
+        return ui.number(label, value=ops.get(key), step=step).props("outlined dense").classes("w-full")
+
+    def _ocol():
+        return ui.column().classes("flex-1 gap-2").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;padding:14px 16px;")
+
+    with ui.row().classes("w-full gap-4 items-stretch"):
+        with _ocol():
             _h("INTEGRATED PAYMENTS KPIs")
-            om_tpv = ui.number("Integrated Volume / TPV ($B)", value=ops.get("tpv"), step=0.01).classes("w-full")
-            om_tpv_yoy = ui.number("TPV YoY (%)", value=ops.get("tpv_yoy"), step=0.5).classes("w-full")
-            om_nrr = ui.number("Net Revenue Retention (%)", value=ops.get("nrr"), step=0.5).classes("w-full")
-            om_take = ui.number("Net Take-Rate (bps)", value=ops.get("take_rate"), step=0.5).classes("w-full")
-            om_mix = ui.number("Integrated Mix (% of net revenue)", value=ops.get("integrated_mix"), step=0.5).classes("w-full")
-        with ui.column().classes("flex-1"):
+            om_tpv = _onum("Integrated Volume / TPV ($B)", "tpv", 0.01)
+            om_tpv_yoy = _onum("TPV YoY (%)", "tpv_yoy", 0.5)
+            om_nrr = _onum("Net Revenue Retention (%)", "nrr", 0.5)
+            om_take = _onum("Net Take-Rate (bps)", "take_rate", 0.5)
+            om_mix = _onum("Integrated Mix (% of net revenue)", "integrated_mix", 0.5)
+        with _ocol():
             _h("PARTNER PIPELINE & GO-LIVES")
-            om_golives = ui.number("New Partner Go-Lives (this qtr)", value=ops.get("new_partner_golives"), step=1.0).classes("w-full")
-            om_isv = ui.number("ISV Partners in Implementation", value=ops.get("isv_in_impl"), step=1.0).classes("w-full")
-            om_live = ui.number("Total Integrated Partners Live", value=ops.get("partners_live"), step=1.0).classes("w-full")
-            om_merch = ui.number("Active Merchants (K)", value=ops.get("active_merchants_k"), step=1.0).classes("w-full")
-        with ui.column().classes("flex-1"):
+            om_golives = _onum("New Partner Go-Lives (this qtr)", "new_partner_golives", 1.0)
+            om_isv = _onum("ISV Partners in Implementation", "isv_in_impl", 1.0)
+            om_live = _onum("Total Integrated Partners Live", "partners_live", 1.0)
+            om_merch = _onum("Active Merchants (K)", "active_merchants_k", 1.0)
+        with _ocol():
             _h("LEGACY & OUTLOOK")
-            om_legacy = ui.number("Legacy Processing Revenue YoY (%)", value=ops.get("legacy_rev_yoy"), step=0.5).classes("w-full")
+            om_legacy = _onum("Legacy Processing Revenue YoY (%)", "legacy_rev_yoy", 0.5)
             om_float = ui.select(["Stable", "Declining", "Growing"],
-                                 value=ops.get("prepaid_float", "Stable"), label="Prepaid Float Balances").classes("w-full")
-            om_vert = ui.textarea("New-Vertical Progress", value=ops.get("new_verticals", "")).classes("w-full")
+                                 value=ops.get("prepaid_float", "Stable"), label="Prepaid Float Balances").props(
+                "outlined dense").classes("w-full")
+            om_vert = ui.textarea("New-Vertical Progress", value=ops.get("new_verticals", "")).props(
+                "outlined autogrow").classes("w-full")
 
     missing_now = [lbl for key, lbl in _OPS_LABELS_ILLUS.items() if ops.get(key) in (None, "", 0)]
     if missing_now:
@@ -4292,7 +4325,8 @@ def _render_stage1b_illustrative(ss):
             for _m in missing_now:
                 ui.label(f"• {_m}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     om_notes = ui.textarea("Explain any intentional metric omissions (reviewed in Stage 2)",
-                           value=ops.get("disclosure_notes", "")).classes("w-full")
+                           value=ops.get("disclosure_notes", "")).props("outlined autogrow").classes(
+        "w-full").style("margin-top:8px;")
 
     def submit_ops():
         new_ops = {
@@ -4339,45 +4373,60 @@ def _render_stage1b(ss):
 
     ops = ss.get("q2_ops_metrics", {})
 
-    with ui.row().classes("w-full gap-4").style("margin-top:8px;"):
-        with ui.column().classes("flex-1"):
-            ui.label("CARD REVENUE METRICS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            om_card_yoy = ui.number("Card Revenue YoY (%)", value=ops.get("card_yoy"), step=0.5).classes("w-full")
-            om_payfac_pct = ui.number("PayFac % of Card Revenue", value=ops.get("payfac_pct"), step=0.5).classes("w-full")
-            om_payfac_yoy = ui.number("PayFac Revenue YoY (%)", value=ops.get("payfac_yoy"), step=0.5).classes("w-full")
-            om_card_txn_yoy = ui.number("Card Transactions YoY (%)", value=ops.get("card_txn_yoy"), step=0.5).classes("w-full")
-            om_card_vol_yoy = ui.number("Card Dollar Volume YoY (%)", value=ops.get("card_vol_yoy"), step=0.5).classes("w-full")
-        with ui.column().classes("flex-1"):
-            ui.label("PAYFAC PIPELINE & IMPLEMENTATIONS").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            om_isv_impl = ui.number("ISVs in Implementation", value=ops.get("isv_impl"), step=1.0).classes("w-full")
-            om_new_enterprise = ui.number("New Enterprise Accounts (this qtr)", value=ops.get("new_enterprise"), step=1.0).classes("w-full")
-            om_filtered_merchants = ui.number("Filtered Spend Merchants Live", value=ops.get("filtered_merchants"), step=100.0).classes("w-full")
-            om_rtp_txn = ui.number("Real-Time Payments Txn/Month (K)", value=ops.get("rtp_txn_k"), step=1.0).classes("w-full")
+    def _onum(label, key, step):
+        return ui.number(label, value=ops.get(key), step=step).props("outlined dense").classes("w-full")
+
+    def _ocol():
+        return ui.column().classes("flex-1 gap-2").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:10px;padding:14px 16px;")
+
+    def _oh(s):
+        return ui.label(s).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
+
+    with ui.row().classes("w-full gap-4 items-stretch").style("margin-top:8px;"):
+        with _ocol():
+            _oh("CARD REVENUE METRICS")
+            om_card_yoy = _onum("Card Revenue YoY (%)", "card_yoy", 0.5)
+            om_payfac_pct = _onum("PayFac % of Card Revenue", "payfac_pct", 0.5)
+            om_payfac_yoy = _onum("PayFac Revenue YoY (%)", "payfac_yoy", 0.5)
+            om_card_txn_yoy = _onum("Card Transactions YoY (%)", "card_txn_yoy", 0.5)
+            om_card_vol_yoy = _onum("Card Dollar Volume YoY (%)", "card_vol_yoy", 0.5)
+        with _ocol():
+            _oh("PAYFAC PIPELINE & IMPLEMENTATIONS")
+            om_isv_impl = _onum("ISVs in Implementation", "isv_impl", 1.0)
+            om_new_enterprise = _onum("New Enterprise Accounts (this qtr)", "new_enterprise", 1.0)
+            om_filtered_merchants = _onum("Filtered Spend Merchants Live", "filtered_merchants", 100.0)
+            om_rtp_txn = _onum("Real-Time Payments Txn/Month (K)", "rtp_txn_k", 1.0)
             om_payfac_growth_rate = ui.select(
                 ["Growing >20% (consistent)", "Growing 15-20%", "Growing 10-15%", "Growing <10%", "Decelerating — explain in notes"],
-                value=ops.get("payfac_growth_rate"), label="PayFac Growth Rate Characterization").classes("w-full")
-        with ui.column().classes("flex-1"):
-            ui.label("USIO ONE & CROSS-SELL").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-            om_usio_one_wins = ui.number("Usio ONE Cross-Sell Wins (this qtr)", value=ops.get("usio_one_wins"), step=1.0).classes("w-full")
-            om_usio_one_example = ui.textarea("Usio ONE Case Study", value=ops.get("usio_one_example", "")).classes("w-full")
+                value=ops.get("payfac_growth_rate"), label="PayFac Growth Rate Characterization").props(
+                "outlined dense").classes("w-full")
+        with _ocol():
+            _oh("USIO ONE & CROSS-SELL")
+            om_usio_one_wins = _onum("Usio ONE Cross-Sell Wins (this qtr)", "usio_one_wins", 1.0)
+            om_usio_one_example = ui.textarea("Usio ONE Case Study", value=ops.get("usio_one_example", "")).props(
+                "outlined autogrow").classes("w-full")
             om_new_leads = ui.select(
                 ["G2 / Online influencer sites", "SEO / Digital marketing", "Trade shows",
                  "Usio ONE cross-sell", "Referral agents", "Direct outbound"],
-                value=ops.get("new_leads", []), label="New Lead Sources Active", multiple=True).classes("w-full")
+                value=ops.get("new_leads", []), label="New Lead Sources Active", multiple=True).props(
+                "outlined dense").classes("w-full")
 
     ui.markdown("---")
-    ui.label("ACH & Payments").classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
-    with ui.row().classes("w-full gap-4"):
-        with ui.column().classes("flex-1"):
-            om_ach_txn_yoy = ui.number("ACH Transactions YoY (%)", value=ops.get("ach_txn_yoy"), step=0.5).classes("w-full")
-            om_ach_dollar_yoy = ui.number("ACH Dollar Volume YoY (%)", value=ops.get("ach_dollar_yoy"), step=0.5).classes("w-full")
+    _oh("ACH & PAYMENTS")
+    with ui.row().classes("w-full gap-4 items-stretch"):
+        with _ocol():
+            om_ach_txn_yoy = _onum("ACH Transactions YoY (%)", "ach_txn_yoy", 0.5)
+            om_ach_dollar_yoy = _onum("ACH Dollar Volume YoY (%)", "ach_dollar_yoy", 0.5)
             om_ach_best_month = ui.select(
                 ["Yes — best-ever month", "Yes — different month", "No — but strong", "No — slower than prior quarter"],
-                value=ops.get("ach_best_month"), label="Best-Ever ACH Month This Quarter?").classes("w-full")
-        with ui.column().classes("flex-1"):
-            om_prepaid_load_yoy = ui.number("Prepaid Load Volume YoY (%)", value=ops.get("prepaid_load_yoy"), step=0.5).classes("w-full")
-            om_prepaid_txn_yoy = ui.number("Prepaid Transactions YoY (%)", value=ops.get("prepaid_txn_yoy"), step=0.5).classes("w-full")
-            om_prepaid_purchase_yoy = ui.number("Prepaid Purchase Volume YoY (%)", value=ops.get("prepaid_purchase_yoy"), step=0.5).classes("w-full")
+                value=ops.get("ach_best_month"), label="Best-Ever ACH Month This Quarter?").props(
+                "outlined dense").classes("w-full")
+        with _ocol():
+            om_prepaid_load_yoy = _onum("Prepaid Load Volume YoY (%)", "prepaid_load_yoy", 0.5)
+            om_prepaid_txn_yoy = _onum("Prepaid Transactions YoY (%)", "prepaid_txn_yoy", 0.5)
+            om_prepaid_purchase_yoy = _onum("Prepaid Purchase Volume YoY (%)", "prepaid_purchase_yoy", 0.5)
 
     if ops:
         missing = [label for key, label in _OPS_METRIC_LABELS.items() if ops.get(key) in (None, "", 0)]
@@ -4389,7 +4438,8 @@ def _render_stage1b(ss):
                     ui.label(f"• {m}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     om_disclosure_notes = ui.textarea("Explain any intentional metric omissions (reviewed in Stage 2)",
-                                       value=ops.get("disclosure_notes", "")).classes("w-full").style("margin-top:8px;")
+                                       value=ops.get("disclosure_notes", "")).props("outlined autogrow").classes(
+        "w-full").style("margin-top:8px;")
 
     def submit_ops():
         new_ops = {
@@ -4519,7 +4569,7 @@ def _render_stage2(ss):
                     ui.label(f"Overdue — {hrs:.0f}h since sent.").style(f"color:{COLORS['danger']};")
                 else:
                     ui.label(f"Sent {hrs:.0f}h ago — awaiting return").style(f"color:{COLORS['accent_light']};")
-                notes_in = ui.textarea("IR edit notes", value=rv.get("notes", "")).classes("w-full")
+                notes_in = ui.textarea("IR edit notes", value=rv.get("notes", "")).props("outlined autogrow").classes("w-full")
 
                 def mark_complete():
                     rv.update({"status": "complete", "received": datetime.now().strftime("%Y-%m-%d %H:%M"), "notes": notes_in.value})
@@ -4602,7 +4652,7 @@ def _render_stage3(ss):
 
                         ui.button(f"Send v2 to {c['name']}", on_click=send).props("color=primary dense outline")
 
-                    notes_in = ui.textarea(f"{role} comments", value=rv.get("notes", "")).classes("w-full")
+                    notes_in = ui.textarea(f"{role} comments", value=rv.get("notes", "")).props("outlined autogrow").classes("w-full")
 
                     def mark(role=role, notes_in=notes_in):
                         ss["reviewers"][role].update({"status": "complete", "received": datetime.now().strftime("%Y-%m-%d %H:%M"), "notes": notes_in.value})
@@ -4629,9 +4679,9 @@ def _render_stage4(ss):
             with ui.column().classes("flex-1"):
                 ui.label(contacts[role]["name"]).classes("font-bold")
                 notes = ss["reviewers"][role].get("notes") or "(no notes logged)"
-                ui.textarea("Comments", value=notes).classes("w-full").props("readonly rows=6")
+                ui.textarea("Comments", value=notes).classes("w-full").props("readonly rows=6 outlined")
     ui.markdown("---")
-    cons_summary = ui.textarea("Changes incorporated into v3 (IR final decisions)").classes("w-full")
+    cons_summary = ui.textarea("Changes incorporated into v3 (IR final decisions)").props("outlined autogrow").classes("w-full")
     cons_confirm = ui.checkbox("v3 incorporates all approved changes and is ready for legal")
 
     def generate_v3():
@@ -4700,7 +4750,7 @@ def _render_stage5(ss):
                 ui.button("Send v3 + FLS Memo to Legal", on_click=send_legal).props("color=primary")
             elif rv["status"] == "sent":
                 ui.label(f"Sent {rv['sent']}").style(f"color:{COLORS['text_muted']};")
-                leg_notes = ui.textarea("Legal comments", value=rv.get("notes", "")).classes("w-full")
+                leg_notes = ui.textarea("Legal comments", value=rv.get("notes", "")).props("outlined autogrow").classes("w-full")
                 if all_clear:
                     def finalize():
                         rv.update({"status": "complete", "received": datetime.now().strftime("%Y-%m-%d %H:%M"), "notes": leg_notes.value})
