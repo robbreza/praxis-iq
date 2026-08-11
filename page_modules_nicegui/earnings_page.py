@@ -2827,6 +2827,19 @@ def _render_guidance_decision(ss, context="script"):
     _ch = _ge.characterize_range_change(_prior, _new)          # the numbers → the action (calculated, not picked)
     _iu = _ge.implied_upside(_new, _load_json("earnings_surprise_log.json", None))   # the sandbag gap
 
+    # Implied YoY growth at each end of the range vs prior-year FY revenue — the number the guide really
+    # states (a $M level is meaningless without its growth rate). Trend = is the new guide raising or
+    # lowering the implied growth rate vs the prior guide.
+    _pfr = sum((CGP().get("prior_fy_quarterly_revenue") or {}).values()) or None
+    _g = (lambda x: f"{(x / _pfr - 1) * 100:+.0f}%") if _pfr else (lambda x: "—")
+
+    def _grow_line(rng):
+        lo, hi = rng[0], rng[1]
+        return f"growth: low {_g(lo)} · mid {_g((lo + hi) / 2)} · high {_g(hi)}"
+    _pm_g = ((_prior[0] + _prior[1]) / 2 / _pfr - 1) * 100 if _pfr else None
+    _nm_g = ((_new[0] + _new[1]) / 2 / _pfr - 1) * 100 if _pfr else None
+    _trend_pp = round(_nm_g - _pm_g, 1) if (_pm_g is not None and _nm_g is not None) else None
+
     # ── ① SET GUIDANCE — the first thing on the page; the whole script derives from it ──
     ui.label("① Set guidance").classes("font-bold").style("font-size:var(--fs-md);")
     with ui.card().classes("w-full").style(
@@ -2836,16 +2849,18 @@ def _render_guidance_decision(ss, context="script"):
             with ui.column().classes("flex-1").style(
                     f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
                     "padding:11px 14px;min-width:210px;gap:2px;"):
-                ui.label("WAS — prior guide").style(
+                ui.label("Revenue — Prior Guide").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
                 ui.label(f"${_prior[0]:.1f}–{_prior[1]:.1f}M").style(
                     f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
+                ui.label(_grow_line(_prior)).style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
                 ui.label(f"midpoint ${(_prior[0] + _prior[1]) / 2:.1f}M · what the Street embedded").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             with ui.column().classes("flex-1").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
                     "padding:11px 14px;min-width:270px;gap:4px;"):
-                ui.label("IS — new guide (set it here)").style(
+                ui.label("New Guidance Range").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
                 with ui.row().classes("items-end gap-2 flex-wrap"):
                     _low_in = ui.number("New low", value=_new[0], step=0.5).props("outlined dense").style("width:104px;")
@@ -2859,14 +2874,22 @@ def _render_guidance_decision(ss, context="script"):
                         ui.notify("Range applied — the read below re-runs on this range.", type="positive")
                         _refresh()
                     ui.button("Apply →", icon="analytics", on_click=_apply).props("color=primary dense")
+                ui.label(_grow_line(_new)).style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
                 with ui.row().classes("items-center gap-1 flex-wrap"):
-                    ui.label("quick:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
+                    ui.label("quick analysis:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
                     for _lbl, _akey in (("Raise low", "raise_low"), ("Raise mid", "raise_mid"), ("Reiterate", "reiterate")):
                         def _preset(_akey=_akey, _low_in=_low_in, _hi_in=_hi_in):
                             _pl, _ph, _ = _ge.apply_action(_akey, math_)
                             _low_in.value = round(_pl, 1)
                             _hi_in.value = round(_ph, 1)
                         ui.button(_lbl, on_click=_preset).props("flat dense size=sm").style(f"color:{COLORS['accent_light']};")
+                    if _trend_pp is not None:
+                        _tc = (COLORS["positive"] if _trend_pp > 0.05 else COLORS["danger"] if _trend_pp < -0.05
+                               else COLORS["text_muted"])
+                        _arw = "↑" if _trend_pp > 0.05 else "↓" if _trend_pp < -0.05 else "→"
+                        ui.label(f"{_arw} implied growth {_trend_pp:+.1f}pp vs prior guide").style(
+                            f"color:{_tc};font-size:var(--fs-xs);font-weight:700;margin-left:4px;")
         _tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
         with ui.row().classes("w-full items-baseline gap-2 flex-wrap").style("margin-top:10px;"):
             ui.label("You did:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
