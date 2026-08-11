@@ -633,7 +633,14 @@ def seed_script_workflow(cid="demo"):
         "version": 1,
         "current_stage": "exec_review",
         "q2_numbers": q2,
-        "q2_ops_metrics": {},
+        # Stage 1B operating metrics — Northlake's KPIs + partner-pipeline detail (not USIO's card/ACH set).
+        "q2_ops_metrics": {
+            "tpv": 3.42, "tpv_yoy": 27.0, "nrr": 112.0, "take_rate": 47.0, "integrated_mix": 62.0,
+            "new_partner_golives": 14, "isv_in_impl": 22, "partners_live": 340, "active_merchants_k": 58.0,
+            "legacy_rev_yoy": 3.0, "prepaid_float": "Stable",
+            "new_verticals": "Property-management pilot live with two anchor ISV partners; membership/recreation in evaluation.",
+            "disclosure_notes": "", "submitted_at": _ago(6),
+        },
         "guidance_inputs": _GUIDANCE_INPUTS,   # feeds core.guidance_engine.guidance_bridge (the CFA read)
         "script_text": dict(_SCRIPT_TEXT),
         "persona_notes": {k: {"whats_new": "", "final_notes": ""} for k in _persona_keys},

@@ -4186,6 +4186,78 @@ _OPS_METRIC_LABELS = {
 }
 
 
+_OPS_LABELS_ILLUS = {
+    "tpv": "Integrated Volume (TPV)", "tpv_yoy": "TPV YoY", "nrr": "Net Revenue Retention",
+    "take_rate": "Net Take-Rate", "integrated_mix": "Integrated Mix",
+    "new_partner_golives": "New Partner Go-Lives", "isv_in_impl": "ISV Partners in Implementation",
+}
+
+
+def _render_stage1b_illustrative(ss):
+    """Stage 1B for the illustrative demo (Northlake) — the operating KPIs the Street tracks each
+    quarter plus the partner-pipeline detail, not USIO's card/PayFac/ACH/prepaid metrics."""
+    _h = lambda s: ui.label(s).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-sm);")
+    ui.markdown("---")
+    ui.label("Stage 1B — Operating Metrics & Disclosure Consistency Check").classes("font-bold")
+    ui.label("Every metric disclosed last quarter should be disclosed again this quarter, or explicitly "
+             "explained if it's being dropped — silence here is exactly what prompts analyst follow-up "
+             "questions. This feeds the Business Operations draft below in addition to the gap check.").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+    ops = ss.get("q2_ops_metrics", {}) or {}
+    with ui.row().classes("w-full gap-4"):
+        with ui.column().classes("flex-1"):
+            _h("INTEGRATED PAYMENTS KPIs")
+            om_tpv = ui.number("Integrated Volume / TPV ($B)", value=ops.get("tpv"), step=0.01).classes("w-full")
+            om_tpv_yoy = ui.number("TPV YoY (%)", value=ops.get("tpv_yoy"), step=0.5).classes("w-full")
+            om_nrr = ui.number("Net Revenue Retention (%)", value=ops.get("nrr"), step=0.5).classes("w-full")
+            om_take = ui.number("Net Take-Rate (bps)", value=ops.get("take_rate"), step=0.5).classes("w-full")
+            om_mix = ui.number("Integrated Mix (% of net revenue)", value=ops.get("integrated_mix"), step=0.5).classes("w-full")
+        with ui.column().classes("flex-1"):
+            _h("PARTNER PIPELINE & GO-LIVES")
+            om_golives = ui.number("New Partner Go-Lives (this qtr)", value=ops.get("new_partner_golives"), step=1.0).classes("w-full")
+            om_isv = ui.number("ISV Partners in Implementation", value=ops.get("isv_in_impl"), step=1.0).classes("w-full")
+            om_live = ui.number("Total Integrated Partners Live", value=ops.get("partners_live"), step=1.0).classes("w-full")
+            om_merch = ui.number("Active Merchants (K)", value=ops.get("active_merchants_k"), step=1.0).classes("w-full")
+        with ui.column().classes("flex-1"):
+            _h("LEGACY & OUTLOOK")
+            om_legacy = ui.number("Legacy Processing Revenue YoY (%)", value=ops.get("legacy_rev_yoy"), step=0.5).classes("w-full")
+            om_float = ui.select(["Stable", "Declining", "Growing"],
+                                 value=ops.get("prepaid_float", "Stable"), label="Prepaid Float Balances").classes("w-full")
+            om_vert = ui.textarea("New-Vertical Progress", value=ops.get("new_verticals", "")).classes("w-full")
+
+    missing_now = [lbl for key, lbl in _OPS_LABELS_ILLUS.items() if ops.get(key) in (None, "", 0)]
+    if missing_now:
+        with ui.card().classes("w-full").style(f"background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);"):
+            ui.label(f"{len(missing_now)} metric(s) disclosed last quarter aren't entered yet:").style(
+                f"color:#92400E;font-size:var(--fs-sm);font-weight:600;")
+            for _m in missing_now:
+                ui.label(f"• {_m}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+    om_notes = ui.textarea("Explain any intentional metric omissions (reviewed in Stage 2)",
+                           value=ops.get("disclosure_notes", "")).classes("w-full")
+
+    def submit_ops():
+        new_ops = {
+            "tpv": om_tpv.value, "tpv_yoy": om_tpv_yoy.value, "nrr": om_nrr.value, "take_rate": om_take.value,
+            "integrated_mix": om_mix.value, "new_partner_golives": om_golives.value, "isv_in_impl": om_isv.value,
+            "partners_live": om_live.value, "active_merchants_k": om_merch.value, "legacy_rev_yoy": om_legacy.value,
+            "prepaid_float": om_float.value, "new_verticals": om_vert.value, "disclosure_notes": om_notes.value,
+            "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        missing = [lbl for key, lbl in _OPS_LABELS_ILLUS.items() if new_ops.get(key) in (None, "", 0)]
+        new_ops["missing_count"] = len(missing)
+        new_ops["missing_items"] = missing
+        ss["q2_ops_metrics"] = new_ops
+        _save_json("script_workflow_state.json", ss)
+        if missing and not new_ops["disclosure_notes"]:
+            ui.notify(f"Saved — {len(missing)} metric(s) from last quarter aren't filled in and no explanation "
+                      f"was given. Stage 2 IR review will flag these.", type="warning")
+        else:
+            ui.notify(f"Operating metrics submitted. {len(missing)} disclosure gap(s) noted.")
+        _refresh()
+
+    ui.button("Submit Operating Metrics", on_click=submit_ops).props("color=primary").style("margin-top:8px;")
+
+
 def _render_stage1b(ss):
     """Stage 1B — Operating Metrics & Disclosure Consistency Check. Ported
     from app.py's second Stage 1 input column (see this module's docstring
@@ -4194,6 +4266,11 @@ def _render_stage1b(ss):
     feeds richer detail into the CRO/business-ops persona draft (see
     _generate_persona_draft) and surfaces any metric that quietly dropped
     out of disclosure versus last quarter."""
+    from config.client_config import get_active_client_id
+    from core.curated_targets import _is_illustrative
+    if _is_illustrative(get_active_client_id()):
+        _render_stage1b_illustrative(ss)   # Northlake operating KPIs, not USIO card/ACH/prepaid metrics
+        return
     ui.markdown("---")
     ui.label("Stage 1B — Operating Metrics & Disclosure Consistency Check").classes("font-bold")
     ui.label("Every metric disclosed last quarter should be disclosed again this quarter, or explicitly "
