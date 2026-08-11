@@ -352,7 +352,9 @@ def set_decision(action, client_id=None):
         gd["text_prev"] = prev_text          # keep the old words; never silently discard
         gd["ai_redraft_suggested"] = True    # richer prose is a click away
     if prev_text is None or changed or numbers_moved or already_stale:
-        gd["text"] = render_guidance_prose(action, new_low, new_hi, rationale, gd.get("context", ""))
+        gd["text"] = render_guidance_prose(
+            action, new_low, new_hi, rationale, gd.get("context", ""),
+            other_guidance=guidance_other_lines_sentence((ss.get("guidance_inputs") or {}).get("metrics")))
     gd.pop("needs_redraft", None)            # can't be stale — it was just regenerated
     ss["guidance_decision"] = gd
     db.save_json("script_workflow_state.json", ss, client_id=cid)
@@ -376,8 +378,32 @@ def set_decision(action, client_id=None):
 # Seasonal read — moved verbatim from earnings_page._guidance_math so the
 # Decision Engine and every other consumer share one definition.
 # ─────────────────────────────────────────────────────────────────────────
-def render_guidance_prose(action, new_low, new_hi, rationale="", context=""):
-    """Deterministically render the Guidance & Outlook prose FROM the decision.
+def guidance_other_lines_sentence(metrics):
+    """The FLS sentence stating the OTHER guided lines the company gives (adjusted EPS, adjusted EBITDA)
+    beyond revenue, so the generated guidance LANGUAGE carries EVERY guided number — not just revenue. The
+    verb (raising/reiterating/lowering) is derived from each line's own range change. Returns "" if the
+    metrics carry no EPS/EBITDA guide."""
+    parts = []
+    for key, name, kind in (("eps", "adjusted EPS", "eps"), ("ebitda", "adjusted EBITDA", "money")):
+        m = (metrics or {}).get(key) or {}
+        pr, nw = m.get("prior_fy_range"), m.get("new_fy_range")
+        if not (pr and nw and pr[0] is not None and nw[0] is not None):
+            continue
+        verb = {"RAISED": "raising", "RAISED LOW END": "raising the low end of",
+                "RAISED HIGH END": "raising the high end of", "REITERATED": "reiterating",
+                "CUT": "lowering"}.get(characterize_range_change(pr, nw)["tag"], "reiterating")
+        rng = (f"${nw[0]:.2f} to ${nw[1]:.2f}" if kind == "eps"
+               else f"${nw[0]:.1f} million to ${nw[1]:.1f} million")
+        parts.append(f"{verb} our full-year {name} guidance to {rng}")
+    if not parts:
+        return ""
+    return "[FLS] We are also " + ", and ".join(parts) + ". [/FLS]"
+
+
+def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance=""):
+    """Deterministically render the Guidance & Outlook prose FROM the decision. `other_guidance` is the
+    pre-built FLS sentence for the OTHER guided lines (EPS, EBITDA) — see guidance_other_lines_sentence —
+    so the prose states every guided number, not just revenue.
 
     THE STRUCTURAL RULE: the decision (action + range) is the INPUT; this prose
     is a DERIVED artifact. It lives in core, next to set_decision(), specifically
@@ -430,9 +456,11 @@ def render_guidance_prose(action, new_low, new_hi, rationale="", context=""):
     ctx_bit = f"{context.strip()}\n\n" if (context or "").strip() else ""
     rat_bit = f"{rationale.strip()}\n\n" if (rationale or "").strip() else ""
 
+    _other = f"{other_guidance.strip()}\n\n" if (other_guidance or "").strip() else ""
     return (
         f"{openers.get(action, openers['reiterate'])}\n\n"
         f"{ranges.get(action, ranges['reiterate'])}\n\n"
+        f"{_other}"
         f"{tones.get(action, tones['reiterate'])}\n\n"
         f"{rat_bit}{h2_signal}\n\n"
         f"[SPECIFIC H2 CATALYST LANGUAGE — reference at least 2 named catalysts here]\n"
