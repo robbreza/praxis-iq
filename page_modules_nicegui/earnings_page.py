@@ -2699,21 +2699,42 @@ def _bridge_verdict(metrics, syn):
         _so = (anchor.get("recommendation") or {}).get("note")
         if _so:
             ui.label(_so).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;margin-top:8px;")
+        # Each signal carries its COMPARISON + what it means — a bare "32%" or "76%" tells the reader
+        # nothing. Value is measured against its benchmark (corporate margin, prior quarter, Street), and
+        # the interpretation says why it matters (whisper, operating leverage, earnings quality).
         tally = []
         cr, ft, cc = syn.get("credibility"), syn.get("flow_through"), syn.get("cash_conversion")
-        if cr:
-            tally.append(("Credibility", f"beat {cr['beat_rate']} quarters · avg +{cr['avg_beat_pct']:.1f}% vs Street"))
+        if cr and cr.get("avg_beat_pct") is not None:
+            _wh = (" — and why the buy-side whisper sits above published consensus"
+                   if cr["avg_beat_pct"] > 0 else "")
+            tally.append(("Credibility", f"beat {cr['beat_rate']} quarters, avg +{cr['avg_beat_pct']:.1f}% vs Street",
+                          f"a consistent sandbag → the raised guide is likely still conservative{_wh}"))
         if ft and ft.get("quarter_incremental_margin_pct") is not None:
-            tally.append(("Flow-through", f"incremental margin {ft['quarter_incremental_margin_pct']:.0f}%"))
+            _im, _sm = ft["quarter_incremental_margin_pct"], ft.get("steady_margin_pct")
+            if _sm is not None:
+                _val = f"incremental margin {_im:.0f}% vs ~{_sm:.0f}% corporate"
+                _rd = ("operating leverage → the beat is margin-accretive" if _im > _sm + 2
+                       else "below corporate → the beat isn't fully dropping to profit" if _im < _sm - 2
+                       else "roughly in line with the corporate margin")
+            else:
+                _val, _rd = f"incremental margin {_im:.0f}%", ""
+            tally.append(("Flow-through", _val, _rd))
         if cc and cc.get("conversion_pct") is not None:
-            tally.append(("Cash conversion", f"FCF/EBITDA {cc['conversion_pct']:.0f}%"))
+            _cv, _pv = cc["conversion_pct"], cc.get("prior_conversion_pct")
+            _tr = (f", {'up' if _cv > _pv + 1 else 'down' if _cv < _pv - 1 else 'steady'} from {_pv:.0f}%"
+                   if _pv is not None else "")
+            _q = "high" if _cv >= 70 else "moderate" if _cv >= 45 else "weak"
+            tally.append(("Cash conversion", f"FCF/EBITDA {_cv:.0f}%{_tr}",
+                          f"{_q} conversion → the raise is funded internally, real cash not accrual"))
         if tally:
-            with ui.row().classes("w-full gap-5 flex-wrap").style(
-                    f"margin-top:11px;padding-top:11px;border-top:1px dashed {COLORS['border']};"):
-                for k, v in tally:
-                    with ui.row().classes("items-baseline gap-1 no-wrap"):
-                        ui.label(k + ":").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;")
-                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
+            with ui.column().classes("w-full").style(
+                    f"gap:4px;margin-top:11px;padding-top:11px;border-top:1px dashed {COLORS['border']};"):
+                for k, v, rd in tally:
+                    with ui.row().classes("w-full items-baseline gap-2 flex-wrap"):
+                        ui.label(k).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;width:112px;flex:none;")
+                        ui.label(v).style(f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:600;font-variant-numeric:tabular-nums;")
+                        if rd:
+                            ui.label("— " + rd).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
 def _render_guidance_bridge(ss):
