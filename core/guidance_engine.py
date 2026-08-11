@@ -490,9 +490,17 @@ def _comp_read_sentence(m):
                 f"{h1_ref}{stk_clause}. We want this understood as a comparison dynamic, not a change in underlying "
                 f"demand. [/FLS]")
 
-    if behind_qs and stk_clause:                     # affected quarters already REPORTED → point back
-        return (f"The year-over-year step-down in our {_qword_join(behind_qs)} results reflected the prior-year "
-                f"{lbl} comp — {amt_s} that is now unwinding — not softening demand{stk_clause.replace(', and on', ': on')}.")
+    if behind_qs:                                    # affected quarters already REPORTED → point back
+        # Prefer the quantified organic read (now computed for reported quarters); fall back to the stack.
+        behind_rows = [r for r in reported if r["q"] in behind_qs and r.get("yoy_organic_pct") is not None]
+        if behind_rows:
+            org_seq = _num_join([f"+{r['yoy_organic_pct']:.0f}%" for r in behind_rows])
+            return (f"The year-over-year step-down in {_qword_join([r['q'] for r in behind_rows])} reflected the "
+                    f"prior-year {lbl} comp of {amt_s}. On a comparable basis, excluding that item, growth held "
+                    f"near {org_seq}{stk_clause}. Underlying demand did not slow.")
+        if stk_clause:
+            return (f"The year-over-year step-down in {_qword_join(behind_qs)} reflected the prior-year {lbl} comp "
+                    f"of {amt_s}, not softening demand{stk_clause.replace(', and on', ': on')}.")
     return ""
 
 
@@ -871,6 +879,25 @@ def _bridge_metric(m):
             o["two_yr_stack_pct"] = round(o["yoy"]["pct"] + m["prior_yr_yoy_pct"], 1)
         if m.get("prior_q_yoy_pct") is not None and o["yoy"]["pct"] is not None:
             o["accel_pp"] = round(o["yoy"]["pct"] - m["prior_q_yoy_pct"], 1)
+    # Prior-year value per quarter, REPORTED and remaining — the base each quarter's YoY is measured against.
+    # Reported: the reporting quarter uses prior_yr_q; the prior quarter is derived from its value and YoY.
+    # This unifies the comp allocation so a comp-affected quarter gets an organic YoY whether it has already
+    # printed or is still implied (closing the gap where only remaining quarters were comp-adjusted).
+    _qs = lambda s: (s.split()[0] if isinstance(s, str) and s else s)
+    _prior_yr_by_q = {}
+    _rql, _pql = _qs(m.get("reporting_q")), _qs(m.get("prior_q_label"))
+    if _rql and pyq is not None:
+        _prior_yr_by_q[_rql] = pyq
+    if _pql and pq is not None and m.get("prior_q_yoy_pct") is not None and (1 + m["prior_q_yoy_pct"] / 100):
+        _prior_yr_by_q[_pql] = pq / (1 + m["prior_q_yoy_pct"] / 100)
+    for _rq in (m.get("remaining_quarters") or []):
+        if _rq.get("prior_yr") is not None:
+            _prior_yr_by_q[_rq.get("q")] = _rq["prior_yr"]
+    _ca0 = m.get("comp_adjust") or {}
+    _caper0, _caamt0 = set(_ca0.get("periods") or []), (_ca0.get("prior_yr_one_time") or 0)
+    _affq = {q: _prior_yr_by_q[q] for q in _caper0 if q in _prior_yr_by_q}
+    _abase0 = sum(_affq.values()) or 1
+    _alloc = {q: _caamt0 * (pv / _abase0) for q, pv in _affq.items()} if _caamt0 else {}
     cons = m.get("consensus")
     if a is not None and cons is not None:
         beat = round(a - cons, 3)
@@ -922,15 +949,9 @@ def _bridge_metric(m):
             nm = (nr[0] + nr[1]) / 2
             rem_mid = nm - ytd
             tw = sum(q.get("weight", 0) for q in rqs) or 1
-            # Comp adjustment: a flagged prior-year one-time inflates the base of the affected quarters, so
-            # the REPORTED YoY compresses mechanically. Allocate the one-time across those quarters (pro-rata
-            # to prior-year size) and recompute ORGANIC YoY off the clean base — the only honest way to tell a
-            # base-effect step-down from a real demand slowdown.
-            _ca = m.get("comp_adjust") or {}
-            _caper, _caamt = set(_ca.get("periods") or []), (_ca.get("prior_yr_one_time") or 0)
-            _aff = [q for q in rqs if q.get("q") in _caper and q.get("prior_yr")]
-            _abase = sum(q.get("prior_yr", 0) for q in _aff) or 1
-            _alloc = {q.get("q"): _caamt * (q.get("prior_yr", 0) / _abase) for q in _aff} if _caamt else {}
+            # Comp adjustment (unified _alloc built above, across reported AND remaining affected quarters):
+            # recompute ORGANIC YoY off the ex-one-time base — the only honest way to tell a base-effect
+            # step-down from a real demand slowdown.
             imp["by_quarter"] = []
             for q in rqs:
                 iq = rem_mid * (q.get("weight", 0) / tw)
@@ -995,19 +1016,25 @@ def _bridge_metric(m):
     # accelerating one expands it. H1 = prior_q (last quarter) + actual (this quarter); H2 = the implied
     # range path (guided metrics) or the modeled path (KPIs). A quarter with no prior-year comp shows the
     # level only (a ratio like NRR/take-rate carries no meaningful YoY).
-    _qs = lambda s: (s.split()[0] if isinstance(s, str) and s else s)
     fp = []
     if pq is not None:
-        fp.append({"q": _qs(m.get("prior_q_label")), "value": pq,
-                   "yoy_pct": m.get("prior_q_yoy_pct"), "actual": True})
+        fp.append({"q": _pql, "value": pq, "yoy_pct": m.get("prior_q_yoy_pct"), "actual": True})
     if a is not None:
-        fp.append({"q": _qs(m.get("reporting_q")), "value": a,
-                   "yoy_pct": (o.get("yoy") or {}).get("pct"), "actual": True})
+        fp.append({"q": _rql, "value": a, "yoy_pct": (o.get("yoy") or {}).get("pct"), "actual": True})
     for row in ((o.get("implied") or {}).get("by_quarter") or o.get("path") or []):
         fp.append({"q": row.get("q"),
                    "value": row.get("implied") if row.get("implied") is not None else row.get("value"),
                    "yoy_pct": row.get("yoy_pct"), "yoy_organic_pct": row.get("yoy_organic_pct"),
                    "actual": False})
+    # Organic YoY for REPORTED comp-affected quarters too — the remaining quarters got it in the by_quarter
+    # loop; this backfills any already-printed affected quarter so the retrospective point-back is quantified.
+    for row in fp:
+        if row.get("q") in _alloc and row.get("yoy_organic_pct") is None and row.get("value") is not None:
+            _base = _prior_yr_by_q.get(row["q"])
+            if _base is not None:
+                _ob = _base - _alloc[row["q"]]
+                if _ob > 0:
+                    row["yoy_organic_pct"] = _pct(row["value"] - _ob, _ob)
     # Two-year STACKED CAGR per quarter — a model-free trend check that needs no comp assumption. A one-time
     # that inflated the prior-year base also inflated the prior-year GROWTH, so a two-year compound rate
     # washes the spike out: if the 1-yr YoY steps down but the 2-yr CAGR holds, the step-down is the base.
