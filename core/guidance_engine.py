@@ -217,8 +217,11 @@ def characterize_range_change(prior, new):
     nl, nh = float(new[0]), float(new[1])
     pm, nm = (pl + ph) / 2, (nl + nh) / 2
     pw, nw = ph - pl, nh - nl
-    d_low, d_high, d_mid, d_width = round(nl - pl, 2), round(nh - ph, 2), round(nm - pm, 2), round(nw - pw, 2)
-    eps = 0.05
+    d_low, d_high, d_mid, d_width = round(nl - pl, 3), round(nh - ph, 3), round(nm - pm, 3), round(nw - pw, 3)
+    # SCALE-AWARE threshold: 0.5% of the midpoint (not a fixed 0.05, which was tuned for revenue's $M scale
+    # and wrongly read a $0.01 EPS raise as "reiterated"). A move smaller than half a percent of the guide
+    # is noise; anything above it is a real raise/cut at any scale (revenue $M, EPS $, EBITDA $M).
+    eps = max(0.005, abs(pm) * 0.005)
     if d_mid < -eps:
         action, tag, key = "Cut", "CUT", "reiterate"
         signal = "a cut — the Street will ask why immediately; never do it at Q2 without a clear bridge."

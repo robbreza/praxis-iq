@@ -2896,7 +2896,19 @@ def _render_guidance_decision(ss, context="script"):
     _trend_pp = round(_nm_g - _pm_g, 1) if (_pm_g is not None and _nm_g is not None) else None
 
     # ── ① SET GUIDANCE — the first thing on the page; the whole script derives from it ──
-    ui.label("① Set guidance").classes("font-bold").style("font-size:var(--fs-md);")
+    _gim = ((ss.get("guidance_inputs") or {}).get("metrics") or {})
+
+    def _mrange(key):
+        m = _gim.get(key, {}) or {}
+        return m.get("prior_fy_range"), (m.get("new_fy_range") or m.get("prior_fy_range"))
+    _eps_pr, _eps_nw = _mrange("eps")
+    _ebd_pr, _ebd_nw = _mrange("ebitda")
+
+    ui.label("① Guidance analysis — the guided quarter, the year, and next year").classes("font-bold").style(
+        "font-size:var(--fs-md);")
+    ui.label("The ranges are set on the CFO screen (Stage 1); this reads what they mean for each period and "
+             "feeds the guidance language in the script below.").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:5px solid {COLORS['accent']};border-radius:10px;padding:14px 16px;"):
@@ -2917,45 +2929,38 @@ def _render_guidance_decision(ss, context="script"):
                         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
                 else:
                     ui.label("No seasonal split on file.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            # ── FULL YEAR (FY26) — the decision. Prior guide shrinks to a subline; the new range is the input.
+            # ── FULL YEAR (FY26) — the GUIDED year: all three lines the company gives (Revenue, EPS,
+            # EBITDA), Was → Now with the action per line. Analysis only — the ranges are set on the CFO
+            # screen, exactly how the guidance is spoken on the call.
             with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
-                    "padding:11px 14px;min-width:300px;gap:4px;"):
-                ui.label("Full Year — FY2026 · your guidance (the decision)").style(
+                    "padding:11px 14px;min-width:300px;gap:5px;"):
+                ui.label("Full Year — FY2026 · the guide").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                ui.label(f"Was ${_prior[0]:.1f}–{_prior[1]:.1f}M · {_grow_line(_prior).replace('growth: ', '')} "
-                         "· what the Street embedded").style(
-                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
-                with ui.row().classes("items-end gap-2 flex-wrap").style("margin-top:2px;"):
-                    _low_in = ui.number("New low", value=_new[0], step=0.5).props("outlined dense").style("width:104px;")
-                    _hi_in = ui.number("New high", value=_new[1], step=0.5).props("outlined dense").style("width:104px;")
-
-                    def _apply(_low_in=_low_in, _hi_in=_hi_in):
-                        gd.update({"new_low": _low_in.value, "new_hi": _hi_in.value,
-                                   "action": _ge.characterize_range_change(_prior, [_low_in.value, _hi_in.value])["action_key"]})
-                        ss["guidance_decision"] = gd
-                        _save_json("script_workflow_state.json", ss)
-                        ui.notify(f"Applied ${_low_in.value:.1f}–{_hi_in.value:.1f}M — recalculated below.", type="positive")
-                        # Re-render AND scroll back to the guidance engine (not the top of the page) so the
-                        # updated read is right in front of you — same path as the Markets deep-link.
-                        nav.go_to("Earnings", "Script Generation", earnings_tab="guidance")
-                    ui.button("Apply →", icon="analytics", on_click=_apply).props("color=primary dense")
-                ui.label(_grow_line(_new)).style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
-                with ui.row().classes("items-center gap-1 flex-wrap"):
-                    ui.label("quick analysis:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
-                    for _lbl, _akey in (("Raise low", "raise_low"), ("Raise mid", "raise_mid"), ("Reiterate", "reiterate")):
-                        def _preset(_akey=_akey, _low_in=_low_in, _hi_in=_hi_in):
-                            _pl, _ph, _ = _ge.apply_action(_akey, math_)
-                            _low_in.value = round(_pl, 1)
-                            _hi_in.value = round(_ph, 1)
-                        ui.button(_lbl, on_click=_preset).props("flat dense size=sm").style(f"color:{COLORS['accent_light']};")
-                    if _trend_pp is not None:
-                        _tc = (COLORS["positive"] if _trend_pp > 0.05 else COLORS["danger"] if _trend_pp < -0.05
-                               else COLORS["text_muted"])
-                        _arw = "↑" if _trend_pp > 0.05 else "↓" if _trend_pp < -0.05 else "→"
-                        ui.label(f"{_arw} implied growth {_trend_pp:+.1f}pp vs prior guide").style(
-                            f"color:{_tc};font-size:var(--fs-xs);font-weight:700;margin-left:4px;")
+                for _nm, _prg, _nwg, _fg in (("Revenue", _prior, _new, "money"),
+                                             ("Adj. EPS", _eps_pr, _eps_nw, "eps"),
+                                             ("Adj. EBITDA", _ebd_pr, _ebd_nw, "money")):
+                    if not (_prg and _nwg and _prg[0] is not None and _nwg[0] is not None):
+                        continue
+                    _cg = _ge.characterize_range_change(_prg, _nwg)
+                    _tg = _cg["tag"]
+                    _tcg = COLORS[_BR_TAG.get(_tg, "warning")] if _BR_TAG.get(_tg) else COLORS["accent"]
+                    with ui.row().classes("w-full items-baseline gap-2 flex-wrap"):
+                        ui.label(_nm).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:84px;flex:none;")
+                        ui.label(f"{_fmt_metric(_prg[0], _fg)}–{_fmt_metric(_prg[1], _fg)} → "
+                                 f"{_fmt_metric(_nwg[0], _fg)}–{_fmt_metric(_nwg[1], _fg)}").style(
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
+                        ui.label(_cg["action"]).style(
+                            f"background:{_tcg}22;color:{_tcg};font-size:var(--fs-micro);font-weight:700;"
+                            "padding:1px 8px;border-radius:9px;white-space:nowrap;")
+                ui.label(f"Implied FY revenue growth: {_grow_line(_new).replace('growth: ', '')}").style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;margin-top:3px;")
+                if _trend_pp is not None:
+                    _tc = (COLORS["positive"] if _trend_pp > 0.05 else COLORS["danger"] if _trend_pp < -0.05
+                           else COLORS["text_muted"])
+                    _arw = "↑" if _trend_pp > 0.05 else "↓" if _trend_pp < -0.05 else "→"
+                    ui.label(f"{_arw} implied revenue growth {_trend_pp:+.1f}pp vs the prior guide").style(
+                        f"color:{_tc};font-size:var(--fs-xs);font-weight:700;")
             # ── NEXT YEAR (FY27) — the Street's out-year. Companies guide one year out, so this is derived
             # from the FY26 guide (roll-forward), never presented as company guidance.
             with ui.column().classes("flex-[2]").style(
@@ -5003,14 +5008,8 @@ def _render_stage2(ss):
         ui.label("Nothing here yet — go to the \"1 · CFO Numbers\" tab and click \"Submit for Draft "
                   "Generation\" first.").style(f"color:{COLORS['warning']};")
         return
-    n = ss["q2_numbers"]
-    beat = n.get("rev", 0) > (market_data.consensus_rev_value() or 0)
-    with ui.row().classes("w-full gap-3"):
-        _metric("Revenue", f"${n.get('rev',0):.1f}M", "BEAT" if beat else "vs consensus")
-        _metric("GAAP EPS", f"${n.get('eps',0):.2f}", "Positive" if n.get("eps", 0) >= 0.01 else "")
-        _metric("Adj. EBITDA", f"${n.get('ebitda',0):.1f}M", "")
-        _metric("Volume Growth", f"+{n.get('vol_yoy',0):.0f}% YoY", "")
-    ui.markdown("---")
+    # (Removed the top actuals-metric cards — they restated Stage-1 inputs and duplicated the far richer
+    # read in the guidance bridge below. This is the ANALYSIS view; it leads with the guidance analysis.)
     _render_script_canvas(ss)
 
     consistency_warnings = _check_script_consistency(ss)
