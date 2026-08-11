@@ -2343,6 +2343,19 @@ def _render_guidance_bridge(ss):
                     ui.label(f"New guide midpoint vs Street FY ({_fmt_metric(_vf['street_fy'], f)}): "
                              f"{_fmt_metric(_vf['delta'], f)} → {_vf['revision']} estimate revisions").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                ny = m.get("next_year")
+                if ny:
+                    _nl = (f"Next year (FY+1): Street {_fmt_metric(ny['street'], f)} "
+                           f"(+{ny.get('growth_off_guide_pct', 0):.0f}% off the raised guide)")
+                    if ny.get("exit_run_rate") is not None:
+                        _nl += (f" · Q4 exit run-rate {_fmt_metric(ny['exit_run_rate'], f)} → "
+                                f"+{ny.get('growth_off_exit_pct', 0):.0f}% off the exit")
+                    if ny.get("roll_forward_lift"):
+                        _nl += f" · roll-forward lift {_fmt_metric(ny['roll_forward_lift'], f)}"
+                    ui.label(_nl).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;")
+                    if ny.get("read"):
+                        ui.label(f"Implication: {ny['read']}.").style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
                 if m.get("recommendation", {}).get("note"):
                     ui.label(m["recommendation"]["note"]).style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")

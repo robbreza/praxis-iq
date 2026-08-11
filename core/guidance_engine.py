@@ -684,6 +684,34 @@ def _bridge_metric(m):
                     row["yoy_pct"] = _pct(iq - q["prior_yr"], q["prior_yr"])
                 imp["by_quarter"].append(row)
         o["implied"] = imp
+    # NEXT YEAR (FY+1) — the quarter/raise doesn't just affect this year: it resets the BASE next year
+    # grows off, and the Q4 exit run-rate annualizes into it. Reads where FY+1 Street sits vs the new
+    # guide, the roll-forward lift the raise adds to next year, and whether FY+1 is a low bar off the exit.
+    nfs = m.get("next_fy_street")
+    if nfs is not None and nr:
+        new_mid = (nr[0] + nr[1]) / 2
+        ny = {"street": nfs, "growth_off_guide_pct": _pct(nfs - new_mid, new_mid)}
+        pr2 = m.get("prior_fy_range")
+        if pr2:
+            prior_mid = (pr2[0] + pr2[1]) / 2
+            if prior_mid:
+                ny["roll_forward_lift"] = round(new_mid * (nfs / prior_mid) - nfs, 3)   # raise lifts the FY+1 base
+        bq = (o.get("implied") or {}).get("by_quarter")
+        if bq and bq[-1].get("implied"):
+            exitr = bq[-1]["implied"] * 4
+            ny["exit_run_rate"] = round(exitr, 3)
+            ny["growth_off_exit_pct"] = _pct(nfs - exitr, exitr)
+        flags = []
+        goe = ny.get("growth_off_exit_pct")
+        if goe is not None:
+            flags.append("low bar — the Q4 exit run-rate already covers most of next year" if goe < 8
+                         else "requires real growth off the Q4 exit rate" if goe > 15
+                         else "a reasonable step off the Q4 exit rate")
+        if ny.get("roll_forward_lift", 0) and ny["roll_forward_lift"] > 0.005 * new_mid:
+            flags.append("the current-year raise lifts the FY+1 base, so next-year estimates should revise up "
+                         "on the roll-forward alone")
+        ny["read"] = "; ".join(flags)
+        o["next_year"] = ny
     sf = m.get("street_fy")
     if sf is not None and nr:
         nm = (nr[0] + nr[1]) / 2
