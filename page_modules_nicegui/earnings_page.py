@@ -2850,6 +2850,20 @@ def _render_guidance_decision(ss, context="script"):
     _goff = (_nfs - _new_mid) / _new_mid * 100 if _nfs else None
     _rfl = (_new_mid * (_nfs / _prior_mid) - _nfs) if (_nfs and _prior_mid) else None
 
+    # NEXT QUARTER (Q3) — a company can guide the year AND get asked "what's next quarter?". Show the next
+    # quarter IMPLIED by the full-year guide: remaining-to-midpoint split by seasonal weight, YoY vs the
+    # prior-year same quarter. Derived from the FY decision, so it recalculates when the range changes.
+    _ytd = _rev_in.get("ytd")
+    _rqs = _rev_in.get("remaining_quarters") or []
+    _q3 = next((q for q in _rqs if str(q.get("q")).upper() == "Q3"), None) or (_rqs[0] if _rqs else None)
+    _tw = sum(q.get("weight", 0) for q in _rqs) or 1
+    _q3_impl = _q3_yoy = _q3_lbl = None
+    if _ytd is not None and _q3:
+        _q3_impl = (_new_mid - _ytd) * (_q3.get("weight", 0) / _tw)
+        _q3_lbl = _q3.get("q")
+        if _q3.get("prior_yr"):
+            _q3_yoy = (_q3_impl / _q3["prior_yr"] - 1) * 100
+
     # Implied YoY growth at each end of the range vs prior-year FY revenue — the number the guide really
     # states (a $M level is meaningless without its growth rate). Trend = is the new guide raising or
     # lowering the implied growth rate vs the prior guide.
@@ -2869,11 +2883,27 @@ def _render_guidance_decision(ss, context="script"):
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
             f"border-left:5px solid {COLORS['accent']};border-radius:10px;padding:14px 16px;"):
         with ui.row().classes("w-full gap-4 items-stretch flex-wrap"):
-            # ── THIS YEAR (FY26) — the decision. Prior guide shrinks to a subline; the new range is the input.
+            # ── NEXT QUARTER (Q3) — implied by the full-year guide; derived, recalculates with the range.
+            with ui.column().classes("flex-[2]").style(
+                    f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
+                    "padding:11px 14px;min-width:180px;gap:3px;"):
+                ui.label(f"Next Quarter — {_q3_lbl or 'Q3'} · implied").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
+                if _q3_impl is not None:
+                    ui.label(f"~${_q3_impl:.1f}M").style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums;")
+                    if _q3_yoy is not None:
+                        _qc = COLORS["positive"] if _q3_yoy >= 0 else COLORS["danger"]
+                        ui.label(f"{_q3_yoy:+.0f}% YoY").style(f"color:{_qc};font-size:var(--fs-xs);font-weight:700;")
+                    ui.label("implied by your full-year guide (seasonal split) — not separately guided").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
+                else:
+                    ui.label("No seasonal split on file.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            # ── FULL YEAR (FY26) — the decision. Prior guide shrinks to a subline; the new range is the input.
             with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
                     "padding:11px 14px;min-width:300px;gap:4px;"):
-                ui.label("This Year — FY2026 · your guidance").style(
+                ui.label("Full Year — FY2026 · your guidance (the decision)").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
                 ui.label(f"Was ${_prior[0]:.1f}–{_prior[1]:.1f}M · {_grow_line(_prior).replace('growth: ', '')} "
                          "· what the Street embedded").style(
