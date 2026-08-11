@@ -5212,9 +5212,9 @@ def _render_script_workflow_tab():
     def _paint():
         box.clear()
         with box:
-            # Loop-readiness overview first — visible regardless of the gate, so a
-            # brand-new client sees exactly what to provide (including "confirm the lineup").
-            _render_loop_readiness()
+            # Loop-readiness overview is a STATUS widget (what's ready across the whole loop) — orientation,
+            # not working-page content. It buried the actual work (Set guidance / draft), so it's no longer
+            # rendered here. _render_loop_readiness() is kept for a future prep/dashboard surface.
             # No configured reporting period -> nothing to gate on; render the workflow.
             if period and (not speakers.is_confirmed(period) or st["editing"]):
                 def _done():
@@ -5371,9 +5371,8 @@ def _render_workflow_content():
             ss["script_text"].setdefault(key, "")
             ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
-    ui.label("Earnings Script Approval Workflow").classes("text-lg font-bold")
-    ui.label("5-stage approval pipeline · CFO numbers in → IR → CFO+CEO+CRO → Consolidation → Legal sign-off").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-
+    # Narration removed (title + "5-stage approval pipeline · …" description): the clickable stage cards
+    # below ARE the pipeline and its status — they show it, so we don't also have to say it.
     # The stage cards below ARE the navigation now — each is clickable and drives these tab_panels —
     # so the plain tab bar that used to sit under them is redundant. Keep the ui.tabs element in the
     # DOM (the tab_panels model needs it) but hide it entirely via .hidden-tabstrip; the cards carry
