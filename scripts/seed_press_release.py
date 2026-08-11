@@ -31,10 +31,11 @@ _RELEASES = {
                       "see the bias to the upside on the full-year range.\" — Priya Raman, Chief Financial Officer"),
         "guidance": {
             "statement": ("For full-year 2026, Northlake continues to expect net revenue of $103 million to "
-                          "$105 million and an adjusted EBITDA margin of approximately 20%. Given first-quarter "
-                          "momentum, the Company sees an upward bias to the range."),
+                          "$105 million, an adjusted EBITDA margin of approximately 20%, and adjusted EPS of "
+                          "$0.52 to $0.55. Given first-quarter momentum, the Company sees an upward bias to the "
+                          "range."),
             "fy_low": 103.0, "fy_high": 105.0, "action": "reiterated",
-            "ebitda_margin_pct": 20.0, "fiscal_year": "2026",
+            "eps_low": 0.52, "eps_high": 0.55, "ebitda_margin_pct": 20.0, "fiscal_year": "2026",
         },
     },
     "Q2 2026": {
@@ -57,12 +58,12 @@ _RELEASES = {
                       "— Priya Raman, CFO"),
         "guidance": {
             "statement": ("For full-year 2026, Northlake now expects net revenue of $104 million to $106 million "
-                          "(previously $103 million to $105 million) and an adjusted EBITDA margin of "
-                          "approximately 21%. The second-half year-over-year comparison reflects the unwind of a "
-                          "prior-year government payments program; underlying integrated-payments momentum "
-                          "continues."),
+                          "(previously $103 million to $105 million), adjusted EPS of $0.53 to $0.56 (previously "
+                          "$0.52 to $0.55), and an adjusted EBITDA margin of approximately 21%. The second-half "
+                          "year-over-year comparison reflects the unwind of a prior-year government payments "
+                          "program; underlying integrated-payments momentum continues."),
             "fy_low": 104.0, "fy_high": 106.0, "action": "raise_low",
-            "ebitda_margin_pct": 21.0, "fiscal_year": "2026",
+            "eps_low": 0.53, "eps_high": 0.56, "ebitda_margin_pct": 21.0, "fiscal_year": "2026",
         },
     },
 }

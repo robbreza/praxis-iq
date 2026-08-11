@@ -77,7 +77,7 @@ _Q1_TURNS = [
      "Thank you, Dana, and good afternoon, everyone. Thank you all for joining us. The first quarter was a "
      "record for Northlake across the metrics that matter most to this business. Total revenue of $25.3 "
      "million grew 19% year over year and came in above the high end of the guidance range we gave you in "
-     "February. Adjusted EPS was $0.12, up from $0.03 in the prior-year quarter. But as I told our team the "
+     "February. Adjusted EPS was $0.12, up from $0.09 in the prior-year quarter. But as I told our team the "
      "morning the quarter closed, the number I care most about is not the revenue line — it's the mix. "
      "Integrated payments volume grew 28% year over year, and as that mix continues to build, our net "
      "take-rate steps up. We are converting software partners into full payments relationships faster than "
@@ -141,7 +141,7 @@ _Q1_TURNS = [
      "grew 28% and net revenue grew faster than volume as take-rate expanded. Our transaction-based revenue "
      "grew in the mid-single digits, consistent with our expectation that the legacy processing book grows "
      "slowly while the integrated book compounds. Adjusted EPS was $0.12, ahead of the $0.09 consensus and "
-     "up from $0.03 a year ago. "
+     "up from $0.09 a year ago. "
      "Turning to margins. Gross profit margin expanded 180 basis points year over year, to the high-fifties, "
      "as the revenue mix shifted toward integrated acquiring, which carries a structurally higher margin "
      "than our legacy processing. Adjusted EBITDA was $5.1 million, a margin of roughly 20%, up more than "
@@ -156,8 +156,9 @@ _Q1_TURNS = [
      "stop. If rates normalize from here, the sensitivity to our model is modest and well within the range "
      "we plan for. "
      "Now to guidance. For the second quarter, we expect net revenue of $25.6 to $26.0 million. For the "
-     "full year, we are reiterating our guidance of $103 to $105 million in net revenue and adjusted EBITDA "
-     "margin of approximately 20%. Given the first-quarter trajectory, we see the bias to the upside on the "
+     "full year, we are reiterating our guidance of $103 to $105 million in net revenue, adjusted EBITDA "
+     "margin of approximately 20%, and adjusted EPS of $0.52 to $0.55. Given the first-quarter trajectory, "
+     "we see the bias to the upside on the "
      "full-year range, and we expect the second half to be stronger than the first as new-partner go-lives "
      "weight toward the back half. We are not raising the formal range today — it is early in the year — but "
      "I want to be direct that the momentum we are seeing supports the high end. "
@@ -431,7 +432,7 @@ _TRANSCRIPTS = {
         ],
         "guidance_language": [
             "Q2 net revenue guided to $25.6–26.0M.",
-            "Reiterated full-year FY2026 net revenue of $103–105M and ~20% adj. EBITDA margin.",
+            "Reiterated full-year FY2026 net revenue of $103–105M, ~20% adj. EBITDA margin, and adjusted EPS of $0.52–0.55.",
             "Explicit upside bias to the full-year range; second half expected stronger than the first.",
             "Do not model prepaid float as a growth driver — modest, well-planned rate sensitivity.",
         ],
@@ -596,7 +597,8 @@ _SCRIPT_TEXT = {
         "software-like. This quarter integrated payments reached 62% of net revenue, net revenue retention "
         "stayed above 110%, and TPV grew 27%. We are converting the installed base and adding new partners "
         "at the strongest pace in the company's history. Given that first-half trajectory, we are raising "
-        "the full-year range to $104 to $106 million, and we continue to expect the second half to be "
+        "the full-year range to $104 to $106 million in net revenue and adjusted EPS to $0.53 to $0.56, and "
+        "we continue to expect the second half to be "
         "stronger than the first as new-partner go-lives ramp. One framing point on the second half: our "
         "year-ago second half included a government payments program that is now unwinding, so the "
         "year-over-year comparison is tougher in the back half — the underlying attach momentum is intact, "
@@ -707,8 +709,9 @@ def seed_script_workflow(cid="demo"):
             # Structured decision — the SINGLE SOURCE the bridge analysis and the language both read.
             "action": "raise_low", "new_low": 104.0, "new_hi": 106.0,
             "rationale": "Q2 beat + first-half momentum; raise the low end, hold the top pending H2 comp visibility.",
-            "text": ("Raising full-year FY2026 net-revenue guidance to $104–106M (from $103–105M) and "
-                     "reiterating an adjusted EBITDA margin of roughly 21%, reflecting first-half momentum "
+            "text": ("Raising full-year FY2026 net-revenue guidance to $104–106M (from $103–105M), raising "
+                     "adjusted EPS guidance to $0.53–0.56 (from $0.52–0.55), and reiterating an adjusted "
+                     "EBITDA margin of roughly 21%, reflecting first-half momentum "
                      "and the back-half-weighted new-partner go-live cadence. Framing note for the call: "
                      "H2 year-over-year comps are tough — prior-year H2 included a government payments "
                      "program now unwinding — so the implied second-half growth understates the underlying "
