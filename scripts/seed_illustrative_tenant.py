@@ -1454,6 +1454,14 @@ That concludes today's question-and-answer session. Thank you for joining.
               f"{_e['script_sections']} NLKP script sections")
     except Exception as _ex:
         print(f"  [warn] earnings-demo seed skipped: {_ex}")
+    # Earnings PRESS RELEASES — the OTHER place guidance lives (formal, verbatim), so the prior guide is
+    # authoritative and this quarter's decision can be verified consistent across release AND transcript.
+    try:
+        from scripts.seed_press_release import seed_press_release
+        _pr = seed_press_release(CID)
+        print(f"  seeded {_pr} earnings press release(s) (formal guidance, matches the transcripts)")
+    except Exception as _ex:
+        print(f"  [warn] press-release seed skipped: {_ex}")
 
     # NOTE: deliberately NOT seeded — no integration exists, so the UI should keep
     # saying so: earnings-call listen duration, IR website visit counts, short

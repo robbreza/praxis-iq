@@ -2299,16 +2299,30 @@ def _guidance_prior_language():
     range sentence wins over a next-quarter guide. Sourced from the prior call's recorded language."""
     import re
     cands = []
+    prior_q = None
     try:
         m = re.match(r"Q([1-4])\s+(\d{4})", CE().get("current_quarter", "") or "")
         if m:
             _qn, _yr = int(m.group(1)), int(m.group(2))
             prior_q = f"Q{_qn - 1} {_yr}" if _qn > 1 else f"Q4 {_yr - 1}"
+    except Exception:
+        prior_q = None
+    if prior_q:
+        # AUTHORITATIVE source first: the prior quarter's PRESS RELEASE Outlook statement — the formal,
+        # verbatim guidance the Street quotes, not a transcript paraphrase. Return it directly if present.
+        try:
+            from core import press_release
+            _ps = press_release.guidance_statement(prior_q)
+            if _ps:
+                return _ps
+        except Exception:
+            pass
+        try:
             rec = transcripts.get_transcript(prior_q)
             if rec:
                 cands += [g for g in (rec.get("guidance_language") or []) if isinstance(g, str)]
-    except Exception:
-        pass
+        except Exception:
+            pass
     for item in (_guidance_prior_quotes() or []):
         _t = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (item if isinstance(item, str) else "")
         if _t:
