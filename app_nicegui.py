@@ -2067,7 +2067,9 @@ ui.add_head_html(
     "}"
     # Header ☰ is redundant on desktop (drawer docked/visible); hide it at the docking breakpoint,
     # keep it on tablet/phone where the drawer is an overlay and it's the only way to open the nav.
-    "@media (min-width:1024px){.drawer-toggle{display:none !important;}}"
+    # The Earnings top tab strip is the same story — redundant with the sidebar's Earnings sub-items
+    # on desktop, so hide it there too (kept below 1024px where there's no docked sidebar).
+    "@media (min-width:1024px){.drawer-toggle,.earnings-tabstrip{display:none !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width

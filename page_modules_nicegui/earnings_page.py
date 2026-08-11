@@ -684,7 +684,12 @@ def render_earnings_page():
     jump_to_script = _earnings_tab_target in ("script", "guidance")
     scroll_to_guidance = _earnings_tab_target == "guidance"
 
-    with ui.tabs().classes("w-full") as tabs:
+    # The visible tab strip is REDUNDANT on desktop — the sidebar lists all seven of these under
+    # Earnings Cycle (Prep / The Call / After), and each sidebar sub-item deep-links straight to its
+    # tab via nav.consume_target_tab() below. So hide the strip on desktop (≥1024px) via the
+    # .earnings-tabstrip CSS rule, exactly like the drawer-toggle: the tab_panels still switch, driven
+    # by the sidebar. Kept below 1024px, where there's no docked sidebar and this is the tab nav.
+    with ui.tabs().classes("w-full earnings-tabstrip") as tabs:
         # Tab order mirrors the sidebar's Prep / The Call / After grouping (NAV_SUBGROUPS):
         #   Prep      → Prior Qtr Review · Script Generation · Prep Brief · Consensus Tracker
         #   The Call  → Call Transcripts
