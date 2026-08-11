@@ -354,7 +354,8 @@ def set_decision(action, client_id=None):
     if prev_text is None or changed or numbers_moved or already_stale:
         gd["text"] = render_guidance_prose(
             action, new_low, new_hi, rationale, gd.get("context", ""),
-            other_guidance=guidance_other_lines_sentence((ss.get("guidance_inputs") or {}).get("metrics")))
+            other_guidance=guidance_other_lines_sentence((ss.get("guidance_inputs") or {}).get("metrics")),
+            h2_comp=guidance_h2_comp_language(ss.get("guidance_inputs"), new_low, new_hi))
     gd.pop("needs_redraft", None)            # can't be stale — it was just regenerated
     ss["guidance_decision"] = gd
     db.save_json("script_workflow_state.json", ss, client_id=cid)
@@ -400,7 +401,119 @@ def guidance_other_lines_sentence(metrics):
     return "[FLS] We are also " + ", and ".join(parts) + ". [/FLS]"
 
 
-def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance=""):
+_QWORD = {"Q1": "first", "Q2": "second", "Q3": "third", "Q4": "fourth"}
+
+
+def _qword_join(qs):
+    ws = [_QWORD.get(q, q) for q in qs]
+    if not ws:
+        return "the remaining quarters"
+    if len(ws) == 1:
+        return f"the {ws[0]} quarter"
+    if len(ws) == 2:
+        return f"the {ws[0]} and {ws[1]} quarters"
+    return "the " + ", ".join(ws[:-1]) + f", and {ws[-1]} quarters"
+
+
+def _num_join(items):
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _period_phrase(remaining_qs):
+    n = len(remaining_qs)
+    if n == 1:
+        return f"the {_QWORD.get(remaining_qs[0], '')} quarter".replace("the  quarter", "the coming quarter")
+    if n == 2:
+        return "the second half"
+    return "the balance of the year"
+
+
+def _comp_read_sentence(m):
+    """DERIVE the remaining-period comp language from the bridge — never seeded. It is CALENDAR-AWARE: it
+    reads which affected quarters are still AHEAD (pre-frame proactively) vs already REPORTED (point back),
+    and how much of the year remains, and phrases the CFA advice accordingly. Returns "" when there is no
+    base-effect to explain (then the caller keeps the generic sequential-strength line)."""
+    fp = m.get("full_path") or []
+    comp = m.get("comp_adjust") or {}
+    periods = set(comp.get("periods") or [])
+    if not fp or not periods:
+        return ""
+    reported = [r for r in fp if r.get("actual") and r.get("value") is not None]
+    remaining = [r for r in fp if not r.get("actual") and r.get("value") is not None]
+    reported_qs = {r["q"] for r in reported}
+    ahead = [r for r in remaining if r["q"] in periods]
+    behind_qs = [q for q in periods if q in reported_qs]
+
+    amt = comp.get("amount")
+    lbl = comp.get("label", "a prior-year one-time item")
+    amt_s = f"approximately ${amt:.0f} million" if amt else "a prior-year one-time item"
+    stk = [r.get("two_yr_cagr_pct") for r in fp if r.get("two_yr_cagr_pct") is not None]
+    stk_clause = (f", and on a two-year stacked basis growth holds near {sum(stk) / len(stk):.0f}%"
+                  if len(stk) >= 2 else "")
+
+    rep_yoy = [r["yoy_pct"] for r in reported if r.get("yoy_pct") is not None]
+    if rep_yoy:
+        lo, hi = min(rep_yoy), max(rep_yoy)
+        h1_ref = (f"the +{lo:.0f}%" if abs(hi - lo) < 0.5 else f"the +{lo:.0f}% to +{hi:.0f}%") + " we delivered in the first half"
+    else:
+        h1_ref = "our first-half growth"
+
+    # A base effect worth explaining = organic materially (>=1pp) above reported on the affected quarters.
+    ahead_gap = [r for r in ahead if r.get("yoy_organic_pct") is not None and r.get("yoy_pct") is not None
+                 and (r["yoy_organic_pct"] - r["yoy_pct"]) >= 1.0]
+
+    if ahead_gap:                                    # affected quarters are STILL AHEAD → pre-frame proactively
+        remaining_qs = [r["q"] for r in remaining]
+        n = len(remaining)
+        aff_qs = [r["q"] for r in ahead_gap]
+        if n >= 3:
+            lead, where = ("It is early in the year, and while much of it is still ahead of us, we want to flag "
+                           "now that", f" in {_qword_join(aff_qs)}")
+        elif n == 2:
+            lead, where = "As we look to the second half,", f" in {_qword_join(aff_qs)}"
+        else:
+            lead, where = f"In {_qword_join(aff_qs)} specifically,", ""   # lead already names it — don't repeat
+        org_seq = _num_join([f"+{r['yoy_organic_pct']:.0f}%" for r in ahead_gap])
+        # State the specific $ only when EVERY affected quarter is still ahead (so the full amount applies).
+        # If some already reported, the per-quarter split isn't surfaced here — describe it without a number
+        # rather than overstate the ahead portion.
+        all_ahead = not behind_qs
+        incl = f"included {amt_s} from a {lbl}" if (all_ahead and amt) else f"included a {lbl} contribution"
+        return (f"[FLS] {lead} our year-over-year revenue comparison{where} will optically compress — the "
+                f"prior-year {_period_phrase(remaining_qs).replace('the ', '', 1)} {incl}. On a comparable basis, "
+                f"excluding that item, implied growth in those quarters is roughly {org_seq}, consistent with "
+                f"{h1_ref}{stk_clause}. We want this understood as a comparison dynamic, not a change in underlying "
+                f"demand. [/FLS]")
+
+    if behind_qs and stk_clause:                     # affected quarters already REPORTED → point back
+        return (f"The year-over-year step-down in our {_qword_join(behind_qs)} results reflected the prior-year "
+                f"{lbl} comp — {amt_s} that is now unwinding — not softening demand{stk_clause.replace(', and on', ': on')}.")
+    return ""
+
+
+def guidance_h2_comp_language(inputs, new_low=None, new_hi=None):
+    """Build the calendar-aware remaining-period comp language from the guidance inputs, using the DECIDED
+    range (new_low/new_hi) so the implied per-quarter growth matches the decision. Deterministic and derived
+    — no seeded H2 string. Returns "" when there is no comp/base-effect to explain."""
+    if not inputs:
+        return ""
+    import copy
+    inputs = copy.deepcopy(inputs)
+    rev = (inputs.get("metrics") or {}).get("rev")
+    if not rev:
+        return ""
+    if new_low is not None and new_hi is not None:
+        rev["new_fy_range"] = [float(new_low), float(new_hi)]
+    b = guidance_bridge(inputs)
+    m = next((x for x in b["metrics"] if x.get("key") == "rev"), None)
+    return _comp_read_sentence(m) if m else ""
+
+
+def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance="", h2_comp=""):
     """Deterministically render the Guidance & Outlook prose FROM the decision. `other_guidance` is the
     pre-built FLS sentence for the OTHER guided lines (EPS, EBITDA) — see guidance_other_lines_sentence —
     so the prose states every guided number, not just revenue.
@@ -448,7 +561,10 @@ def render_guidance_prose(action, new_low, new_hi, rationale="", context="", oth
         "narrow": "Narrowing the range reflects improving visibility without getting ahead of H2 execution.",
         "reiterate": "We believe it is prudent to maintain our full range as key H2 implementations continue to scale.",
     }
-    h2_signal = ("[FLS] We expect the second half of the year to be sequentially stronger than the first half as "
+    # The remaining-period language is DERIVED and calendar-aware when a comp/base-effect exists (h2_comp);
+    # only when there is nothing to explain does it fall back to the generic sequential-strength line.
+    h2_signal = (h2_comp.strip() if (h2_comp or "").strip() else
+                 "[FLS] We expect the second half of the year to be sequentially stronger than the first half as "
                  "implementations currently in progress begin to scale and as newer initiatives contribute more "
                  "meaningfully to our revenue base. [/FLS]")
     catalysts_block = "\n".join(f"  {c}" for c in catalysts) or "  [No H2 catalysts configured for this client]"

@@ -2203,17 +2203,18 @@ def _metric_card(label, value, sub="", color=None):
             ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
 
-def _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance=""):
+def _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance="", h2_comp=""):
     """Rule-based fallback if the Claude call fails/no key.
 
     Now a thin delegate to core.guidance_engine.render_guidance_prose(), which
     owns the deterministic rendering so the decision path (set_decision) and this
     page render the SAME words from the SAME inputs. Two copies of this template
     is how the prose and the decision drifted apart in the first place.
-    `other_guidance` carries the EPS/EBITDA guided lines so the fallback states
-    every guided number, not revenue alone."""
+    `other_guidance` carries the EPS/EBITDA guided lines; `h2_comp` carries the
+    derived, calendar-aware remaining-period comp language — so the fallback states
+    every guided number AND frames the base effect, not revenue alone."""
     return guidance_engine.render_guidance_prose(
-        action, new_low, new_hi, rationale, other_guidance=other_guidance)
+        action, new_low, new_hi, rationale, other_guidance=other_guidance, h2_comp=h2_comp)
 
 
 def _guidance_template_draft_legacy(action, new_low, new_hi, rationale):
@@ -2272,6 +2273,9 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     # The OTHER guided lines (EPS, EBITDA) the company also gives — so the drafted language states EVERY
     # guided number, not just revenue (the analysis feeds the language for all three).
     _other = guidance_engine.guidance_other_lines_sentence((ss.get("guidance_inputs") or {}).get("metrics"))
+    # The DERIVED, calendar-aware comp read — the exact remaining-period framing the CFA analysis produces
+    # (organic ex-comp growth + two-year stack), so the spoken language carries it instead of a generic line.
+    _h2 = guidance_engine.guidance_h2_comp_language(ss.get("guidance_inputs"), new_low, new_hi)
     seasonal_note = (
         f"IMPORTANT: Do NOT reference an equal quarterly split — Q3 is the lightest quarter "
         f"(~{weights['Q3']*100:.0f}% of FY), Q2 the heaviest (~{weights['Q2']*100:.0f}%). Always reference "
@@ -2289,6 +2293,8 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
         f"prior H2's ${math_['h2_2025_rev']:.1f}M). "
         f"How the CEO has talked about guidance in prior quarters (match this voice): {quotes_block}. "
         + (f"ALSO state these other full-year guided lines the company gives, verbatim: {_other} " if _other else "")
+        + (f"CRITICAL — frame the remaining-period comp exactly as this analysis concludes (do not call it a "
+           f"deceleration; it is a prior-year base effect): {_h2} " if _h2 else "")
         + f"Known H2 catalysts, reference at least 2 (mark speculative specifics as [FLS]...[/FLS]): "
         f"{catalysts_block}. Writing rules: {_guidance_writing_rules()} "
         f"Additional context: {extra_context or 'none provided'}. "
@@ -2297,7 +2303,7 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     draft = _call_claude_script(prompt, 700)
     if draft:
         return draft, True
-    return _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance=_other), False
+    return _guidance_template_draft(action, new_low, new_hi, rationale, other_guidance=_other, h2_comp=_h2), False
 
 
 def _guidance_prior_language():
