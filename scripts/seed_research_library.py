@@ -55,15 +55,23 @@ def _note_pdf(firm, analyst, rating, pt, headline, paras):
 # (firm, analyst, rating, PT, filename, headline, [(section, body), ...])
 _NOTES = [
     ("Ashfield Research", "Ellis Grant", "Buy", 43.0, "NLKP_Ashfield_Q2_Preview.pdf",
-     "Q2 preview: PayFac attach is inflecting; net-revenue take-rate should expand again. Reiterate Buy.",
+     "Q2 preview: net take-rate is the tell — we look for a fifth straight quarter of expansion. Reiterate Buy.",
      [("Thesis", "We continue to see Northlake as a net-revenue compounder mispriced on a gross-revenue "
                  "optic. PayFac attach is the swing factor — as more volume moves onto the integrated "
                  "acquiring stack, net take-rate steps up and the mix shifts toward durable, recurring "
                  "software-like economics."),
-      ("Into the print", "We model Q2 net revenue of ~$25.9M and adj. EBITDA of ~$14M. Watch the gross-to-net "
-                         "bridge and prepaid-float commentary — the two items the buy-side keeps flagging."),
+      ("The KPI we underwrite: net take-rate", "If we could watch only one line, it would be net take-rate — "
+                 "the net spread Northlake keeps on integrated volume, and the single cleanest read on business "
+                 "quality. We look for Q2 net take-rate of ~47 bps, up from 46 bps last quarter and ~42 bps a "
+                 "year ago — a fifth consecutive quarter of expansion. On ~$3.4B of integrated volume, each "
+                 "basis point is roughly $0.3M of high-incremental-margin net revenue, so it is this line, not "
+                 "gross processing volume, that compounds. As integrated mix pushes past ~62% of net revenue we "
+                 "see a credible path to 50+ bps by FY2027. A stall in take-rate is the one datapoint that would "
+                 "break the thesis — which is exactly why we anchor our Buy to it."),
+      ("Into the print", "We model Q2 net revenue of ~$25.9M and adj. EBITDA of ~$5.4M (~21% margin). Watch the "
+                         "gross-to-net bridge and prepaid-float commentary — the two items the buy-side keeps flagging."),
       ("Risks", "Rate-sensitive prepaid float; concentration in a handful of ISV partners; competitive "
-                "pricing on interchange-plus.")]),
+                "pricing on interchange-plus that could cap take-rate expansion.")]),
     ("Denby Securities", "Marta Reyes", "Buy", 45.0, "NLKP_Denby_Initiation.pdf",
      "Initiating at Buy, $45 PT: a durable net-revenue compounder with a widening ISV moat.",
      [("Why we like it", "Northlake sits at the intersection of embedded payments and vertical software. The "
@@ -133,6 +141,57 @@ def seed_research_library(cid="demo"):
     return made
 
 
+# Per-firm inbox metadata — the subject line and the `extracted` payload the research_note
+# category carries into recurring-Q&A prep, and what lights up the loop-readiness "Research
+# notes" stage. `key_kpi` is the analyst's headline expectation; `topics` seed recurring Q&A.
+# Fictional analyst emails on the reserved example.com domain (never a real inbox).
+_INBOX = {
+    "Ashfield Research": ("Ellis Grant", "egrant@ashfield-research.example.com",
+        "NLKP Q2 preview — net take-rate is the tell; reiterate Buy, $43 PT",
+        {"rating": "Buy", "price_target": 43.0,
+         "key_kpi": "Net take-rate ~47 bps expected (5th straight quarter of expansion; path to 50+ bps)",
+         "topics": ["net take-rate expansion", "PayFac attach", "gross-to-net bridge", "prepaid float"]}),
+    "Denby Securities": ("Marta Reyes", "mreyes@denby-sec.example.com",
+        "NLKP initiation — Buy, $45 PT; durable net-revenue compounder",
+        {"rating": "Buy", "price_target": 45.0,
+         "topics": ["ISV moat", "PayFac-as-a-service", "valuation ~11x NTM net revenue"]}),
+    "Westmark Partners": ("Owen Pike", "opike@westmark-partners.example.com",
+        "NLKP — Hold into the print; want float-durability evidence",
+        {"rating": "Hold", "price_target": 38.0,
+         "topics": ["prepaid float durability", "conservative EBITDA", "gross-to-net bridge"]}),
+    "Calder & Co.": ("Neil Barrow", "nbarrow@calder-co.example.com",
+        "NLKP estimate update — raising on stronger volume; reiterate Buy, $42 PT",
+        {"rating": "Buy", "price_target": 42.0,
+         "topics": ["estimate raise", "operating leverage", "mid-20s margin path", "new ISV partners"]}),
+}
+
+
+def seed_research_inbox(cid="demo"):
+    """Enqueue one research_note IR-inbox item per seeded research PDF, linked to its document via
+    doc_id and marked reviewed/confirmed — so the loop-readiness 'Research notes' stage lights up and
+    recurring-Q&A prep has real extracted content to pull, without cluttering the pending 'waiting on
+    you' inbox. Idempotent: skips a firm that already has a research_note queue item. Returns the count
+    enqueued."""
+    from core import documents, inbox_queue
+    existing = {it.get("firm") for it in (inbox_queue.list_items_by_category("research_note", client_id=cid) or [])}
+    made = 0
+    for firm, (analyst, email, subject, extracted) in _INBOX.items():
+        if firm in existing:
+            continue                      # already enqueued — idempotent
+        docs = documents.list_documents(firm=firm, doc_type="research_note", client_id=cid)
+        doc_id = docs[0]["id"] if docs else None
+        fname = docs[0]["filename"] if docs else None
+        item_id = inbox_queue.enqueue_item(
+            "research_note", contact=analyst, firm=firm, subject=subject,
+            extracted=extracted, doc_id=doc_id, filename=fname,
+            source="ir_inbox", client_id=cid, sender_email=email)
+        # Already filed to the Research Library — close it out so it counts toward readiness and
+        # feeds Q&A prep without sitting in the pending "waiting on you" queue.
+        inbox_queue.mark_confirmed(item_id, outcome="Filed to Research Library", client_id=cid)
+        made += 1
+    return made
+
+
 if __name__ == "__main__":
     import os
     import sys
@@ -142,4 +201,6 @@ if __name__ == "__main__":
     set_active_client_id("demo")
     n = seed_research_library("demo")
     d = dedupe_documents("demo")
-    print(f"Seeded {n} research note(s); removed {d} duplicate model/research doc(s).")
+    q = seed_research_inbox("demo")
+    print(f"Seeded {n} research note(s); removed {d} duplicate model/research doc(s); "
+          f"enqueued {q} research_note inbox item(s).")
