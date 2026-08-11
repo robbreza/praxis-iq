@@ -2373,30 +2373,48 @@ def _fmt_metric(v, fmt):
 
 def _qa_anchor(m):
     """One-line callback prep for a metric's DIRECTION question — what management should anchor to if an
-    analyst asks 'how is X trending?', so the answer stays consistent with what the guide/model implies.
-    Uses the guided per-quarter path where there is one, else the modeled KPI path."""
-    imp = m.get("implied", {})
-    path = imp.get("by_quarter") or m.get("path")
-    if not path or len(path) < 2:
-        return None
+    analyst asks 'how is X trending?'. Speaks in the growth-RATE trend, not the rising level: a $ line whose
+    LEVEL climbs every quarter can still be DECELERATING on a YoY basis, and the RATE is what the analyst
+    tracks and what re-rates the multiple. Ratio KPIs (bps/%) are levels with no meaningful growth rate, so
+    for those the level direction (expansion/compression) is the correct read."""
     f = m["fmt"]
-    vals = [(q.get("implied") if q.get("implied") is not None else q.get("value")) for q in path]
-    if any(v is None for v in vals):
-        return None
-    span = vals[-1] - vals[0]
-    rising = span > abs(vals[0]) * 0.004
-    falling = span < -abs(vals[0]) * 0.004
-    if f == "bps":
-        dirn = "continued expansion" if rising else ("compression" if falling else "roughly stable")
-    elif f == "pct":
-        dirn = "stepping higher" if rising else ("slipping" if falling else "holding the level")
-    else:
-        dirn = "continued acceleration" if rising else ("moderation" if falling else "a steady step-up")
     src = "your guidance implies" if m.get("range") else "the Street models"
-    seq = " → ".join(f"{q['q']} {_fmt_metric(vals[i], f)}" for i, q in enumerate(path))
-    warn = ("keep the answer consistent with the raise — an off-hand “it's flattening” undercuts the guide"
-            if rising or f == "bps" else
-            "flag the moderation proactively so it doesn't read later as a miss")
+
+    # Ratio levels (take-rate bps, NRR %) — read the LEVEL direction.
+    if f in ("bps", "pct"):
+        path = (m.get("implied", {}) or {}).get("by_quarter") or m.get("path")
+        if not path or len(path) < 2:
+            return None
+        vals = [(q.get("implied") if q.get("implied") is not None else q.get("value")) for q in path]
+        if any(v is None for v in vals):
+            return None
+        rising = vals[-1] - vals[0] > abs(vals[0]) * 0.004
+        falling = vals[-1] - vals[0] < -abs(vals[0]) * 0.004
+        dirn = (("continued expansion" if rising else "compression" if falling else "roughly stable")
+                if f == "bps" else ("stepping higher" if rising else "slipping" if falling else "holding the level"))
+        seq = " → ".join(f"{q['q']} {_fmt_metric(vals[i], f)}" for i, q in enumerate(path))
+        warn = ("keep the answer consistent — an off-hand “it's flattening” undercuts the guide" if rising
+                else "flag the change proactively so it doesn't read later as a miss")
+        return (f"“How is {m['label']} trending?” — {src} {dirn} ({seq}). {warn}.")
+
+    # $/volume metrics — read the growth-RATE trend from the YoY sequence (the level rises every quarter;
+    # the RATE is the signal). Same accelerate/decelerate/inflect logic as the bridge's trend read.
+    fp = [x for x in (m.get("full_path") or []) if x.get("yoy_pct") is not None]
+    if len(fp) < 2:
+        return None
+    rates = [x["yoy_pct"] for x in fp]
+    sig = [d for d in (rates[i + 1] - rates[i] for i in range(len(rates) - 1)) if abs(d) >= 0.5]  # drop <0.5pp noise
+    if any(sig[i] * sig[i + 1] < 0 for i in range(len(sig) - 1)):
+        dirn, warn = ("an inflecting growth rate",
+                      "own the inflection — it's the first thing they re-rate on")
+    elif rates[-1] - rates[0] > 1.0:
+        dirn, warn = ("an accelerating growth rate", "lead with the acceleration — it earns the multiple")
+    elif rates[-1] - rates[0] < -1.0:
+        dirn, warn = ("a decelerating growth rate",
+                      "have the reason ready (comp vs demand) — a bare “it's slowing” invites a downgrade")
+    else:
+        dirn, warn = ("a steady growth rate", "reinforce the consistency — steadiness supports the multiple")
+    seq = " → ".join(f"{x['q']} {x['yoy_pct']:+.0f}%" for x in fp)
     return (f"“How is {m['label']} trending?” — {src} {dirn} ({seq}). {warn}.")
 
 
