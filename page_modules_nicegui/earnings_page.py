@@ -2336,6 +2336,308 @@ def _qa_anchor(m):
     return (f"“How is {m['label']} trending?” — {src} {dirn} ({seq}). {warn}.")
 
 
+def _bridge_chip(label, val, good=None):
+    clr = COLORS["text_muted"] if good is None else (COLORS["positive"] if good else COLORS["danger"])
+    with ui.row().classes("items-baseline gap-1 no-wrap").style(
+            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:7px;padding:2px 9px;"):
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.03em;")
+        ui.label(val).style(f"color:{clr};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
+
+
+def _bridge_rangebar(m):
+    """Full-year range bridge as a picture: prior guide range vs new range, with a Street marker — reads
+    'parallel shift up, now above Street' in a glance instead of a sentence."""
+    r = m.get("range")
+    if not r:
+        return
+    f = m["fmt"]
+    pl, ph = r["prior"]
+    nl, nh = r["new"]
+    street = (m.get("vs_street_fy") or {}).get("street_fy")
+    pts = [pl, ph, nl, nh] + ([street] if street is not None else [])
+    lo, hi = min(pts), max(pts)
+    pad = ((hi - lo) or 1.0) * 0.18
+    axmin, axspan = lo - pad, ((hi - lo) + 2 * pad) or 1.0
+    _p = lambda x: max(0.0, min(100.0, (x - axmin) / axspan * 100))
+
+    def _track(label, lo_v, hi_v, filled, val_txt):
+        with ui.row().classes("items-center w-full no-wrap").style("gap:8px;margin:2px 0;"):
+            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:74px;text-align:right;flex:none;")
+            with ui.element("div").classes("flex-1").style("position:relative;height:18px;"):
+                ui.element("div").style(f"position:absolute;top:50%;left:0;right:0;height:1px;background:{COLORS['border']};")
+                _bs = f"position:absolute;top:3px;left:{_p(lo_v):.1f}%;width:{max(1.0,_p(hi_v)-_p(lo_v)):.1f}%;height:12px;border-radius:4px;"
+                ui.element("div").style(_bs + (f"background:{COLORS['accent']};opacity:.9;" if filled
+                                               else f"background:transparent;border:1.5px dashed {COLORS['text_muted']};"))
+                if street is not None:
+                    ui.element("div").style(f"position:absolute;top:-3px;bottom:-3px;left:{_p(street):.1f}%;width:0;border-left:2px dotted {COLORS['warning']};")
+            ui.label(val_txt).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);width:112px;flex:none;font-variant-numeric:tabular-nums;")
+
+    with ui.column().classes("w-full").style("gap:0;margin-top:8px;"):
+        _track("Prior guide", pl, ph, False, f"{_fmt_metric(pl,f)}–{_fmt_metric(ph,f)}")
+        _track("New guide", nl, nh, True, f"{_fmt_metric(nl,f)}–{_fmt_metric(nh,f)}")
+        if street is not None:
+            ui.label(f"┊ dotted line = Street FY {_fmt_metric(street,f)}").style(
+                f"color:{COLORS['warning']};font-size:var(--fs-micro);margin-left:82px;")
+
+
+def _bridge_trend_read(full_path, comp_note=None):
+    """The trend IS the signal — the growth RATE's direction matters more than the level, and a break in
+    it re-rates the stock. Characterize the YoY sequence (accelerating / decelerating / inflecting /
+    steady) and say what it implies for the multiple + the callback. Returns (kind, text, color) or None."""
+    ys = [(x.get("q"), x["yoy_pct"]) for x in full_path if x.get("yoy_pct") is not None]
+    if len(ys) < 2:
+        return None
+    seq = " → ".join(f"{y:+.0f}%" for _, y in ys)
+    diffs = [ys[i + 1][1] - ys[i][1] for i in range(len(ys) - 1)]
+    delta = ys[-1][1] - ys[0][1]
+    inflects = any(diffs[i] * diffs[i + 1] < 0 for i in range(len(diffs) - 1))
+    if delta > 1.0 and all(d >= -0.4 for d in diffs):
+        return ("accel", f"Trend — accelerating: {seq}. The growth rate is expanding; a clean acceleration is "
+                "what earns multiple expansion. Lead with it.", COLORS["positive"])
+    if delta < -1.0 and all(d <= 0.4 for d in diffs):
+        base = f"Trend — decelerating: {seq}. "
+        if comp_note:
+            return ("decel", base + "But the step-down is a tough-COMP effect, not softening demand — frame it "
+                    "proactively so the Street doesn't re-rate a broken trend.", COLORS["warning"])
+        return ("decel", base + "A decelerating rate caps the multiple — have the why ready before the callback, "
+                "because that's the first question.", COLORS["warning"])
+    if inflects:
+        return ("inflect", f"Trend — inflecting: {seq}. The rate changes direction; an inflection is exactly what "
+                "analysts probe (and re-rate) on the callback. Own the reason.", COLORS["accent"])
+    return ("steady", f"Trend — steady: {seq}. The growth rate is holding; consistency itself supports the "
+            "multiple. Reinforce it.", COLORS["text_muted"])
+
+
+def _bridge_quarterbars(full_path, fmt, comp_note=None):
+    """The quarter path as bars, with the YoY growth RATE on every quarter (H1 reported, H2 implied), and
+    the TREND read underneath — analysts read the direction of the rate, not just the level: decelerating
+    caps the multiple, accelerating expands it, a break re-rates the stock."""
+    rows = [x for x in full_path if x.get("value") is not None]
+    if len(rows) < 2:
+        return
+    vmax = max(x["value"] for x in rows) or 1.0
+    ui.label("Per-quarter path — growth rate on every quarter (H1 reported · H2 implied)").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.05em;"
+        "font-weight:700;margin-top:12px;")
+    with ui.row().classes("w-full items-end no-wrap").style("gap:12px;height:104px;padding-top:4px;"):
+        for x in rows:
+            h = max(8.0, x["value"] / vmax * 72)
+            filled = not x["actual"]
+            col = COLORS["accent"] if filled else COLORS["text_muted"]
+            with ui.column().classes("items-center").style("flex:1;height:100%;justify-content:flex-end;gap:3px;"):
+                ui.label(_fmt_metric(x["value"], fmt)).style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-micro);font-weight:700;font-variant-numeric:tabular-nums;")
+                ui.element("div").style(f"width:100%;max-width:46px;height:{h:.0f}px;background:{col};"
+                                        f"opacity:{'0.9' if filled else '0.45'};border-radius:5px 5px 0 0;")
+                ui.label(x["q"] or "").style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);font-weight:600;")
+                if x.get("yoy_pct") is not None:
+                    _yc = COLORS["positive"] if x["yoy_pct"] >= 0 else COLORS["danger"]
+                    ui.label(f"{x['yoy_pct']:+.0f}% YoY").style(f"color:{_yc};font-size:var(--fs-micro);font-weight:700;")
+                else:
+                    ui.label("reported" if x["actual"] else "est.").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
+    # The trend read — the signal that matters more than any single number.
+    tr = _bridge_trend_read(rows, comp_note)
+    if tr:
+        _kind, _txt, _clr = tr
+        with ui.row().classes("w-full items-start no-wrap").style(
+                f"gap:8px;background:{_clr}12;border-left:3px solid {_clr};border-radius:6px;padding:7px 11px;margin-top:8px;"):
+            ui.label("📈").style("flex:none;font-size:var(--fs-sm);")
+            ui.label(_txt).style(f"color:{_clr};font-size:var(--fs-sm);font-weight:600;line-height:1.45;")
+
+
+_BR_TAG = {"RAISED": "positive", "RAISED LOW END": "positive", "RAISED HIGH END": "positive",
+           "REITERATED": "warning", "MAINTAINED": "warning", "CUT": "danger"}
+
+
+def _bridge_tag(tag):
+    if not tag:
+        return
+    clr = COLORS[_BR_TAG.get(tag, "text_muted")] if _BR_TAG.get(tag) else COLORS["text_muted"]
+    ui.label(tag).style(f"background:{clr}22;color:{clr};font-size:var(--fs-xs);font-weight:800;"
+                        "letter-spacing:.03em;padding:2px 11px;border-radius:999px;white-space:nowrap;")
+
+
+def _bridge_measure_chips(m):
+    f = m["fmt"]
+    if "qoq" in m and m["qoq"]["pct"] is not None:
+        _bridge_chip("QoQ", f"{m['qoq']['pct']:+.1f}%", m["qoq"]["pct"] >= 0)
+    if "yoy" in m and m["yoy"]["pct"] is not None:
+        _bridge_chip("YoY", f"{m['yoy']['pct']:+.1f}%", m["yoy"]["pct"] >= 0)
+    if "vs_street" in m and m["vs_street"]["beat_pct"] is not None:
+        _bridge_chip("vs Street", f"{m['vs_street']['beat_pct']:+.1f}%", m["vs_street"]["beat"] >= 0)
+    if "accel_pp" in m:
+        _bridge_chip("accel", f"{m['accel_pp']:+.1f}pp", m["accel_pp"] >= 0)
+
+
+def _bridge_detail_lines(m):
+    """The full measurement, one line each — the wall, now behind a click."""
+    f = m["fmt"]
+    out = []
+    r = m.get("range")
+    if r:
+        out.append(("Range flow-through", f"low {_fmt_metric(r['d_low'],f)} · mid {_fmt_metric(r['d_mid'],f)} · "
+                    f"high {_fmt_metric(r['d_high'],f)} — {m.get('pass_through',{}).get('characterization','')}"))
+    imp = m.get("implied", {})
+    if imp.get("implied_growth_low") is not None:
+        out.append(("Implied remaining", f"{_fmt_metric(imp['remaining_low'],f)}–{_fmt_metric(imp['remaining_high'],f)} "
+                    f"(+{imp['implied_growth_low']:.0f}% to +{imp['implied_growth_high']:.0f}% vs prior-year) — "
+                    f"{imp.get('read','')} vs the current run-rate"))
+    vf = m.get("vs_street_fy")
+    if vf:
+        out.append(("New mid vs Street FY", f"{_fmt_metric(vf['delta'],f)} vs {_fmt_metric(vf['street_fy'],f)} "
+                    f"→ {vf['revision']} estimate revisions"))
+    ny = m.get("next_year")
+    if ny:
+        _n = f"Street {_fmt_metric(ny['street'],f)} (+{ny.get('growth_off_guide_pct',0):.0f}% off the raised guide)"
+        if ny.get("exit_run_rate") is not None:
+            _n += f" · Q4 exit run-rate {_fmt_metric(ny['exit_run_rate'],f)} → +{ny.get('growth_off_exit_pct',0):.0f}% off exit"
+        if ny.get("roll_forward_lift"):
+            _n += f" · roll-forward lift {_fmt_metric(ny['roll_forward_lift'],f)}"
+        out.append(("Next year (FY+1)", _n))
+        if ny.get("read"):
+            out.append(("Implication", ny["read"]))
+    if "vs_whisper" in m and m["vs_whisper"]["beat_pct"] is not None:
+        out.append(("vs Whisper", f"{_fmt_metric(m['vs_whisper']['beat'],f)} ({m['vs_whisper']['beat_pct']:+.1f}%) · "
+                    f"2-yr stack {m.get('two_yr_stack_pct','—')}%"))
+    return out
+
+
+def _bridge_metric_full(m):
+    """Primary metric — the full answer-first card: verdict · measure (chips + range bar + quarter bars) ·
+    collapsed detail. The comp-watch flag stays loud; the neutral math goes behind the click."""
+    f = m["fmt"]
+    rec = m.get("recommendation") or {}
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;padding:0;margin:6px 0;"):
+        # Verdict zone
+        with ui.column().classes("w-full").style("gap:6px;padding:13px 16px 12px;"):
+            with ui.row().classes("w-full items-center gap-2 no-wrap"):
+                ui.label(m["label"].upper()).style(f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-sm);letter-spacing:.01em;")
+                ui.label(_fmt_metric(m["actual"], f)).style(
+                    f"color:{COLORS['accent_light']};font-weight:800;font-size:var(--fs-xl);font-variant-numeric:tabular-nums;")
+                ui.space()
+                _bridge_tag(rec.get("tag"))
+            if rec.get("note"):
+                ui.label(rec["note"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
+        # Measure zone
+        with ui.column().classes("w-full").style(
+                f"gap:0;padding:12px 16px 14px;background:{COLORS['surface_hover_bg']};border-top:1px solid {COLORS['border']};"):
+            with ui.row().classes("gap-2 flex-wrap").style("margin-bottom:2px;"):
+                _bridge_measure_chips(m)
+            _bridge_rangebar(m)
+            if m.get("full_path"):
+                _bridge_quarterbars(m["full_path"], f, m.get("comp_note"))
+            if m.get("comp_note"):
+                with ui.row().classes("w-full items-start no-wrap").style(
+                        f"gap:8px;background:{COLORS['surface_bg']};border-radius:8px;padding:8px 11px;margin-top:12px;"):
+                    ui.label("⚠").style(f"color:{COLORS['warning']};flex:none;")
+                    ui.label(f"Comp watch — {m['comp_note']}").style(f"color:{COLORS['warning']};font-size:var(--fs-sm);line-height:1.45;")
+        # Detail zone (collapsed)
+        _lines = _bridge_detail_lines(m)
+        if _lines:
+            with ui.expansion("Show the full bridge — range math, Street revisions, next year").classes(
+                    "w-full panel-tinted").props("dense").style("border-top:1px solid " + COLORS["border"] + ";"):
+                for k, v in _lines:
+                    with ui.row().classes("w-full items-start no-wrap").style("gap:10px;padding:4px 0;"):
+                        ui.label(k).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;width:150px;flex:none;")
+                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);line-height:1.5;")
+
+
+def _bridge_metric_compact(m):
+    """Secondary guided metric — one compact line (name · value · action · so-what · 2 chips), with the
+    full bridge tucked behind a click. Triage by weight: not every metric earns the big card."""
+    f = m["fmt"]
+    rec = m.get("recommendation") or {}
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:10px;padding:0;margin:6px 0;"):
+        with ui.row().classes("w-full items-center gap-2 flex-wrap").style("padding:11px 16px;"):
+            ui.label(m["label"].upper()).style(f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-sm);width:78px;flex:none;")
+            ui.label(_fmt_metric(m["actual"], f)).style(
+                f"color:{COLORS['accent_light']};font-weight:800;font-size:var(--fs-md);font-variant-numeric:tabular-nums;width:66px;flex:none;")
+            _bridge_tag(rec.get("tag"))
+            if rec.get("note"):
+                ui.label(rec["note"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;min-width:180px;line-height:1.4;")
+            with ui.row().classes("gap-2 no-wrap"):
+                _bridge_measure_chips(m)
+        _lines = _bridge_detail_lines(m)
+        if _lines or m.get("full_path"):
+            with ui.expansion("Show the full bridge").classes("w-full panel-tinted").props("dense").style(
+                    "border-top:1px solid " + COLORS["border"] + ";"):
+                if m.get("full_path"):
+                    _bridge_quarterbars(m["full_path"], f, m.get("comp_note"))
+                for k, v in _lines:
+                    with ui.row().classes("w-full items-start no-wrap").style("gap:10px;padding:4px 0;"):
+                        ui.label(k).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;width:150px;flex:none;")
+                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);line-height:1.5;")
+
+
+def _bridge_kpi_strip(kpis):
+    """Street KPIs — the operating drivers, as a compact grid with the modeled level trend (Q3→Q4)."""
+    if not kpis:
+        return
+    ui.label("Street KPIs — the operating drivers").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin:10px 0 4px;")
+    with ui.row().classes("w-full gap-2 flex-wrap"):
+        for m in kpis:
+            f = m["fmt"]
+            path = m.get("full_path") or []
+            fwd = [x for x in path if not x["actual"] and x.get("value") is not None]
+            with ui.card().classes("flex-1").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:170px;padding:11px 14px;"):
+                ui.label(m["label"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.03em;font-weight:700;")
+                ui.label(_fmt_metric(m["actual"], f)).style(
+                    f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-lg);font-variant-numeric:tabular-nums;")
+                if fwd:
+                    _tr = " → ".join(_fmt_metric(x["value"], f) for x in fwd)
+                    _yo = next((x.get("yoy_pct") for x in reversed(fwd) if x.get("yoy_pct") is not None), None)
+                    _t = f"implied {_tr}" + (f" · {_yo:+.0f}% YoY" if _yo is not None else "")
+                    ui.label(_t).style(f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:600;")
+
+
+def _bridge_verdict(metrics, syn):
+    """Answer-first banner: the recommended action + how many metrics back it + the synthesis tally
+    (credibility · flow-through · cash conversion), so the CFO decides before reading a single ratio."""
+    guided = [m for m in metrics if m.get("range")]
+    if not guided:
+        return
+    anchor = next((m for m in guided if m.get("key") == "rev"), guided[0])
+    action = (anchor.get("recommendation") or {}).get("tag") or "REVIEW"
+    n_raise = sum(1 for m in guided if str((m.get("recommendation") or {}).get("tag", "")).startswith("RAISED"))
+    watch = [m for m in guided if m.get("comp_note")]
+    accent = COLORS[_BR_TAG.get(action, "warning")] if _BR_TAG.get(action) else COLORS["accent"]
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:5px solid {accent};"
+            "border-radius:10px;padding:15px 18px;margin:6px 0;"):
+        with ui.row().classes("w-full items-center gap-3 flex-wrap"):
+            ui.label("Recommended:").style(f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-md);")
+            ui.label(action).style(f"color:{accent};font-weight:800;font-size:var(--fs-md);letter-spacing:.01em;")
+            ui.space()
+            ui.label(f"{n_raise} of {len(guided)} P&L metrics support a raise").style(
+                f"background:{COLORS['positive']}18;color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;padding:3px 10px;border-radius:999px;")
+            if watch:
+                ui.label(f"{len(watch)} watch item{'s' if len(watch) > 1 else ''}").style(
+                    f"background:{COLORS['warning']}18;color:{COLORS['warning']};font-size:var(--fs-xs);font-weight:700;padding:3px 10px;border-radius:999px;")
+        _so = (anchor.get("recommendation") or {}).get("note")
+        if _so:
+            ui.label(_so).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;margin-top:8px;")
+        tally = []
+        cr, ft, cc = syn.get("credibility"), syn.get("flow_through"), syn.get("cash_conversion")
+        if cr:
+            tally.append(("Credibility", f"beat {cr['beat_rate']} quarters · avg +{cr['avg_beat_pct']:.1f}% vs Street"))
+        if ft and ft.get("quarter_incremental_margin_pct") is not None:
+            tally.append(("Flow-through", f"incremental margin {ft['quarter_incremental_margin_pct']:.0f}%"))
+        if cc and cc.get("conversion_pct") is not None:
+            tally.append(("Cash conversion", f"FCF/EBITDA {cc['conversion_pct']:.0f}%"))
+        if tally:
+            with ui.row().classes("w-full gap-5 flex-wrap").style(
+                    f"margin-top:11px;padding-top:11px;border-top:1px dashed {COLORS['border']};"):
+                for k, v in tally:
+                    with ui.row().classes("items-baseline gap-1 no-wrap"):
+                        ui.label(k + ":").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:700;")
+                        ui.label(v).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
+
+
 def _render_guidance_bridge(ss):
     """The CFA guidance read: every reported number measured QoQ / YoY / vs Street / vs its own guide,
     then the beat/miss flowed through the full-year range (low·mid·high each), and what the new guide
@@ -2347,151 +2649,26 @@ def _render_guidance_bridge(ss):
     _surprises = _load_json("earnings_surprise_log.json", None)   # for the credibility / beat-track-record read
     b = guidance_engine.guidance_bridge(inputs, surprises=_surprises)
     meta = b["meta"]
-    _TAG = {"RAISED": COLORS["positive"], "RAISED LOW END": COLORS["positive"],
-            "RAISED HIGH END": COLORS["positive"], "REITERATED": COLORS["warning"], "CUT": COLORS["danger"]}
 
-    ui.label("Guidance Bridge — every number measured, and how the beat/miss flows to the range").classes(
+    ui.label("Guidance Bridge — the decision, then the evidence").classes(
         "font-bold").style("font-size:var(--fs-base);margin-top:8px;")
-    ui.label(f"{meta['reporting_quarter']} actuals vs {meta['prior_quarter']} (QoQ), {meta['prior_year_quarter']} "
-             "(YoY), Street consensus and the company's own guide — then the full-year range bridge (prior → new) "
-             "and what it implies for the rest of the year.").style(
+    ui.label(f"{meta['reporting_quarter']} vs {meta['prior_quarter']} (QoQ) and {meta['prior_year_quarter']} (YoY), "
+             "vs Street and the company's own guide — the full-year range bridge and what it implies for the rest "
+             "of the year. Answer first; the full measurement is one click away.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
 
-    def _chip(label, val, good=None):
-        clr = COLORS["text_muted"] if good is None else (COLORS["positive"] if good else COLORS["danger"])
-        with ui.row().classes("items-baseline gap-1").style(
-                f"background:{COLORS['surface_hover_bg']};border-radius:6px;padding:2px 8px;"):
-            ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
-            ui.label(val).style(f"color:{clr};font-size:var(--fs-sm);font-weight:600;")
-
-    for m in b["metrics"]:
-        f = m["fmt"]
-        with ui.card().classes("w-full").style(
-                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};padding:8px 12px;margin:3px 0;"):
-            with ui.row().classes("w-full items-center gap-2"):
-                ui.label(m["label"]).style(f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-md);")
-                ui.label(_fmt_metric(m["actual"], f)).style(f"color:{COLORS['accent_light']};font-weight:700;")
-                ui.space()
-                if m.get("recommendation"):
-                    tag = m["recommendation"]["tag"]; clr = _TAG.get(tag, COLORS["text_muted"])
-                    ui.label(tag).style(f"background:{clr}22;color:{clr};font-size:var(--fs-xs);font-weight:700;"
-                                        "padding:2px 10px;border-radius:10px;")
-            # The quarter, three ways
-            with ui.row().classes("items-center gap-2 flex-wrap").style("margin-top:2px;"):
-                if "qoq" in m and m["qoq"]["pct"] is not None:
-                    _chip("QoQ", f"{m['qoq']['pct']:+.1f}%", m["qoq"]["pct"] >= 0)
-                if "yoy" in m and m["yoy"]["pct"] is not None:
-                    _chip("YoY", f"{m['yoy']['pct']:+.1f}%", m["yoy"]["pct"] >= 0)
-                if "two_yr_stack_pct" in m:
-                    _chip("2-yr stack", f"{m['two_yr_stack_pct']:.0f}%")
-                if "accel_pp" in m:
-                    _chip("accel", f"{m['accel_pp']:+.1f}pp", m["accel_pp"] >= 0)
-                if "vs_street" in m and m["vs_street"]["beat_pct"] is not None:
-                    _bt = m["vs_street"]
-                    _chip("vs Street", f"{_fmt_metric(_bt['beat'], f)} ({_bt['beat_pct']:+.1f}%)", _bt["beat"] >= 0)
-                if "vs_whisper" in m and m["vs_whisper"]["beat_pct"] is not None:
-                    _wh = m["vs_whisper"]
-                    _chip("vs Whisper", f"{_fmt_metric(_wh['beat'], f)} ({_wh['beat_pct']:+.1f}%)", _wh["cleared"])
-            # The range bridge + flow-through + implied
-            if "range" in m:
-                r = m["range"]
-                ui.label(f"Full-year guide: {_fmt_metric(r['prior'][0], f)}–{_fmt_metric(r['prior'][1], f)} → "
-                         f"{_fmt_metric(r['new'][0], f)}–{_fmt_metric(r['new'][1], f)}   ·   "
-                         f"low {_fmt_metric(r['d_low'], f)} · mid {_fmt_metric(r['d_mid'], f)} · "
-                         f"high {_fmt_metric(r['d_high'], f)}").style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
-                if m.get("pass_through"):
-                    ui.label(m["pass_through"]["characterization"]).style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                imp = m.get("implied", {})
-                if imp.get("implied_growth_low") is not None:
-                    ui.label(f"Implied remaining periods: "
-                             f"{_fmt_metric(imp['remaining_low'], f)}–{_fmt_metric(imp['remaining_high'], f)} "
-                             f"(+{imp['implied_growth_low']:.0f}% to +{imp['implied_growth_high']:.0f}% vs prior-year) — "
-                             f"{imp.get('read', '')} vs the current run-rate").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                if imp.get("by_quarter"):
-                    _pq = "   ".join(
-                        f"{q['q']} ~{_fmt_metric(q['implied'], f)}"
-                        + (f" ({q['yoy_pct']:+.0f}% YoY)" if q.get("yoy_pct") is not None else "")
-                        for q in imp["by_quarter"])
-                    ui.label(f"Implied per-quarter path: {_pq}").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                if m.get("vs_street_fy"):
-                    _vf = m["vs_street_fy"]
-                    ui.label(f"New guide midpoint vs Street FY ({_fmt_metric(_vf['street_fy'], f)}): "
-                             f"{_fmt_metric(_vf['delta'], f)} → {_vf['revision']} estimate revisions").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                ny = m.get("next_year")
-                if ny:
-                    _nl = (f"Next year (FY+1): Street {_fmt_metric(ny['street'], f)} "
-                           f"(+{ny.get('growth_off_guide_pct', 0):.0f}% off the raised guide)")
-                    if ny.get("exit_run_rate") is not None:
-                        _nl += (f" · Q4 exit run-rate {_fmt_metric(ny['exit_run_rate'], f)} → "
-                                f"+{ny.get('growth_off_exit_pct', 0):.0f}% off the exit")
-                    if ny.get("roll_forward_lift"):
-                        _nl += f" · roll-forward lift {_fmt_metric(ny['roll_forward_lift'], f)}"
-                    ui.label(_nl).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;")
-                    if ny.get("read"):
-                        ui.label(f"Implication: {ny['read']}.").style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
-                if m.get("comp_note"):
-                    ui.label(f"⚠ Comp watch: {m['comp_note']}").style(
-                        f"color:{COLORS['warning']};font-size:var(--fs-sm);margin-top:2px;")
-                if m.get("recommendation", {}).get("note"):
-                    ui.label(m["recommendation"]["note"]).style(
-                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:2px;")
-            if m.get("path"):   # KPIs — modeled forward trajectory (no company guidance range)
-                _pp = "   ".join(
-                    f"{q['q']} ~{_fmt_metric(q['value'], f)}"
-                    + (f" ({q['yoy_pct']:+.0f}% YoY)" if q.get("yoy_pct") is not None else "")
-                    for q in m["path"])
-                ui.label(f"Modeled per-quarter path: {_pp}").style(
-                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
-
-    # Cross-metric synthesis: did the beat convert to profit, and can we trust the guide?
+    metrics = b["metrics"]
     syn = b.get("synthesis", {})
-    ft, cr, cc = syn.get("flow_through"), syn.get("credibility"), syn.get("cash_conversion")
-    if ft or cr or cc:
-        with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:4px;flex-wrap:wrap;"):
-            if ft:
-                with ui.card().classes("flex-1").style(
-                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
-                    ui.label("Flow-through to profit").style(
-                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
-                    _bits = []
-                    if ft.get("quarter_incremental_margin_pct") is not None:
-                        _bits.append(f"Incremental EBITDA margin (YoY) {ft['quarter_incremental_margin_pct']:.0f}%")
-                    if ft.get("guide_flow_through_pct") is not None:
-                        _bits.append(f"{ft['guide_flow_through_pct']:.0f}% of the revenue raise dropped to EBITDA")
-                    if ft.get("steady_margin_pct") is not None:
-                        _bits.append(f"vs {ft['steady_margin_pct']:.0f}% corporate margin")
-                    ui.label(" · ".join(_bits)).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                    if ft.get("read"):
-                        ui.label(ft["read"]).style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
-            if cr:
-                with ui.card().classes("flex-1").style(
-                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
-                    ui.label("Guidance credibility — beat track record").style(
-                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
-                    ui.label(f"Beat consensus {cr['beat_rate']} quarters · avg +{cr['avg_beat_pct']:.1f}% vs Street").style(
-                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                    if cr.get("read"):
-                        ui.label(cr["read"]).style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
-            if cc:
-                with ui.card().classes("flex-1").style(
-                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:260px;"):
-                    ui.label("Cash conversion").style(
-                        f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
-                    _cl = f"FCF ${cc['fcf']:.1f}M · {cc['conversion_pct']:.0f}% of EBITDA"
-                    if cc.get("prior_conversion_pct") is not None:
-                        _cl += f" (was {cc['prior_conversion_pct']:.0f}%)"
-                    ui.label(_cl).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                    if cc.get("read"):
-                        ui.label(cc["read"]).style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+    guided = [m for m in metrics if m.get("range")]
+    kpis = [m for m in metrics if m.get("path") and not m.get("range")]
+
+    _bridge_verdict(metrics, syn)          # the answer: recommended action + backing + synthesis tally
+    if guided:
+        _bridge_metric_full(guided[0])     # primary metric (revenue) — full card with range + quarter visuals
+        for _m in guided[1:]:
+            _bridge_metric_compact(_m)      # EPS, EBITDA — compact rows, full bridge behind a click
+    _bridge_kpi_strip(kpis)                # Street KPIs — the operating-driver strip
+
 
     # Callback Q&A prep — analysts probe metric/KPI DIRECTION on callbacks ("how's take-rate trending?")
     # and pause; management must anchor to what the guidance implies or they'll answer inconsistently.

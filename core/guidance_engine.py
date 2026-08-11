@@ -730,6 +730,25 @@ def _bridge_metric(m):
             if q.get("prior_yr") and q.get("value") is not None:
                 row["yoy_pct"] = _pct(q["value"] - q["prior_yr"], q["prior_yr"])
             o["path"].append(row)
+    # Full-year quarter path — YoY on EVERY quarter (H1 reported, H2 implied/modeled) so an analyst reads
+    # the growth-RATE trend and seasonality, not just levels: a decelerating YoY caps the multiple, an
+    # accelerating one expands it. H1 = prior_q (last quarter) + actual (this quarter); H2 = the implied
+    # range path (guided metrics) or the modeled path (KPIs). A quarter with no prior-year comp shows the
+    # level only (a ratio like NRR/take-rate carries no meaningful YoY).
+    _qs = lambda s: (s.split()[0] if isinstance(s, str) and s else s)
+    fp = []
+    if pq is not None:
+        fp.append({"q": _qs(m.get("prior_q_label")), "value": pq,
+                   "yoy_pct": m.get("prior_q_yoy_pct"), "actual": True})
+    if a is not None:
+        fp.append({"q": _qs(m.get("reporting_q")), "value": a,
+                   "yoy_pct": (o.get("yoy") or {}).get("pct"), "actual": True})
+    for row in ((o.get("implied") or {}).get("by_quarter") or o.get("path") or []):
+        fp.append({"q": row.get("q"),
+                   "value": row.get("implied") if row.get("implied") is not None else row.get("value"),
+                   "yoy_pct": row.get("yoy_pct"), "actual": False})
+    if sum(1 for x in fp if x.get("value") is not None) >= 2:
+        o["full_path"] = fp
     rec = _bridge_recommendation(o)
     if rec:
         o["recommendation"] = {"tag": rec[0], "note": rec[1]}
@@ -814,6 +833,7 @@ def guidance_bridge(inputs, surprises=None):
             continue
         m = dict(metrics[k]); m["key"] = k
         m.setdefault("reporting_q", inputs.get("reporting_quarter"))
+        m.setdefault("prior_q_label", inputs.get("prior_quarter"))
         reads.append(_bridge_metric(m))
     return {"meta": {"reporting_quarter": inputs.get("reporting_quarter"),
                      "prior_quarter": inputs.get("prior_quarter"),
