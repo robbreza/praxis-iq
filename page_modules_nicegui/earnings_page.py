@@ -4524,6 +4524,44 @@ def _render_stage1_illustrative(ss):
                          f"take-rate {prior.get('take_rate', 0):.0f} bps").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
+    # ── FULL-YEAR GUIDANCE — the CFO sets the guided ranges HERE, at the source, alongside the actuals.
+    # These are THE input for the Guidance Bridge and the script's guidance language — no seeded, un-
+    # settable numbers (which is exactly why EPS guidance had "no input"). Revenue also drives the ①
+    # decision + language; EPS and EBITDA drive their own bridge cards.
+    _gi = (ss.get("guidance_inputs") or {}).get("metrics", {})
+
+    def _grng(key):
+        m = _gi.get(key, {}) or {}
+        pr = m.get("prior_fy_range") or [None, None]
+        return pr, (m.get("new_fy_range") or pr)
+    _pr_rev, _nw_rev = _grng("rev")
+    _pr_eps, _nw_eps = _grng("eps")
+    _pr_ebd, _nw_ebd = _grng("ebitda")
+
+    ui.markdown("---")
+    _hdr("FULL-YEAR GUIDANCE — FY2026 (what the company will guide on the call)")
+    ui.label("Set the guided ranges here, at the source — they drive the Guidance Bridge analysis and the "
+             "script's guidance language.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    with ui.row().classes("w-full gap-4 items-stretch"):
+        with _col():
+            _hdr("NET REVENUE ($M)")
+            fg_rev_lo = ui.number("New low", value=_nw_rev[0], step=0.5).props("outlined dense").classes("w-full")
+            fg_rev_hi = ui.number("New high", value=_nw_rev[1], step=0.5).props("outlined dense").classes("w-full")
+            if _pr_rev[0] is not None:
+                ui.label(f"Prior guide: ${_pr_rev[0]:.1f}–{_pr_rev[1]:.1f}M").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        with _col():
+            _hdr("ADJ. EPS ($)")
+            fg_eps_lo = ui.number("New low", value=_nw_eps[0], step=0.01).props("outlined dense").classes("w-full")
+            fg_eps_hi = ui.number("New high", value=_nw_eps[1], step=0.01).props("outlined dense").classes("w-full")
+            if _pr_eps[0] is not None:
+                ui.label(f"Prior guide: ${_pr_eps[0]:.2f}–{_pr_eps[1]:.2f}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        with _col():
+            _hdr("ADJ. EBITDA ($M)")
+            fg_ebd_lo = ui.number("New low", value=_nw_ebd[0], step=0.1).props("outlined dense").classes("w-full")
+            fg_ebd_hi = ui.number("New high", value=_nw_ebd[1], step=0.1).props("outlined dense").classes("w-full")
+            if _pr_ebd[0] is not None:
+                ui.label(f"Prior guide: ${_pr_ebd[0]:.1f}–{_pr_ebd[1]:.1f}M").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
     fn_new = ui.textarea("What's new this quarter", value=n.get("what_new", "")).props(
         "outlined autogrow").classes("w-full").style("margin-top:12px;")
     _team_opts = team_labels()
@@ -4547,6 +4585,24 @@ def _render_stage1_illustrative(ss):
             "what_new": fn_new.value, "submitted_by": fn_by.value,
             "submitted_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }
+        # Full-year guidance -> the bridge's source (each guided line) + the revenue decision (gd).
+        _gim = ss.setdefault("guidance_inputs", {}).setdefault("metrics", {})
+
+        def _set_new_range(key, lo, hi):
+            if lo is not None and hi is not None:
+                _gim.setdefault(key, {})["new_fy_range"] = [float(lo), float(hi)]
+        _set_new_range("rev", fg_rev_lo.value, fg_rev_hi.value)
+        _set_new_range("eps", fg_eps_lo.value, fg_eps_hi.value)
+        _set_new_range("ebitda", fg_ebd_lo.value, fg_ebd_hi.value)
+        if fg_rev_lo.value is not None and fg_rev_hi.value is not None:
+            _gd = ss.setdefault("guidance_decision", {})
+            _gd["new_low"], _gd["new_hi"] = float(fg_rev_lo.value), float(fg_rev_hi.value)
+            try:
+                from core import guidance_engine as _ge2
+                _prv = (_gim.get("rev", {}) or {}).get("prior_fy_range") or [fg_rev_lo.value, fg_rev_hi.value]
+                _gd["action"] = _ge2.characterize_range_change(_prv, [fg_rev_lo.value, fg_rev_hi.value])["action_key"]
+            except Exception:
+                pass
         ss["version"] = 1
         ss["stages"]["cfo_numbers"].update({"status": "complete", "completed_at": datetime.now().strftime("%Y-%m-%d %H:%M")})
         ss["stages"]["ir_review"]["status"] = "active"
