@@ -2293,6 +2293,56 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     return _guidance_template_draft(action, new_low, new_hi, rationale), False
 
 
+def _guidance_prior_language():
+    """The prior quarter's FULL-YEAR guidance sentence, verbatim — so this quarter's guidance matches the
+    SAME structure quarter over quarter (only the verb + numbers change). Scores candidates so the FY
+    range sentence wins over a next-quarter guide. Sourced from the prior call's recorded language."""
+    import re
+    cands = []
+    try:
+        m = re.match(r"Q([1-4])\s+(\d{4})", CE().get("current_quarter", "") or "")
+        if m:
+            _qn, _yr = int(m.group(1)), int(m.group(2))
+            prior_q = f"Q{_qn - 1} {_yr}" if _qn > 1 else f"Q4 {_yr - 1}"
+            rec = transcripts.get_transcript(prior_q)
+            if rec:
+                cands += [g for g in (rec.get("guidance_language") or []) if isinstance(g, str)]
+    except Exception:
+        pass
+    for item in (_guidance_prior_quotes() or []):
+        _t = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else (item if isinstance(item, str) else "")
+        if _t:
+            cands.append(_t)
+    if not cands:
+        return None
+
+    def _score(t):
+        tl, s = t.lower(), 0
+        if any(k in tl for k in ("full-year", "full year", "fy20", " fy ")):
+            s += 3                                            # FY guidance beats a quarterly guide
+        if re.search(r"\$\d{2,3}(?:\.\d+)?\s*[–\-]\s*\d", t):
+            s += 2                                            # states a $NNN–NNN range
+        if "guidance" in tl or "reiterat" in tl or "rais" in tl:
+            s += 1
+        return s
+    return max(cands, key=_score)
+
+
+def _guidance_consistency(gd):
+    """Verify the guidance LANGUAGE states the DECIDED range. The deterministic template can't drift, but
+    an AI draft or a human edit can — so check the words actually carry the decided numbers. The script
+    must never quote a range nobody decided. Returns None when there isn't enough to check."""
+    import re
+    txt = (gd.get("text") or "").strip()
+    lo, hi = gd.get("new_low"), gd.get("new_hi")
+    if not txt or lo is None or hi is None:
+        return None
+    nums = [float(x) for x in re.findall(r"(\d{2,3}(?:\.\d+)?)", txt)]
+    lo_ok = any(abs(n - float(lo)) < 0.15 for n in nums)
+    hi_ok = any(abs(n - float(hi)) < 0.15 for n in nums)
+    return {"ok": lo_ok and hi_ok, "low": float(lo), "high": float(hi), "low_ok": lo_ok, "high_ok": hi_ok}
+
+
 def _fmt_metric(v, fmt):
     if v is None:
         return "—"
@@ -2674,6 +2724,16 @@ def _render_guidance_bridge(ss):
     if not inputs:
         return
     from core import guidance_engine
+    # SINGLE SOURCE OF TRUTH: once a guidance range is decided in Step 2 (guidance_decision.new_low/hi),
+    # THAT range drives this analysis — not a separately-seeded number. Input the range → the bridge
+    # re-analyzes it. (Revenue is the guided line; EPS/EBITDA keep their own ranges.)
+    gd = ss.get("guidance_decision") or {}
+    if gd.get("new_low") is not None and gd.get("new_hi") is not None:
+        import copy as _copy
+        inputs = _copy.deepcopy(inputs)
+        _rev = (inputs.get("metrics") or {}).get("rev")
+        if _rev is not None:
+            _rev["new_fy_range"] = [float(gd["new_low"]), float(gd["new_hi"])]
     _surprises = _load_json("earnings_surprise_log.json", None)   # for the credibility / beat-track-record read
     b = guidance_engine.guidance_bridge(inputs, surprises=_surprises)
     meta = b["meta"]
@@ -2859,6 +2919,71 @@ def _render_guidance_decision(ss, context="script"):
         ack_label.text = _GUIDANCE_ACK.get(e.value, "")
 
     action_select.on_value_change(on_action_change)
+
+    # ── THE guidance range input — the single number that drives both the analysis above AND the language
+    # below. It defaults to what the action implies; confirm or override, then Apply to re-run the bridge
+    # on this exact range. (This is the "where do I put the range" answer: right here, one source.)
+    _dl, _dh, _ = guidance_engine.apply_action(action_select.value, math_)
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['accent']};border-radius:8px;"
+            "padding:10px 14px;margin-top:8px;"):
+        ui.label("New full-year revenue range — drives the analysis and the language (confirm or override)").style(
+            f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+        with ui.row().classes("items-end gap-3 flex-wrap"):
+            range_low_in = ui.number("New low ($M)", value=gd.get("new_low", round(_dl, 1)), step=0.5).props(
+                "outlined dense").style("width:128px;")
+            range_hi_in = ui.number("New high ($M)", value=gd.get("new_hi", round(_dh, 1)), step=0.5).props(
+                "outlined dense").style("width:128px;")
+            _mid_lbl = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+
+            def _upd_mid():
+                _lo, _hi = range_low_in.value or 0, range_hi_in.value or 0
+                _mid_lbl.text = (f"midpoint ${(_lo + _hi) / 2:.1f}M   ·   prior "
+                                 f"${math_['fy_low']:.1f}–{math_['fy_hi']:.1f}M")
+            _upd_mid()
+            range_low_in.on_value_change(lambda e: _upd_mid())
+            range_hi_in.on_value_change(lambda e: _upd_mid())
+
+            def _apply_range():
+                gd.update({"action": action_select.value, "new_low": range_low_in.value,
+                           "new_hi": range_hi_in.value})
+                ss["guidance_decision"] = gd
+                _save_json("script_workflow_state.json", ss)
+                ui.notify("Range applied — the analysis above now runs on this exact range.", type="positive")
+                _refresh()
+            ui.button("Apply range → re-run analysis", icon="analytics", on_click=_apply_range).props(
+                "color=primary dense")
+
+    # When the action changes, snap the range to what that action implies (a starting point to override).
+    def _snap_range(e):
+        _nl, _nh, _ = guidance_engine.apply_action(e.value, math_)
+        range_low_in.value = round(_nl, 1)
+        range_hi_in.value = round(_nh, 1)
+    action_select.on_value_change(_snap_range)
+
+    # Language consistency — match the prior script's structure, and verify the words state THIS range.
+    _prior_guid = _guidance_prior_language()
+    _cons = _guidance_consistency(gd)
+    if _prior_guid or _cons:
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
+                "padding:10px 14px;margin-top:6px;"):
+            ui.label("Language consistency — match the prior script, state the decided range").style(
+                f"color:{COLORS['text_heading']};font-weight:700;font-size:var(--fs-sm);")
+            if _prior_guid:
+                ui.label(f"Prior quarter's wording (match this structure): “{_prior_guid}”").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            if _cons:
+                _c = COLORS["positive"] if _cons["ok"] else COLORS["warning"]
+                if _cons["ok"]:
+                    _msg = (f"✓ The drafted guidance language states the decided "
+                            f"${_cons['low']:.1f}–{_cons['high']:.1f}M range — consistent.")
+                else:
+                    _missing = ", ".join(x for x, ok in (("low end", _cons["low_ok"]), ("high end", _cons["high_ok"])) if not ok)
+                    _msg = (f"⚠ The drafted guidance language does NOT clearly state the decided "
+                            f"${_cons['low']:.1f}–{_cons['high']:.1f}M range ({_missing} missing) — regenerate or fix "
+                            "the words before it ships, so the script can't quote a range nobody decided.")
+                ui.label(_msg).style(f"color:{_c};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
 
     guidance_context_input = ui.input(
         "Add any H2 visibility or guidance context before drafting:",

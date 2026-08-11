@@ -704,6 +704,9 @@ def seed_script_workflow(cid="demo"):
         # Guidance seeded (with text) so the auto-draft doesn't regenerate it off USIO seasonality.
         "guidance_decision": {
             "decision": "RAISE",
+            # Structured decision — the SINGLE SOURCE the bridge analysis and the language both read.
+            "action": "raise_low", "new_low": 104.0, "new_hi": 106.0,
+            "rationale": "Q2 beat + first-half momentum; raise the low end, hold the top pending H2 comp visibility.",
             "text": ("Raising full-year FY2026 net-revenue guidance to $104–106M (from $103–105M) and "
                      "reiterating an adjusted EBITDA margin of roughly 21%, reflecting first-half momentum "
                      "and the back-half-weighted new-partner go-live cadence. Framing note for the call: "
