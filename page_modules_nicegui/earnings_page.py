@@ -3250,10 +3250,18 @@ def _render_guidance_decision(ss, context="script"):
                           f"range ({_miss} missing) — regenerate before it ships.")
                 ui.label(_m).style(f"color:{_c};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
 
-    guidance_context_input = ui.input(
-        "Add any H2 visibility or context before drafting (optional):",
-        placeholder="e.g. H2 visibility good — new-partner go-lives ramp in Q3.",
-        value=gd.get("context", "")).props("outlined dense").classes("w-full").style("margin-top:6px;")
+    # Surfaced input — this optional field was too easy to miss as a bare underline. Tinted, bordered
+    # container + a bold label + icon so it reads clearly as an actionable input.
+    with ui.row().classes("w-full items-center no-wrap").style(
+            f"background:{COLORS['accent']}14;border:1px solid {COLORS['accent']};border-radius:8px;"
+            "padding:9px 12px;margin-top:8px;gap:10px;"):
+        ui.icon("edit_note").style(f"color:{COLORS['accent']};font-size:22px;flex:none;")
+        with ui.column().classes("flex-1").style("gap:3px;"):
+            ui.label("Add any H2 visibility or context before drafting (optional)").style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:700;")
+            guidance_context_input = ui.input(
+                placeholder="e.g. H2 visibility good — new-partner go-lives ramp in Q3.",
+                value=gd.get("context", "")).props("outlined dense").classes("w-full")
 
     def render_guidance_draft_box(text):
         draft_area.clear()
@@ -3261,14 +3269,15 @@ def _render_guidance_decision(ss, context="script"):
             ui.label("Guidance draft — edit as needed, then submit (all [FLS] blocks need Legal review):").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             box = ui.textarea(value=text).classes("w-full").props("rows=10 outlined")
-            _pn, _pcl = _pacing_estimate(text, "guidance")
+            _pn, _pcl = _pacing_estimate(text)   # neutral length only — a guidance STATEMENT is a tight
+            #                                       paragraph, not a 4-min spoken section, so no norm comparison
             pace_label = ui.label(_pn).style(f"color:{_pcl};font-size:var(--fs-xs);")
 
             def save_edit(e, pace_label=pace_label):
                 gd["text"] = e.value
                 ss["guidance_decision"] = gd
                 _save_json("script_workflow_state.json", ss)
-                _n, _cl = _pacing_estimate(e.value, "guidance")
+                _n, _cl = _pacing_estimate(e.value)
                 pace_label.text = _n
                 pace_label.style(f"color:{_cl};font-size:var(--fs-xs);")
             box.on_value_change(save_edit)
