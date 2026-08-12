@@ -264,11 +264,14 @@ def _get_current_qa_actions():
 
 
 # Script-canvas personas — role key, script_text sub-key, display label.
+# Ordered to match how the call is actually SPOKEN (the transcript order): operator/IR opens, the CEO
+# gives the narrative, the CFO details the financials + outlook, a business leader (if speaking) follows,
+# then Q&A. The old order (IR, CFO, CRO, CEO) put the CEO last, which no earnings call does.
 PERSONAS = [
     ("IR", "ir_open", "IR Opening"),
+    ("CEO", "ceo_narrative", "CEO Narrative + Guidance"),
     ("CFO", "cfo_fin", "CFO Financial Review"),
     ("CRO", "cro_ops", "Business Operations"),
-    ("CEO", "ceo_narrative", "CEO Narrative + Guidance"),
 ]
 
 
@@ -3022,6 +3025,109 @@ def _render_callback_qa_prep(ss):
             ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
 
 
+def _render_guidance_drafter(ss):
+    """The WRITING surface for the Guidance & Outlook section of the Script Canvas — prior-quarter wording
+    to match, the optional H2-context input, the AI drafter, the editable draft box with a length read, and
+    the live consistency check. Self-contained (recomputes the decided range from ss, the single source) so
+    the section canvas can render it stand-alone, beside its analysis rail. The stacked Decision Engine
+    (_render_guidance_decision) still renders the same drafting UI inline for the Markets page."""
+    from core import guidance_engine as _ge
+    gd = ss.setdefault("guidance_decision", {})
+    math_ = _guidance_math(ss)
+    _prior = ((((ss.get("guidance_inputs") or {}).get("metrics") or {}).get("rev") or {}).get("prior_fy_range")
+              or [math_["fy_low"], math_["fy_hi"]])
+    if gd.get("new_low") is not None and gd.get("new_hi") is not None:
+        _new = [float(gd["new_low"]), float(gd["new_hi"])]
+    else:
+        _dl, _dh, _ = _ge.apply_action(
+            {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate"), math_)
+        _new = [round(_dl, 1), round(_dh, 1)]
+
+    _prior_guid = _guidance_prior_language()
+    _cons = _guidance_consistency(gd)
+    if _prior_guid or _cons:
+        with ui.card().classes("w-full").style(
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;padding:10px 14px;"):
+            if _prior_guid:
+                ui.label(f"Prior quarter's wording (match this structure): “{_prior_guid}”").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            if _cons:
+                _c = COLORS["positive"] if _cons["ok"] else COLORS["warning"]
+                if _cons["ok"]:
+                    _m = f"✓ The drafted language states the decided ${_cons['low']:.1f}–{_cons['high']:.1f}M range."
+                else:
+                    _miss = ", ".join(x for x, ok in (("low end", _cons["low_ok"]), ("high end", _cons["high_ok"])) if not ok)
+                    _m = (f"⚠ The drafted language does NOT state the decided ${_cons['low']:.1f}–{_cons['high']:.1f}M "
+                          f"range ({_miss} missing) — regenerate before it ships.")
+                ui.label(_m).style(f"color:{_c};font-size:var(--fs-sm);font-weight:600;margin-top:2px;")
+
+    with ui.row().classes("w-full items-center no-wrap").style(
+            f"background:{COLORS['accent']}14;border:1px solid {COLORS['accent']};border-radius:8px;"
+            "padding:9px 12px;margin-top:8px;gap:10px;"):
+        ui.icon("edit_note").style(f"color:{COLORS['accent']};font-size:22px;flex:none;")
+        with ui.column().classes("flex-1").style("gap:3px;"):
+            ui.label("Add any H2 visibility or context before drafting (optional)").style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:700;")
+            guidance_context_input = ui.input(
+                placeholder="e.g. H2 visibility good — new-partner go-lives ramp in Q3.",
+                value=gd.get("context", "")).props("outlined dense").classes("w-full")
+
+    def render_guidance_draft_box(text):
+        draft_area.clear()
+        with draft_area:
+            ui.label("Guidance draft — edit as needed, then submit (all [FLS] blocks need Legal review):").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            box = ui.textarea(value=text).classes("w-full").props("rows=10 outlined")
+            _pn, _pcl = _pacing_estimate(text)
+            pace_label = ui.label(_pn).style(f"color:{_pcl};font-size:var(--fs-xs);")
+
+            def save_edit(e, pace_label=pace_label):
+                gd["text"] = e.value
+                ss["guidance_decision"] = gd
+                _save_json("script_workflow_state.json", ss)
+                _n, _cl = _pacing_estimate(e.value)
+                pace_label.text = _n
+                pace_label.style(f"color:{_cl};font-size:var(--fs-xs);")
+            box.on_value_change(save_edit)
+
+            def submit(box=box):
+                gd["text"] = box.value
+                ss["guidance_decision"] = gd
+                _save_json("script_workflow_state.json", ss)
+                fy = (_ge.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
+                      if gd.get("new_low") is not None else None)
+                ui.notify("Guidance submitted to script." + (f" {fy} updated across the platform." if fy else ""),
+                          type="positive")
+            ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
+
+    def generate_guidance(guidance_context_input=guidance_context_input):
+        ui.notify("Generating guidance draft…", type="info")
+        try:
+            nl2, nh2 = gd.get("new_low"), gd.get("new_hi")
+            if nl2 is None:
+                nl2, nh2 = _new
+            _ch2 = _ge.characterize_range_change(_prior, [nl2, nh2])
+            action, rationale = _ch2["action_key"], _ch2["signal"]
+            draft, was_ai = _generate_guidance_draft(ss, action, nl2, nh2, rationale, guidance_context_input.value)
+            gd.update({"action": action, "new_low": nl2, "new_hi": nh2, "rationale": rationale,
+                       "context": guidance_context_input.value, "text": draft})
+            ss["guidance_decision"] = gd
+            _save_json("script_workflow_state.json", ss)
+            render_guidance_draft_box(draft)
+            ui.notify("Drafted — review below, then Submit." if was_ai else
+                      "AI unavailable — templated draft. Review, then Submit.",
+                      type="positive" if was_ai else "warning")
+        except Exception as exc:
+            ui.notify(f"Guidance draft generation failed: {exc}", type="negative")
+            raise
+
+    ui.button("Draft the guidance language with AI", icon="auto_awesome",
+              on_click=generate_guidance).props("color=primary dense").style("margin-top:4px;")
+    draft_area = ui.column().classes("w-full").style("margin-top:8px;")
+    if gd.get("text"):
+        render_guidance_draft_box(gd["text"])
+
+
 def _render_guidance_decision(ss, context="script"):
     """Guidance & Outlook Decision Engine — renders ahead of the CEO's own
     Step 1 review in _render_persona_steps, since the CEO narrative's tone/
@@ -4584,37 +4690,224 @@ def _full_script_text(ss):
     return _assembled_script_text(ss)
 
 
+def _render_decision_bar(ss):
+    """The keystone, pinned at the top of the Script Canvas — the guidance decision the whole script derives
+    from, always in view instead of three screens up. One compact line: action · prior→new range · how many
+    metrics back it · the strength read."""
+    from core import guidance_engine as _ge
+    gd = ss.get("guidance_decision", {}) or {}
+    math_ = _guidance_math(ss)
+    _prior = ((((ss.get("guidance_inputs") or {}).get("metrics") or {}).get("rev") or {}).get("prior_fy_range")
+              or [math_["fy_low"], math_["fy_hi"]])
+    if gd.get("new_low") is not None and gd.get("new_hi") is not None:
+        _new = [float(gd["new_low"]), float(gd["new_hi"])]
+    else:
+        _dl, _dh, _ = _ge.apply_action(
+            {"RAISE_MID": "raise_mid", "RAISE_LOW": "raise_low"}.get(math_["scenario"], "reiterate"), math_)
+        _new = [round(_dl, 1), round(_dh, 1)]
+    _ch = _ge.characterize_range_change(_prior, _new)
+    n_raise = n_tot = 0
+    try:
+        br = _ge.guidance_bridge(ss.get("guidance_inputs") or {}, ss.get("surprise_log") or {})
+        guided = [m for m in br["metrics"] if m.get("range")]
+        n_tot = len(guided)
+        n_raise = sum(1 for m in guided if str((m.get("recommendation") or {}).get("tag", "")).startswith("RAISED"))
+    except Exception:
+        pass
+    tagclr = COLORS[_BR_TAG.get(_ch["tag"], "warning")] if _BR_TAG.get(_ch["tag"]) else COLORS["accent"]
+    _m = lambda v: _fmt_metric(v, "money")
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:5px solid {tagclr};"
+            "border-radius:11px;padding:12px 16px;margin-bottom:10px;"):
+        with ui.row().classes("w-full items-center gap-3 flex-wrap"):
+            ui.label(_ch["tag"]).style(
+                f"background:{tagclr}22;color:{tagclr};font-weight:800;font-size:var(--fs-xs);letter-spacing:.03em;padding:3px 10px;border-radius:999px;")
+            ui.label(f"{_m(_prior[0])}–{_m(_prior[1])}").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-md);text-decoration:line-through;font-variant-numeric:tabular-nums;")
+            ui.label("→").style(f"color:{tagclr};font-weight:800;")
+            ui.label(f"{_m(_new[0])}–{_m(_new[1])}").style(
+                f"color:{COLORS['text_heading']};font-weight:800;font-size:var(--fs-xl);font-variant-numeric:tabular-nums;")
+            if n_tot:
+                ui.label(f"{n_raise} of {n_tot} metrics support").style(
+                    f"background:{COLORS['positive']}18;color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;padding:3px 10px;border-radius:999px;")
+            if _ch.get("strength"):
+                ui.label(f"· {_ch['strength']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            ui.space()
+            ui.label("Set on the CFO screen · drives every section").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
+
+
+def _render_section_editor(ss, sec):
+    """The drafting surface for one section — the existing per-section drafting tools, placed as the CENTER
+    pane of the canvas. IR carries the fixed Call Opening ahead of its own remarks."""
+    kind, role = sec["kind"], sec.get("role")
+    ui.label(sec["label"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
+    ui.label(sec.get("sub", "")).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    if kind == "guidance":
+        _render_guidance_drafter(ss)
+    elif kind == "qa":
+        _render_qa_prep_tab(ss)
+    elif kind == "persona":
+        if role == "IR":
+            _render_call_opening(ss)
+        _render_persona_steps(ss, role, sec["key"])
+
+
+def _rail_head(txt):
+    ui.label(txt).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);font-weight:700;"
+                        "letter-spacing:.08em;text-transform:uppercase;")
+
+
+def _rail_card(title, hi=False):
+    bc = (f"color-mix(in srgb,{COLORS['accent']} 35%,{COLORS['border']})" if hi else COLORS["border"])
+    c = ui.column().classes("w-full").style(
+        f"background:{COLORS['surface_bg']};border:1px solid {bc};border-radius:9px;padding:10px 12px;gap:4px;")
+    with c:
+        ui.label(title).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-weight:700;"
+                              "letter-spacing:.05em;text-transform:uppercase;")
+    return c
+
+
+def _rail_row(label, value, vcolor=None):
+    with ui.row().classes("items-baseline no-wrap flex-wrap").style("gap:6px;"):
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        ui.label(value).style(f"color:{vcolor or COLORS['text_heading']};font-size:var(--fs-xs);"
+                              "font-weight:700;font-variant-numeric:tabular-nums;")
+
+
+def _render_section_rail(ss, sec):
+    """The analysis docked BESIDE the draft — only the read relevant to THIS section, so it travels with the
+    work instead of sitting screens away. Pulls live numbers from the guidance bridge; every lookup is
+    guarded so a missing value never breaks the pane."""
+    from core import guidance_engine as _ge
+    try:
+        br = _ge.guidance_bridge(ss.get("guidance_inputs") or {}, ss.get("surprise_log") or {})
+    except Exception:
+        br = {"metrics": []}
+    M = {m.get("key"): m for m in br.get("metrics", [])}
+    role, kind = sec.get("role"), sec["kind"]
+    _rail_head("◧ Context for this section")
+
+    def _seq(rev, field):
+        return " → ".join(f"{r[field]:+.0f}%" for r in (rev.get("full_path") or []) if r.get(field) is not None)
+
+    if kind == "guidance" or role == "CFO":
+        rev = M.get("rev") or {}
+        with _rail_card("The trend read — is it decelerating?", hi=True):
+            rep = _seq(rev, "yoy_pct")
+            org = " → ".join(f"{r['yoy_organic_pct']:+.0f}%" for r in (rev.get("full_path") or [])
+                             if r.get("yoy_organic_pct") is not None)
+            stk = [r["two_yr_cagr_pct"] for r in (rev.get("full_path") or []) if r.get("two_yr_cagr_pct") is not None]
+            if rep:
+                _rail_row("Reported YoY", rep, COLORS["text_muted"])
+            if org:
+                _rail_row("Organic (ex-comp)", org, COLORS["positive"])
+            if len(stk) >= 2:
+                _rail_row("2-yr stacked CAGR", f"flat ~{sum(stk) / len(stk):.0f}%", COLORS["positive"])
+            ui.label("The step-down is the prior-year comp, not demand — so the H2 language says so.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+    if role == "CFO":
+        kpis = [M[k] for k in ("tpv", "nrr", "take_rate") if k in M]
+        if kpis:
+            with _rail_card("Operating drivers"):
+                for m in kpis:
+                    yoy = (m.get("yoy") or {}).get("pct")
+                    _rail_row(m.get("label", ""), _fmt_metric(m.get("actual"), m.get("fmt", "money"))
+                              + (f" · {yoy:+.0f}% YoY" if yoy is not None else ""))
+        with _rail_card("Tie-out"):
+            ui.label("Every figure must reconcile to today's press release before it ships.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+    elif kind == "guidance":
+        with _rail_card("Prior wording to match"):
+            pg = _guidance_prior_language() or "—"
+            ui.label(f"“{pg[:150]}{'…' if len(pg) > 150 else ''}”").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-style:italic;line-height:1.45;")
+    elif role == "IR":
+        with _rail_card("Fixed — read verbatim", hi=True):
+            ui.label("The safe-harbor paragraph carries over each quarter. A material change goes back to "
+                     "Legal before it ships — no ad-lib on Reg FD.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+        with _rail_card("Placement"):
+            ui.label("Always first in the assembled full script and every download.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+    elif role == "CEO":
+        with _rail_card("Narrative thread", hi=True):
+            ui.label("Lead with the durable, recurring economics and the acceleration in the operating "
+                     "drivers. Tone: confident but measured — a beat-and-raise, not a victory lap.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+    elif kind == "qa":
+        rev = M.get("rev") or {}
+        with _rail_card("What they'll probe — and the anchor", hi=True):
+            org = " → ".join(f"{r['yoy_organic_pct']:+.0f}%" for r in (rev.get("full_path") or [])
+                             if r.get("yoy_organic_pct") is not None)
+            _rail_row("Don't lead with", _seq(rev, "yoy_pct") or "reported YoY", COLORS["text_muted"])
+            if org:
+                _rail_row("Anchor to", f"{org} organic", COLORS["positive"])
+            ui.label("Analysts probe direction, not the printed number — every answer anchors to the trend "
+                     "the guidance decision already established.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+
+
 def _render_script_canvas(ss):
     _ensure_script_drafted(ss)
-    # Guidance is the keystone — ① Set it → ② read the impact → ③ draft the language — so it renders
-    # FIRST, ahead of the personas. Everything below (tone, H2 confidence, closing) flows from it.
-    _render_guidance_decision(ss)
+    # DRAFT-FIRST canvas: the decision is pinned on top, then a section workspace where each section's DRAFT
+    # sits in the center with its ANALYSIS docked beside it, and the sections run in TRANSCRIPT order (IR →
+    # CEO → CFO → Guidance → Q&A). Clicking a section swaps both the draft and its context together, so the
+    # analysis travels with the work instead of stacking three screens above it.
+    _render_decision_bar(ss)
 
-    # ── ④ BUILD THE SCRIPT — the personas; tone flows from the guidance action above ──
-    ui.label("④ Build the script").classes("font-bold").style("font-size:var(--fs-lg);")
-    ui.label("Every speaker's section, in order — IR, then CFO, then Business Operations, then CEO, then Q&A "
-             "Prep and the assembled Full Script at the bottom. Tone follows the guidance decision above.").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    # The Call Opening (operator intro + IR welcome + Reg FD / safe-harbor) is the fixed start of every call,
-    # so it renders FIRST — ahead of the bulk-refine tool and the editable persona sections.
-    _render_call_opening(ss)
-    # Previously this was three levels of nested Quasar tabs deep (page tabs
-    # -> 5-stage tabs -> these persona tabs), which on a normal window width
-    # squeezed 6 tab labels into very little space — easy to only ever see
-    # the first (IR Opening) tab and never notice the rest needed a scroll/
-    # click to reach. Stacked, always-open expansion panels instead: every
-    # section is on the page and reachable by scrolling, matching an actual
-    # "IR reviews everything, then hands to CFO, then CEO" reading order.
-    # ── Refine EVERY section with one instruction ─────────────────────────
-    # The counterpart to the per-section "Refine": one directive applied across
-    # IR, CFO, Business Operations, CEO and the Guidance section together — for
-    # a script-wide pass ("less promotional throughout", "tighten everywhere",
-    # "warmer close"). Each section runs through the SAME guardrails as a single
-    # refine (figures + consensus framing protected; nothing invented); a section
-    # with no draft yet is skipped. On success it re-renders so every box updates.
+    sections = []
+    for role, key, label in _active_personas():           # IR, CEO, CFO, (CRO) — transcript order
+        sections.append({"id": key, "kind": "persona", "role": role, "key": key, "label": label})
+        if role == "CFO":                                  # the CFO delivers the outlook → guidance sits here
+            sections.append({"id": "guidance", "kind": "guidance", "role": None, "key": "guidance",
+                             "label": "Guidance & Outlook", "sub": "The spoken outlook — derives from the decision above"})
+    sections.append({"id": "qa", "kind": "qa", "role": None, "key": "qa", "label": "Q&A Prep",
+                     "sub": "Anticipated questions & answer frameworks"})
+
+    nav_btns = {}
+    with ui.row().classes("w-full").style(
+            f"gap:0;align-items:stretch;flex-wrap:nowrap;border:1px solid {COLORS['border']};"
+            f"border-radius:12px;overflow:hidden;background:{COLORS['surface_bg']};"):
+        with ui.column().style(
+                f"width:188px;flex:none;background:{COLORS['surface_hover_bg']};"
+                f"border-right:1px solid {COLORS['border']};padding:10px 8px;gap:3px;"):
+            ui.label("The script").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-micro);font-weight:700;letter-spacing:.08em;"
+                "text-transform:uppercase;padding:4px 8px 2px;")
+            for s in sections:
+                nav_btns[s["id"]] = (
+                    ui.button(s["label"], on_click=lambda _=None, sid=s["id"]: show(sid))
+                    .props("flat no-caps dense align=left").classes("w-full")
+                    .style("justify-content:flex-start;text-transform:none;border-radius:8px;"))
+        editor = ui.column().classes("flex-1").style("min-width:0;padding:14px 18px;gap:7px;")
+        rail = ui.column().style(
+            f"width:400px;flex:none;background:{COLORS['surface_hover_bg']};"
+            f"border-left:1px solid {COLORS['border']};padding:12px 14px;gap:9px;")
+
+    def show(sid):
+        for s in sections:
+            b = nav_btns[s["id"]]
+            if s["id"] == sid:
+                b.style(f"justify-content:flex-start;text-transform:none;border-radius:8px;"
+                        f"background:{COLORS['accent']}18;color:{COLORS['accent']};font-weight:700;")
+            else:
+                b.style(f"justify-content:flex-start;text-transform:none;border-radius:8px;"
+                        f"background:transparent;color:{COLORS['text_body']};font-weight:400;")
+        editor.clear()
+        rail.clear()
+        sec = next(s for s in sections if s["id"] == sid)
+        with editor:
+            _render_section_editor(ss, sec)
+        with rail:
+            _render_section_rail(ss, sec)
+
+    show(sections[0]["id"])
+
+    # ── Global tools below the workspace: one-pass refine across every section, then the assembled script ──
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_hover_bg']};border:1px dashed {COLORS['accent']};"
-            f"border-radius:8px;margin:8px 0;"):
+            f"border-radius:8px;margin:12px 0 8px;"):
         ui.label("Refine every section at once").classes("font-bold").style(
             f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
         ui.label("Apply one instruction across all speakers and the Guidance section together — same "
@@ -4654,17 +4947,6 @@ def _render_script_canvas(ss):
 
             ui.button("Refine all sections", icon="auto_fix_high", on_click=refine_all).props(
                 "color=primary dense")
-
-    contacts = _contacts()
-    for role, key, label in _active_personas():
-        c = contacts.get(role, {"name": f"— {role} not configured —"})
-        with ui.expansion(f"{label} — {c['name']} ({role})", value=True).classes("w-full").style(
-                f"border:1px solid {COLORS['border']};border-radius:8px;margin-bottom:8px;"):
-            _render_persona_steps(ss, role, key)
-
-    with ui.expansion("Q&A Prep", value=True).classes("w-full").style(
-            f"border:1px solid {COLORS['border']};border-radius:8px;margin-bottom:8px;"):
-        _render_qa_prep_tab(ss)
 
     with ui.expansion("Full Script (assembled)", value=True).classes("w-full").style(
             f"border:1px solid {COLORS['border']};border-radius:8px;"):
