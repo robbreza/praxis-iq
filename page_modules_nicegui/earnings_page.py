@@ -3354,9 +3354,8 @@ def _render_persona_steps(ss, role, key):
     # The Guidance & Outlook Decision Engine used to render here, inside the IR and CEO persona panels
     # (twice on the page, buried three screens down). It's the keystone the whole script derives from, so
     # it now renders ONCE at the top of the Script Canvas (_render_script_canvas), ahead of every persona.
-    if role == "IR":
-        _render_call_opening(ss)
-
+    # Call Opening moved to the TOP of ④ (_render_script_canvas), ahead of the "Refine every section" tool —
+    # it's the fixed operator+welcome+safe-harbor that opens the call, so it reads first, not buried in IR's panel.
     ref = _persona_last_quarter().get(role, {})
     notes = ss.setdefault("persona_notes", {}).setdefault(key, {"whats_new": "", "final_notes": ""})
 
@@ -4578,6 +4577,9 @@ def _render_script_canvas(ss):
     ui.label("Every speaker's section, in order — IR, then CFO, then Business Operations, then CEO, then Q&A "
              "Prep and the assembled Full Script at the bottom. Tone follows the guidance decision above.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    # The Call Opening (operator intro + IR welcome + Reg FD / safe-harbor) is the fixed start of every call,
+    # so it renders FIRST — ahead of the bulk-refine tool and the editable persona sections.
+    _render_call_opening(ss)
     # Previously this was three levels of nested Quasar tabs deep (page tabs
     # -> 5-stage tabs -> these persona tabs), which on a normal window width
     # squeezed 6 tab labels into very little space — easy to only ever see

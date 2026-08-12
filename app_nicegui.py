@@ -2086,6 +2086,15 @@ ui.add_head_html(
     ".click-card{transition:box-shadow .12s ease,transform .12s ease;}"
     ".click-card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(15,23,42,.14);"
     f"border-color:{COLORS['accent']} !important;}}"
+    # ── Global input visibility (the one place inputs get styled) ─────────────────────────
+    # Outlined inputs/textareas shipped with a TRANSPARENT fill + a faint border, so they blended
+    # into whatever card/canvas sat behind them — which is why every page needed a per-field fix.
+    # Give every outlined field a subtle fill + a clear border by default, and an accent border on
+    # hover/focus, so an input always reads as a fillable box without page-by-page styling.
+    f".q-field--outlined .q-field__control{{background:{COLORS['surface_hover_bg']};}}"
+    f".q-field--outlined .q-field__control:before{{border-color:{COLORS['border']};}}"
+    f".q-field--outlined:hover .q-field__control:before{{border-color:{COLORS['accent']};}}"
+    f".q-field--outlined.q-field--focused .q-field__control:after{{border-color:{COLORS['accent']};border-width:2px;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width
