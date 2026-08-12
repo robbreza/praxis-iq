@@ -244,7 +244,17 @@ def characterize_range_change(prior, new):
         action, tag, key = "Raised the midpoint", "RAISED", "raise_mid"
         signal = "raised the midpoint — the most powerful signal on the call."
     width = "narrowed" if d_width < -eps else "widened" if d_width > eps else "held"
-    return {"action": action, "tag": tag, "action_key": key, "signal": signal,
+    # A short strength read (the judgment the full `signal` carries), for condensed one-liners.
+    strength = {
+        "Cut": "the weakest signal — expect immediate questions",
+        "Narrowed (no raise)": "signals visibility, not confidence",
+        "Reiterated": "reads conservative",
+        "Raised the low end": "a measured, credible raise",
+        "Raised the high end": "bolder, but the floor held",
+        "Raised the full range": "the cleanest, strongest raise",
+        "Raised the midpoint": "the most powerful signal on the call",
+    }.get(action, "")
+    return {"action": action, "tag": tag, "action_key": key, "signal": signal, "strength": strength,
             "d_low": d_low, "d_high": d_high, "d_mid": d_mid, "d_width": d_width,
             "prior_mid": round(pm, 2), "new_mid": round(nm, 2), "width_change": width}
 

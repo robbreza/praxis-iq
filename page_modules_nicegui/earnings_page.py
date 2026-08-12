@@ -3209,10 +3209,11 @@ def _render_guidance_decision(ss, context="script"):
         # your high end → the guide is a floor). Condensed from the old grey "You did" line + "signal" line +
         # long upside callout, which restated "you raised" three ways.
         if _iu:
-            _one = (f"<b>{_ch['action']}</b> — midpoint {_ch['d_mid']:+.1f}M, range {_ch['width_change']}. You've cleared "
-                    f"Street {_iu['beat_rate']} quarters (avg +{_iu['avg_beat_pct']:.1f}%), so consensus re-anchors "
-                    f"near ~${_iu['street_implied']:.1f}M — about ${_iu['above_high']:.1f}M above your "
-                    f"${_iu['new_high']:.1f}M high end. The guide is a floor; that's where the whisper sits.")
+            _str = f"; {_ch['strength']}" if _ch.get("strength") else ""
+            _one = (f"<b>{_ch['action']}</b> — midpoint {_ch['d_mid']:+.1f}M, range {_ch['width_change']}{_str}. "
+                    f"You've cleared Street {_iu['beat_rate']} quarters (avg +{_iu['avg_beat_pct']:.1f}%), so "
+                    f"consensus re-anchors near ~${_iu['street_implied']:.1f}M — about ${_iu['above_high']:.1f}M "
+                    f"above your ${_iu['new_high']:.1f}M high end. The guide is a floor; that's where the whisper sits.")
             with ui.row().classes("w-full items-start no-wrap").style(
                     f"gap:8px;background:{COLORS['positive']}12;border-left:3px solid {COLORS['positive']};"
                     "border-radius:6px;padding:9px 12px;margin-top:10px;"):
