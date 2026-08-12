@@ -3567,19 +3567,15 @@ def _render_persona_steps(ss, role, key, on_submit=None):
     # second quarter exists, someone should hand-curate persona_role
     # assignments the same way this quarter's list was, rather than have
     # this silently guess.
+    # The Q1 post-mortem carry-forward actions are REFERENCE, so they now live in the context rail (see
+    # _render_section_rail), not inline here — that way Step 2 shows only the one editable instruction box
+    # instead of reference cards that read like more inputs. The instruction is still seeded from those
+    # actions the first time so the box isn't blank.
     critique_items = [a for a in _Q1_TO_Q2_ACTIONS if a.get("persona_role") == role]
-    if critique_items:
-        ui.label("From the Q1 post-mortem — carry forward unless already addressed:").style(
-            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        for a in critique_items:
-            with ui.card().classes("w-full").style(f"background:rgba(0,0,0,.15);border:1px solid {a['clr']};margin-bottom:4px;padding:6px 10px;"):
-                ui.label(f"{a['icon']} {a['priority']} · {a['q1_finding']}").style(f"color:{a['clr']};font-size:var(--fs-xs);font-weight:bold;")
-                ui.label(a["action"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                ui.label(a["impact"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
-        if not notes.get("whats_new") and not notes.get("whats_new_seeded"):
-            notes["whats_new"] = "; ".join(a["action"] for a in critique_items)
-            notes["whats_new_seeded"] = True
-            _save_json("script_workflow_state.json", ss)
+    if critique_items and not notes.get("whats_new") and not notes.get("whats_new_seeded"):
+        notes["whats_new"] = "; ".join(a["action"] for a in critique_items)
+        notes["whats_new_seeded"] = True
+        _save_json("script_workflow_state.json", ss)
 
     ui.label("Your instruction for this section — this is what the AI uses to draft Step 3 (edit freely):").style(
         f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:600;margin-top:6px;")
@@ -5079,6 +5075,22 @@ def _render_section_rail(ss, sec):
             ui.label("Analysts probe direction, not the printed number — every answer anchors to the trend "
                      "the guidance decision already established.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+
+    # From last quarter's post-mortem — the carry-forward actions for this speaker. These are REFERENCE, so
+    # they live here in the context rail (they used to sit inline in Step 2, where they read like more inputs
+    # and made it unclear which box to type in). The Step 2 instruction is still seeded from them.
+    if role:
+        _crit = [a for a in _Q1_TO_Q2_ACTIONS if a.get("persona_role") == role]
+        if _crit:
+            with _rail_card("From last quarter's post-mortem"):
+                for a in _crit:
+                    ui.label(f"{a.get('priority', '')} · {a.get('q1_finding', '')}").style(
+                        f"color:{a.get('clr', COLORS['warning'])};font-size:var(--fs-2xs);font-weight:700;")
+                    ui.label(a.get("action", "")).style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-2xs);line-height:1.4;")
+                    if a.get("impact"):
+                        ui.label(a["impact"]).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-micro);font-style:italic;")
 
 
 def _render_script_canvas(ss):
