@@ -2448,7 +2448,7 @@ def _bridge_chip(label, val, good=None):
     clr = COLORS["text_muted"] if good is None else (COLORS["positive"] if good else COLORS["danger"])
     with ui.row().classes("items-baseline gap-1 no-wrap").style(
             f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:7px;padding:2px 9px;"):
-        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.03em;")
+        ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.03em;")
         ui.label(val).style(f"color:{clr};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
 
 
@@ -2485,7 +2485,7 @@ def _bridge_rangebar(m):
         _track("New guide", nl, nh, True, f"{_fmt_metric(nl,f)}–{_fmt_metric(nh,f)}")
         if street is not None:
             ui.label(f"┊ dotted line = Street FY {_fmt_metric(street,f)}").style(
-                f"color:{COLORS['warning']};font-size:var(--fs-micro);margin-left:82px;")
+                f"color:{COLORS['warning']};font-size:var(--fs-2xs);margin-left:82px;")
 
 
 def _classify_trend(vals, tol=0.5):
