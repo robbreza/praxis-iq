@@ -3549,7 +3549,16 @@ def _render_persona_steps(ss, role, key, on_submit=None):
             ui.label("No prior-quarter reference on file yet for this persona.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     question, placeholder = _PERSONA_WHATS_NEW.get(role, ("What's new this quarter?", ""))
-    ui.label(f"Step 2 — {question}").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
+    # STEP 2 — REVIEW the auto-drafted section: last quarter's structure with THIS quarter's Stage-1 numbers
+    # dropped in, so a draft is already here to read — not something you must trigger. Edit it directly,
+    # Refine it, or (Step 3) tell it what's new and Regenerate. The draft renders into draft_area.
+    ui.label("Step 2 — Review this quarter's draft (auto-drafted from your Stage-1 numbers)").classes(
+        "font-bold").style("font-size:var(--fs-base);margin-top:8px;")
+    if role in ("IR", "CFO", "CEO"):
+        tone = _tone_context(ss)
+        ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    draft_area = ui.column().classes("w-full").style("margin-top:4px;")
 
     # Seed from the actual Q1 post-mortem critique for this persona's
     # section, instead of leaving Step 2 a blank box with just an
@@ -3577,8 +3586,11 @@ def _render_persona_steps(ss, role, key, on_submit=None):
         notes["whats_new_seeded"] = True
         _save_json("script_workflow_state.json", ss)
 
-    ui.label("Your instruction for this section — this is what the AI uses to draft Step 3 (edit freely):").style(
-        f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:600;margin-top:6px;")
+    ui.label("Step 3 — Regenerate with what's new (optional)").classes("font-bold").style(
+        "font-size:var(--fs-base);margin-top:10px;")
+    ui.label("Your instruction — what changed vs last quarter (edit freely, then Regenerate; or just Refine "
+             "the draft above):").style(
+        f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:600;")
     whats_new_input = ui.textarea(placeholder=placeholder, value=notes.get("whats_new", "")).classes("w-full").props("rows=2 outlined")
 
     def save_whats_new(e, notes=notes):
@@ -3586,13 +3598,6 @@ def _render_persona_steps(ss, role, key, on_submit=None):
         _save_json("script_workflow_state.json", ss)
 
     whats_new_input.on_value_change(save_whats_new)
-
-    ui.label("Step 3 — Generate Draft").classes("font-bold").style("font-size:var(--fs-base);margin-top:8px;")
-    if role in ("IR", "CFO", "CEO"):
-        tone = _tone_context(ss)
-        ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    # "Additional notes" is folded into the Step 2 instruction above — one box BEFORE Generate, one (Refine)
-    # AFTER — so it's unambiguous where to type. Generate reads the Step 2 instruction directly.
 
     # render_draft_box/generate are defined here but the "Generate with AI"
     # button and draft_area's actual placement (below) are what determine
@@ -3607,7 +3612,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
     def render_draft_box(text, key=key, role=role):
         draft_area.clear()
         with draft_area:
-            ui.label("Draft — edit as needed, then submit it into the script:").style(
+            ui.label("This quarter's draft — edit directly, Refine, or Regenerate below; then Submit:").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             box = ui.textarea(value=text).classes("w-full").props("rows=8 outlined")
             pace_note, pace_clr = _pacing_estimate(text, role)
@@ -3685,8 +3690,8 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                 ui.notify("Generation returned nothing — check Stage 1 numbers were submitted.", type="warning")
                 return
             render_draft_box(draft)
-            ui.notify("Drafted with AI — review below, then Submit." if was_ai else
-                      "AI unavailable — used a numbers-based fallback draft. Review below, then Submit.",
+            ui.notify("Drafted with AI — review above, then Submit." if was_ai else
+                      "AI unavailable — used a numbers-based fallback draft. Review above, then Submit.",
                       type="positive" if was_ai else "warning")
         except Exception as exc:
             ui.notify(f"Draft generation failed: {exc}", type="negative")
@@ -3702,8 +3707,9 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                 ui.label("Regenerate from scratch?").classes("font-bold").style(
                     f"color:{COLORS['text_heading']};")
                 ui.label("This replaces the current draft — including your edits — with a fresh AI draft built "
-                         "from the numbers and notes. To keep your text and adjust it instead, use “Refine” on "
-                         "the draft below.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);max-width:420px;")
+                         "from the numbers and your what's-new note. To keep your text and adjust it instead, "
+                         "use “Refine” on the draft above.").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);max-width:420px;")
                 with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
                     ui.button("Cancel", on_click=_dlg.close).props("flat dense")
 
@@ -3715,16 +3721,18 @@ def _render_persona_steps(ss, role, key, on_submit=None):
         else:
             _do_generate()
 
-    ui.button("Generate with AI", on_click=generate).props("color=primary dense").style("margin-top:6px;")
+    ui.button("Regenerate with what's new", icon="refresh", on_click=generate).props(
+        "color=primary dense").style("margin-top:6px;")
 
-    draft_area = ui.column().classes("w-full").style("margin-top:8px;")
-
-    # If this persona already has saved script text (from a prior session or
-    # a previous Submit), show it immediately rather than requiring a fresh
-    # Generate click just to see/edit existing content.
+    # Populate the Step 2 draft_area (above) with the current / auto-drafted text now that every handler is
+    # defined. _ensure_script_drafted() has already put a numbers-based draft here, so it's rarely empty.
     existing = ss["script_text"].get(key, "")
     if existing:
         render_draft_box(existing)
+    else:
+        with draft_area:
+            ui.label("No draft yet — set what's new below and click Regenerate to auto-draft this section.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
 
 def _build_qa_prep(ss):
