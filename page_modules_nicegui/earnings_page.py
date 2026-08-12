@@ -3152,32 +3152,40 @@ def _render_guidance_decision(ss, context="script"):
                     return f"${lo:.2f}–{hi:.2f}"
                 _n = lambda v: (f"{v:.1f}".rstrip("0").rstrip("."))   # 104.0→"104", 21.5→"21.5"
                 return f"${_n(lo)}–{_n(hi)}M"
-            with ui.column().classes("flex-[4]").style(
+            with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['accent']}0F;border:1.5px solid {COLORS['accent']};border-radius:8px;"
-                    "padding:11px 14px;min-width:420px;gap:5px;"):
+                    "padding:11px 14px;min-width:250px;gap:3px;"):
                 ui.label("Full Year — FY2026 · the guide").style(
                     f"color:{COLORS['accent_light']};font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.04em;font-weight:700;")
-                with ui.element("div").style(
-                        "display:grid;grid-template-columns:auto auto auto auto auto;gap:6px 14px;"
-                        "align-items:baseline;width:100%;overflow-x:auto;"):
-                    for _h in ("Line", "Prior", "New guide", "Action", "YoY growth  low·mid·high"):
-                        ui.label(_h).style(_hcell)
-                    for _e in _guided:
-                        _tc2 = COLORS[_BR_TAG.get(_e["ch"]["tag"], "warning")] if _BR_TAG.get(_e["ch"]["tag"]) else COLORS["accent"]
-                        ui.label(_e["nm"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);font-weight:600;white-space:nowrap;")
-                        ui.label(_rngc(_e["pr"], _e["fmt"])).style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;"
-                            "white-space:nowrap;font-variant-numeric:tabular-nums;")
-                        with ui.row().classes("items-baseline no-wrap").style("gap:5px;"):
+                # Stacked per-metric blocks — each guided line labels its OWN fields inline (Prior → New, YoY
+                # growth), so the header travels WITH the value instead of sitting in a distant top row. Reads
+                # top-to-bottom per line, no eye-mapping back to a column header.
+                for _e in _guided:
+                    _tc2 = COLORS[_BR_TAG.get(_e["ch"]["tag"], "warning")] if _BR_TAG.get(_e["ch"]["tag"]) else COLORS["accent"]
+                    with ui.column().classes("w-full").style(
+                            f"gap:3px;padding:7px 0 5px;border-top:1px solid {COLORS['border']};"):
+                        with ui.row().classes("w-full items-center no-wrap").style("gap:8px;"):
+                            ui.label(_e["nm"]).style(
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;")
+                            ui.space()
+                            ui.label(_e["ch"]["tag"]).style(
+                                f"background:{_tc2}22;color:{_tc2};font-size:var(--fs-2xs);font-weight:700;"
+                                "padding:1px 8px;border-radius:8px;white-space:nowrap;")
+                        with ui.row().classes("items-baseline no-wrap flex-wrap").style("gap:5px;"):
+                            ui.label("PRIOR").style(_hcell)
+                            ui.label(_rngc(_e["pr"], _e["fmt"])).style(
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;font-variant-numeric:tabular-nums;")
                             ui.label("→").style(f"color:{COLORS['accent']};font-size:var(--fs-xs);font-weight:800;")
+                            ui.label("NEW").style(_hcell)
                             ui.label(_rngc(_e["nw"], _e["fmt"])).style(
-                                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:800;"
-                                "white-space:nowrap;font-variant-numeric:tabular-nums;")
-                        ui.label(_e["ch"]["tag"]).style(
-                            f"background:{_tc2}22;color:{_tc2};font-size:var(--fs-2xs);font-weight:700;"
-                            "padding:1px 7px;border-radius:8px;white-space:nowrap;text-align:center;")
-                        ui.label((f"+{_e['g'][0]:.0f}% · +{_e['g'][1]:.0f}% · +{_e['g'][2]:.0f}%") if _e["g"] else "—").style(
-                            f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;")
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:800;font-variant-numeric:tabular-nums;")
+                        with ui.row().classes("items-baseline no-wrap flex-wrap").style("gap:5px;"):
+                            ui.label("YoY GROWTH").style(_hcell)
+                            ui.label((f"+{_e['g'][0]:.0f}% · +{_e['g'][1]:.0f}% · +{_e['g'][2]:.0f}%") if _e["g"] else "—").style(
+                                f"color:{COLORS['positive']};font-size:var(--fs-xs);font-weight:700;font-variant-numeric:tabular-nums;")
+                            if _e["g"]:
+                                ui.label("low·mid·high").style(
+                                    f"color:{COLORS['text_muted']};font-size:var(--fs-micro);")
             # ── NEXT YEAR (FY27) — TABLE: carry ALL three lines' Street out-year + growth off the FY26 mid.
             with ui.column().classes("flex-[3]").style(
                     f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;"
