@@ -4185,6 +4185,141 @@ def _teleprompter_html(ss):
             + bar + '<main id="doc">' + "\n".join(secs) + '</main>' + _TELEPROMPTER_JS + '</body></html>')
 
 
+def _section_context_text(ss, role, kind):
+    """The section's analysis as printable (title, [lines]) cards — the same read the on-screen context rail
+    shows, in text form, for the review-packet export. Pulls from the guidance bridge; all lookups guarded."""
+    from core import guidance_engine as _ge
+    try:
+        br = _ge.guidance_bridge(ss.get("guidance_inputs") or {}, ss.get("surprise_log") or {})
+    except Exception:
+        br = {"metrics": []}
+    M = {m.get("key"): m for m in br.get("metrics", [])}
+    rev = M.get("rev") or {}
+    fp = rev.get("full_path") or []
+
+    def _seq(field):
+        return " → ".join(f"{r[field]:+.0f}%" for r in fp if r.get(field) is not None)
+    out = []
+    if kind == "guidance" or role in ("CFO", "CEO"):
+        lines = []
+        if _seq("yoy_pct"):
+            lines.append(f"Reported YoY: {_seq('yoy_pct')}")
+        _org = " → ".join(f"{r['yoy_organic_pct']:+.0f}%" for r in fp if r.get("yoy_organic_pct") is not None)
+        if _org:
+            lines.append(f"Organic (ex-comp): {_org}")
+        _stk = [r["two_yr_cagr_pct"] for r in fp if r.get("two_yr_cagr_pct") is not None]
+        if len(_stk) >= 2:
+            lines.append(f"2-yr stacked CAGR: flat ~{sum(_stk) / len(_stk):.0f}%")
+        lines.append("The step-down is the prior-year comp, not demand.")
+        out.append(("Trend read — is it decelerating?", lines))
+    if role in ("CFO", "CRO"):
+        kpis = [M[k] for k in ("tpv", "nrr", "take_rate") if k in M]
+        if kpis:
+            out.append(("Operating drivers", [
+                m.get("label", "") + ": " + _fmt_metric(m.get("actual"), m.get("fmt", "money"))
+                + (f" · {(m.get('yoy') or {}).get('pct'):+.0f}% YoY" if (m.get("yoy") or {}).get("pct") is not None else "")
+                for m in kpis]))
+    if role == "CFO":
+        out.append(("Tie-out", ["Every figure must reconcile to today's press release before it ships."]))
+    elif role == "CRO":
+        ops = ss.get("q2_ops_metrics", {}) or {}
+        pl = []
+        if ops.get("new_partner_golives") is not None:
+            pl.append(f"New-partner go-lives: {ops['new_partner_golives']}")
+        if ops.get("isv_in_impl") is not None:
+            pl.append(f"ISVs in implementation: {ops['isv_in_impl']}")
+        if ops.get("integrated_mix") is not None:
+            pl.append(f"Integrated mix: {ops['integrated_mix']:.0f}% → 65%+")
+        if pl:
+            out.append(("Partner pipeline", pl))
+        if ops.get("new_verticals"):
+            out.append(("New verticals", [ops["new_verticals"]]))
+    elif kind == "guidance":
+        _pg = _guidance_prior_language() or "—"
+        out.append(("Prior wording to match", [f"“{_pg[:150]}{'…' if len(_pg) > 150 else ''}”"]))
+    elif role == "IR":
+        out.append(("Fixed — read verbatim", ["Safe harbor carries over each quarter; a material change goes to Legal."]))
+    elif role == "CEO":
+        out.append(("Narrative thread", ["Lead with durable, recurring economics and accelerating drivers. "
+                                         "Tone: confident but measured — a beat-and-raise, not a victory lap."]))
+    return out
+
+
+_PREP_PACKET_CSS = """<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f6fa;color:#1b2536;font-family:Georgia,'Times New Roman',serif;line-height:1.6}
+.bar{position:sticky;top:0;display:flex;gap:10px;align-items:center;padding:10px 16px;background:#fff;
+ border-bottom:1px solid #dce3ee;z-index:10}
+.bar .title{margin-right:auto;font:700 14px system-ui;color:#1e40af}
+.bar button{font:600 13px system-ui;background:#1e40af;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer}
+main{max-width:1040px;margin:0 auto;padding:18px 20px 60px}
+.hint{font:400 12px system-ui;color:#64748b;margin:0 0 14px}
+section{background:#fff;border:1px solid #dce3ee;border-radius:10px;padding:16px 18px;margin:0 0 16px;page-break-inside:avoid}
+h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 12px;padding-bottom:8px;
+ border-bottom:2px solid #1e40af;font-family:system-ui}
+h2 .role{font:700 15px system-ui;letter-spacing:.04em;text-transform:uppercase;color:#1e40af}
+h2 .who{font:600 13px system-ui;color:#64748b;white-space:nowrap}
+.cols{display:flex;gap:18px;align-items:flex-start}
+.script{flex:1;min-width:0;font-size:15px}
+.script p{margin:0 0 .7em}
+.context{width:300px;flex:none}
+.ctx-card{background:#f6f8fb;border:1px solid #dce3ee;border-radius:8px;padding:9px 11px;margin:0 0 9px}
+.ctx-title{font:700 10px system-ui;letter-spacing:.05em;text-transform:uppercase;color:#64748b;margin-bottom:5px}
+.ctx-card ul{margin:0;padding-left:15px}
+.ctx-card li{font:400 12px system-ui;color:#334155;line-height:1.45;margin-bottom:3px}
+@media print{.bar{display:none}body{background:#fff}section{box-shadow:none;border-color:#ccc}.context{width:270px}}
+</style>"""
+
+
+def _prep_packet_html(ss):
+    """A print/PDF-ready review packet: each section's script (left) beside its supporting analysis (right),
+    so the context sits directly across from the words it explains. Downloaded HTML — Print → Save as PDF."""
+    import html as _html
+    ticker, quarter = CT("ticker", ""), CE().get("current_quarter", "")
+    title = f"{ticker} {quarter} — Script & Context Review Packet".strip()
+    contacts = _contacts()
+    op, welcome, fls = _call_opening_text(ss)
+    blocks = []  # (label, speaker, script_text, context_items)
+    op_full = "\n\n".join(x for x in (op, fls) if x and x.strip())
+    if op_full:
+        blocks.append(("Call opening & safe harbor", "Operator", op_full,
+                       [("Fixed / Legal-approved", ["Operator reads the Reg FD / safe harbor verbatim; "
+                                                    "a material change goes to Legal."])]))
+    ir_name = contacts.get("IR", {}).get("name", "Investor Relations")
+    if welcome and welcome.strip() and _use_call_opening_welcome(ss):
+        blocks.append(("Welcome & participants", ir_name, welcome, _section_context_text(ss, "IR", "persona")))
+    for role, key, label in _active_personas():
+        txt = ss["script_text"].get(key, "")
+        if txt and txt.strip():
+            blocks.append((label, contacts.get(role, {}).get("name", role), txt,
+                           _section_context_text(ss, role, "persona")))
+    gtext = (ss.get("guidance_decision") or {}).get("text", "")
+    if gtext.strip():
+        blocks.append(("Guidance & Outlook", contacts.get("CFO", {}).get("name", "CFO"), gtext,
+                       _section_context_text(ss, None, "guidance")))
+    secs = []
+    for label, speaker, txt, ctx in blocks:
+        paras = "".join(f"<p>{_html.escape(p.strip())}</p>" for p in txt.split("\n") if p.strip())
+        cards = ""
+        for ctitle, lines in ctx:
+            items = "".join(f"<li>{_html.escape(l)}</li>" for l in lines)
+            cards += f'<div class="ctx-card"><div class="ctx-title">{_html.escape(ctitle)}</div><ul>{items}</ul></div>'
+        if not cards:
+            cards = '<div class="ctx-card"><div class="ctx-title">Context</div><ul><li>—</li></ul></div>'
+        secs.append(f'<section><h2><span class="role">{_html.escape(label)}</span>'
+                    f'<span class="who">{_html.escape(speaker)}</span></h2>'
+                    f'<div class="cols"><div class="script">{paras}</div>'
+                    f'<aside class="context">{cards}</aside></div></section>')
+    return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<title>{_html.escape(title)}</title>' + _PREP_PACKET_CSS + '</head><body>'
+            f'<div class="bar"><span class="title">{_html.escape(title)}</span>'
+            '<button onclick="window.print()">Save as PDF / Print</button></div>'
+            '<main><p class="hint">The script (left) with its supporting context (right), section by section. '
+            "Use your browser’s Print → Save as PDF to keep both columns together.</p>"
+            + "\n".join(secs) + '</main></body></html>')
+
+
 def _promote_answer_to_kb(item):
     """Connector: promote a prepared Q&A answer into the approved-answer KB
     (core.ir_knowledge), where the shareholder-reply drafter may state it directly.
@@ -5114,6 +5249,14 @@ def _render_script_canvas(ss):
                 ui.download(html.encode("utf-8"), fname)
 
             ui.button("Teleprompter (HTML)", icon="present_to_all", on_click=export_teleprompter).props("flat")
+
+            def export_packet():
+                packet = _prep_packet_html(ss)
+                fname = f"{CT('ticker')}_{CE().get('current_quarter','')}_Review_Packet.html".replace(" ", "_")
+                ui.download(packet.encode("utf-8"), fname)
+
+            ui.button("Review packet — script + context (PDF)", icon="picture_as_pdf",
+                      on_click=export_packet).props("flat")
 
             fp = ss.get("first_pass_complete")
             if fp:
