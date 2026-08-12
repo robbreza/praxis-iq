@@ -5630,7 +5630,8 @@ def _render_stage1b_illustrative(ss):
                       f"was given. Stage 2 IR review will flag these.", type="warning")
         else:
             ui.notify(f"Operating metrics submitted. {len(missing)} disclosure gap(s) noted.")
-        _refresh()
+        # No full-page _refresh() here — it navigated off Stage 1 after submit ("kicked out"). The metrics
+        # are saved and the notify above confirms, including the disclosure-gap count.
 
     ui.button("Submit Operating Metrics", on_click=submit_ops).props("color=primary").style("margin-top:8px;")
 
@@ -5750,7 +5751,8 @@ def _render_stage1b(ss):
                       f"was given. Stage 2 IR review will flag these.", type="warning")
         else:
             ui.notify(f"Operating metrics submitted. {len(missing)} disclosure gap(s) noted.")
-        _refresh()
+        # No full-page _refresh() here — it navigated off Stage 1 after submit ("kicked out"). The metrics
+        # are saved and the notify above confirms, including the disclosure-gap count.
 
     ui.button("Submit Operating Metrics", on_click=submit_ops).props("color=primary").style("margin-top:8px;")
 
