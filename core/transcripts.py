@@ -302,16 +302,51 @@ def script_inputs(client_id=None):
     # and their script canvases rendered empty. Walk newest -> oldest and fill each role once with
     # its most recent quote; the tag names the quarter, so it's clear when a ref is from a prior call.
     for t in txns:
+        # VERBATIM first: parse the actual transcript into each role's prepared-remarks turn, word for word,
+        # so Step 1 shows exactly what was said last quarter — not the AI summary. The matching key_quote (if
+        # any) rides along as a highlight. list_transcripts() omits full_text, so fetch the full record.
+        _ft = t.get("full_text")
+        if not _ft:
+            _ft = (get_transcript(t.get("quarter"), client_id=cid) or {}).get("full_text")
+        turns = _turns_by_role(_ft)
+        kq_by_role = {}
         for kq in (t.get("key_quotes") or []):
-            if not isinstance(kq, dict):
-                continue
-            role = _role_for_speaker(kq.get("speaker"))
-            if role and role not in out["persona_refs"]:
+            if isinstance(kq, dict):
+                r = _role_for_speaker(kq.get("speaker"))
+                if r and r not in kq_by_role:
+                    kq_by_role[r] = kq
+        for role, turn in turns.items():
+            if role not in out["persona_refs"]:
+                out["persona_refs"][role] = {
+                    "verbatim": turn["body"],
+                    "speaker": turn["speaker"],
+                    "quote": (kq_by_role.get(role) or {}).get("quote", ""),
+                    "tags": [f"From {t.get('quarter', 'last call')}"],
+                }
+        # Fallback for any role that has a key_quote but no parseable transcript turn (e.g. summary-only).
+        for role, kq in kq_by_role.items():
+            if role not in out["persona_refs"]:
                 out["persona_refs"][role] = {
                     "quote": kq.get("quote", ""),
                     "tags": [f"From {t.get('quarter', 'last call')}"
                              + (f" — {kq['speaker']}" if kq.get("speaker") else "")],
                 }
+    return out
+
+
+def _turns_by_role(full_text):
+    """Parse a vendor transcript (blocks of `speaker / HH:MM:SS / body`, separated by blank lines) into
+    role -> the speaker's FIRST turn {speaker, body}. The first turn per role is the prepared remarks, since
+    those precede the Q&A. Returns {} for an unparseable transcript."""
+    out = {}
+    for block in (full_text or "").split("\n\n"):
+        parts = block.split("\n", 2)
+        if len(parts) < 3:
+            continue
+        spk, body = parts[0].strip(), parts[2].strip()
+        role = _role_for_speaker(spk)
+        if role and role not in out and body:
+            out[role] = {"speaker": spk, "body": body}
     return out
 
 

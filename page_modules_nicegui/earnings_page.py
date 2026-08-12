@@ -269,7 +269,7 @@ def _get_current_qa_actions():
 # then Q&A. The old order (IR, CFO, CRO, CEO) put the CEO last, which no earnings call does.
 PERSONAS = [
     ("IR", "ir_open", "IR Opening"),
-    ("CEO", "ceo_narrative", "CEO Narrative + Guidance"),
+    ("CEO", "ceo_narrative", "CEO Narrative"),
     ("CRO", "cro_ops", "Business Operations"),
     ("CFO", "cfo_fin", "CFO Financial Review"),
 ]
@@ -3483,17 +3483,31 @@ def _render_persona_steps(ss, role, key):
 
     with ui.card().classes("w-full").style(f"background:{COLORS['surface_bg']};padding:10px;box-shadow:none;border:1px solid {COLORS['border']};"):
         ui.label("Step 1 — Review: What Was Said Last Quarter").classes("font-bold").style("font-size:var(--fs-base);")
-        if ref.get("quote"):
+        _shown = False
+        # VERBATIM — the speaker's actual prior-quarter transcript turn, word for word (not the AI summary),
+        # in a scrollable box so a long turn doesn't dominate the section. This is what you reprise/update.
+        if ref.get("verbatim"):
+            ui.label("Verbatim — exactly what was said last quarter" + (f" ({ref['speaker']})" if ref.get("speaker") else "")).style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:2px;")
+            with ui.element("div").style(
+                    f"max-height:150px;overflow-y:auto;background:{COLORS['surface_hover_bg']};"
+                    f"border:1px solid {COLORS['border']};border-radius:6px;padding:8px 11px;margin-top:3px;"):
+                ui.label(f"“{ref['verbatim']}”").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.55;")
+            _shown = True
+        elif ref.get("quote"):
             ui.label(f"“{ref['quote']}”").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-style:italic;margin-top:4px;")
+            _shown = True
         for q_label, q_text in ref.get("prior_quotes", []):
             ui.label(f"{q_label}: “{q_text}”").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);font-style:italic;")
+            _shown = True
         if ref.get("rows"):
             with ui.column().classes("w-full gap-0").style("margin-top:4px;"):
                 for r_label, r_val in ref["rows"]:
                     ui.label(f"{r_label}: {r_val}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+            _shown = True
         for tag in ref.get("tags", []):
             ui.label(f"• {tag}").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);margin-top:2px;")
-        if not ref.get("quote") and not ref.get("rows"):
+        if not _shown:
             ui.label("No prior-quarter reference on file yet for this persona.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     question, placeholder = _PERSONA_WHATS_NEW.get(role, ("What's new this quarter?", ""))
@@ -3529,6 +3543,8 @@ def _render_persona_steps(ss, role, key):
             notes["whats_new_seeded"] = True
             _save_json("script_workflow_state.json", ss)
 
+    ui.label("Your instruction for this section — this is what the AI uses to draft Step 3 (edit freely):").style(
+        f"color:{COLORS['text_heading']};font-size:var(--fs-xs);font-weight:600;margin-top:6px;")
     whats_new_input = ui.textarea(placeholder=placeholder, value=notes.get("whats_new", "")).classes("w-full").props("rows=2 outlined")
 
     def save_whats_new(e, notes=notes):
@@ -4791,7 +4807,7 @@ def _render_section_rail(ss, sec):
     def _seq(rev, field):
         return " → ".join(f"{r[field]:+.0f}%" for r in (rev.get("full_path") or []) if r.get(field) is not None)
 
-    if kind == "guidance" or role == "CFO":
+    if kind == "guidance" or role in ("CFO", "CEO"):
         rev = M.get("rev") or {}
         with _rail_card("The trend read — is it decelerating?", hi=True):
             rep = _seq(rev, "yoy_pct")
@@ -4881,9 +4897,12 @@ def _render_script_canvas(ss):
                     .props("flat no-caps dense align=left").classes("w-full")
                     .style("justify-content:flex-start;text-transform:none;border-radius:8px;"))
         editor = ui.column().classes("flex-1").style("min-width:0;padding:14px 18px;gap:7px;")
+        # Sticky so the section's analysis stays in view as you scroll down through Steps 1–3 of a long
+        # draft — the whole point is that the context is BESIDE the work, not scrolled away above it.
         rail = ui.column().style(
             f"width:400px;flex:none;background:{COLORS['surface_hover_bg']};"
-            f"border-left:1px solid {COLORS['border']};padding:12px 14px;gap:9px;")
+            f"border-left:1px solid {COLORS['border']};padding:12px 14px;gap:9px;"
+            "position:sticky;top:70px;align-self:flex-start;max-height:calc(100vh - 92px);overflow-y:auto;")
 
     def show(sid):
         for s in sections:
