@@ -191,7 +191,8 @@ _HISTORICAL_WPM = round(
 # below — IR has no separate historical entry (the opening/handoff is brief
 # and wasn't separately timed in the Q1 breakdown), so it's omitted rather
 # than guessed.
-_SECTION_HISTORICAL_MINUTES = {"CRO": 12.0, "CFO": 10.0, "CEO": 8.0, "guidance": 4.0}
+_SECTION_HISTORICAL_MINUTES = {"IR": 1.0, "CRO": 12.0, "CFO": 10.0, "CEO": 8.0, "guidance": 4.0}
+_CALL_OPENING_BUDGET_MIN = 2.0   # operator intro + safe harbor + host welcome — short, fixed boilerplate
 
 
 def _pacing_estimate(text, hist_key=None):
@@ -4002,9 +4003,8 @@ def _render_number_tieout(ss):
                     f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
 
 
-# Historical minutes per prepared-remarks section, from the Q1 2026 actuals
-# (_Q1_SECTION_TIMING) — the budget the live estimate is measured against.
-_SECTION_BUDGET_MIN = {"CEO": 8.0, "CFO": 10.0, "CRO": 10.0}
+# The per-section budgets come from the SAME source as the draft-box pacing (_SECTION_HISTORICAL_MINUTES),
+# so the two never drift — a section that reads "on pace" in its editor also reads on-pace here.
 _QA_ALLOTMENT_MIN = 40.0      # historical Q&A length (Q1 2026 ran 40 min)
 _HIST_CALL_MIN = 72.0         # historical total call length (Q1 2026)
 
@@ -4023,14 +4023,16 @@ def _call_time_budget(ss):
     rows = []
     op, welcome, fls = _call_opening_text(ss)
     ow, om = est(" ".join(x for x in (op, welcome, fls) if x))
-    rows.append({"label": "Call opening (operator intro + safe harbor + host welcome)", "words": ow, "est": om, "budget": None})
+    rows.append({"label": "Call opening (operator intro + safe harbor + host welcome)", "words": ow, "est": om,
+                 "budget": _CALL_OPENING_BUDGET_MIN})
     for role, key, label in _active_personas():
         w, mn = est(ss["script_text"].get(key, ""))
-        rows.append({"label": label, "words": w, "est": mn, "budget": _SECTION_BUDGET_MIN.get(role)})
+        rows.append({"label": label, "words": w, "est": mn, "budget": _SECTION_HISTORICAL_MINUTES.get(role)})
     gtext = (ss.get("guidance_decision") or {}).get("text", "")
     if gtext.strip():
         w, mn = est(gtext)
-        rows.append({"label": "Guidance & Outlook", "words": w, "est": mn, "budget": 4.0})
+        rows.append({"label": "Guidance & Outlook", "words": w, "est": mn,
+                     "budget": _SECTION_HISTORICAL_MINUTES.get("guidance", 4.0)})
     prepared = sum(r["est"] for r in rows)
     return {"rows": rows, "prepared": prepared, "qa": _QA_ALLOTMENT_MIN,
             "total": prepared + _QA_ALLOTMENT_MIN, "hist_total": _HIST_CALL_MIN, "wpm": wpm}
