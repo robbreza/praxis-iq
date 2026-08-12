@@ -2955,11 +2955,11 @@ def _render_guidance_bridge(ss):
     meta = b["meta"]
 
     ui.label("Guidance Bridge — the decision, then the evidence").classes(
-        "font-bold").style("font-size:var(--fs-base);margin-top:8px;")
+        "font-bold").style("font-size:var(--fs-md);margin-top:8px;")
     ui.label(f"{meta['reporting_quarter']} vs {meta['prior_quarter']} (QoQ) and {meta['prior_year_quarter']} (YoY), "
              "vs Street and the company's own guide — the full-year range bridge and what it implies for the rest "
              "of the year. Answer first; the full measurement is one click away.").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-bottom:4px;")
+        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:4px;")
 
     metrics = b["metrics"]
     syn = b.get("synthesis", {})
@@ -3092,7 +3092,7 @@ def _render_guidance_decision(ss, context="script"):
     _ebd_pr, _ebd_nw = _mrange("ebitda")
 
     ui.label("① Guidance analysis — the guided quarter, the year, and next year").classes("font-bold").style(
-        "font-size:var(--fs-md);")
+        "font-size:var(--fs-lg);")
     ui.label("The ranges are set on the CFO screen (Stage 1); this reads what they mean for each period and "
              "feeds the guidance language in the script below.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
@@ -3227,11 +3227,11 @@ def _render_guidance_decision(ss, context="script"):
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-variant-numeric:tabular-nums;")
 
     # ── ② READ THE IMPACT — the bridge, driven by the range set above ──
-    ui.label("② Read the impact").classes("font-bold").style("font-size:var(--fs-md);margin-top:12px;")
+    ui.label("② Read the impact").classes("font-bold").style("font-size:var(--fs-lg);margin-top:12px;")
     _render_guidance_bridge(ss)
 
     # ── ③ DRAFT THE LANGUAGE — from the decision, matched to last quarter, numbers verified ──
-    ui.label("③ Draft the language").classes("font-bold").style("font-size:var(--fs-md);margin-top:12px;")
+    ui.label("③ Draft the language").classes("font-bold").style("font-size:var(--fs-lg);margin-top:12px;")
     _prior_guid = _guidance_prior_language()
     _cons = _guidance_consistency(gd)
     if _prior_guid or _cons:
@@ -4574,7 +4574,7 @@ def _render_script_canvas(ss):
     _render_guidance_decision(ss)
 
     # ── ④ BUILD THE SCRIPT — the personas; tone flows from the guidance action above ──
-    ui.label("④ Build the script").classes("font-bold").style("font-size:var(--fs-md);")
+    ui.label("④ Build the script").classes("font-bold").style("font-size:var(--fs-lg);")
     ui.label("Every speaker's section, in order — IR, then CFO, then Business Operations, then CEO, then Q&A "
              "Prep and the assembled Full Script at the bottom. Tone follows the guidance decision above.").style(
         f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
