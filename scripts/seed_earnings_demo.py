@@ -157,7 +157,7 @@ _Q1_TURNS = [
      "slowly while the integrated book compounds. Adjusted EPS was $0.12, ahead of the $0.09 consensus and "
      "up from $0.09 a year ago. "
      "Turning to margins. Gross profit margin expanded 180 basis points year over year, to the high-fifties, "
-     "as the revenue mix shifted toward integrated acquiring, which carries a structurally higher margin "
+     "as the revenue mix shifted toward integrated payments, which carries a structurally higher margin "
      "than our legacy processing. Adjusted EBITDA was $5.1 million, a margin of roughly 20%, up more than "
      "300 basis points year over year, as we held operating expense growth well below revenue growth. And we "
      "generated positive free cash flow in the quarter, which funds the partner-onboarding investment Marcus "
@@ -586,7 +586,8 @@ _SCRIPT_TEXT = {
     "ir_open": (
         "Good afternoon, and thank you for joining Northlake Payments' second quarter fiscal 2026 earnings "
         "call. I'm Dana Whitfield, Director of Investor Relations. With me are Marcus Ellery, Chief "
-        "Executive Officer, and Priya Raman, Chief Financial Officer. As a reminder, we'll reference certain "
+        "Executive Officer, Tom Vance, Chief Revenue Officer, and Priya Raman, Chief Financial Officer. "
+        "As a reminder, we'll reference certain "
         "non-GAAP measures today, which are reconciled to GAAP in our earnings release. With that, I'll turn "
         "the call over to Marcus."),
     "cfo_fin": (
@@ -606,7 +607,7 @@ _SCRIPT_TEXT = {
         "as higher-economics integrated volume becomes a larger share of the total, the blended rate rises "
         "mechanically.\n\n"
         "Moving to profitability. Gross margin expanded to 58.3%, as the revenue mix shifted toward "
-        "integrated acquiring, which carries a structurally higher margin than legacy processing. Adjusted "
+        "integrated payments, which carries a structurally higher margin than legacy processing. Adjusted "
         "EBITDA was $5.4 million, a margin of roughly 21%, and adjusted earnings per share was $0.13, up "
         "from $0.10 a year ago. The margin expansion came from two places: the gross-margin lift I just "
         "described, and operating leverage — we grew operating expenses well below our revenue growth rate. "

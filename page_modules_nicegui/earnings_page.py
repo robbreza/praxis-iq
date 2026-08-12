@@ -644,6 +644,31 @@ def _contacts():
     return out
 
 
+def _speaker_roster(contacts=None, roles=("CEO", "CRO", "CFO"), with_titles=True):
+    """Natural-language roster of the executives on the call, in speaking order.
+
+    Built from _contacts() so no call site can hardcode a subset of the lineup —
+    that was the bug that once dropped the CRO from the IR opening. Skips a role
+    that isn't configured, and — when the confirmed lineup marks who presents —
+    skips anyone flagged not speaking. Returns "" if nobody qualifies."""
+    contacts = contacts or _contacts()
+    parts = []
+    for role in roles:
+        c = contacts.get(role) or {}
+        name = (c.get("name") or "").strip()
+        if not name or name.startswith("—"):
+            continue
+        if c.get("speaking") is False:
+            continue
+        title = (c.get("title") or "").strip()
+        parts.append(f"{name}, our {title}" if (with_titles and title) else name)
+    if len(parts) <= 1:
+        return parts[0] if parts else ""
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return ", ".join(parts[:-1]) + ", and " + parts[-1]
+
+
 def _blank_script_state():
     return {
         "current_stage": "cfo_numbers",
@@ -1168,7 +1193,7 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
                   "inline": "It was a solid quarter, in line with our commitment",
                   "miss": "We made continued sequential progress this quarter"}[bucket]
         return (f"Good afternoon, and thank you for joining {ticker}'s {CE().get('current_quarter','')} "
-                f"earnings call. {opener}. Joining me today are {contacts['CEO']['name']} and {contacts['CFO']['name']}. "
+                f"earnings call. {opener}. Joining me today are {_speaker_roster(contacts)}. "
                 f"Before we begin, I'll remind everyone that today's call includes forward-looking statements "
                 f"subject to risks and uncertainties described in our SEC filings.")
     if role == "CFO":
@@ -1211,7 +1236,7 @@ def _fallback_draft(role, n, what_new, ticker, ops=None, gd=None):
                 f"go-lives and rising attach across the installed base both contributed.",
                 f"Net revenue retention was {n.get('nrr',0):.0f}%, reflecting the durability of the partner book, "
                 f"and net take-rate expanded to {n.get('take_rate',0):.0f} basis points — entirely from the mix "
-                f"shift toward integrated acquiring, not pricing.",
+                f"shift toward integrated payments, not pricing.",
                 what_new or "Partner onboarding continued at a strong pace this quarter.",
             ]
             return " ".join(sentences)
@@ -1384,8 +1409,8 @@ def _generate_persona_draft(role, ss, context=""):
 
     prompts = {
         "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
-              f"({contacts['CEO']['name']} CEO, {contacts['CFO']['name']} CFO) and the standard "
-              f"forward-looking-statements reminder. {tone_line}"
+              f"(introduce every one of these, by name and title, in this order: {_speaker_roster(contacts)}) "
+              f"and the standard forward-looking-statements reminder. {tone_line}"
               f"What should change from last quarter's opening (see Step 1 review): "
               f"{what_new or 'no specific updates provided — keep the tone consistent with last quarter'}. "
               f"Professional, concise, plain text (no markdown).",
@@ -1401,7 +1426,7 @@ def _generate_persona_draft(role, ss, context=""):
             f"the Street tracks: integrated payments volume (TPV) ${n.get('tpv',0):.2f}B, up "
             f"{n.get('tpv_yoy',0):.0f}% year over year; net revenue retention {n.get('nrr',0):.0f}%; and net "
             f"take-rate {n.get('take_rate',0):.0f} basis points (expanding on the mix shift toward integrated "
-            f"acquiring, NOT pricing). What's new this quarter: {what_new or 'no specific updates provided'}. "
+            f"payments, NOT pricing). What's new this quarter: {what_new or 'no specific updates provided'}. "
             f"Professional tone, plain text (no markdown), 3-5 sentences."
             if _illus else
             f"Write a business-operations paragraph for an earnings call covering: transaction volume "

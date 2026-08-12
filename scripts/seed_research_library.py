@@ -58,7 +58,7 @@ _NOTES = [
      "Q2 preview: net take-rate is the tell — we look for a fifth straight quarter of expansion. Reiterate Buy.",
      [("Thesis", "We continue to see Northlake as a net-revenue compounder mispriced on a gross-revenue "
                  "optic. PayFac attach is the swing factor — as more volume moves onto the integrated "
-                 "acquiring stack, net take-rate steps up and the mix shifts toward durable, recurring "
+                 "payments stack, net take-rate steps up and the mix shifts toward durable, recurring "
                  "software-like economics."),
       ("The KPI we underwrite: net take-rate", "If we could watch only one line, it would be net take-rate — "
                  "the net spread Northlake keeps on integrated volume, and the single cleanest read on business "
@@ -91,7 +91,7 @@ _NOTES = [
     ("Calder & Co.", "Neil Barrow", "Buy", 42.0, "NLKP_Calder_Estimate_Update.pdf",
      "Raising estimates on stronger volume; PayFac attach ahead of plan. Reiterate Buy.",
      [("Estimate change", "We raise Q2 and FY net-revenue estimates modestly on better-than-expected "
-                          "processing volume and a favorable mix shift toward integrated acquiring."),
+                          "processing volume and a favorable mix shift toward integrated payments."),
       ("Margins", "Operating leverage is coming through; we nudge EBITDA higher and see a credible path to "
                   "mid-20s margins as the software mix builds."),
       ("Catalysts", "Q2 print, a potential guidance raise, and new ISV partner announcements.")]),
