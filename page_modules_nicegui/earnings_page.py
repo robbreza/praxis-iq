@@ -192,7 +192,7 @@ _HISTORICAL_WPM = round(
 # and wasn't separately timed in the Q1 breakdown), so it's omitted rather
 # than guessed.
 _SECTION_HISTORICAL_MINUTES = {"IR": 1.0, "CRO": 12.0, "CFO": 10.0, "CEO": 8.0, "guidance": 4.0}
-_CALL_OPENING_BUDGET_MIN = 2.0   # operator intro + safe harbor + host welcome — short, fixed boilerplate
+_CALL_OPENING_BUDGET_MIN = 1.5   # operator intro + safe harbor — short, fixed boilerplate (welcome is IR's)
 
 
 def _pacing_estimate(text, hist_key=None):
@@ -387,6 +387,8 @@ def _call_opening_defaults(ss):
                       "available during the question-and-answer session at the end of our call." \
         if qa_only else ""
 
+    # Fallback host welcome — used ONLY when the IR Opening persona (ir_open) has no welcome of its own
+    # (see _use_call_opening_welcome). When IR provides the welcome, this is dropped so nobody welcomes twice.
     welcome_line = (
         f"Thank you, operator, and thank you for joining our call today. Welcome to {company}'s "
         f"{quarter} conference call. The earnings release, which we issued today after the market "
@@ -409,6 +411,13 @@ def _call_opening_text(ss):
     return _call_opening_effective(period, _call_opening_defaults(ss))
 
 
+def _use_call_opening_welcome(ss):
+    """True when the call opening should supply the host welcome — i.e. the IR Opening persona (ir_open)
+    has no welcome of its own. When IR provides the welcome, the call-opening welcome is dropped so the host
+    doesn't welcome twice. (Demo/USIO carry the welcome in ir_open; SARO/CEVA rely on the call opening.)"""
+    return not ((ss.get("script_text") or {}).get("ir_open") or "").strip()
+
+
 def _render_call_opening(ss):
     """Editable Call Opening — operator intro, IR welcome, and the Reg FD / safe-harbor reading.
     Pre-filled from last quarter (carry-over), editable, saved per quarter, and always prepended to
@@ -420,7 +429,7 @@ def _render_call_opening(ss):
     with ui.card().classes("w-full").style(
             "background:rgba(180,83,9,.06);border:2px solid #B45309;border-radius:8px;"
             "padding:12px 14px;margin-bottom:12px;"):
-        ui.label("Call Opening — Operator (intro + Reg FD / Safe Harbor) · Host Welcome").classes("font-bold").style(
+        ui.label("Call Opening — Operator intro + Reg FD / Safe Harbor").classes("font-bold").style(
             "color:#B45309;font-size:var(--fs-base);")
         ui.label("Carried over from last quarter — edit or add as needed. Similar every quarter, never "
                  "identical: a lineup change (e.g. an IR head handing lines to the operator) is a common "
@@ -431,15 +440,23 @@ def _render_call_opening(ss):
         @ui.refreshable
         def _body():
             op, wel, fls = _call_opening_effective(period, _call_opening_defaults(ss))
-            # Order matches delivery: operator intro → operator reads the safe harbor (+ handoff) → host welcome.
+            # Order matches delivery: operator intro → operator reads the safe harbor (+ handoff to host) →
+            # host welcome. The welcome lives in the IR Opening persona section when it has one — so the
+            # welcome editor here shows ONLY as the fallback for a tenant whose IR section has no welcome.
             op_in = ui.textarea("Operator — opening", value=op).classes("w-full").props("outlined autogrow")
             fls_in = ui.textarea("Operator — Forward-Looking Statements / Safe Harbor (Legal-approved)",
                                  value=fls).classes("w-full").props("outlined autogrow")
-            wel_in = ui.textarea(f"{ir.get('name', 'IR')} — Welcome & Participants", value=wel).classes(
-                "w-full").props("outlined autogrow")
+            _show_wel = _use_call_opening_welcome(ss)
+            wel_in = None
+            if _show_wel:
+                wel_in = ui.textarea(f"{ir.get('name', 'IR')} — Welcome & Participants", value=wel).classes(
+                    "w-full").props("outlined autogrow")
+            else:
+                ui.label("The host welcome and participant intro are the IR Opening section below.").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
-            def _save():
-                _save_call_opening(period, op_in.value, wel_in.value, fls_in.value)
+            def _save(wel_in=wel_in):
+                _save_call_opening(period, op_in.value, (wel_in.value if wel_in is not None else ""), fls_in.value)
                 ui.notify(f"Call opening saved for {period}.", type="positive")
 
             def _reset():
@@ -4022,8 +4039,9 @@ def _call_time_budget(ss):
 
     rows = []
     op, welcome, fls = _call_opening_text(ss)
-    ow, om = est(" ".join(x for x in (op, welcome, fls) if x))
-    rows.append({"label": "Call opening (operator intro + safe harbor + host welcome)", "words": ow, "est": om,
+    _co_parts = [op, fls] + ([welcome] if _use_call_opening_welcome(ss) else [])
+    ow, om = est(" ".join(x for x in _co_parts if x))
+    rows.append({"label": "Call opening (operator intro + safe harbor)", "words": ow, "est": om,
                  "budget": _CALL_OPENING_BUDGET_MIN})
     for role, key, label in _active_personas():
         w, mn = est(ss["script_text"].get(key, ""))
@@ -4087,7 +4105,7 @@ def _script_blocks(ss):
     if op_full:
         blocks.append(("Operator", "Call opening & safe harbor", op_full))
     ir_name = contacts.get("IR", {}).get("name", "Investor Relations")
-    if welcome and welcome.strip():
+    if welcome and welcome.strip() and _use_call_opening_welcome(ss):
         blocks.append((ir_name, "Welcome & participants", welcome))
     for role, key, label in _active_personas():
         txt = ss["script_text"].get(key, "")
@@ -4703,8 +4721,12 @@ def _assembled_script_text(ss):
     always freshly recomputed from the individual persona sections, ignoring
     any full_script_override."""
     operator_line, welcome_line, fls_line = _call_opening_text(ss)
-    # Operator reads the intro AND the safe harbor (with the handoff), THEN the host welcomes.
-    full_parts = [operator_line, fls_line, welcome_line]
+    # Operator reads the intro AND the safe harbor (with the handoff to the host). The host welcome comes from
+    # the IR Opening persona section (script_text below); only when IR has no welcome do we fall back to the
+    # call-opening welcome here — so the host never welcomes twice, and no tenant loses the welcome entirely.
+    full_parts = [operator_line, fls_line]
+    if _use_call_opening_welcome(ss):
+        full_parts.append(welcome_line)
     full_parts += [ss["script_text"].get(key, "") for _, key, _ in _active_personas()]
     guidance_final_text = ss.get("guidance_decision", {}).get("text", "")
     if guidance_final_text:
