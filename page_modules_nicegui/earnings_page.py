@@ -3025,7 +3025,7 @@ def _render_callback_qa_prep(ss):
             ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
 
 
-def _render_guidance_drafter(ss):
+def _render_guidance_drafter(ss, on_submit=None):
     """The WRITING surface for the Guidance & Outlook section of the Script Canvas — prior-quarter wording
     to match, the optional H2-context input, the AI drafter, the editable draft box with a length read, and
     the live consistency check. Self-contained (recomputes the decided range from ss, the single source) so
@@ -3096,6 +3096,8 @@ def _render_guidance_drafter(ss):
                 _save_json("script_workflow_state.json", ss)
                 fy = (_ge.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
                       if gd.get("new_low") is not None else None)
+                if on_submit:
+                    on_submit()            # re-assemble the Full Script panel so this edit shows immediately
                 ui.notify("Guidance submitted to script." + (f" {fy} updated across the platform." if fy else ""),
                           type="positive")
             ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
@@ -3128,7 +3130,7 @@ def _render_guidance_drafter(ss):
         render_guidance_draft_box(gd["text"])
 
 
-def _render_guidance_decision(ss, context="script"):
+def _render_guidance_decision(ss, context="script", on_submit=None):
     """Guidance & Outlook Decision Engine — renders ahead of the CEO's own
     Step 1 review in _render_persona_steps, since the CEO narrative's tone/
     H2-confidence language/closing are all supposed to flow from whichever
@@ -3410,6 +3412,8 @@ def _render_guidance_decision(ss, context="script"):
                 _save_json("script_workflow_state.json", ss)
                 fy = (_ge.commit_fy_guidance(gd.get("new_low"), gd.get("new_hi"))
                       if gd.get("new_low") is not None else None)
+                if on_submit:
+                    on_submit()            # re-assemble the Full Script panel so this edit shows immediately
                 ui.notify("Guidance submitted to script." + (f" {fy} updated across the platform." if fy else ""),
                           type="positive")
             ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
@@ -3460,7 +3464,7 @@ def _render_guidance_decision(ss, context="script"):
     ui.markdown("---")
 
 
-def _render_persona_steps(ss, role, key):
+def _render_persona_steps(ss, role, key, on_submit=None):
     """Step 1 (review last quarter) / Step 2 (what's new) / Step 3 (generate)
     for one persona's script-canvas panel — ported from app.py's per-persona
     3-step drafting pattern (previously collapsed into a single bare
@@ -3637,6 +3641,8 @@ def _render_persona_steps(ss, role, key):
             def submit_to_script(box=box, key=key, role=role):
                 ss["script_text"][key] = box.value
                 _save_json("script_workflow_state.json", ss)
+                if on_submit:
+                    on_submit()            # re-assemble the Full Script panel so this edit shows immediately
                 ui.notify(f"Submitted to script — {role} section updated.", type="positive")
 
             ui.button("Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
@@ -4753,20 +4759,21 @@ def _render_decision_bar(ss):
                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);")
 
 
-def _render_section_editor(ss, sec):
+def _render_section_editor(ss, sec, on_submit=None):
     """The drafting surface for one section — the existing per-section drafting tools, placed as the CENTER
-    pane of the canvas. IR carries the fixed Call Opening ahead of its own remarks."""
+    pane of the canvas. IR carries the fixed Call Opening ahead of its own remarks. on_submit refreshes the
+    assembled Full Script panel when this section's draft is submitted."""
     kind, role = sec["kind"], sec.get("role")
     ui.label(sec["label"]).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
     ui.label(sec.get("sub", "")).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
     if kind == "guidance":
-        _render_guidance_drafter(ss)
+        _render_guidance_drafter(ss, on_submit=on_submit)
     elif kind == "qa":
         _render_qa_prep_tab(ss)
     elif kind == "persona":
         if role == "IR":
             _render_call_opening(ss)
-        _render_persona_steps(ss, role, sec["key"])
+        _render_persona_steps(ss, role, sec["key"], on_submit=on_submit)
 
 
 def _rail_head(txt):
@@ -4904,6 +4911,15 @@ def _render_script_canvas(ss):
             f"border-left:1px solid {COLORS['border']};padding:12px 14px;gap:9px;"
             "position:sticky;top:70px;align-self:flex-start;max-height:calc(100vh - 92px);overflow-y:auto;")
 
+    # Holder for the assembled Full Script textarea (built below) so a section submit can refresh it live —
+    # otherwise the panel keeps the stale text it was built with and the edit "doesn't show" until reload.
+    _fullref = {}
+
+    def _refresh_full():
+        ta = _fullref.get("box")
+        if ta is not None:
+            ta.value = _full_script_text(ss)
+
     def show(sid):
         for s in sections:
             b = nav_btns[s["id"]]
@@ -4917,7 +4933,7 @@ def _render_script_canvas(ss):
         rail.clear()
         sec = next(s for s in sections if s["id"] == sid)
         with editor:
-            _render_section_editor(ss, sec)
+            _render_section_editor(ss, sec, on_submit=_refresh_full)
         with rail:
             _render_section_rail(ss, sec)
 
@@ -4974,6 +4990,7 @@ def _render_script_canvas(ss):
                   "this exact text is the version moving forward to CFO/CEO review.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         full_box = ui.textarea("Full Script", value=_full_script_text(ss)).classes("w-full").props("rows=16 outlined")
+        _fullref["box"] = full_box   # so a section submit refreshes this panel live (see _refresh_full)
 
         saved_at = ss.get("full_script_override_saved_at")
         status_label = ui.label(
