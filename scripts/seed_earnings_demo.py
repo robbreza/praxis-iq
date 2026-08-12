@@ -62,9 +62,10 @@ _Q1_TURNS = [
 
     ("Dana Whitfield, Investor Relations",
      "Thank you, operator, and good afternoon, everyone. Welcome to Northlake Payments' first quarter 2026 "
-     "earnings call. With me today are Marcus Ellery, our Chief Executive Officer, and Priya Raman, our "
-     "Chief Financial Officer. Marcus will begin with a review of the quarter and our strategy, Priya will "
-     "walk through the financial results and our outlook, and then we'll open the line for your questions. "
+     "earnings call. With me today are Marcus Ellery, our Chief Executive Officer, Tom Vance, our Chief "
+     "Revenue Officer, and Priya Raman, our Chief Financial Officer. Marcus will begin with a review of the "
+     "quarter and our strategy, Tom will cover our go-to-market and partner progress, Priya will walk "
+     "through the financial results and our outlook, and then we'll open the line for your questions. "
      "Before we begin, I'd like to remind everyone that today's call contains forward-looking statements "
      "within the meaning of the Private Securities Litigation Reform Act. These statements are subject to "
      "risks and uncertainties that could cause actual results to differ materially, and we refer you to the "
@@ -132,10 +133,23 @@ _Q1_TURNS = [
      "addressable partner universe over time. So when I talk about a long runway, I mean years of attach "
      "growth from assets we already have, with real optionality layered on top. "
      "With that, I'll turn it over to "
-     "Priya to walk through the financials and our outlook."),
+     "Tom for an update on our go-to-market and partner progress, and then Priya on the financials and outlook."),
+
+    ("Tom Vance, Chief Revenue Officer",
+     "Thanks, Marcus, and good afternoon, everyone. Let me add some color on the go-to-market side. We "
+     "brought twelve new partners live in the first quarter, and we exited the quarter with more than twenty "
+     "ISV partners in active implementation — that pipeline is what gives us confidence in the back-half-"
+     "weighted go-live cadence Priya will reference in the outlook. Integrated volume grew 28% year over "
+     "year, and just as important, attach within our existing partner base continues to deepen: the majority "
+     "of the end merchants sitting inside our live partners have still not adopted integrated payments, so "
+     "the conversion runway is in front of us, not behind us. On new verticals, our property-management "
+     "pilot is live with two anchor partners, and we are in evaluation on membership and recreation, which "
+     "over time roughly double our addressable partner universe. And net revenue retention held at 112%, "
+     "which tells you the installed base is compounding before we add a single new logo. With that, I'll "
+     "hand it to Priya for the financials and our outlook."),
 
     ("Priya Raman, Chief Financial Officer",
-     "Thank you, Marcus, and good afternoon, everyone. I'll cover the first-quarter results and then our "
+     "Thank you, Tom, and good afternoon, everyone. I'll cover the first-quarter results and then our "
      "outlook. First-quarter net revenue was $25.3 million, up 19% year over year and above the high end of "
      "our $24.6 to $25.0 million guidance range. The growth was led by integrated payments, where volume "
      "grew 28% and net revenue grew faster than volume as take-rate expanded. Our transaction-based revenue "
@@ -423,8 +437,12 @@ _TRANSCRIPTS = {
                        "range with an explicit upside bias into H2, and pushed back on prepaid-float "
                        "concerns (stable balances, not modeled as a growth driver)."),
         "key_quotes": [
+            {"quote": "With me today are Marcus Ellery, CEO, Tom Vance, Chief Revenue Officer, and Priya Raman, CFO. Today's call contains forward-looking statements; a non-GAAP reconciliation is in today's release.",
+             "speaker": "Dana Whitfield, Investor Relations"},
             {"quote": "Integrated payments volume grew 28%, and as that mix continues to build, our net take-rate steps up.",
              "speaker": "Marcus Ellery, CEO"},
+            {"quote": "The majority of end merchants inside our live partners have still not adopted integrated payments — the conversion runway is in front of us, not behind us.",
+             "speaker": "Tom Vance, Chief Revenue Officer"},
             {"quote": "We are reiterating our guidance and, given the first-quarter trajectory, we see the bias to the upside on the full-year range.",
              "speaker": "Priya Raman, CFO"},
             {"quote": "Benchmark us on gross profit, not gross revenue — that's where the model's economics show up.",

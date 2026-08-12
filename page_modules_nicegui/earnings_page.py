@@ -270,8 +270,8 @@ def _get_current_qa_actions():
 PERSONAS = [
     ("IR", "ir_open", "IR Opening"),
     ("CEO", "ceo_narrative", "CEO Narrative + Guidance"),
-    ("CFO", "cfo_fin", "CFO Financial Review"),
     ("CRO", "cro_ops", "Business Operations"),
+    ("CFO", "cfo_fin", "CFO Financial Review"),
 ]
 
 
