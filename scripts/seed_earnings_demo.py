@@ -586,10 +586,9 @@ _SCRIPT_TEXT = {
     "ir_open": (
         "Good afternoon, and thank you for joining Northlake Payments' second quarter fiscal 2026 earnings "
         "call. I'm Dana Whitfield, Director of Investor Relations. With me are Marcus Ellery, Chief "
-        "Executive Officer, and Priya Raman, Chief Financial Officer. Before we begin, today's call "
-        "contains forward-looking statements subject to risks and uncertainties; please refer to the risk "
-        "factors in our most recent SEC filings. We'll also reference non-GAAP measures, reconciled in "
-        "today's release. With that, I'll turn the call over to Marcus."),
+        "Executive Officer, and Priya Raman, Chief Financial Officer. As a reminder, we'll reference certain "
+        "non-GAAP measures today, which are reconciled to GAAP in our earnings release. With that, I'll turn "
+        "the call over to Marcus."),
     "cfo_fin": (
         "Thank you, Tom, and good afternoon, everyone. I'll cover the second-quarter results in detail and "
         "then walk through our updated outlook.\n\n"
