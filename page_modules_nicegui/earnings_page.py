@@ -3498,6 +3498,27 @@ def _render_guidance_decision(ss, context="script", on_submit=None):
     ui.markdown("---")
 
 
+def _diff_html(old, new):
+    """A word-level diff of two drafts as HTML — unchanged text plain, INSERTED words highlighted green,
+    DELETED words struck through in red — so a Refine's changes are visible even though the plain textarea
+    itself can't render highlights. Deterministic (difflib), no AI."""
+    import difflib
+    import html as _h
+    ow, nw = (old or "").split(), (new or "").split()
+    parts = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ow, nw, autojunk=False).get_opcodes():
+        if op == "equal":
+            parts.append(_h.escape(" ".join(ow[i1:i2])))
+            continue
+        if i2 > i1:
+            parts.append('<span style="color:#B91C1C;text-decoration:line-through;">'
+                         + _h.escape(" ".join(ow[i1:i2])) + "</span>")
+        if j2 > j1:
+            parts.append('<span style="background:#DCFCE7;color:#166534;font-weight:600;'
+                         'border-radius:3px;padding:0 2px;">' + _h.escape(" ".join(nw[j1:j2])) + "</span>")
+    return " ".join(p for p in parts if p) or "<em>No wording changed.</em>"
+
+
 def _render_persona_steps(ss, role, key, on_submit=None):
     """Step 1 (review last quarter) / Step 2 (what's new) / Step 3 (generate)
     for one persona's script-canvas panel — ported from app.py's per-persona
@@ -3644,12 +3665,13 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                     if not instr:
                         ui.notify("Type an instruction first — what should change?", type="warning")
                         return
-                    if not (box.value or "").strip():
+                    _old = box.value or ""
+                    if not _old.strip():
                         ui.notify("Nothing to refine yet — generate a draft first.", type="warning")
                         return
                     ui.notify("Refining draft…", type="info")
                     try:
-                        revised, was_ai = _refine_persona_draft(box.value, instr, role, ss)
+                        revised, was_ai = _refine_persona_draft(_old, instr, role, ss)
                         if not was_ai:
                             ui.notify("Refine needs the AI (ANTHROPIC_API_KEY) — draft left unchanged.",
                                       type="warning")
@@ -3660,13 +3682,24 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                         note, clr = _pacing_estimate(revised, role)
                         pace_label.text = note
                         pace_label.style(f"color:{clr};font-size:var(--fs-xs);")
-                        ui.notify("Refined — review above; refine again or Submit.", type="positive")
+                        # Show exactly what changed — the textarea can't highlight, so render a word-level diff.
+                        diff_area.clear()
+                        with diff_area:
+                            ui.label("What changed in this Refine — added is highlighted, removed is struck through:").style(
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:4px;")
+                            ui.html('<div style="background:' + COLORS['surface_hover_bg'] + ';border:1px solid '
+                                    + COLORS['border'] + ';border-radius:6px;padding:9px 12px;font-size:13.5px;'
+                                    'line-height:1.65;color:' + COLORS['text_body'] + ';">' + _diff_html(_old, revised) + '</div>')
+                        ui.notify("Refined — the highlighted diff below shows what changed. Refine again or Submit.",
+                                  type="positive")
                     except Exception as exc:
                         ui.notify(f"Refine failed: {exc}", type="negative")
                         raise
 
                 ui.button("Refine", icon="auto_fix_high", on_click=refine).props(
                     "color=primary dense outline")
+
+            diff_area = ui.column().classes("w-full")   # populated with a highlighted diff after each Refine
 
             def submit_to_script(box=box, key=key, role=role):
                 ss["script_text"][key] = box.value
