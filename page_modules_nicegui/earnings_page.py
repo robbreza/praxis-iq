@@ -4858,6 +4858,31 @@ def _render_section_rail(ss, sec):
             ui.label("Lead with the durable, recurring economics and the acceleration in the operating "
                      "drivers. Tone: confident but measured — a beat-and-raise, not a victory lap.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+    elif role == "CRO":
+        kpis = [M[k] for k in ("tpv", "nrr", "take_rate") if k in M]
+        if kpis:
+            with _rail_card("Operating drivers", hi=True):
+                for m in kpis:
+                    yoy = (m.get("yoy") or {}).get("pct")
+                    _rail_row(m.get("label", ""), _fmt_metric(m.get("actual"), m.get("fmt", "money"))
+                              + (f" · {yoy:+.0f}% YoY" if yoy is not None else ""))
+        ops = ss.get("q2_ops_metrics", {}) or {}
+        if any(ops.get(k) is not None for k in ("new_partner_golives", "isv_in_impl", "integrated_mix")):
+            with _rail_card("Partner pipeline"):
+                if ops.get("new_partner_golives") is not None:
+                    _rail_row("New-partner go-lives", str(ops["new_partner_golives"]))
+                if ops.get("isv_in_impl") is not None:
+                    _rail_row("ISVs in implementation", str(ops["isv_in_impl"]), COLORS["positive"])
+                if ops.get("integrated_mix") is not None:
+                    _rail_row("Integrated mix", f"{ops['integrated_mix']:.0f}% → 65%+")
+        if ops.get("new_verticals"):
+            with _rail_card("New verticals"):
+                ui.label(ops["new_verticals"]).style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
+        with _rail_card("H2 catalyst framing"):
+            ui.label("Back-half-weighted go-lives are the ramp that supports the raised guide — name at "
+                     "least two on the call.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1.45;")
     elif kind == "qa":
         rev = M.get("rev") or {}
         with _rail_card("What they'll probe — and the anchor", hi=True):
