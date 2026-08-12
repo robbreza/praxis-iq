@@ -3591,13 +3591,8 @@ def _render_persona_steps(ss, role, key, on_submit=None):
     if role in ("IR", "CFO", "CEO"):
         tone = _tone_context(ss)
         ui.label(f"Tone read from Stage 1 numbers: {tone['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    final_notes_input = ui.input("Additional notes for this draft (optional)", value=notes.get("final_notes", "")).props("outlined dense").classes("w-full")
-
-    def save_final_notes(e, notes=notes):
-        notes["final_notes"] = e.value
-        _save_json("script_workflow_state.json", ss)
-
-    final_notes_input.on_value_change(save_final_notes)
+    # "Additional notes" is folded into the Step 2 instruction above — one box BEFORE Generate, one (Refine)
+    # AFTER — so it's unambiguous where to type. Generate reads the Step 2 instruction directly.
 
     # render_draft_box/generate are defined here but the "Generate with AI"
     # button and draft_area's actual placement (below) are what determine
@@ -3677,7 +3672,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
 
             ui.button("Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
 
-    def _do_generate(role=role, key=key, whats_new_input=whats_new_input, final_notes_input=final_notes_input):
+    def _do_generate(role=role, key=key, whats_new_input=whats_new_input):
         # Wrapped in try/except + an immediate "Generating…" notify — a bare
         # click that produces neither a draft nor an error is exactly what a
         # silent server-side exception looks like from the browser (NiceGUI
@@ -3685,8 +3680,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
         # instead of looking like the button did nothing.
         ui.notify("Generating draft…", type="info")
         try:
-            combined = " | ".join(filter(None, [whats_new_input.value, final_notes_input.value]))
-            draft, was_ai = _generate_persona_draft(role, ss, combined)
+            draft, was_ai = _generate_persona_draft(role, ss, (whats_new_input.value or "").strip())
             if not draft:
                 ui.notify("Generation returned nothing — check Stage 1 numbers were submitted.", type="warning")
                 return
