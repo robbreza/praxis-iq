@@ -3895,11 +3895,16 @@ def _number_tieout(ss):
     num_re = re.compile(
         r'(\$)?\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s?(billion|million|percent|bps|%|\bB\b|\bM\b|\bK\b)?',
         re.I)
-    # Comparison cues that mark a figure as a reference (a guide, the Street, a prior period),
-    # NOT the metric itself — if one sits just before the figure, it's never a "mismatch".
+    # Cues that mark a figure as a REFERENCE (a guide, the Street, a prior period) or FORWARD-LOOKING
+    # (guidance we expect, not a reported actual) — NOT the metric itself. If one sits in the figure's
+    # sentence, it's never a "mismatch". The forward-looking group is what stops a Q3 guidance range like
+    # "we expect net revenue of $26.4 to $26.9 million" from reading as a misstated Q2 actual.
     _COMPARE_CUES = ("guide", "street", "consensus", "estimate", "expectation", "versus", " vs ",
                      "ahead of", "compared", "prior", "year-ago", "year ago", "a year", "up from",
-                     "down from", "from $", " than ", "above", "below", "beat", "target", "outlook", "forecast")
+                     "down from", "from $", " than ", "above", "below", "beat", "target", "outlook", "forecast",
+                     # forward-looking (guidance, not actual)
+                     "expect", "anticipate", "we see", "range of", "guiding", "for the full year",
+                     "for the second half", "for the third quarter", "for the fourth quarter", "next quarter")
     matched_labels, mismatch_labels, seen = set(), set(), set()
     for m in num_re.finditer(script):
         dollar, raw, suf = m.group(1), m.group(2), (m.group(3) or "").lower()
@@ -3918,7 +3923,12 @@ def _number_tieout(ss):
         else:
             continue  # plain integers ("20 years", "3 questions") — too noisy to audit
         snippet = script[max(0, m.start() - 45):min(len(script), m.end() + 30)].replace("\n", " ").strip()
-        pre = script[max(0, m.start() - 30):m.start()].lower()  # tight window immediately before the figure
+        pre = script[max(0, m.start() - 30):m.start()].lower()  # tight window: the headline KEYWORD must sit here
+        # Comparison / forward-looking cues are checked across the figure's WHOLE SENTENCE (not just 30 chars),
+        # so "…third quarter we expect net revenue of $26.4 to $26.9 million" is read as guidance, not a
+        # misstated actual — the "we expect" is ~40 chars back, past the tight window.
+        _sb = max(script.rfind(". ", 0, m.start()), script.rfind("\n", 0, m.start())) + 1
+        pre_cue = script[_sb:m.start()].lower()
         same = [s for s in sources if s[2] == cls]
         if any(eq(val, s[1]) for s in same):
             for s in same:
@@ -3929,7 +3939,7 @@ def _number_tieout(ss):
         # window right BEFORE the figure, with no comparison cue there — so "$100M guide",
         # "$102M Street" and "up from $88M" read as comparisons, not misstatements of the metric.
         flagged = False
-        if not any(c in pre for c in _COMPARE_CUES):
+        if not any(c in pre_cue for c in _COMPARE_CUES):
             for label, sval, _cls, kws, headline in same:
                 if headline and near(val, sval) and any(k in pre for k in kws):
                     out["mismatches"].append({"label": label, "source": sval, "script": val, "snippet": snippet})
