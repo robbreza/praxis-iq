@@ -2331,13 +2331,29 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
         + f"H2 catalysts from this quarter's operating detail, reference at least 2 (mark speculative specifics "
         f"as [FLS]...[/FLS]): {catalysts_block}. Writing rules: {_guidance_writing_rules()} "
         f"Additional context: {extra_context or 'none provided'}. "
-        f"Tone: {tone['label']}. Target 300-350 words, plain text (no markdown)."
+        f"Tone: {tone['label']}. Target 300-350 words, plain text (no markdown). Do NOT begin with a "
+        f"heading or title (e.g. 'GUIDANCE AND OUTLOOK') — output only the spoken remarks."
     )
-    draft = _call_claude_script(prompt, 700)
+    draft = _strip_guidance_heading(_call_claude_script(prompt, 700))
     if draft:
         return draft, True
-    return _guidance_template_draft(action, new_low, new_hi, rationale,
-                                    other_guidance=_other, h2_comp=_h2, catalysts=_cats), False
+    return _strip_guidance_heading(_guidance_template_draft(action, new_low, new_hi, rationale,
+                                   other_guidance=_other, h2_comp=_h2, catalysts=_cats)), False
+
+
+def _strip_guidance_heading(text):
+    """Drop a leading title line the AI sometimes prepends (e.g. 'GUIDANCE AND OUTLOOK') so the guidance
+    reads as continuous spoken remarks — a CFO doesn't say the heading aloud. Only strips a short, header-
+    like first line (no sentence punctuation), never real remarks."""
+    if not text:
+        return text
+    lines = text.lstrip("\n ").split("\n")
+    first = lines[0].strip()
+    _norm = first.lower().replace("&", "and").strip(" :")
+    if first and len(first.split()) <= 6 and not first.endswith((".", "?", "!")) and (
+            first.isupper() or _norm in ("guidance and outlook", "guidance", "outlook")):
+        return "\n".join(lines[1:]).lstrip("\n ")
+    return text
 
 
 def _guidance_prior_language():
