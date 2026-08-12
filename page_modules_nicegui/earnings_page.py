@@ -191,7 +191,7 @@ _HISTORICAL_WPM = round(
 # below — IR has no separate historical entry (the opening/handoff is brief
 # and wasn't separately timed in the Q1 breakdown), so it's omitted rather
 # than guessed.
-_SECTION_HISTORICAL_MINUTES = {"CRO": 10.0, "CFO": 10.0, "CEO": 8.0, "guidance": 4.0}
+_SECTION_HISTORICAL_MINUTES = {"CRO": 12.0, "CFO": 10.0, "CEO": 8.0, "guidance": 4.0}
 
 
 def _pacing_estimate(text, hist_key=None):
@@ -4953,7 +4953,10 @@ def _render_script_canvas(ss):
     def _refresh_full():
         ta = _fullref.get("box")
         if ta is not None:
-            ta.value = _full_script_text(ss)
+            # A section submit re-assembles from the sections (the source of truth), NOT _full_script_text,
+            # which would echo a stale manual override back and hide the edit. save_full_edit below then sees
+            # the box equals the assembly and clears any override, so section edits always flow through.
+            ta.value = _assembled_script_text(ss)
 
     def show(sid):
         for s in sections:
@@ -5034,10 +5037,15 @@ def _render_script_canvas(ss):
         ).style(f"color:{'#15803D' if saved_at else COLORS['text_muted']};font-size:var(--fs-xs);font-weight:{'600' if saved_at else '400'};")
 
         def save_full_edit(e):
-            # Autosave on every change so nothing is lost if the tab closes,
-            # but this alone isn't what tells the user "this is final" — the
-            # explicit Save button below does that with a clear confirmation.
-            ss["full_script_override"] = e.value
+            # Autosave on every change so nothing is lost if the tab closes, but only treat it as a manual
+            # OVERRIDE when the text actually DIFFERS from the freshly-assembled script. When it matches the
+            # assembly (e.g. a section-submit refresh just repopulated the box), clear the override so section
+            # edits keep flowing through instead of a stale full-script snapshot shadowing them.
+            if (e.value or "").strip() == _assembled_script_text(ss).strip():
+                ss.pop("full_script_override", None)
+                ss.pop("full_script_override_saved_at", None)
+            else:
+                ss["full_script_override"] = e.value
             _save_json("script_workflow_state.json", ss)
 
         full_box.on_value_change(save_full_edit)
