@@ -446,15 +446,18 @@ def render_today_page():
                         else:
                             ui.label(_top.get("title", "")).style(
                                 f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
-                    ui.label(f"{_top.get('provider', '')} · {(_top.get('pub') or '')[:10]}").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:16px;")
                     if _peer:
                         def _to_peer_news():
                             ui.run_javascript(
                                 "document.getElementById('peer-news-anchor')?."
                                 "scrollIntoView({behavior:'smooth', block:'start'});")
-                        ui.button(f"More peer & competitor news ({len(_peer)}) ↓", on_click=_to_peer_news) \
-                            .props("flat dense no-caps").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);margin-top:2px;margin-left:12px;")
+                        # A card footer: a divider rule above the link, flush to the card's
+                        # side and bottom edges (negative margins cancel the body padding).
+                        with ui.row().classes("w-full items-center").style(
+                                f"margin:12px -20px -14px;width:calc(100% + 40px);"
+                                f"border-top:1px solid {COLORS['border']};padding:8px 20px;"):
+                            ui.button(f"More peer & competitor news ({len(_peer)}) ↓", on_click=_to_peer_news) \
+                                .props("flat dense no-caps").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);")
 
         with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:12px 20px;"):
             # Header band flush to the card edges (negative margins cancel the card's padding) so the
