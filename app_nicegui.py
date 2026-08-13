@@ -151,8 +151,8 @@ NAV_GROUPS = [
         ("Calendar",  "calendar_month", "Calendar", "Earnings · conferences · NDR trips — every upcoming event, one page"),
     ]),
     ("INVESTOR TARGETING", [
-        ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
         ("Targeting", "my_location", "Targeting\nwho should own you", "Target database · Peer prospects · Import"),
+        ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
         ("Roadshow",  "route", "Outbound\nreach & track", "Meeting Hub · NDR · CRM"),
     ]),
     ("MARKET INTELLIGENCE", [

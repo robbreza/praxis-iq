@@ -1434,8 +1434,9 @@ def render_investors_page(section="ownership"):
         _mode_ctx["institutions"] = _score_institutions(raw_institutions, new_mode, q2_listeners, meeting_log)
         mode_state["mode"] = new_mode
         _save_json("buyside_mode.json", mode_state)
-        if section == "ownership":
+        if section == "targeting":
             _big_picture_section.refresh()
+        elif section == "ownership":
             _buyside_section.refresh()
         _mode_desc_section.refresh()
         _invalidate_mode_tabs()
@@ -1443,7 +1444,11 @@ def render_investors_page(section="ownership"):
     # Preamble: the "who owns you" Big Picture leads the Ownership section only. The Pre/Post-earnings
     # mode toggle drives scoring for Ownership + Targeting so it shows on both; Roadshow opens
     # straight into its tools using the saved mode.
-    if section == "ownership":
+    # The "Big Picture — Where Things Stand" synthesis (which includes the geographic "Institutions &
+    # Peer Ownership By City/Metro Area" table) leads TARGETING — it's the strategic "where to go"
+    # overview, and Targeting is now the first section. Ownership opens straight into its Buy-side/
+    # NOBO/Website tabs (whose Buyside Read already carries the who-owns-you summary).
+    if section == "targeting":
         _big_picture_section()
         ui.markdown("---")
     if section in ("ownership", "targeting"):
