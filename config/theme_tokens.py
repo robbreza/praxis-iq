@@ -74,7 +74,7 @@ INSTITUTIONAL = {
     "sidebar_bg":      "#EAEEF3",
     "surface_bg":      "#FFFFFF",
     "surface_hover_bg":"#EEF2F7",
-    "border":          "#9AA6B8",  # visible on white; never a low-contrast hairline
+    "border":          "#64748B",  # visible on white; never a low-contrast hairline
     "accent":          "#1E40AF",   # indigo-800 — primary accent / buttons
     "accent_strong":   "#1E3A8A",   # navy — active nav, emphasis
     "accent_strong_hover": "#182F6E",

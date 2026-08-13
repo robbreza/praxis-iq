@@ -2125,7 +2125,7 @@ ui.add_head_html(
     # Dashboard section container: a grounded white panel (border + radius + soft shadow) so a
     # section's heading and its contents read as one card instead of floating loose on the canvas.
     # The light-grey inner tiles (#EEF2F7) nest cleanly inside it.
-    ".today-panel{background:#FFFFFF;border:1px solid #9AA6B8;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);}"
+    ".today-panel{background:#FFFFFF;border:1px solid #64748B;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);}"
     # Chevrons were near-white and vanished into the background: force the select dropdown arrow
     # and the expansion toggle to a clear grey so they read as affordances.
     ".q-select__dropdown-icon{color:#64748B !important;}"
@@ -2137,17 +2137,17 @@ ui.add_head_html(
     # non-!important) AND by matching Quasar's own (0,3,4) specificity path — settled per the framework
     # source, not guesswork.
     # ---- real tables (ui.table) ----
-    ".q-table__container{background:#FFFFFF;border:1px solid #9AA6B8;border-radius:10px;overflow:hidden;"
+    ".q-table__container{background:#FFFFFF;border:1px solid #64748B;border-radius:10px;overflow:hidden;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);}"
     ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
     "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #D3DBE4 !important;}"
     ".q-table.q-table>tbody>tr:not(:last-child)>td,.q-table__middle>table.q-table>tbody>tr:not(:last-child)>td"
-    "{border-bottom:1px solid #9AA6B8 !important;}"
+    "{border-bottom:1px solid #64748B !important;}"
     ".q-table.q-table>tbody>tr:last-child>td{border-bottom:0 !important;}"
     ".q-table tbody td{color:#1F2733;padding:9px 14px;}"
     ".q-table tbody tr:hover td{background:#F8FAFC !important;}"
     # ---- report card + colored active header + count badge ----
-    ".report-card{background:#FFFFFF !important;border:1px solid #9AA6B8 !important;border-radius:12px !important;"
+    ".report-card{background:#FFFFFF !important;border:1px solid #64748B !important;border-radius:12px !important;"
     "overflow:hidden !important;box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;"
     "padding:0 !important;gap:0 !important;}"
     ".rhead{display:flex;align-items:center;gap:8px;width:100%;padding:10px 15px;font-size:12.5px;"
@@ -2160,7 +2160,7 @@ ui.add_head_html(
     ".rhead-neutral{background:#EEF2F7;color:#64748B;border-bottom:1px solid #D3DBE4;}"
     ".rhead-accent{background:#ECEEF8;color:#2F3AA8;border-bottom:1px solid #C7CCEC;}"
     ".rrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 15px;"
-    "border-bottom:1px solid #9AA6B8;color:#1F2733;}"
+    "border-bottom:1px solid #64748B;color:#1F2733;}"
     ".rrow:last-child{border-bottom:none;}"
     ".rrow:hover{background:#F8FAFC;}"
     ".rrow .rmeta{color:#727A89;font-size:12.5px;}"
@@ -2174,12 +2174,12 @@ ui.add_head_html(
     ".rpill-warn{background:#FBF0E0;color:#A35A06;}"
     ".rpill-def{background:#EEF2F7;color:#64748B;}"
     # ---- report KPI card ----
-    ".rkpi{background:#FFFFFF !important;border:1px solid #9AA6B8 !important;border-radius:12px !important;"
+    ".rkpi{background:#FFFFFF !important;border:1px solid #64748B !important;border-radius:12px !important;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;padding:15px 16px !important;gap:3px !important;}"
     ".rkpi-lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;font-weight:700;}"
     # Titled header with an underline rule (header → number → analysis order).
     ".rkpi-head{font-size:14px;font-weight:700;color:#1F2733;width:100%;padding-bottom:6px;"
-    "border-bottom:1.5px solid #9AA6B8;}"
+    "border-bottom:1.5px solid #64748B;}"
     ".rkpi-n{font-size:26px;font-weight:800;line-height:1.1;color:#141821;margin-top:8px;}"
     ".rkpi-sub{font-size:12.5px;color:#4A5160;}"
     ".rkpi-good{color:#127A4A;} .rkpi-bad{color:#B1352D;}"
