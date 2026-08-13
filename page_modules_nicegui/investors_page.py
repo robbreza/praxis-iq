@@ -2396,23 +2396,26 @@ def _open_account_profile(rec):
             if rec.get("Action"):
                 _kv("Signal", rec.get("Action"))
 
-        # ── Addressable size (auto) — size the position against USIO's own daily
-        # dollar volume. For a prospect: the comp capital that could rotate in and how
-        # long it would take to build at current ADV. Display-only feasibility, not a
-        # prediction (no float/market-cap in the snapshot yet).
-        _addr_val = rec.get("peer_value") or rec.get("Position_Value")
-        if _addr_val:
+        # ── Addressable size (auto) — ONLY for a peer-owning prospect (a holder already
+        # owns you, so it's meaningless there). The prize: if they took a position the size
+        # of the capital they already hold in your comps, how big a USIO holder would that
+        # make them (% of the company). Feasibility (days of ADV to build) is shown only
+        # when the stock is too thin to accumulate quickly. Display-only, not a prediction.
+        _hold360 = (not is_cand) and rec.get("USIO_Holder")
+        _addr_val = rec.get("peer_value") or (None if _hold360 else rec.get("Position_Value"))
+        if not _hold360 and _addr_val:
+            from config.client_config import CF as _CF
+            _shares = (_CF().get("shares_out_m") or 0) * 1e6
             _ar = market_data.addressable_readout(
-                _addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False))
+                _addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False),
+                shares_out=_shares or None)
             if _ar:
-                _hold = (not is_cand) and rec.get("USIO_Holder")
-                _dd = _ar["days_to_build"]
-                _ddtxt = f"{_dd:.1f}" if _dd < 10 else f"{_dd:,.0f}"
-                _section("Position vs liquidity" if _hold else "Addressable size")
-                _kv("Position" if _hold else "Comp capital",
-                    f"${_ar['value']/1e6:,.2f}M{'' if _hold else ' in your comps'}")
-                _kv("At USIO's ADV",
-                    f"≈{_ddtxt} trading days to build (${_ar['dollar_adv']/1e6:,.1f}M/day)")
+                _section("Addressable size")
+                _pct = f" ≈ {_ar['pct_of_company']*100:.1f}% of USIO" if _ar.get("pct_of_company") else ""
+                _kv("Comp capital", f"${_ar['value']/1e6:,.2f}M in your comps{_pct}")
+                _dd = _ar.get("days_to_build")
+                if _dd and _dd >= 5:
+                    _kv("Feasibility", f"~{_dd:,.0f} days of USIO ADV to build (thin — accumulate patiently)")
 
         # ── Fund lineup (auto) ─────────────────────────────────────
         lu = fund_lineup.lineup_for_manager(name)

@@ -308,24 +308,32 @@ def get_snapshot(ticker, refresh_if_stale=True, max_age_minutes=DEFAULT_STALE_MI
     return cached  # possibly stale, possibly None — caller decides how to show that
 
 
-def addressable_readout(value_usd, snapshot):
-    """Size a dollar position value against the stock's own liquidity — a display-only
-    feasibility lens, NOT a prediction. Given a position value (an investor's stake, or
-    the capital they hold in your comps that could rotate in) and a market snapshot,
-    returns {dollar_adv, days_to_build}: the stock's daily dollar volume, and how many
-    trading days at that volume the position represents. None when price or 10-day
-    average volume is missing (never fabricates a size out of nothing). Deliberately
-    does not touch float/market-cap — those aren't in the snapshot yet."""
+def addressable_readout(value_usd, snapshot, shares_out=None):
+    """Size a dollar position value against the company — a display-only lens, NOT a
+    prediction. `value_usd` is the capital a prospect holds in your comps (the appetite
+    that could rotate in). Returns:
+      - pct_of_company: value / (price * shares_out) — how big a HOLDER that would make
+        them (the headline takeaway); None when shares_out isn't supplied.
+      - days_to_build:  value / daily-dollar-volume — feasibility, i.e. can they even
+        accumulate it in this stock's volume.
+      - dollar_adv:     the stock's daily dollar volume.
+    None when price is missing. Never fabricates a size out of nothing."""
     try:
         v = float(value_usd or 0)
         price = float((snapshot or {}).get("last_price") or 0)
         adv_sh = float((snapshot or {}).get("avg_volume_10d") or 0)
+        so = float(shares_out or 0)
     except (TypeError, ValueError):
         return None
-    if v <= 0 or price <= 0 or adv_sh <= 0:
+    if v <= 0 or price <= 0:
         return None
-    dollar_adv = price * adv_sh
-    return {"value": v, "dollar_adv": dollar_adv, "days_to_build": v / dollar_adv}
+    out = {"value": v}
+    if adv_sh > 0:
+        out["dollar_adv"] = price * adv_sh
+        out["days_to_build"] = v / (price * adv_sh)
+    if so > 0:
+        out["pct_of_company"] = v / (price * so)
+    return out
 
 
 def refresh_all(client_id=None):

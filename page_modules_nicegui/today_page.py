@@ -1155,20 +1155,23 @@ def _render_investor_brief(inst, full, nm):
     else:
         fact("Position", "No 13F position on file — prospect / peer-owner")
 
-    # Addressable / liquidity lens: size the dollar position against USIO's own daily
-    # dollar volume (display-only feasibility, not a prediction — no float data yet).
-    # For a holder it reads as "how liquid is their stake"; for a peer-owner it reads
-    # as "how big a position their comp capital could become, and how long to build it".
+    # Addressable size — ONLY for a peer-owning prospect (a holder already owns you, so
+    # it's meaningless there). The takeaway is the PRIZE: if they took a position the size
+    # of the capital they already hold in your comps, how big a USIO holder would that
+    # make them (% of the company). Days-to-build is a feasibility caveat, shown only when
+    # the stock is too thin to accumulate it quickly. Display-only, not a prediction.
     _hold = bool((full or {}).get("USIO_Holder"))
-    _addr_val = (full or {}).get("peer_value") or (full or {}).get("Position_Value")
-    _ar = (market_data.addressable_readout(_addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False))
-           if _addr_val else None)
-    if _ar:
-        _d = _ar["days_to_build"]
-        _dtxt = f"{_d:.1f}" if _d < 10 else f"{_d:,.0f}"
-        fact("Position size" if _hold else "Addressable",
-             f"${_ar['value']/1e6:,.2f}M{'' if _hold else ' in your comps'} · "
-             f"≈{_dtxt} trading days at USIO's ADV (${_ar['dollar_adv']/1e6:,.1f}M/day)")
+    _addr_val = (full or {}).get("peer_value")
+    if not _hold and _addr_val:
+        _shares = (C().get("financials", {}).get("shares_out_m") or 0) * 1e6
+        _ar = market_data.addressable_readout(
+            _addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False),
+            shares_out=_shares or None)
+        if _ar:
+            _pct = f" ≈ {_ar['pct_of_company'] * 100:.1f}% of USIO" if _ar.get("pct_of_company") else ""
+            _dd = _ar.get("days_to_build")
+            _feas = f" · ~{_dd:,.0f} days of ADV to build (thin)" if _dd and _dd >= 5 else ""
+            fact("Potential size", f"${_ar['value'] / 1e6:,.2f}M in your comps{_pct}{_feas}")
 
     peers = (full or {}).get("Peer_Holdings") or inst.get("Peer_Holdings")
     if peers:
