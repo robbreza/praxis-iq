@@ -1459,14 +1459,21 @@ def _alignment_rows(analysts, period_guidance, period_estimates, period):
 
 
 def _analyst_alignment():
-    """Live wrapper: pull guidance + per-firm estimates for the guided FY the Street
-    ranks on, and classify every analyst on the registry against it."""
+    """Live wrapper: classify every analyst's estimate against the company's own
+    guidance for the CURRENT REPORTING QUARTER — the forward quarter analysts model
+    now (CE()['current_quarter'], e.g. 'Q3 2026' → 'Q3 2026E'), NOT the full year.
+    A guidance-vs-estimate comparison is only meaningful on a forward period, and the
+    header + every card must reference the SAME period the rest of Today uses."""
     from core import consensus, guidance_engine
     c = consensus.get_consensus(None)
     pg = c.get("period_guidance") or {}
-    period = guidance_engine.reporting_fy_label()
+    cq = (CE().get("current_quarter") or "").strip()
+    period = f"{cq}E" if cq else ""
     if period not in pg:
-        period = next((p for p in pg if str(p).startswith("FY")), None) or next(iter(pg), None)
+        # Fall back to any quarter on file, then the guided FY (prior behavior).
+        period = (next((p for p in pg if str(p)[:1] == "Q"), None)
+                  or (guidance_engine.reporting_fy_label() if guidance_engine.reporting_fy_label() in pg else None)
+                  or next(iter(pg), None))
     return _alignment_rows(CA(), pg, c.get("period_estimates") or {}, period)
 
 
