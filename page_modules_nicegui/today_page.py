@@ -410,18 +410,25 @@ def render_today_page():
     # Top-align (items-start, not stretch): the shorter metrics card sits at its natural height instead
     # of stretching to a hollow void beside the tall story card (design-panel P0-2).
     with ui.row().classes("w-full gap-4 items-start flex-col md:flex-row"):
-        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;padding:22px 24px;"):
-            # First heading in the card: no top margin, so it IS the header — no empty strip above it (P0-1).
-            ui.label("Today's story").classes("section-head").style("margin-top:0;")
-            ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
-            ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
-            for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
-                ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
+        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;padding:0;overflow:hidden;"):
+            # Defined colored header band at the top of the card (change the tint via .rhead-* / the
+            # inline background below — trivially swappable to any colour).
+            with ui.row().classes("rhead rhead-neutral"):
+                ui.label("Today's focus")
+            with ui.column().classes("w-full").style("padding:18px 24px 20px;gap:0;"):
+                ui.label("Today's story").classes("section-head").style("margin-top:0;")
+                ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
+                ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
+                for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
+                    ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
 
         with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:22px 24px;"):
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.label("Key market metrics").classes("section-head").style("margin-top:0;")
-                ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm")
+            # Header band flush to the card edges (negative margins cancel the card's padding) so the
+            # body below doesn't need re-indenting — matches the story card's neutral header.
+            with ui.row().classes("rhead rhead-neutral items-center").style(
+                    "margin:-22px -24px 14px;width:calc(100% + 48px);"):
+                ui.label("Key market metrics")
+                ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm").style("margin-left:auto;")
             # One metric pattern, repeated: eyebrow label · 18px value · semantic-
             # coloured delta. Consistent sizing is what makes it read as a designed
             # data panel rather than three differently-styled lines.
