@@ -2970,6 +2970,37 @@ def _render_big_picture(institutions):
             _wts_sub = ((_wts_sub + " · ") if _wts_sub else "") + "then " + ", ".join(_next_cities)
         _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub)
 
+    # Holder moves this cycle — the approved colored-header card pattern (green adds / red trims,
+    # count badge, status pills). Only shown when the 13F diff actually surfaced movement.
+    if _bp_adding or _bp_trimming:
+        ui.label("Institutional holder moves — this 13F cycle").classes("section-head").style("margin-top:16px;")
+
+        def _move_pill(it):
+            d = (it.get("Direction") or "").lower()
+            return {"new": ("rpill-good", "new"), "adding": ("rpill-good", "adding"),
+                    "trimming": ("rpill-warn", "trimming"), "exited": ("rpill-def", "exited")}.get(d, ("rpill-def", d or "—"))
+
+        def _moves_card(title, items, tone, val_color):
+            with ui.card().classes("flex-1 report-card"):
+                with ui.row().classes(f"rhead rhead-{tone}"):
+                    ui.label(title)
+                    ui.label(str(len(items))).classes("count")
+                if not items:
+                    with ui.row().classes("rrow"):
+                        ui.label("None this cycle").classes("rmeta")
+                for it in items[:6]:
+                    _pc, _pt = _move_pill(it)
+                    with ui.row().classes("rrow"):
+                        ui.label(pretty_name(it.get("Fund", "") or "—")).style("font-weight:600;")
+                        ui.label(_pt).classes(f"rpill {_pc}")
+                        _dv = _holder_dollars(it.get("Position_Value"))
+                        if _dv and _dv != "—":
+                            ui.label(_dv).classes("rval").style(f"color:{val_color};")
+
+        with ui.row().classes("w-full gap-4").style("margin-top:8px;"):
+            _moves_card("New money & adds", _bp_adding, "good", "#127A4A")
+            _moves_card("Trimming & exits", _bp_trimming, "bad", "#B1352D")
+
     # (Removed the opaque "New vs. existing" mix bar — its 52/48 came from a call/visitor/prospect
     # signal blend that never reconciled with the visible holder/target counts; the four cards above
     # carry the composition now.)

@@ -2134,7 +2134,7 @@ ui.add_head_html(
     # non-!important) AND by matching Quasar's own (0,3,4) specificity path — settled per the framework
     # source, not guesswork.
     # ---- real tables (ui.table) ----
-    ".q-table__container{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;"
+    ".q-table__container{background:#FFFFFF;border:1px solid #C2CCD9;border-radius:10px;overflow:hidden;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);}"
     ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
     "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #D3DBE4 !important;}"
@@ -2144,7 +2144,7 @@ ui.add_head_html(
     ".q-table tbody td{color:#1F2733;padding:9px 14px;}"
     ".q-table tbody tr:hover td{background:#F8FAFC !important;}"
     # ---- report card + colored active header + count badge ----
-    ".report-card{background:#FFFFFF !important;border:1px solid #E2E8F0 !important;border-radius:12px !important;"
+    ".report-card{background:#FFFFFF !important;border:1px solid #C2CCD9 !important;border-radius:12px !important;"
     "overflow:hidden !important;box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;"
     "padding:0 !important;gap:0 !important;}"
     ".rhead{display:flex;align-items:center;gap:8px;width:100%;padding:10px 15px;font-size:12.5px;"
@@ -2170,7 +2170,7 @@ ui.add_head_html(
     ".rpill-warn{background:#FBF0E0;color:#A35A06;}"
     ".rpill-def{background:#EEF2F7;color:#64748B;}"
     # ---- report KPI card ----
-    ".rkpi{background:#FFFFFF !important;border:1px solid #E2E8F0 !important;border-radius:12px !important;"
+    ".rkpi{background:#FFFFFF !important;border:1px solid #C2CCD9 !important;border-radius:12px !important;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;padding:15px 16px !important;gap:3px !important;}"
     ".rkpi-lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;font-weight:700;}"
     ".rkpi-n{font-size:26px;font-weight:800;line-height:1.1;color:#141821;}"
