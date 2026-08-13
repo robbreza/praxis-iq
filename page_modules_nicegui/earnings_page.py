@@ -667,8 +667,12 @@ def _speaker_roster(contacts=None, roles=("CEO", "CRO", "CFO"), with_titles=True
     Built from _contacts() so no call site can hardcode a subset of the lineup —
     that was the bug that once dropped the CRO from the IR opening. Skips a role
     that isn't configured, and — when the confirmed lineup marks who presents —
-    skips anyone flagged not speaking. Returns "" if nobody qualifies."""
+    skips anyone flagged not speaking. Also skips the HOST themselves: when the
+    person opening the call (the IR role) also holds an exec seat — e.g. USIO,
+    where the CAO Michael White both hosts and delivers the financials — they
+    introduce the OTHERS, never themselves. Returns "" if nobody qualifies."""
     contacts = contacts or _contacts()
+    host_name = ((contacts.get("IR") or {}).get("name") or "").strip()
     parts = []
     for role in roles:
         c = contacts.get(role) or {}
@@ -676,6 +680,8 @@ def _speaker_roster(contacts=None, roles=("CEO", "CRO", "CFO"), with_titles=True
         if not name or name.startswith("—"):
             continue
         if c.get("speaking") is False:
+            continue
+        if host_name and name == host_name:          # the host doesn't introduce themselves
             continue
         title = (c.get("title") or "").strip()
         parts.append(f"{name}, our {title}" if (with_titles and title) else name)
@@ -1425,9 +1431,13 @@ def _generate_persona_draft(role, ss, context=""):
             seg_fact = seq_fact = ""
 
     prompts = {
-        "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, introducing the speakers "
-              f"(introduce every one of these, by name and title, in this order: {_speaker_roster(contacts)}) "
-              f"and the standard forward-looking-statements reminder. {tone_line}"
+        "IR": f"Write a 2-3 sentence IR opening for {ticker}'s earnings call, spoken by the host "
+              f"{contacts['IR']['name']}"
+              f"{(', ' + contacts['IR']['title']) if contacts['IR'].get('title') else ''}"
+              f" — write in the host's first person and do NOT introduce the host as if someone else "
+              f"were speaking. Introduce the OTHER prepared-remarks speakers by name and title, in this "
+              f"order: {_speaker_roster(contacts)}. Include the standard forward-looking-statements "
+              f"reminder. {tone_line}"
               f"What should change from last quarter's opening (see Step 1 review): "
               f"{what_new or 'no specific updates provided — keep the tone consistent with last quarter'}. "
               f"Professional, concise, plain text (no markdown).",
@@ -1465,8 +1475,8 @@ def _generate_persona_draft(role, ss, context=""):
         prompts = {k: v + _pyc for k, v in prompts.items()}
     draft = _call_claude_script(prompts.get(role, ""), 500)
     if draft:
-        return draft, True
-    return _fallback_draft(role, n, what_new, ticker, ops, gd), False
+        return _clean_persona_draft(draft), True
+    return _clean_persona_draft(_fallback_draft(role, n, what_new, ticker, ops, gd)), False
 
 
 def _refine_persona_draft(current_text, instruction, role, ss):
@@ -2409,6 +2419,42 @@ def _strip_guidance_heading(text):
             first.isupper() or _norm in ("guidance and outlook", "guidance", "outlook")):
         return "\n".join(lines[1:]).lstrip("\n ")
     return text
+
+
+def _clean_persona_draft(text):
+    """Strip leading document-title artifacts the model sometimes prepends to spoken remarks — a
+    markdown heading ('# USIO CEO Narrative - Q2 2026 Earnings Call') or a short title line
+    ('Business Operations Summary'). An executive doesn't read a slide title aloud, and leaving it
+    in also let a mis-stamped year ride along inside the title (the recurring 'Q2 2025' slip). Only
+    removes short, header-like LEADING lines — a markdown '#' line, or a short line (no sentence
+    punctuation) that reads as a title (mentions 'earnings call' or ends in narrative / summary /
+    review / operations / remarks) — never a real sentence."""
+    if not text:
+        return text
+    import re
+    # The call self-identifier year must be the current quarter's year — the model intermittently
+    # writes the prior year here ("second quarter 2025 earnings call"). This is NOT a prior-year comp
+    # (those stay untouched); it only rewrites "<quarter/QN> <year> [earnings/conference] call".
+    _cur_year = re.search(r"(20\d\d)", CE().get("current_quarter", "") or "")
+    if _cur_year:
+        text = re.sub(r"((?:quarter|Q[1-4])\s+)20\d\d(\s+(?:earnings|conference|earnings\s+conference)\s+call)",
+                      lambda m: m.group(1) + _cur_year.group(1) + m.group(2), text, flags=re.I)
+    _title_tail = re.compile(r"(narrative|summary|review|business operations|remarks|outlook)\s*$", re.I)
+    lines = text.lstrip("\n ").split("\n")
+    while lines:
+        first = lines[0].strip()
+        if not first:
+            lines = lines[1:]
+            continue
+        bare = first.strip(" *#").strip()
+        is_md = first.startswith("#")
+        is_title = (len(first.split()) <= 12 and not first.endswith((".", "?", "!"))
+                    and ("earnings call" in bare.lower() or bool(_title_tail.search(bare))))
+        if is_md or is_title:
+            lines = lines[1:]
+            continue
+        break
+    return "\n".join(lines).lstrip("\n ")
 
 
 def _guidance_prior_language():

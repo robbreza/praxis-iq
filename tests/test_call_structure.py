@@ -57,3 +57,37 @@ def test_catalyst_freshness_silent_when_undated():
     set_active_client_id("saro")
     f = ge.catalyst_freshness("Q2 2026")
     assert f["stale"] is False
+
+
+# ── _clean_persona_draft: strip title artifacts + correct the call-identifier year ──
+
+def test_clean_draft_strips_markdown_title_header():
+    set_active_client_id("usio")
+    out = ep._clean_persona_draft("# USIO CEO Narrative - Q2 2026 Earnings Call\n\nWe delivered a strong quarter.")
+    assert out == "We delivered a strong quarter."
+
+
+def test_clean_draft_strips_plain_title_line():
+    set_active_client_id("usio")
+    out = ep._clean_persona_draft("Business Operations Summary\n\nUsio processed $2.47 billion this quarter.")
+    assert out == "Usio processed $2.47 billion this quarter."
+
+
+def test_clean_draft_fixes_call_identifier_year():
+    set_active_client_id("usio")   # current_quarter = Q2 2026
+    out = ep._clean_persona_draft("Welcome to USIO's second quarter 2025 earnings call. I'm Michael White.")
+    assert "second quarter 2026 earnings call" in out
+    assert "2025" not in out
+
+
+def test_clean_draft_leaves_prior_year_comps_alone():
+    set_active_client_id("usio")
+    # A YoY comparison to the prior year is NOT the call identifier — must survive untouched.
+    txt = "Revenue grew 19% versus the second quarter of 2025."
+    assert ep._clean_persona_draft(txt) == txt
+
+
+def test_clean_draft_passes_through_clean_remarks():
+    set_active_client_id("usio")
+    txt = "Good afternoon. Revenue was $23.7 million, up 19% year over year."
+    assert ep._clean_persona_draft(txt) == txt
