@@ -2097,6 +2097,20 @@ ui.add_head_html(
     # .hidden-tabstrip: a tab bar kept in the DOM (its tab_panels model needs it) but never shown at
     # any width — used where clickable status cards ARE the navigation (Earnings workflow stages).
     ".hidden-tabstrip{display:none !important;}"
+    # On-page tab strip styled as a SEGMENTED BUTTON control. Ownership/Targeting have no left-nav
+    # sub-items, so their strip IS the nav — it must read as buttons, not floating text. Border+radius
+    # on the content group (sized to content, centered), a divider between tabs, active tab filled.
+    ".seg-tabs{justify-content:center;min-height:0;margin:10px 0 6px;}"
+    ".seg-tabs .q-tabs__content{flex:0 0 auto;border:1.5px solid #64748B;border-radius:10px;"
+    "overflow:hidden;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,.06);}"
+    ".seg-tabs .q-tab{min-height:0;padding:7px 22px;border-right:1.5px solid #64748B;border-radius:0;"
+    "color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}"
+    ".seg-tabs .q-tab:last-child{border-right:0;}"
+    ".seg-tabs .q-tab--active{background:#1E40AF;color:#FFFFFF;}"
+    ".seg-tabs .q-tab__label{font-size:12.5px;line-height:1.15;white-space:normal;text-align:center;}"
+    ".seg-tabs .q-tab__indicator,.seg-tabs .q-tabs__indicator{display:none !important;}"
+    # Ownership only: cap the label width so it wraps to two lines with 'OWNERSHIP' on the bottom line.
+    ".seg-tabs-own .q-tab__label{max-width:92px;}"
     # Clickable cards read as buttons: lift + accent ring on hover so the affordance is obvious.
     # Generic (used by the workflow stage cards and the Prior-Qtr replay/transcript cards).
     ".click-card{transition:box-shadow .12s ease,transform .12s ease;}"

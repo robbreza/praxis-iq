@@ -1473,7 +1473,12 @@ def render_investors_page(section="ownership"):
     # deep-link to these exact tabs via consume_target_tab() below — so its on-page strip is redundant
     # on desktop, same as Markets/Earnings: hide it via .page-tabstrip (kept <1024px, no docked sidebar).
     # Ownership/Targeting have NO sidebar sub-items, so their strips are the only nav — keep them shown.
-    _tabstrip_cls = "w-full page-tabstrip" if section == "roadshow" else "w-full"
+    if section == "roadshow":
+        _tabstrip_cls = "w-full page-tabstrip"          # hidden on desktop — the left-nav sub-items are the nav
+    elif section == "ownership":
+        _tabstrip_cls = "w-full seg-tabs seg-tabs-own"  # segmented buttons + two-line labels (OWNERSHIP at bottom)
+    else:
+        _tabstrip_cls = "w-full seg-tabs"               # segmented buttons (single line)
     with ui.tabs().classes(_tabstrip_cls) as tabs:
         _tabobjs = {name: ui.tab(name) for name, _fn, _md in specs}
     # A deep-link (go_to(section, tab)) can open on any of the section's tabs; else the first.
@@ -3065,7 +3070,7 @@ def _render_big_picture(institutions):
     # "these institutions... where ARE they?" One row per metro with its holders,
     # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
     ui.markdown("---")
-    ui.label("Institutions & Peer Ownership").classes("section-head").style("margin-top:6px;")
+    ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:6px;")
     # The "N current holders and M peer-owners across K metros…" instruction moves up here, right under
     # the title (was below the table). Populated once the peer/metro totals are computed (see below).
     _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin:2px 0 6px;")
