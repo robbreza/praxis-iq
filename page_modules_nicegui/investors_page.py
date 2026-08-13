@@ -2953,7 +2953,8 @@ def _render_big_picture(institutions):
                    on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="nonholders"))
         _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
                    ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
-                   + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []))
+                   + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []),
+                   on_click=lambda: nav.go_to("Ownership", "Buyside Ownership"))
         # "Where to start" is the roadshow-geography answer: the #1 city, then a ranked summary of
         # the other cities in play, and — the part IR actually acts on — who asked for each one.
         _wts_detail = ["Priority cities (convert · defend):"]
@@ -2970,7 +2971,8 @@ def _render_big_picture(institutions):
         _wts_sub = f"{len(ndr_requests)} inbound request(s) on the desk" if ndr_requests else None
         if _next_cities:
             _wts_sub = ((_wts_sub + " · ") if _wts_sub else "") + "then " + ", ".join(_next_cities)
-        _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub)
+        _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub,
+                   on_click=lambda: nav.go_to("Roadshow", "NDR"))
 
     # Holder moves this cycle — the approved colored-header card pattern (green adds / red trims,
     # count badge, status pills). Only shown when the 13F diff actually surfaced movement.
