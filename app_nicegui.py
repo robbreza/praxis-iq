@@ -1191,12 +1191,14 @@ def main_page(request: Request = None):
     # every line of body text uncomfortably long to read. 1050px keeps
     # rows/cards at a scannable width; margin:0 auto centers the column in
     # the remaining space so it doesn't hug the drawer on the left.
-    # Breadcrumb — persistent (created BEFORE `content` so it sits above it and
-    # survives content.clear()), so it can update on in-page tab clicks without a
-    # full page re-render. Orients the user through the sidebar → page → tab depth
-    # (the ease-of-use audit's P1: four levels deep with no "you are here").
-    breadcrumb = ui.row().classes("w-full items-center").style(
-        "padding: 10px 48px 0 24px; max-width: 1275px; margin: 0 auto; gap: 7px; min-height: 20px;")
+    # Breadcrumb — REMOVED from the canvas per user direction: it put a faint
+    # "Overview › Today" line at the very top and pushed the greeting/cards down.
+    # The sidebar highlight + page heading already say "you are here." The row is
+    # kept as a zero-footprint stub (created BEFORE `content`, survives
+    # content.clear()) so the 3 update_breadcrumb() call sites stay valid, but it
+    # renders nothing and takes no vertical space — content now sits at the top.
+    breadcrumb = ui.row().classes("w-full").style(
+        "display:none; height:0; min-height:0; padding:0; margin:0;")
 
     content = ui.column().classes("w-full app-content").style(
         # 1180 max-width, magnified to ~1274 effective by the desktop-only .app-content zoom below —
@@ -1210,17 +1212,9 @@ def main_page(request: Request = None):
                   for grp, items in NAV_GROUPS for p, _ic, lbl, _tt in items}
 
     def update_breadcrumb():
+        # No-op: breadcrumb removed from the canvas (see stub above). Kept as a
+        # function so the existing call sites don't need to change.
         breadcrumb.clear()
-        grp, label = _PAGE_META.get(state["page"], ("", state["page"]))
-        crumbs = [c for c in (grp, label, state.get("active_tab")) if c]
-        with breadcrumb:
-            for i, txt in enumerate(crumbs):
-                if i:
-                    ui.label("›").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);opacity:.55;")
-                last = i == len(crumbs) - 1
-                ui.label(txt).style(
-                    f"color:{COLORS['text_heading'] if last else COLORS['text_muted']};"
-                    f"font-size:var(--fs-sm);font-weight:{'700' if last else '500'};")
 
     def render_page():
         content.clear()
