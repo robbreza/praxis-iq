@@ -2044,17 +2044,19 @@ ui.add_head_html(
     # the .t-* classes reference these vars, so the whole app's type is retuned from here. Nests on
     # the desktop .app-content zoom (1.08), so effective sizes run ~8% larger again on desktop.
     ":root{"
-    "--fs-micro:10px;"   # was 9 / 9.5      (footnote fine print)
-    "--fs-2xs:11px;"     # was 10 / 10.5    (fine)
-    "--fs-xs:12px;"      # was 11 / 11.5    (meta / eyebrow)
-    "--fs-sm:13px;"      # was 12 / 12.5    (body — the dominant size)
-    "--fs-base:14px;"    # was 13 / 13.5    (body-large / subhead)
-    "--fs-md:15px;"      # was 14 / 14.5 / 15 (lead)
-    "--fs-lg:16px;"      # was 16 / 17      (section head / card title)
-    "--fs-xl:19px;"      # was 18 / 19      (metric value)
-    "--fs-2xl:21px;"     # was 20 / 21      (page heading / KPI)
-    "--fs-3xl:23px;"     # was 22           (large heading)
-    "--fs-hero:26px;"    # was 24 / 26      (hero / greeting)
+    # +~15% pass (2026-08-13, user directive: text runs too small). Nothing below 8px; --fs-micro is
+    # the reserved footnote-fine-print exception. To resize the app, edit these values, not call sites.
+    "--fs-micro:11px;"   # footnote fine print (the ONE small-text exception)
+    "--fs-2xs:13px;"     # fine
+    "--fs-xs:14px;"      # meta / eyebrow
+    "--fs-sm:15px;"      # body — the dominant size
+    "--fs-base:16px;"    # body-large / subhead
+    "--fs-md:17px;"      # lead
+    "--fs-lg:18px;"      # section head / card title
+    "--fs-xl:22px;"      # metric value
+    "--fs-2xl:24px;"     # page heading / KPI
+    "--fs-3xl:26px;"     # large heading
+    "--fs-hero:30px;"    # hero
     "}"
     ".mobile-only{display:none;}"
     ".mobile-tabbar{display:none;}"                       # bottom tab bar — phones only (shown below)

@@ -364,7 +364,10 @@ def render_today_page():
         except Exception:
             first_name = ""
     _greeting = "Good morning, team." if _is_team else (f"Good morning, {first_name}." if first_name else "Good morning.")
-    ui.label(_greeting).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    # Demoted from text-2xl: a compact salutation, not the biggest element on the page — the narrative
+    # story is the hero (design-panel P0-3).
+    ui.label(_greeting).classes("font-bold").style(
+        f"color:{COLORS['text_heading']};font-size:var(--fs-xl);")
 
     # RBAC: view-only roles (e.g. CRO/Legal) can read the morning brief but not
     # persist mark-noted/sent/consensus actions — enforced at the _save_state
@@ -404,17 +407,20 @@ def render_today_page():
     # ── Today's Story + Key Metrics ──
     # flex-col on phones so the two cards STACK (side-by-side at ~180px each made the story wrap one
     # word per line); md:flex-row restores the 7/3 split on desktop.
-    with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
-        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;"):
-            ui.label("Today's story").classes("section-head")
+    # Top-align (items-start, not stretch): the shorter metrics card sits at its natural height instead
+    # of stretching to a hollow void beside the tall story card (design-panel P0-2).
+    with ui.row().classes("w-full gap-4 items-start flex-col md:flex-row"):
+        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;padding:22px 24px;"):
+            # First heading in the card: no top margin, so it IS the header — no empty strip above it (P0-1).
+            ui.label("Today's story").classes("section-head").style("margin-top:0;")
             ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
             ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
             for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
                 ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
 
-        with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"):
+        with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:22px 24px;"):
             with ui.row().classes("w-full justify-between items-center"):
-                ui.label("Key market metrics").classes("section-head")
+                ui.label("Key market metrics").classes("section-head").style("margin-top:0;")
                 ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm")
             # One metric pattern, repeated: eyebrow label · 18px value · semantic-
             # coloured delta. Consistent sizing is what makes it read as a designed
@@ -461,6 +467,17 @@ def render_today_page():
             if snap and snap.get("last_price") is not None:
                 ui.label(f"* Delayed quote · {_as_of_short(snap)}").classes("t-fine").style(
                     "margin-top:10px;")
+
+            # Key takeaway — one plain-language read so the card carries signal, not empty space
+            # (design-panel P0-2). Grounded in the numbers above, no interpretation invented.
+            if snap and snap.get("last_price") is not None and pt_avg is not None:
+                _ups = (pt_avg / snap["last_price"] - 1) * 100
+                _tk = (f"Trades {abs(_ups):.0f}% {'below' if _ups >= 0 else 'above'} the Street's "
+                       f"${pt_avg:.2f} consensus target.")
+                with ui.column().classes("w-full").style(
+                        f"margin-top:14px;padding-top:12px;border-top:1px solid {COLORS['border']};gap:3px;"):
+                    ui.label("Key takeaway").classes("t-eyebrow")
+                    ui.label(_tk).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);line-height:1.5;")
 
     _render_weekly_context_mirror()
 
