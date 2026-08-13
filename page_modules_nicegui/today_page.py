@@ -407,7 +407,7 @@ def render_today_page():
     # word per line); md:flex-row restores the 7/3 split on desktop.
     # Same vertical height (items-stretch) + reduced padding so both hero cards are the same size.
     with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
-        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;padding:0;overflow:hidden;"):
+        with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:0;overflow:hidden;"):
             with ui.row().classes("rhead rhead-neutral"):
                 ui.label("Today's focus")
             with ui.column().classes("w-full").style("padding:12px 20px 14px;gap:0;"):
@@ -546,8 +546,12 @@ def _signal_card(dot, title, desc):
             with _signal_actions():
                 ui.button("Resolve", ...)
     """
+    # Grey fill + a solid slate border so each signal reads as a bounded tile, not
+    # loose text floating on the white parent card. #E6EBF2 sits a clear step below
+    # the white card behind it, so the layering is visible; the explicit border
+    # guarantees the box even where the global .q-card rule is overridden inline.
     with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
+            f"background:#E6EBF2;border:1px solid {COLORS['border']};border-radius:8px;"):
         ui.label(f"{dot} {title}".strip()).classes("t-subhead")
         ui.label(desc).classes("t-meta")
         yield
@@ -678,7 +682,10 @@ def _render_risk_signals(state, days, snap=None, pt_avg=None):
     else:
         pt_desc = "Consensus PT or last price not yet available — see Key Market Metrics above."
         pt_title = "Upside to consensus PT — pending market data"
-    with ui.expansion("More market signals", value=False).classes("w-full").style("margin-top:4px;"):
+    # A permanent grey box with a solid border so the expander reads as a defined
+    # control, not a loose "More market signals ⌄" line floating under the tiles.
+    with ui.expansion("More market signals", value=False).classes("w-full").style(
+            f"margin-top:6px;background:#E6EBF2;border:1px solid {COLORS['border']};border-radius:8px;"):
         with _signal_card("", pt_title, pt_desc):
             with _signal_actions():
                 ui.button("Why the gap?", on_click=lambda: _open_disconnect_dialog(snap, pt_avg)).props("flat dense size=sm")
