@@ -424,10 +424,10 @@ def render_today_page():
                     ui.label(f"{CT('ticker')} {_wk['context_read']}").style(
                         f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;"
                         f"line-height:1.5;margin-top:3px;")
-                ui.label(_activity_line).style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;margin-top:3px;")
                 ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
-                _points = _talking_points(state, overdue, readiness_pct)
+                # "Recent activity" now leads the talking points rather than sitting in
+                # the story paragraph above.
+                _points = [_activity_line] + _talking_points(state, overdue, readiness_pct)
                 for i, pt in enumerate(_points, 1):
                     ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
                 # Today's top story, folded in as the final talking point.
