@@ -2945,10 +2945,12 @@ def _render_big_picture(institutions):
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
                     if holders_by_metro else "No holders tracked yet."],
-                   sub=_peer_holder_sub(holder_count, client_id))
+                   sub=_peer_holder_sub(holder_count, client_id),
+                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="holders"))
         _bp_metric("Who should own you", f"{len(_bp_tier1)} / {_bp_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
-                    for c in _bp_top_targets[:5]] or ["No conviction targets yet."])
+                    for c in _bp_top_targets[:5]] or ["No conviction targets yet."],
+                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="nonholders"))
         _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
                    ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
                    + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []))
@@ -3413,20 +3415,21 @@ def _peer_holder_sub(holder_count, cid):
     return f"vs peer avg {pa} · {rel}"
 
 
-def _bp_metric(label, value, detail_lines, sub=None):
-    # A grounded metric card: a clearly OUTLINED white panel (the surface_hover_bg fill on white read
-    # as borderless floating text), with a distinct three-part hierarchy — an uppercase eyebrow LABEL
-    # so the card is self-identifying, the big value, and a muted sub — then the Details expander.
-    # A clickable box in the same style as the colored-header cards below: a defined header BAND,
-    # then the number and the analysis. Clicking pulls up the detail in a dialog styled to match the
-    # Target Database drill-down (bold title + close X).
-    _dlg = ui.dialog()
-    with _dlg, ui.card().style("min-width:min(560px,94vw);max-width:640px;"):
-        with ui.row().classes("w-full justify-between items-center"):
-            ui.label(label).classes("text-lg font-bold")
-            ui.button(icon="close", on_click=_dlg.close).props("flat round dense")
-        for line in (detail_lines or ["No further detail available."]):
-            ui.label(str(line)).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
+def _bp_metric(label, value, detail_lines, sub=None, on_click=None):
+    # A clickable box in the same style as the colored-header cards below: a defined header BAND, then
+    # the number and the analysis. When `on_click` is given the card deep-links (e.g. straight to the
+    # Target Database filtered to this bucket — the exact list layout). Otherwise it pulls up its
+    # detail in a dialog styled to match the Target Database drill-down (bold title + close X).
+    handler = on_click
+    if handler is None:
+        _dlg = ui.dialog()
+        with _dlg, ui.card().style("min-width:min(560px,94vw);max-width:640px;"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(label).classes("text-lg font-bold")
+                ui.button(icon="close", on_click=_dlg.close).props("flat round dense")
+            for line in (detail_lines or ["No further detail available."]):
+                ui.label(str(line)).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
+        handler = _dlg.open
     card = ui.card().classes("flex-1 report-card cursor-pointer")
     with card:
         with ui.row().classes("rhead rhead-accent"):
@@ -3435,7 +3438,7 @@ def _bp_metric(label, value, detail_lines, sub=None):
             ui.label(value).classes("rkpi-n")        # the number
             if sub:
                 ui.label(sub).classes("rkpi-sub")    # the analysis
-    card.on("click", _dlg.open)
+    card.on("click", handler)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -7407,6 +7410,11 @@ def _render_target_db_tab(institutions, client_id):
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _db_filter = {"mode": "all"}
+    # Arriving from an Ownership Big-Picture card (e.g. "Current Investors" → holders): open pre-filtered
+    # to that bucket so the click lands on exactly the list the card summarized.
+    _filter_pref = nav.pop_highlight("db_filter", None)
+    if _filter_pref in ("all", "holders", "nonholders", "prospects"):
+        _db_filter["mode"] = _filter_pref
     db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
     # The full 91-row list dominated the tab, so search + results live in a
     # collapsed expansion — the cards above are the summary. It auto-opens when
