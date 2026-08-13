@@ -308,6 +308,26 @@ def get_snapshot(ticker, refresh_if_stale=True, max_age_minutes=DEFAULT_STALE_MI
     return cached  # possibly stale, possibly None — caller decides how to show that
 
 
+def addressable_readout(value_usd, snapshot):
+    """Size a dollar position value against the stock's own liquidity — a display-only
+    feasibility lens, NOT a prediction. Given a position value (an investor's stake, or
+    the capital they hold in your comps that could rotate in) and a market snapshot,
+    returns {dollar_adv, days_to_build}: the stock's daily dollar volume, and how many
+    trading days at that volume the position represents. None when price or 10-day
+    average volume is missing (never fabricates a size out of nothing). Deliberately
+    does not touch float/market-cap — those aren't in the snapshot yet."""
+    try:
+        v = float(value_usd or 0)
+        price = float((snapshot or {}).get("last_price") or 0)
+        adv_sh = float((snapshot or {}).get("avg_volume_10d") or 0)
+    except (TypeError, ValueError):
+        return None
+    if v <= 0 or price <= 0 or adv_sh <= 0:
+        return None
+    dollar_adv = price * adv_sh
+    return {"value": v, "dollar_adv": dollar_adv, "days_to_build": v / dollar_adv}
+
+
 def refresh_all(client_id=None):
     """Refresh every tracked ticker (active client + peers). Meant to be
     called from a non-blocking startup hook (see app_nicegui.py) and from

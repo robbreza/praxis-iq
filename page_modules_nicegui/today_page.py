@@ -1155,6 +1155,21 @@ def _render_investor_brief(inst, full, nm):
     else:
         fact("Position", "No 13F position on file — prospect / peer-owner")
 
+    # Addressable / liquidity lens: size the dollar position against USIO's own daily
+    # dollar volume (display-only feasibility, not a prediction — no float data yet).
+    # For a holder it reads as "how liquid is their stake"; for a peer-owner it reads
+    # as "how big a position their comp capital could become, and how long to build it".
+    _hold = bool((full or {}).get("USIO_Holder"))
+    _addr_val = (full or {}).get("peer_value") or (full or {}).get("Position_Value")
+    _ar = (market_data.addressable_readout(_addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False))
+           if _addr_val else None)
+    if _ar:
+        _d = _ar["days_to_build"]
+        _dtxt = f"{_d:.1f}" if _d < 10 else f"{_d:,.0f}"
+        fact("Position size" if _hold else "Addressable",
+             f"${_ar['value']/1e6:,.2f}M{'' if _hold else ' in your comps'} · "
+             f"≈{_dtxt} trading days at USIO's ADV (${_ar['dollar_adv']/1e6:,.1f}M/day)")
+
     peers = (full or {}).get("Peer_Holdings") or inst.get("Peer_Holdings")
     if peers:
         fact("Also owns", ", ".join(peers))
