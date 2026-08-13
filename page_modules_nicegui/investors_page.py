@@ -7508,6 +7508,8 @@ def _render_target_db_tab(institutions, client_id):
     if _prefill:
         search_in.value = _prefill
         _search_exp.set_value(True)  # arrived from global search — show the hit
+    if _filter_pref:
+        _search_exp.set_value(True)  # arrived from an Ownership card — open the filtered list, don't hide it
     search_in.on("keydown.enter", do_search)
     with _search_btn_row:
         ui.button("Search", on_click=do_search).props("dense")
