@@ -2929,6 +2929,10 @@ def _render_big_picture(institutions):
     except Exception:
         _bp_targets = []
     _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
+    # Tier-1-ready count MUST match the geography table + the Target-DB click-through, which count a
+    # non-holder as Tier-1 on (engagement score >= 80) OR (peer conviction >= 70). The card previously
+    # counted conviction-only, so it read 13 while the click-through read 14. Use the canonical rollup.
+    _bp_tier1_ready = sum(d.get("tier1_nonholder", 0) for d in metro_summary.values())
     _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
     _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
     _ir_read = []
@@ -2948,31 +2952,36 @@ def _render_big_picture(institutions):
             f"{' …' if len(_new_pos) > 3 else ''}) — new money to engage early.")
     _ir_read.append(
         f"{holder_count} holder(s) own you today; {_bp_targets_count} non-holder target(s) are being worked, "
-        f"{len(_bp_tier1)} at Tier-1 conviction.")
+        f"{_bp_tier1_ready} at Tier-1.")
     with ui.card().classes("w-full").style(
             "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
             "border-radius:8px;margin-top:8px;"):
         ui.label("THE IR READ — where your ownership stands").style(
-            "color:#1E3A8A;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;")
+            "color:#1E3A8A;font-size:var(--fs-sm);font-weight:800;letter-spacing:.04em;text-transform:uppercase;")
+        # A divider under the header, then bullets with a hanging indent — the bullet sits in its own
+        # column so wrapped lines align under the TEXT, not under the bullet.
+        ui.element("div").style("border-bottom:1.5px solid #1E40AF55;margin:6px 0 9px;width:100%;")
         for _p in _ir_read:
-            ui.label("• " + _p).style(
-                f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
+            with ui.row().classes("w-full no-wrap items-start").style("gap:8px;margin-top:1px;"):
+                ui.label("•").style("color:#1E40AF;font-size:var(--fs-base);line-height:1.6;font-weight:800;")
+                ui.label(_p).style(
+                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
     # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape across
     # every ownership surface): who owns you · who should · who's moving · where to start. Each card now
     # names itself via its eyebrow header, so no redundant subheader row above the grid.
-    with ui.row().classes("w-full gap-3").style("margin-top:10px;"):
-        _bp_metric("Current Investors", str(holder_count),
+    with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:10px;"):
+        _bp_metric("Current Institutional Investors", str(holder_count),
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
                     if holders_by_metro else "No holders tracked yet."],
                    sub=_peer_holder_sub(holder_count, client_id),
                    on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="holders"))
-        _bp_metric("Who should own you", f"{len(_bp_tier1)} / {_bp_targets_count}",
+        _bp_metric("Target Investors", f"{_bp_tier1_ready} / {_bp_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _bp_top_targets[:5]] or ["No conviction targets yet."],
                    on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="nonholders"))
-        _bp_metric("Who's moving", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
+        _bp_metric("Adding / Trimming", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
                    ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
                    + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []),
                    on_click=lambda: nav.go_to("Ownership", "Buyside Ownership"))
@@ -2988,17 +2997,15 @@ def _render_big_picture(institutions):
             _wts_detail.append("Who's asking:")
             for _r in ndr_requests:
                 _wts_detail.append(f"  {_r['metro']} — {_r.get('analyst', '—')} ({_r.get('firm', '—')})")
-        _next_cities = [m for m, *_ in metro_priority[1:4]]
+        # Card face shows ONLY the #1 city (per request); the ranked city list stays in the detail dialog.
         _wts_sub = f"{len(ndr_requests)} inbound request(s) on the desk" if ndr_requests else None
-        if _next_cities:
-            _wts_sub = ((_wts_sub + " · ") if _wts_sub else "") + "then " + ", ".join(_next_cities)
         _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub,
                    on_click=lambda: nav.go_to("Roadshow", "NDR"))
 
     # Holder moves this cycle — the approved colored-header card pattern (green adds / red trims,
     # count badge, status pills). Only shown when the 13F diff actually surfaced movement.
     if _bp_adding or _bp_trimming:
-        ui.label("Institutional holder moves — this 13F cycle").classes("section-head").style("margin-top:16px;")
+        ui.label("Institutional Activity").classes("section-head").style("margin-top:16px;")
 
         def _move_pill(it):
             d = (it.get("Direction") or "").lower()
@@ -3006,6 +3013,15 @@ def _render_big_picture(institutions):
                     "trimming": ("rpill-warn", "trimming"), "exited": ("rpill-def", "exited")}.get(d, ("rpill-def", d or "—"))
 
         def _moves_card(title, items, tone, val_color):
+            def _move_row(it):
+                _pc, _pt = _move_pill(it)
+                with ui.row().classes("rrow"):
+                    ui.label(pretty_name(it.get("Fund", "") or "—")).style("font-weight:600;")
+                    ui.label(_pt).classes(f"rpill {_pc}")
+                    _dv = _holder_dollars(it.get("Position_Value"))
+                    if _dv and _dv != "—":
+                        ui.label(_dv).classes("rval").style(f"color:{val_color};")
+
             with ui.card().classes("flex-1 report-card"):
                 with ui.row().classes(f"rhead rhead-{tone}"):
                     ui.label(title)
@@ -3014,15 +3030,14 @@ def _render_big_picture(institutions):
                     with ui.row().classes("rrow"):
                         ui.label("None this cycle").classes("rmeta")
                 for it in items[:6]:
-                    _pc, _pt = _move_pill(it)
-                    with ui.row().classes("rrow"):
-                        ui.label(pretty_name(it.get("Fund", "") or "—")).style("font-weight:600;")
-                        ui.label(_pt).classes(f"rpill {_pc}")
-                        _dv = _holder_dollars(it.get("Position_Value"))
-                        if _dv and _dv != "—":
-                            ui.label(_dv).classes("rval").style(f"color:{val_color};")
+                    _move_row(it)
+                # Expand to show ALL of them (the card can hold every mover, not just the first 6).
+                if len(items) > 6:
+                    with ui.expansion(f"Show all {len(items)}").classes("w-full").props("dense"):
+                        for it in items[6:]:
+                            _move_row(it)
 
-        with ui.row().classes("w-full gap-4").style("margin-top:8px;"):
+        with ui.row().classes("w-full gap-4 items-start").style("margin-top:8px;"):
             _moves_card("New money & adds", _bp_adding, "good", "#127A4A")
             _moves_card("Trimming & exits", _bp_trimming, "bad", "#B1352D")
 
@@ -3427,13 +3442,13 @@ def _peer_holder_sub(holder_count, cid):
     when the comparison would mislead. '' if no comp data."""
     pa = _peer_holder_avg(cid)
     if not pa:
-        return "Institutional Holders"
+        return ""
     # A raw holder-COUNT comparison is only meaningful among size-comparable companies. When the client
     # sits well below the peer average — a micro-cap benchmarked against much larger comps (USIO's 28
     # vs a 187 peer avg dominated by names 10-80x its size) — "below peers" is trivially true and
     # misleading, so state the honest metric instead of a false judgement.
     if holder_count < 0.6 * pa:
-        return "Institutional Holders"
+        return ""
     rel = "above peers" if holder_count > pa else ("below peers" if holder_count < pa else "in line with peers")
     return f"vs peer avg {pa} · {rel}"
 
