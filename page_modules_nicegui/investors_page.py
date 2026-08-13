@@ -3057,53 +3057,18 @@ def _render_big_picture(institutions):
             f"there, weigh it against the untapped opportunity in {top_metro}.</div>"
         )
 
-    ui.markdown("---")
-    top_conf_html = (f" This lines up with their own <b>{top_metro_conf['Event']}</b> on {top_metro_conf['Date']} — three independent "
-                      f"signals (investor demand, analyst request, and a real upcoming event) all pointing at the same city."
-                      if top_metro_conf else "")
-    top_req_html = (f" <b>Plus a direct request:</b> {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for "
-                     f"{top_metro_request['city']} meetings on {top_metro_request['received']} — {top_metro_request['reason']}"
-                     if top_metro_request else "")
-    # Top holder shown as a POSITION read (size · under/over vs comp), not a stale engagement
-    # score — consistent with the metro select/drill dialogs (see _holder_position_cells).
-    _ti = top_d.get("top_inst")
-    if top_d.get("top") and _ti and _ti.get("USIO_Holder"):
-        _sz = _holder_dollars(_ti.get("Position_Value"))
-        _vs = (f"{_ti['Weight_Vs_Comp'].lower()} vs {_ti['Comp_Best']}"
-               if _ti.get("Weight_Vs_Comp") and _ti.get("Comp_Best")
-               else (f"{_ti['Book_Pct']:.1f}% of their book"
-                     if isinstance(_ti.get('Book_Pct'), (int, float)) and _ti.get('Book_Pct') else ""))
-        _detail = " · ".join(x for x in (_sz if _sz != "—" else "", _vs) if x)
-        _top_phrase = (f", including your holder <b>{pretty_name(top_d['top'])}</b>"
-                       + (f" ({_detail})" if _detail else ""))
-    elif top_d.get("top"):
-        _top_phrase = f", including <b>{pretty_name(top_d['top'])}</b>"
-    else:
-        _top_phrase = ""
-    ui.html(
-        f"<div style='background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:3px solid {COLORS['accent']};border-radius:12px;padding:18px 22px;'>"
-        f"<div class='section-head' style='margin:0;'>Top opportunity — where to start</div>"
-        f"<div style='font-size:var(--fs-lg);font-weight:600;color:{COLORS['text_heading']};margin-top:4px;'>{top_metro}</div>"
-        f"<div style='font-size:var(--fs-base);color:{COLORS['text_secondary']};line-height:1.6;margin-top:6px;'>"
-        f"{top_d['count']} tracked institution(s) here"
-        + _top_phrase
-        + f" — {top_d['tier1_nonholder']} non-holder(s) at Tier 1 ready to convert and {top_d['holders']} existing holder(s) to defend — "
-        f"{'zero NDR trips logged here yet' if top_visits == 0 else f'only {top_visits} trip(s) so far'}."
-        + top_req_html + top_conf_html + "</div></div>"
-    )
-    # "Targeting moves this week" (call the top non-holder / defend the top holder /
-    # scope an NDR) used to sit here — removed as page-flow cleanup. It was a second,
-    # weekly action list a page away from Today's, which owns "what needs you": Today's
-    # Investor Pipeline surfaces the same top engage/defend targets (same scoring model,
-    # with real names — these bullets showed literal placeholders for a book with no
-    # score-≥80 names). The metro/NDR-scoping insight survives in the "Top opportunity"
-    # card above, which leads straight into the metro table below.
+    # ("Top opportunity — where to start" card removed from here per request — the four-question
+    # "Where to start" summary card above already answers it, and the metro table below carries the
+    # geographic detail. Can be relocated elsewhere if wanted.)
 
     # Geographic breakdown — answers the obvious question the counts above raise:
     # "these institutions... where ARE they?" One row per metro with its holders,
     # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
     ui.markdown("---")
-    ui.label("Where they are — tracked institutions & peer-owners by metro").classes("section-head").style("margin-top:6px;")
+    ui.label("Institutions & Peer Ownership").classes("section-head").style("margin-top:6px;")
+    # The "N current holders and M peer-owners across K metros…" instruction moves up here, right under
+    # the title (was below the table). Populated once the peer/metro totals are computed (see below).
+    _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin:2px 0 6px;")
 
     # Join the all-bucket peer-owner universe (Peer Prospects' data) onto the same metro rows, so this
     # is the ONE metro list — no separate "peer-owners by metro" table. Uses all_candidates (every
@@ -3413,11 +3378,12 @@ def _render_big_picture(institutions):
         e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
         holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
     _peer_total = sum(v["funds"] for v in peer_by_metro.values())
-    ui.label(f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
-             f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
-             "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
-             "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.").style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+    # Fill the instruction moved up under the title (see _geo_note) now that the totals exist.
+    _geo_note.set_text(
+        f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
+        f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
+        "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
+        "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.")
     ui.button("Manage fund-lineup matches", icon="account_tree",
               on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
 
