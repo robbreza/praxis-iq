@@ -111,6 +111,12 @@ _CODE_SEED = {
         # _CALL_OPENING_QA_ONLY_PARTICIPANTS 2026-07-12 — a client with no
         # such participants just gets an empty/omitted clause.
         "qa_only_participants": "Houston Frost, our Chief Product Officer, and Jerry Uffner, Head of Card Issuing,",
+        # Call speaker ORDER — USIO runs the call CAO-first: Michael White (the IR host + CFO
+        # financial-review personas) opens and delivers the financials, Greg Carter (CRO) covers the
+        # business, and Louis Hoch (CEO) closes with the guidance raise. So the persona order is
+        # IR → CFO → CRO → CEO (guidance always follows the last persona → lands in the CEO's mouth).
+        # Read by earnings_page._active_personas(); omit for the default IR→CEO→CRO→CFO shape.
+        "speaker_order": ["IR", "CFO", "CRO", "CEO"],
         # $ band around Street consensus treated as "in line" rather than a
         # beat/miss, read by earnings_page.py's _tone_context (drives the
         # beat/in-line/miss word-choice register across the IR/CFO/CEO
@@ -159,6 +165,11 @@ _CODE_SEED = {
             # (either would work; this is the simpler of the two options
             # noted there).
             "range_deltas_m": {"raise_low": 1.0, "raise_mid": 1.5, "narrow": 0.5},
+            # When the catalyst list below was last refreshed. The guidance drafter warns (and tells
+            # the model to hedge specific figures) whenever this predates the quarter being drafted —
+            # so a stale specific like "RTP grew to 200,000/month" isn't recycled forward as current
+            # fact. Read by guidance_engine.catalyst_freshness(); update this whenever the list is.
+            "known_h2_catalysts_asof": "Q1 2026",
             "known_h2_catalysts": [
                 "School voucher program — expected to exceed $1 billion in re-disbursements",
                 "PostCredit — market-ready in the coming months, auto-account for new clients",

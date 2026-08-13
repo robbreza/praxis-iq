@@ -278,12 +278,29 @@ PERSONAS = [
 
 def _active_personas():
     """PERSONAS filtered to the roles actually DELIVERING prepared remarks this quarter, per the
-    confirmed speaker lineup (see core.speakers). Drives auto-drafting, the canvas render, and the
-    assembled full script — so no section is drafted or shown for a role that isn't speaking (e.g.
-    a vacant IR seat mid-transition). Falls back to all four personas when nothing is confirmed
-    (the workflow gate normally prevents that, but callers stay safe)."""
+    confirmed speaker lineup (see core.speakers), and ORDERED to match how the client actually runs
+    its call. Drives auto-drafting, the canvas render, and the assembled full script — so sections
+    appear in the real speaking order and none is drafted for a role that isn't speaking (e.g. a
+    vacant IR seat mid-transition).
+
+    Speaker order: a client whose call doesn't follow the default IR→CEO→CRO→CFO shape sets
+    `speaker_order` (a list of role codes) on its client record — e.g. USIO, where the CAO hosts
+    and delivers the financials first and the CEO closes with guidance, is ["IR","CFO","CRO","CEO"].
+    Guidance always follows the LAST persona (see _assembled_script_text), so putting the guidance-
+    giver last puts the outlook in the right mouth. Roles omitted from speaker_order keep their
+    default relative position at the end; an unset speaker_order preserves the legacy PERSONAS order.
+    Falls back to all personas when nothing is confirmed (the workflow gate normally prevents that)."""
     contacts = _contacts()
-    return [(role, key, label) for role, key, label in PERSONAS
+    by_role = {role: (role, key, label) for role, key, label in PERSONAS}
+    order = [r for r in (C().get("speaker_order") or []) if r in by_role]
+    ordered, seen = [], set()
+    for role in order:
+        if role not in seen:
+            ordered.append(by_role[role]); seen.add(role)
+    for role, key, label in PERSONAS:            # any persona not named in speaker_order keeps default order
+        if role not in seen:
+            ordered.append((role, key, label)); seen.add(role)
+    return [(role, key, label) for role, key, label in ordered
             if contacts.get(role, {}).get("speaking") is not False]
 
 # Call Opening — the operator's introduction plus IR's welcome/participant-
@@ -2327,6 +2344,18 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
     # is empty) — so the drafted language cites the actual pipeline, not a static list.
     _cats, _cats_from_stage1 = guidance_engine.catalysts_from_stage1(ss)
     catalysts_block = "; ".join(_cats) or "none configured"
+    # Freshness guard: policy catalysts carry an as-of quarter; if they predate the quarter being
+    # drafted, tell the model NOT to recite their specific figures as current fact (the USIO Q2 pass
+    # recycled Q1's "RTP ~200,000/month," which the actual call contradicted). Stage-1 catalysts are
+    # current by construction, so the guard only bites on the policy fallback.
+    _cat_fresh = guidance_engine.catalyst_freshness()
+    catalyst_staleness_note = (
+        f"CAUTION — these catalysts were last refreshed {_cat_fresh['asof']}, but you are drafting "
+        f"{_cat_fresh['current']}. Reference the catalyst THEMES but do NOT state any specific figure, "
+        f"count, or dollar amount from them as a current fact — either omit the specific number or mark "
+        f"it clearly as a prior-period reference. "
+        if (_cat_fresh["stale"] and not _cats_from_stage1) else ""
+    )
     range_str = f"${new_low:.1f}M to ${new_hi:.1f}M"
     # The OTHER guided lines (EPS, EBITDA) the company also gives — so the drafted language states EVERY
     # guided number, not just revenue (the analysis feeds the language for all three).
@@ -2353,6 +2382,7 @@ def _generate_guidance_draft(ss, action, new_low, new_hi, rationale, extra_conte
         + (f"ALSO state these other full-year guided lines the company gives, verbatim: {_other} " if _other else "")
         + (f"CRITICAL — frame the remaining-period comp exactly as this analysis concludes (do not call it a "
            f"deceleration; it is a prior-year base effect): {_h2} " if _h2 else "")
+        + catalyst_staleness_note
         + f"H2 catalysts from this quarter's operating detail, reference at least 2 (mark speculative specifics "
         f"as [FLS]...[/FLS]): {catalysts_block}. Writing rules: {_guidance_writing_rules()} "
         f"Additional context: {extra_context or 'none provided'}. "
@@ -3104,6 +3134,19 @@ def _render_guidance_drafter(ss, on_submit=None):
 
     _prior_guid = _guidance_prior_language()
     _cons = _guidance_consistency(gd)
+    # Catalyst-freshness warning — only when the client falls back to the policy catalyst list AND it
+    # predates this quarter (Stage-1-derived catalysts are current, so no warning there).
+    _cats_now, _cats_from_stage1 = _ge.catalysts_from_stage1(ss)
+    _cat_fresh = _ge.catalyst_freshness()
+    if _cat_fresh["stale"] and not _cats_from_stage1:
+        with ui.row().classes("w-full items-center no-wrap").style(
+                f"background:{COLORS['warning']}14;border:1px solid {COLORS['warning']};border-radius:8px;"
+                "padding:8px 12px;margin-bottom:8px;gap:8px;"):
+            ui.icon("update").style(f"color:{COLORS['warning']};font-size:20px;flex:none;")
+            ui.label(f"H2 catalysts last refreshed {_cat_fresh['asof']} — you're drafting "
+                     f"{_cat_fresh['current']}. Refresh them before the call so the outlook doesn't recite "
+                     f"prior-quarter specifics as current.").style(
+                f"color:{COLORS['warning']};font-size:var(--fs-sm);font-weight:600;")
     if _prior_guid or _cons:
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;padding:10px 14px;"):
@@ -3417,6 +3460,19 @@ def _render_guidance_decision(ss, context="script", on_submit=None):
     ui.label("③ Draft the language").classes("font-bold").style("font-size:var(--fs-lg);margin-top:12px;")
     _prior_guid = _guidance_prior_language()
     _cons = _guidance_consistency(gd)
+    # Catalyst-freshness warning — only when the client falls back to the policy catalyst list AND it
+    # predates this quarter (Stage-1-derived catalysts are current, so no warning there).
+    _cats_now, _cats_from_stage1 = _ge.catalysts_from_stage1(ss)
+    _cat_fresh = _ge.catalyst_freshness()
+    if _cat_fresh["stale"] and not _cats_from_stage1:
+        with ui.row().classes("w-full items-center no-wrap").style(
+                f"background:{COLORS['warning']}14;border:1px solid {COLORS['warning']};border-radius:8px;"
+                "padding:8px 12px;margin-bottom:8px;gap:8px;"):
+            ui.icon("update").style(f"color:{COLORS['warning']};font-size:20px;flex:none;")
+            ui.label(f"H2 catalysts last refreshed {_cat_fresh['asof']} — you're drafting "
+                     f"{_cat_fresh['current']}. Refresh them before the call so the outlook doesn't recite "
+                     f"prior-quarter specifics as current.").style(
+                f"color:{COLORS['warning']};font-size:var(--fs-sm);font-weight:600;")
     if _prior_guid or _cons:
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;padding:10px 14px;"):

@@ -559,6 +559,27 @@ def catalysts_from_stage1(ss):
     return list(CGP().get("known_h2_catalysts", [])), False
 
 
+def catalyst_freshness(current_quarter=None):
+    """Is the configured policy catalyst list stale for the quarter being drafted?
+
+    Returns {'asof', 'current', 'stale', 'note'}. `stale` is True only when the policy catalysts
+    carry an `known_h2_catalysts_asof` label that differs from the current quarter — i.e. they were
+    captured in an earlier quarter and risk being recycled forward as current fact (the USIO Q2 pass
+    recited Q1's "RTP ~200,000/month," which the actual call contradicted with "12 accounts from
+    zero"). Only meaningful when catalysts come from policy (catalysts_from_stage1 -> from_stage1
+    False); Stage-1-derived catalysts are current by construction. `asof` empty -> unknown, not stale
+    (don't cry wolf on clients that never dated their list)."""
+    policy = CGP()
+    asof = (policy.get("known_h2_catalysts_asof") or "").strip()
+    current = (current_quarter or CE().get("current_quarter") or "").strip()
+    stale = bool(asof) and bool(current) and asof != current
+    note = ""
+    if stale:
+        note = (f"Catalyst list was last refreshed {asof} but you're drafting {current} — refresh the "
+                f"catalysts, or the outlook may recite prior-quarter specifics as if current.")
+    return {"asof": asof, "current": current, "stale": stale, "note": note}
+
+
 def render_guidance_prose(action, new_low, new_hi, rationale="", context="", other_guidance="", h2_comp="",
                           catalysts=None):
     """Deterministically render the Guidance & Outlook prose FROM the decision. `other_guidance` is the
