@@ -86,8 +86,13 @@ _CODE_SEED = {
         # formula that doesn't actually exist upstream.
         "guidance_vs_street_note": "-$0.6M below street",
         "bar_risk_level": "HIGH", "bar_risk_note": "Stock +35% YTD vs flat sector",
-        "ir_contact": {"name": "Paul Manley", "title": "SVP, Investor Relations",
-            "email": "paul.manley@usio.com", "irconnect": "irconnect@usio.com"},
+        # USIO's earnings release names no IR individual — "Contact: Investor
+        # Relations, ir@usio.com" — so the IR contact is the shared IR desk, not
+        # a person (the old "Paul Manley" was a placeholder assumption). is_team
+        # marks it generic: the persona reads just "Investor Relations" and the
+        # greeting says "team," not a first name.
+        "ir_contact": {"name": "Investor Relations", "title": "Investor Relations",
+            "email": "ir@usio.com", "irconnect": "irconnect@usio.com", "is_team": True},
         # "title" per exec is read by earnings_page.py's Call Opening card
         # (_call_opening_text) to introduce each speaker by role — moved out
         # of that file's _CALL_OPENING_EXEC_TITLES module constant 2026-07-12
@@ -392,18 +397,23 @@ ROLE_PERMISSIONS = {
 DEFAULT_ROLE_KEY = "IR"
 
 
-def _role_entry(role_key, name, title):
+def _role_entry(role_key, name, title, is_team=False):
     """Combine the platform permission set for role_key with WHO fills it
-    (name/title) from the active client's profile."""
+    (name/title) from the active client's profile. `is_team` marks a generic
+    desk (e.g. a shared "Investor Relations" contact, no individual named) —
+    its selector shows just the name, since "Investor Relations — IR Director"
+    is redundant, and the greeting addresses it as a team, not a first name."""
     perms = ROLE_PERMISSIONS[role_key]
     return {
         "role_key": role_key,
         "label": perms["label"],
         "name": name,
         "title": title or perms["label"],
-        # Human-facing selector string, e.g. "Paul Manley — IR Director".
-        # Person name is data pulled from the profile, not a literal.
-        "display": f"{name} — {perms['label']}",
+        # Human-facing selector string, e.g. "Jane Doe — IR Director" for a named
+        # person, or just "Investor Relations" for a generic desk. Person name is
+        # data pulled from the profile, not a literal.
+        "display": name if is_team else f"{name} — {perms['label']}",
+        "is_team": is_team,
         "permissions": perms,
     }
 
@@ -417,10 +427,10 @@ def role_roster(client_id=None):
     roster = []
     ir = client.get("ir_contact", {})
     if ir.get("name") and "IR" in ROLE_PERMISSIONS:
-        roster.append(_role_entry("IR", ir.get("name"), ir.get("title")))
+        roster.append(_role_entry("IR", ir.get("name"), ir.get("title"), is_team=bool(ir.get("is_team"))))
     for role_key, info in client.get("executives", {}).items():
         if role_key in ROLE_PERMISSIONS and info.get("name"):
-            roster.append(_role_entry(role_key, info.get("name"), info.get("title")))
+            roster.append(_role_entry(role_key, info.get("name"), info.get("title"), is_team=bool(info.get("is_team"))))
     return roster
 
 
@@ -465,7 +475,7 @@ def role_can_change_settings(role_key):
 
 
 def role_key_from_display(display, client_id=None):
-    """Map a selector string (e.g. 'Paul Manley — IR Director') back to its
+    """Map a selector string (e.g. 'Jane Doe — IR Director') back to its
     role_key. Falls back to DEFAULT_ROLE_KEY if nothing matches."""
     for entry in role_roster(client_id):
         if entry["display"] == display:
@@ -732,7 +742,7 @@ def client_data_path(filename, client_id=None):
 def team_labels():
     """'<Name> (<ROLE>)' labels for everyone on the active client's team,
     built from the profile (ir_contact + executives) instead of a hardcoded
-    ['Louis Hoch (CEO)', 'Paul Manley (IR)', ...] list. Used by participant
+    ['Louis Hoch (CEO)', 'Investor Relations (IR)', ...] list. Used by participant
     pickers — Reg FD meeting attendees, the earnings "Submitted by" selector,
     etc. — so those rosters are correct for whichever client is active. IR
     first, then executives in registry order. A role slot with no assigned

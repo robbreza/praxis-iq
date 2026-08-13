@@ -342,15 +342,19 @@ def render_today_page():
     # profile (role_roster), never a hardcoded name. Falls back to the signed-in account, then a
     # clean name-less greeting when there's no session (e.g. the smoke renderer).
     first_name = ""
+    _is_team = False
     try:
         from config.client_config import role_roster as _rr
         _role = ui_context.current_role()
         _entry = next((r for r in _rr() if r.get("role_key") == _role), None)
         if _entry and _entry.get("name"):
-            first_name = _entry["name"].split(" ")[0]
+            if _entry.get("is_team"):
+                _is_team = True                      # generic desk (e.g. "Investor Relations") — greet the team
+            else:
+                first_name = _entry["name"].split(" ")[0]
     except Exception:
         first_name = ""
-    if not first_name:
+    if not first_name and not _is_team:
         try:
             from nicegui import app as _app
             from core import auth as _auth
@@ -359,8 +363,8 @@ def render_today_page():
             first_name = ((_u or {}).get("display_name") or "").split(" ")[0]
         except Exception:
             first_name = ""
-    ui.label(f"Good morning, {first_name}." if first_name else "Good morning.") \
-        .classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    _greeting = "Good morning, team." if _is_team else (f"Good morning, {first_name}." if first_name else "Good morning.")
+    ui.label(_greeting).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
     # RBAC: view-only roles (e.g. CRO/Legal) can read the morning brief but not
     # persist mark-noted/sent/consensus actions — enforced at the _save_state
