@@ -56,10 +56,10 @@ def _open_brief(fund, inst_by_fund, client_id, meeting=None):
     `meeting` (an optional scheduled_meetings row) adds the who/when/agenda context at the top when
     the brief is opened from an actual booked meeting rather than a bare holder lookup."""
     row = inst_by_fund.get(fund, {"Fund": fund})
-    note = _last_note_for(fund)
 
     with ui.dialog() as dialog, ui.card().style(
-            f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);border-radius:14px;"):
+            f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);"
+            f"max-height:88vh;overflow:auto;border-radius:14px;"):
         ui.label(pretty_name(fund)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         if meeting:
             ctx = " · ".join(x for x in [meeting.get("Date"), meeting.get("Time"),
@@ -68,27 +68,17 @@ def _open_brief(fund, inst_by_fund, client_id, meeting=None):
                 ui.label(ctx).style(f"color:{COLORS['accent']};font-size:var(--fs-sm);font-weight:600;")
             if meeting.get("Topic"):
                 ui.label(f"Agenda: {meeting['Topic']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-        # holding / conviction / direction — only what we actually have
-        bits = []
-        if row.get("Position_Value"):
-            bits.append(f"${row['Position_Value']/1e6:,.1f}M held")
-        if row.get("Conviction"):
-            bits.append(str(row["Conviction"]))
-        if row.get("Direction"):
-            bits.append(str(row["Direction"]).title())
-        if row.get("Metro"):
-            bits.append(str(row["Metro"]))
-        ui.label(" · ".join(bits) if bits else "No 13F position on file — prospect.") \
-            .style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
-        if row.get("Coverage_Priority"):
-            ui.label(f"Coverage priority: {row['Coverage_Priority']}").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-        # last note
-        if note:
-            with ui.element("div").style(
-                    f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-top:6px;"):
-                ui.label(f"Last note ({note.get('Date','')})").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-                ui.label(note.get("Notes", "")).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
+        # The SAME full investor brief the desktop uses (position, signal, peers, contact,
+        # talking points, last note) — one consistent briefing everywhere instead of the old
+        # lean mobile-only version. The institutions row carries both the 13F fields and the
+        # contact/behavioral fields, so it serves as both args; the engagement-score
+        # breakdown just omits itself when it isn't on the row.
+        try:
+            from page_modules_nicegui.today_page import _render_investor_brief
+            _render_investor_brief(row, row, fund)
+        except Exception:
+            ui.label("No 13F position on file — prospect.").style(
+                f"color:{COLORS['text_body']};font-size:var(--fs-base);")
 
         ui.separator().style("margin:8px 0;")
         ui.label("Capture a note").classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
