@@ -2173,7 +2173,10 @@ ui.add_head_html(
     ".rkpi{background:#FFFFFF !important;border:1px solid #C2CCD9 !important;border-radius:12px !important;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;padding:15px 16px !important;gap:3px !important;}"
     ".rkpi-lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;font-weight:700;}"
-    ".rkpi-n{font-size:26px;font-weight:800;line-height:1.1;color:#141821;}"
+    # Titled header with an underline rule (header → number → analysis order).
+    ".rkpi-head{font-size:14px;font-weight:700;color:#1F2733;width:100%;padding-bottom:6px;"
+    "border-bottom:1.5px solid #C2CCD9;}"
+    ".rkpi-n{font-size:26px;font-weight:800;line-height:1.1;color:#141821;margin-top:8px;}"
     ".rkpi-sub{font-size:12.5px;color:#4A5160;}"
     ".rkpi-good{color:#127A4A;} .rkpi-bad{color:#B1352D;}"
     "</style>",
