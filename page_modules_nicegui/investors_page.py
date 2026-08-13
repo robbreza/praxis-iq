@@ -1417,7 +1417,7 @@ def render_investors_page(section="ownership"):
 
     @ui.refreshable
     def _big_picture_section():
-        _render_big_picture(_mode_ctx["institutions"])
+        _render_big_picture(_mode_ctx["institutions"], "summary" if section == "ownership" else "geo")
 
     @ui.refreshable
     def _mode_desc_section():
@@ -1434,9 +1434,9 @@ def render_investors_page(section="ownership"):
         _mode_ctx["institutions"] = _score_institutions(raw_institutions, new_mode, q2_listeners, meeting_log)
         mode_state["mode"] = new_mode
         _save_json("buyside_mode.json", mode_state)
-        if section == "targeting":
+        if section in ("ownership", "targeting"):
             _big_picture_section.refresh()
-        elif section == "ownership":
+        if section == "ownership":
             _buyside_section.refresh()
         _mode_desc_section.refresh()
         _invalidate_mode_tabs()
@@ -1448,7 +1448,7 @@ def render_investors_page(section="ownership"):
     # Peer Ownership By City/Metro Area" table) leads TARGETING — it's the strategic "where to go"
     # overview, and Targeting is now the first section. Ownership opens straight into its Buy-side/
     # NOBO/Website tabs (whose Buyside Read already carries the who-owns-you summary).
-    if section == "targeting":
+    if section in ("ownership", "targeting"):
         _big_picture_section()
         ui.markdown("---")
     if section in ("ownership", "targeting"):
@@ -2743,7 +2743,7 @@ def _open_lineup_crosswalk_dialog():
     dlg.open()
 
 
-def _render_big_picture(institutions):
+def _render_big_picture(institutions, part="all"):
     client_id = get_active_client_id()
     # Tag each holder with how our weight in their book compares to how they weight our comps
     # (Over/In-line/Under) — read by _holder_position_cells in the metro select + drill dialogs.
@@ -2925,477 +2925,479 @@ def _render_big_picture(institutions):
     # quiet-period banner is the correct pattern if a countdown is wanted again: it
     # renders only when a quiet_start exists AND the count is positive.
 
-    ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:12px;")
+    if part in ("all", "summary"):
+        ui.label("Big Picture — Where Things Stand").classes("text-xl font-bold").style(f"color:{COLORS['text_heading']};margin-top:12px;")
 
-    # THE IR READ — a plain-English BLUF up top (same pattern as NOBO's CEO read), built from the
-    # numbers already on this page so the "so what" lands before the tiles.
-    _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
-    _dirl = lambda i: (i.get("Direction") or "").lower()
-    _bp_adding = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("adding", "new")]
-    _bp_trimming = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("trimming", "exited")]
-    try:                                          # who should own you = the conviction target universe
-        from core import peer_prospects as _bpp
-        _bp_targets = _bpp.build_candidates(client_id, limit=None) or []
-    except Exception:
-        _bp_targets = []
-    _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
-    # Tier-1-ready count from the ONE canonical definition, shared with the Target Database (see
-    # _tier1_ready_names) so the card and the click-through can never disagree.
-    _bp_tier1_ready = len(_tier1_ready_names(institutions, client_id))
-    _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
-    _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
-    _ir_read = []
-    _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
-           if top_metro_request else "")
-    _ir_read.append(
-        f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to convert and "
-        f"{top_d.get('holders', 0)} holder(s) to defend{_rq}.")
-    if ndr_requests:
+        # THE IR READ — a plain-English BLUF up top (same pattern as NOBO's CEO read), built from the
+        # numbers already on this page so the "so what" lands before the tiles.
+        _new_pos = [i for i in institutions if (i.get("Direction") or "").lower() == "new"]
+        _dirl = lambda i: (i.get("Direction") or "").lower()
+        _bp_adding = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("adding", "new")]
+        _bp_trimming = [i for i in institutions if i.get("USIO_Holder") and _dirl(i) in ("trimming", "exited")]
+        try:                                          # who should own you = the conviction target universe
+            from core import peer_prospects as _bpp
+            _bp_targets = _bpp.build_candidates(client_id, limit=None) or []
+        except Exception:
+            _bp_targets = []
+        _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
+        # Tier-1-ready count from the ONE canonical definition, shared with the Target Database (see
+        # _tier1_ready_names) so the card and the click-through can never disagree.
+        _bp_tier1_ready = len(_tier1_ready_names(institutions, client_id))
+        _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
+        _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
+        _ir_read = []
+        _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
+               if top_metro_request else "")
         _ir_read.append(
-            f"{len(ndr_requests)} inbound NDR request(s) on the desk across "
-            f"{len({r['metro'] for r in ndr_requests})} cities — slot them while you're already routing.")
-    if _new_pos:
-        _nm = ", ".join(pretty_name(i['Fund']) for i in _new_pos[:3])
-        _ir_read.append(
-            f"{len(_new_pos)} new 13F position(s) entered the book this cycle ({_nm}"
-            f"{' …' if len(_new_pos) > 3 else ''}) — new money to engage early.")
-    _ir_read.append(
-        f"{holder_count} holder(s) own you today; {_bp_targets_count} non-holder target(s) are being worked, "
-        f"{_bp_tier1_ready} at Tier-1.")
-    with ui.card().classes("w-full").style(
-            "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
-            "border-radius:8px;margin-top:8px;"):
-        ui.label("THE IR READ — where your ownership stands").style(
-            "color:#1E3A8A;font-size:var(--fs-sm);font-weight:800;letter-spacing:.04em;text-transform:uppercase;")
-        # A divider under the header, then bullets with a hanging indent — the bullet sits in its own
-        # column so wrapped lines align under the TEXT, not under the bullet.
-        ui.element("div").style("border-bottom:1.5px solid #1E40AF55;margin:6px 0 9px;width:100%;")
-        for _p in _ir_read:
-            with ui.row().classes("w-full no-wrap items-start").style("gap:8px;margin-top:1px;"):
-                ui.label("•").style("color:#1E40AF;font-size:var(--fs-base);line-height:1.6;font-weight:800;")
-                ui.label(_p).style(
-                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
-
-    # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape across
-    # every ownership surface): who owns you · who should · who's moving · where to start. Each card now
-    # names itself via its eyebrow header, so no redundant subheader row above the grid.
-    with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:10px;"):
-        _bp_metric("Current Institutional Investors", str(holder_count),
-                   [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
-                    ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
-                    if holders_by_metro else "No holders tracked yet."],
-                   sub=_peer_holder_sub(holder_count, client_id),
-                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="holders"))
-        _bp_metric("Target Investors", f"{_bp_tier1_ready} / {_bp_targets_count}",
-                   [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
-                    for c in _bp_top_targets[:5]] or ["No conviction targets yet."],
-                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="tier1"))
-        _bp_metric("Adding / Trimming", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
-                   ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
-                   + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []),
-                   on_click=lambda: nav.go_to("Ownership", "Buyside Ownership"))
-        # "Where to start" is the roadshow-geography answer: the #1 city, then a ranked summary of
-        # the other cities in play, and — the part IR actually acts on — who asked for each one.
-        _wts_detail = ["Priority cities (convert · defend):"]
-        for _m, _pri, _d, _v, _rc in metro_priority[:5]:
-            _seg = f"  {_m}: {_d.get('tier1_nonholder', 0)} to convert · {_d.get('holders', 0)} to defend"
-            if _rc:
-                _seg += f" · {_rc} request(s)"
-            _wts_detail.append(_seg)
+            f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to convert and "
+            f"{top_d.get('holders', 0)} holder(s) to defend{_rq}.")
         if ndr_requests:
-            _wts_detail.append("Who's asking:")
-            for _r in ndr_requests:
-                _wts_detail.append(f"  {_r['metro']} — {_r.get('analyst', '—')} ({_r.get('firm', '—')})")
-        # Card face shows ONLY the #1 city (per request); the ranked city list stays in the detail dialog.
-        _wts_sub = f"{len(ndr_requests)} inbound request(s) on the desk" if ndr_requests else None
-        _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub,
-                   on_click=lambda: nav.go_to("Roadshow", "NDR"))
+            _ir_read.append(
+                f"{len(ndr_requests)} inbound NDR request(s) on the desk across "
+                f"{len({r['metro'] for r in ndr_requests})} cities — slot them while you're already routing.")
+        if _new_pos:
+            _nm = ", ".join(pretty_name(i['Fund']) for i in _new_pos[:3])
+            _ir_read.append(
+                f"{len(_new_pos)} new 13F position(s) entered the book this cycle ({_nm}"
+                f"{' …' if len(_new_pos) > 3 else ''}) — new money to engage early.")
+        _ir_read.append(
+            f"{holder_count} holder(s) own you today; {_bp_targets_count} non-holder target(s) are being worked, "
+            f"{_bp_tier1_ready} at Tier-1.")
+        with ui.card().classes("w-full").style(
+                "background:rgba(30,64,175,.06);border:1.5px solid #1E40AF;border-left:6px solid #1E40AF;"
+                "border-radius:8px;margin-top:8px;"):
+            ui.label("THE IR READ — where your ownership stands").style(
+                "color:#1E3A8A;font-size:var(--fs-sm);font-weight:800;letter-spacing:.04em;text-transform:uppercase;")
+            # A divider under the header, then bullets with a hanging indent — the bullet sits in its own
+            # column so wrapped lines align under the TEXT, not under the bullet.
+            ui.element("div").style("border-bottom:1.5px solid #1E40AF55;margin:6px 0 9px;width:100%;")
+            for _p in _ir_read:
+                with ui.row().classes("w-full no-wrap items-start").style("gap:8px;margin-top:1px;"):
+                    ui.label("•").style("color:#1E40AF;font-size:var(--fs-base);line-height:1.6;font-weight:800;")
+                    ui.label(_p).style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
-    # Holder moves this cycle — the approved colored-header card pattern (green adds / red trims,
-    # count badge, status pills). Only shown when the 13F diff actually surfaced movement.
-    if _bp_adding or _bp_trimming:
-        ui.label("Institutional Activity").classes("section-head").style("margin-top:16px;")
+        # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape across
+        # every ownership surface): who owns you · who should · who's moving · where to start. Each card now
+        # names itself via its eyebrow header, so no redundant subheader row above the grid.
+        with ui.row().classes("w-full gap-3 items-stretch").style("margin-top:10px;"):
+            _bp_metric("Current Institutional Investors", str(holder_count),
+                       [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
+                        ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
+                        if holders_by_metro else "No holders tracked yet."],
+                       sub=_peer_holder_sub(holder_count, client_id),
+                       on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="holders"))
+            _bp_metric("Target Investors", f"{_bp_tier1_ready} / {_bp_targets_count}",
+                       [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
+                        for c in _bp_top_targets[:5]] or ["No conviction targets yet."],
+                       on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="tier1"))
+            _bp_metric("Adding / Trimming", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
+                       ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
+                       + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []),
+                       on_click=lambda: nav.go_to("Ownership", "Buyside Ownership"))
+            # "Where to start" is the roadshow-geography answer: the #1 city, then a ranked summary of
+            # the other cities in play, and — the part IR actually acts on — who asked for each one.
+            _wts_detail = ["Priority cities (convert · defend):"]
+            for _m, _pri, _d, _v, _rc in metro_priority[:5]:
+                _seg = f"  {_m}: {_d.get('tier1_nonholder', 0)} to convert · {_d.get('holders', 0)} to defend"
+                if _rc:
+                    _seg += f" · {_rc} request(s)"
+                _wts_detail.append(_seg)
+            if ndr_requests:
+                _wts_detail.append("Who's asking:")
+                for _r in ndr_requests:
+                    _wts_detail.append(f"  {_r['metro']} — {_r.get('analyst', '—')} ({_r.get('firm', '—')})")
+            # Card face shows ONLY the #1 city (per request); the ranked city list stays in the detail dialog.
+            _wts_sub = f"{len(ndr_requests)} inbound request(s) on the desk" if ndr_requests else None
+            _bp_metric("Where to start", top_metro, _wts_detail, sub=_wts_sub,
+                       on_click=lambda: nav.go_to("Roadshow", "NDR"))
 
-        def _move_pill(it):
-            d = (it.get("Direction") or "").lower()
-            return {"new": ("rpill-good", "new"), "adding": ("rpill-good", "adding"),
-                    "trimming": ("rpill-warn", "trimming"), "exited": ("rpill-def", "exited")}.get(d, ("rpill-def", d or "—"))
+        # Holder moves this cycle — the approved colored-header card pattern (green adds / red trims,
+        # count badge, status pills). Only shown when the 13F diff actually surfaced movement.
+        if _bp_adding or _bp_trimming:
+            ui.label("Institutional Activity").classes("section-head").style("margin-top:16px;")
 
-        def _moves_card(title, items, tone, val_color):
-            def _move_row(it):
-                _pc, _pt = _move_pill(it)
-                with ui.row().classes("rrow"):
-                    ui.label(pretty_name(it.get("Fund", "") or "—")).style("font-weight:600;")
-                    ui.label(_pt).classes(f"rpill {_pc}")
-                    _dv = _holder_dollars(it.get("Position_Value"))
-                    if _dv and _dv != "—":
-                        ui.label(_dv).classes("rval").style(f"color:{val_color};")
+            def _move_pill(it):
+                d = (it.get("Direction") or "").lower()
+                return {"new": ("rpill-good", "new"), "adding": ("rpill-good", "adding"),
+                        "trimming": ("rpill-warn", "trimming"), "exited": ("rpill-def", "exited")}.get(d, ("rpill-def", d or "—"))
 
-            with ui.card().classes("flex-1 report-card"):
-                with ui.row().classes(f"rhead rhead-{tone}"):
-                    ui.label(title)
-                    ui.label(str(len(items))).classes("count")
-                if not items:
+            def _moves_card(title, items, tone, val_color):
+                def _move_row(it):
+                    _pc, _pt = _move_pill(it)
                     with ui.row().classes("rrow"):
-                        ui.label("None this cycle").classes("rmeta")
-                for it in items[:6]:
-                    _move_row(it)
-                # Expand to show ALL of them (the card can hold every mover, not just the first 6).
-                if len(items) > 6:
-                    with ui.expansion(f"Show all {len(items)}").classes("w-full").props("dense"):
-                        for it in items[6:]:
-                            _move_row(it)
+                        ui.label(pretty_name(it.get("Fund", "") or "—")).style("font-weight:600;")
+                        ui.label(_pt).classes(f"rpill {_pc}")
+                        _dv = _holder_dollars(it.get("Position_Value"))
+                        if _dv and _dv != "—":
+                            ui.label(_dv).classes("rval").style(f"color:{val_color};")
 
-        with ui.row().classes("w-full gap-4 items-start").style("margin-top:8px;"):
-            _moves_card("New money & adds", _bp_adding, "good", "#127A4A")
-            _moves_card("Trimming & exits", _bp_trimming, "bad", "#B1352D")
+                with ui.card().classes("flex-1 report-card"):
+                    with ui.row().classes(f"rhead rhead-{tone}"):
+                        ui.label(title)
+                        ui.label(str(len(items))).classes("count")
+                    if not items:
+                        with ui.row().classes("rrow"):
+                            ui.label("None this cycle").classes("rmeta")
+                    for it in items[:6]:
+                        _move_row(it)
+                    # Expand to show ALL of them (the card can hold every mover, not just the first 6).
+                    if len(items) > 6:
+                        with ui.expansion(f"Show all {len(items)}").classes("w-full").props("dense"):
+                            for it in items[6:]:
+                                _move_row(it)
 
-    # (Removed the opaque "New vs. existing" mix bar — its 52/48 came from a call/visitor/prospect
-    # signal blend that never reconciled with the visible holder/target counts; the four cards above
-    # carry the composition now.)
-    # Data-source footnote — deliberately NOT a headline; provenance/cadence are set in onboarding.
-    ui.label("Sourced from SEC 13F filings + peer 13F books · refreshed each 13F cycle."
-             + (f" · {recency_note}" if recency_note else "")).style(
-        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:6px;font-style:italic;")
+            with ui.row().classes("w-full gap-4 items-start").style("margin-top:8px;"):
+                _moves_card("New money & adds", _bp_adding, "good", "#127A4A")
+                _moves_card("Trimming & exits", _bp_trimming, "bad", "#B1352D")
 
-    most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
-    if most_visited and most_visited[1] >= 2 and most_visited[0] != top_metro:
-        ui.html(
-            f"<div style='font-size:var(--fs-base);color:#B45309;margin-top:10px;'>"
-            f"By contrast, <b>{most_visited[0]}</b> has had {most_visited[1]} trips already for only "
-            f"{metro_summary.get(most_visited[0], {}).get('count', '?')} tracked institution(s) — before scheduling a third trip "
-            f"there, weigh it against the untapped opportunity in {top_metro}.</div>"
-        )
+        # (Removed the opaque "New vs. existing" mix bar — its 52/48 came from a call/visitor/prospect
+        # signal blend that never reconciled with the visible holder/target counts; the four cards above
+        # carry the composition now.)
+        # Data-source footnote — deliberately NOT a headline; provenance/cadence are set in onboarding.
+        ui.label("Sourced from SEC 13F filings + peer 13F books · refreshed each 13F cycle."
+                 + (f" · {recency_note}" if recency_note else "")).style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:6px;font-style:italic;")
 
-    # ("Top opportunity — where to start" card removed from here per request — the four-question
-    # "Where to start" summary card above already answers it, and the metro table below carries the
-    # geographic detail. Can be relocated elsewhere if wanted.)
+        most_visited = max(visits_by_metro.items(), key=lambda x: x[1]) if visits_by_metro else None
+        if most_visited and most_visited[1] >= 2 and most_visited[0] != top_metro:
+            ui.html(
+                f"<div style='font-size:var(--fs-base);color:#B45309;margin-top:10px;'>"
+                f"By contrast, <b>{most_visited[0]}</b> has had {most_visited[1]} trips already for only "
+                f"{metro_summary.get(most_visited[0], {}).get('count', '?')} tracked institution(s) — before scheduling a third trip "
+                f"there, weigh it against the untapped opportunity in {top_metro}.</div>"
+            )
 
-    # Geographic breakdown — answers the obvious question the counts above raise:
-    # "these institutions... where ARE they?" One row per metro with its holders,
-    # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
-    ui.markdown("---")
-    ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:6px;")
-    # The "N current holders and M peer-owners across K metros…" instruction moves up here, right under
-    # the title (was below the table). Populated once the peer/metro totals are computed (see below).
-    _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin:2px 0 6px;")
+        # ("Top opportunity — where to start" card removed from here per request — the four-question
+        # "Where to start" summary card above already answers it, and the metro table below carries the
+        # geographic detail. Can be relocated elsewhere if wanted.)
 
-    # Join the all-bucket peer-owner universe (Peer Prospects' data) onto the same metro rows, so this
-    # is the ONE metro list — no separate "peer-owners by metro" table. Uses all_candidates (every
-    # bucket) rather than build_candidates (institutional only), matching the Peer Prospects counts.
-    try:
-        from core import peer_prospects as _pp
-        _all_cands = _pp.all_candidates(get_active_client_id())
-    except Exception:
-        _all_cands = []
-    _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
-                 "Market maker": "mm", "Curated": "curated"}
-    peer_by_metro = {}
-    peer_funds_by_metro = {}          # metro -> [candidate dicts], for the click-to-select dialog
-    for _c in _all_cands:
-        _m = _metro_from_city(_c.get("city"), _c.get("state"))
-        peer_funds_by_metro.setdefault(_m, []).append(_c)
-        _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
-        _pm["funds"] += 1
-        _k = _tier_key.get(_c.get("tier"))
-        if _k:
-            _pm[_k] += 1
+    if part in ("all", "geo"):
+        # Geographic breakdown — answers the obvious question the counts above raise:
+        # "these institutions... where ARE they?" One row per metro with its holders,
+        # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
+        ui.markdown("---")
+        ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:6px;")
+        # The "N current holders and M peer-owners across K metros…" instruction moves up here, right under
+        # the title (was below the table). Populated once the peer/metro totals are computed (see below).
+        _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin:2px 0 6px;")
 
-    # NDR status per metro, from the trip book — replaces the old "full-day / half-day"
-    # viability read, which said nothing you'd act on (you plan a full day regardless;
-    # the slot count gets worked out later). This shows where a roadshow actually STANDS:
-    # Planning (trip opened) → Scheduled (dates/meetings set) → Completed. A metro can
-    # carry several trips; keep the most-active.
-    _st_rank = {"Completed": 0, "Planning": 1, "Scheduled": 2}
-    ndr_status_by_metro = {}
-    for _t in trips:
-        _c = _t.get("city")
-        if not _c or _c == "Virtual":
-            continue
-        _mk = _metro_from_city(*_c.rsplit(", ", 1)) if ", " in _c else _c
-        if (_t.get("status") or "") == "Completed":
-            _disp = "Completed"
-        elif _t.get("meetings") or (_t.get("dates") and _t.get("dates") not in ("TBD", "")):
-            _disp = "Scheduled"
-        else:
-            _disp = "Planning"
-        if _mk not in ndr_status_by_metro or _st_rank[_disp] > _st_rank[ndr_status_by_metro[_mk]]:
-            ndr_status_by_metro[_mk] = _disp
+        # Join the all-bucket peer-owner universe (Peer Prospects' data) onto the same metro rows, so this
+        # is the ONE metro list — no separate "peer-owners by metro" table. Uses all_candidates (every
+        # bucket) rather than build_candidates (institutional only), matching the Peer Prospects counts.
+        try:
+            from core import peer_prospects as _pp
+            _all_cands = _pp.all_candidates(get_active_client_id())
+        except Exception:
+            _all_cands = []
+        _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
+                     "Market maker": "mm", "Curated": "curated"}
+        peer_by_metro = {}
+        peer_funds_by_metro = {}          # metro -> [candidate dicts], for the click-to-select dialog
+        for _c in _all_cands:
+            _m = _metro_from_city(_c.get("city"), _c.get("state"))
+            peer_funds_by_metro.setdefault(_m, []).append(_c)
+            _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
+            _pm["funds"] += 1
+            _k = _tier_key.get(_c.get("tier"))
+            if _k:
+                _pm[_k] += 1
 
-    # Union all metro keys (a metro may have holders but no peer-owners, or vice-versa).
-    _all_metros = set(metro_summary) | set(peer_by_metro)
-    _blank_pm = {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0}
-    geo_rows = sorted(
-        [{"metro": m, "holders": (d := metro_summary.get(m, {})).get("holders", 0),
-          "t1": d.get("tier1_nonholder", 0), "trips": visits_by_metro.get(m, 0),
-          "funds": (pm := peer_by_metro.get(m, _blank_pm))["funds"], "inst": pm["inst"],
-          "ria": pm["ria"], "div": pm["div"], "mm": pm["mm"], "curated": pm["curated"],
-          "read": ndr_status_by_metro.get(m, "—"), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
-         for m in _all_metros],
-        key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
-    _tk = CT("ticker")
-    geo_cols = [
-        {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True,
-         "tooltip": "Fund HQ clustered into ~60-mile roadshow metros — a day's drive, the way an NDR is planned"},
-        {"name": "holders", "label": "Holders", "field": "holders", "align": "right", "sortable": True,
-         "tooltip": f"Funds here that own {_tk} today (13F)"},
-        {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right", "sortable": True,          # two-row header
-         "tooltip": "Tier-1 ready — high-conviction NON-holders ready to convert (score ≥80 / conviction ≥70)"},
-        {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True,    # two-row header
-         "tooltip": f"Funds that own a peer/comp but not {_tk} — your prospecting universe (= Inst+RIA+Divsfd+MM+Curated)"},
-        {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True,
-         "tooltip": "Institutional peer-owners — the primary NDR-target bucket"},
-        {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True,
-         "tooltip": "RIA / wealth peer-owners — video-call tier, usually no PM to pitch"},
-        {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True,
-         "tooltip": "Diversified — large multi-strategy / bank-AM houses"},
-        {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True,
-         "tooltip": "Market makers — no fundamental PM to pitch"},
-        {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True,
-         "tooltip": "Hand-entered targets that don't hold a comp yet (a private bank, a prior-seat relationship)"},
-        {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True,
-         "tooltip": "Trips logged for this metro — any status (planning, scheduled, completed)"},
-        {"name": "read", "label": "NDR status", "field": "read", "align": "left", "sortable": True,
-         "tooltip": "State of the most-active NDR here: Planning → Scheduled → Completed (— none yet)"},
-        {"name": "top", "label": "Top holder", "field": "top", "align": "left", "sortable": True,
-         "tooltip": "Highest-scoring tracked name in this metro",
-         "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
-    ]
-    # Click a metro row to see exactly WHO is there — the counts above always
-    # raised "which 5 institutions?"; this opens the named list on demand
-    # Click a metro row → tick the peer-owners there → shortlist onto an NDR (one selectable list;
-    # replaces the old tracked-only readout and the separate Peer Prospects metro table).
-    # ── Cell drill-down: click any number to see the exact names behind it ────────────
-    # Every count in this table is backed by a real list, so a number is a doorway, not a
-    # dead end. Holders/Tier-1 come from the lists captured while counting (can't disagree
-    # with the cell); the bucket counts filter the same peer-owner universe the row uses.
-    _CLICKABLE = {"holders": "Holders", "t1": "Tier-1 ready", "funds": "Peer-owners",
-                  "inst": "Institutional", "ria": "RIA / wealth", "div": "Diversified",
-                  "mm": "Market maker", "curated": "Curated targets"}
-
-    def _drill_list(metro, col):
-        d = metro_summary.get(metro, {})
-        if col == "holders":
-            return d.get("holder_list", [])
-        if col == "t1":
-            return d.get("t1_list", [])
-        funds = peer_funds_by_metro.get(metro, [])
-        if col == "funds":
-            return funds
-        return [c for c in funds if _tier_key.get(c.get("tier")) == col]
-
-    def _drill_row(x):
-        # Two shapes reach here: peer-owner candidates ("filer"/"tier"/"conviction"/"comps")
-        # and tracked-institution dicts ("Fund"/"USIO_Holder"/"Engagement_Score"). Normalise both.
-        raw_name = x.get("filer") or x.get("Fund") or ""
-        if "filer" in x:
-            conv = x.get("conviction")
-            peers = ", ".join(sorted((x.get("comps") or {}).keys()))
-            return {"_filer": x.get("filer"),          # row key for selection (not a column)
-                    "Fund": pretty_name(x.get("filer") or "—"),
-                    "City": (x.get("city") or "—").title(),
-                    "Category": x.get("tier") or "—",
-                    "Score": round(conv) if isinstance(conv, (int, float)) else "—",
-                    "Detail": (f"Owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
-                    "Funds": _fund_lineup_label(raw_name)}
-        sc = x.get("Engagement_Score")
-        # A peer-prospect carried its comps in — show which comp it owns ("owns CASS, FOUR"),
-        # matching the Peer-owners drill. Real tracked institutions have no comps → fall back.
-        peers = ", ".join(sorted((x.get("comps") or {}).keys()))
-        _q = _is_quant_inst(x)
-        if x.get("USIO_Holder"):                 # existing holder → position size + trajectory
-            _cat = "Quant — no 1×1" if _q else "Holder"
-            _score, detail = _holder_position_cells(x)
-        else:                                    # tracked non-holder / promoted prospect → conviction
-            _cat = "Non-holder"
-            _score = round(sc) if isinstance(sc, (int, float)) else "—"
-            detail = f"Owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
-        return {"_filer": pretty_name(x.get("Fund") or "—"),   # row key for selection
-                "Fund": pretty_name(x.get("Fund") or "—"),
-                "City": x.get("City") or (x.get("Metro") or "—"),
-                "Category": _cat,
-                "Score": _score,
-                "Detail": detail,
-                "Funds": _fund_lineup_label(raw_name)}
-
-    _drill_dialog = ui.dialog()
-
-    # Every bucket drill-down is selectable → Add to NDR (same shortlist flow as the metro
-    # row-click). Holders/Tier-1 (tracked institutions) are invitable too — you defend existing
-    # relationships on a roadshow — EXCEPT quant/systematic shops, excluded at add time.
-    _selectable_cols = {"funds", "inst", "ria", "div", "mm", "curated", "holders", "t1"}
-
-    def _open_cell_drill(e):
-        metro, col = e.args.get("metro"), e.args.get("col")
-        items = _drill_list(metro, col)
-        d_rows = [_drill_row(x) for x in items]
-        is_peer = col in _selectable_cols
-        _drill_dialog.clear()
-        with _drill_dialog, ui.card().style("min-width:min(900px,95vw);max-width:95vw;"):
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"{metro} — {_CLICKABLE.get(col, col)} · {len(d_rows)} "
-                         f"name{'s' if len(d_rows) != 1 else ''}").classes("text-lg font-bold")
-                ui.button(icon="close", on_click=_drill_dialog.close).props("flat round dense")
-            if not d_rows:
-                ui.label("No names behind this number.").style(f"color:{COLORS['text_muted']};")
+        # NDR status per metro, from the trip book — replaces the old "full-day / half-day"
+        # viability read, which said nothing you'd act on (you plan a full day regardless;
+        # the slot count gets worked out later). This shows where a roadshow actually STANDS:
+        # Planning (trip opened) → Scheduled (dates/meetings set) → Completed. A metro can
+        # carry several trips; keep the most-active.
+        _st_rank = {"Completed": 0, "Planning": 1, "Scheduled": 2}
+        ndr_status_by_metro = {}
+        for _t in trips:
+            _c = _t.get("city")
+            if not _c or _c == "Virtual":
+                continue
+            _mk = _metro_from_city(*_c.rsplit(", ", 1)) if ", " in _c else _c
+            if (_t.get("status") or "") == "Completed":
+                _disp = "Completed"
+            elif _t.get("meetings") or (_t.get("dates") and _t.get("dates") not in ("TBD", "")):
+                _disp = "Scheduled"
             else:
-                _n_lineups = sum(1 for r in d_rows if r.get("Funds"))
-                # Add-to-NDR bar (restored) — only for the peer-owner buckets, which are the
-                # NDR-prospecting universe. Tick names → shortlist onto a new or existing trip.
-                trip_sel = new_name = tbl = None
-                item_by_key = {(it.get("filer") or pretty_name(it.get("Fund") or "")): it
-                               for it in items} if is_peer else {}
-                if is_peer:
-                    _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
-                    trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
-                    trip_opts["__new__"] = "＋ New NDR…"
-                    with ui.row().classes("w-full items-end gap-2").style(
-                            f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
-                        ui.label("Tick names, then add them to an NDR as shortlisted targets.").style(
-                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
-                        trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
-                        new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
-                        new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
-                        add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
-                _dcol_label = {"Funds": "Fund lineup (SEC)", "Category": "Category",
-                               "Score": "Conviction / Position"}
-                dcols = [{"name": k, "label": _dcol_label.get(k, k),
-                          "field": k, "sortable": True,
-                          "align": "right" if k == "Score" else "left",
-                          **({"style": "white-space:normal;min-width:230px;",
-                              "headerStyle": "white-space:normal;"} if k == "Funds" else {})}
-                         for k in ("Fund", "City", "Category", "Score", "Detail", "Funds")]
-                _extra = {"selection": "multiple"} if is_peer else {}
-                tbl = ui.table(columns=dcols, rows=d_rows, row_key=("_filer" if is_peer else "Fund"),
-                               pagination=25, **_extra).classes("w-full").props("dense flat")   # 25 per page
-                _header_tooltips(tbl, {
-                    "Fund": "The fund / manager — click the name for its Account 360",
-                    "City": "Fund HQ city",
-                    "Category": "Ownership bucket / holder status",
-                    "Score": "Conviction (peer-owners) or engagement score (holders), 0-100",
-                    "Detail": f"Which of {CT('ticker')}'s comps they own, or their signal",
-                    "Funds": "The manager's individual '40-Act funds, from its latest SEC N-CEN/485 filing",
-                })
-                # Fund name → Account 360 profile. @click.stop so it doesn't toggle the row checkbox.
-                _orig_by_fund = {pretty_name(it.get("filer") or it.get("Fund") or ""): it for it in items}
-                tbl.add_slot("body-cell-Fund", (
-                    '<q-td :props="props">'
-                    '<span class="cursor-pointer" '
-                    f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
-                    '@click.stop="() => $parent.$emit(\'openProfile\', props.row.Fund)">'
-                    '{{ props.value }}</span></q-td>'))
-                tbl.on("openProfile", lambda e: _open_account_profile(
-                    _orig_by_fund.get(e.args) or {"Fund": e.args}))
+                _disp = "Planning"
+            if _mk not in ndr_status_by_metro or _st_rank[_disp] > _st_rank[ndr_status_by_metro[_mk]]:
+                ndr_status_by_metro[_mk] = _disp
 
-                if is_peer:
-                    def _do_add():
-                        sel = tbl.selected
-                        if not sel:
-                            ui.notify("Tick at least one name first.", type="warning"); return
-                        trips2 = _load_json("ndr_trips.json", [])
-                        if trip_sel.value == "__new__":
-                            nm = (new_name.value or "").strip()
-                            if not nm:
-                                ui.notify("Name the new NDR.", type="warning"); return
-                            trips2.append({
-                                "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
-                                "city": metro, "focus": "", "team": [], "notes": "", "meetings": [], "shortlist": [],
-                                "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
-                                "created": datetime.now().strftime("%Y-%m-%d"),
-                            })
-                            target, tname = trips2[-1], nm
-                        else:
-                            target = trips2[int(trip_sel.value)]
-                            tname = target.get("name") or "NDR"
-                        target.setdefault("shortlist", [])
-                        have = {s.get("institution") for s in target["shortlist"]} | \
-                               {m.get("institution") for m in target.get("meetings", [])}
-                        added = quant_skip = 0
-                        for row in sel:
-                            it = item_by_key.get(row.get("_filer"))
-                            if not it:
-                                continue
-                            nm2 = it.get("filer") or it.get("Fund")
-                            if not nm2 or nm2 in have:
-                                continue
-                            if _is_quant_inst(it):
-                                quant_skip += 1; continue     # quant/systematic — no management 1x1
-                            rec = _shortlist_record(it) if it.get("filer") else _shortlist_from_inst(it)
-                            target["shortlist"].append(rec)
-                            have.add(nm2); added += 1
-                        _save_json("ndr_trips.json", trips2)
-                        dup = len(sel) - added - quant_skip
-                        _m = f"Added {added} target(s) to '{tname}' (Planning)"
-                        if quant_skip:
-                            _m += f" · skipped {quant_skip} quant shop(s) — no 1×1"
-                        if dup:
-                            _m += f" · {dup} already on it"
-                        ui.notify(_m + ". Find it in Outbound → NDR → Active NDRs.", type="positive")
-                        _drill_dialog.close()
-                    add_btn.on_click(_do_add)
-                if _n_lineups:
-                    ui.label(f"“Fund lineup” names the individual '40-Act funds the manager runs (from its "
-                             f"latest SEC N-CEN/485 filing) — the strategy sleeve a 13F hides. Shown for "
-                             f"{_n_lineups} of {len(d_rows)} here; blank where the holder has no registered "
-                             "fund family (hedge fund / SMA) or isn't yet confirmed in the crosswalk.").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
-        _drill_dialog.open()
+        # Union all metro keys (a metro may have holders but no peer-owners, or vice-versa).
+        _all_metros = set(metro_summary) | set(peer_by_metro)
+        _blank_pm = {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0}
+        geo_rows = sorted(
+            [{"metro": m, "holders": (d := metro_summary.get(m, {})).get("holders", 0),
+              "t1": d.get("tier1_nonholder", 0), "trips": visits_by_metro.get(m, 0),
+              "funds": (pm := peer_by_metro.get(m, _blank_pm))["funds"], "inst": pm["inst"],
+              "ria": pm["ria"], "div": pm["div"], "mm": pm["mm"], "curated": pm["curated"],
+              "read": ndr_status_by_metro.get(m, "—"), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
+             for m in _all_metros],
+            key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
+        _tk = CT("ticker")
+        geo_cols = [
+            {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True,
+             "tooltip": "Fund HQ clustered into ~60-mile roadshow metros — a day's drive, the way an NDR is planned"},
+            {"name": "holders", "label": "Holders", "field": "holders", "align": "right", "sortable": True,
+             "tooltip": f"Funds here that own {_tk} today (13F)"},
+            {"name": "t1", "label": "Tier-1\nready", "field": "t1", "align": "right", "sortable": True,          # two-row header
+             "tooltip": "Tier-1 ready — high-conviction NON-holders ready to convert (score ≥80 / conviction ≥70)"},
+            {"name": "funds", "label": "Peer-\nowners", "field": "funds", "align": "right", "sortable": True,    # two-row header
+             "tooltip": f"Funds that own a peer/comp but not {_tk} — your prospecting universe (= Inst+RIA+Divsfd+MM+Curated)"},
+            {"name": "inst", "label": "Inst", "field": "inst", "align": "right", "sortable": True,
+             "tooltip": "Institutional peer-owners — the primary NDR-target bucket"},
+            {"name": "ria", "label": "RIA", "field": "ria", "align": "right", "sortable": True,
+             "tooltip": "RIA / wealth peer-owners — video-call tier, usually no PM to pitch"},
+            {"name": "div", "label": "Divsfd", "field": "div", "align": "right", "sortable": True,
+             "tooltip": "Diversified — large multi-strategy / bank-AM houses"},
+            {"name": "mm", "label": "MM", "field": "mm", "align": "right", "sortable": True,
+             "tooltip": "Market makers — no fundamental PM to pitch"},
+            {"name": "curated", "label": "Curated", "field": "curated", "align": "right", "sortable": True,
+             "tooltip": "Hand-entered targets that don't hold a comp yet (a private bank, a prior-seat relationship)"},
+            {"name": "trips", "label": "NDRs", "field": "trips", "align": "right", "sortable": True,
+             "tooltip": "Trips logged for this metro — any status (planning, scheduled, completed)"},
+            {"name": "read", "label": "NDR status", "field": "read", "align": "left", "sortable": True,
+             "tooltip": "State of the most-active NDR here: Planning → Scheduled → Completed (— none yet)"},
+            {"name": "top", "label": "Top holder", "field": "top", "align": "left", "sortable": True,
+             "tooltip": "Highest-scoring tracked name in this metro",
+             "style": "white-space:normal;min-width:220px;", "headerStyle": "white-space:normal;"},
+        ]
+        # Click a metro row to see exactly WHO is there — the counts above always
+        # raised "which 5 institutions?"; this opens the named list on demand
+        # Click a metro row → tick the peer-owners there → shortlist onto an NDR (one selectable list;
+        # replaces the old tracked-only readout and the separate Peer Prospects metro table).
+        # ── Cell drill-down: click any number to see the exact names behind it ────────────
+        # Every count in this table is backed by a real list, so a number is a doorway, not a
+        # dead end. Holders/Tier-1 come from the lists captured while counting (can't disagree
+        # with the cell); the bucket counts filter the same peer-owner universe the row uses.
+        _CLICKABLE = {"holders": "Holders", "t1": "Tier-1 ready", "funds": "Peer-owners",
+                      "inst": "Institutional", "ria": "RIA / wealth", "div": "Diversified",
+                      "mm": "Market maker", "curated": "Curated targets"}
 
-    # pagination=25 → the metro list itself pages 25 at a time; sortable headers sort the full set.
-    geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro", pagination=25).classes(
-        "w-full cursor-pointer").props("dense flat")
-    # Custom header so a "\n" in a label renders as a two-row heading (pre-line) — lets the numeric
-    # columns stay narrow and hands the freed width to Top name so it isn't truncated. QTh with
-    # :props keeps the sort click/arrow, so the two-row header stays sortable.
-    geo_table.add_slot("header", r'''
-        <q-tr :props="props">
-          <q-th v-for="col in props.cols" :key="col.name" :props="props"
-                style="white-space:pre-line;vertical-align:bottom;line-height:1.15;"
-                :class="col.tooltip ? 'cursor-help' : ''">
-            {{ col.label }}
-            <q-tooltip v-if="col.tooltip">{{ col.tooltip }}</q-tooltip>
-          </q-th>
-        </q-tr>
-    ''')
-    # Make each count a clickable, underlined link that opens the drill-down. @click.stop keeps the
-    # row-click ("Add to NDR" select dialog) from also firing. Zero renders as a muted, inert number.
-    for _cc in _CLICKABLE:
-        geo_table.add_slot(f"body-cell-{_cc}", (
-            '<q-td :props="props" class="text-right">'
-            '<span v-if="props.value" class="cursor-pointer" '
-            f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
-            '@click.stop="() => $parent.$emit(\'cellClick\', {metro: props.row.metro, col: \'%s\'})">'
-            '{{ props.value }}</span>'
-            '<span v-else style="opacity:.45;">{{ props.value }}</span>'
-            '</q-td>'
-        ) % _cc)
-    # NDR status as a colored badge: Scheduled (green) / Planning (blue) / Completed (grey) / — none.
-    # When an NDR EXISTS for the metro, the badge is a shortcut STRAIGHT TO that NDR (Active NDRs) —
-    # @click.stop so it doesn't also fire the row-click's "add names to an NDR" dialog. A metro with
-    # no NDR yet (—) still opens that dialog via the row click, to start one.
-    geo_table.add_slot("body-cell-read", (
-        '<q-td :props="props">'
-        '<q-badge v-if="props.value===\'Scheduled\'" color="green" label="Scheduled" '
-        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
-        '<q-badge v-else-if="props.value===\'Planning\'" color="blue" label="Planning" '
-        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
-        '<q-badge v-else-if="props.value===\'Completed\'" outline color="grey" label="Completed" '
-        'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
-        '<span v-else style="opacity:.4;">—</span></q-td>'))
-    geo_table.on("cellClick", _open_cell_drill)
-    geo_table.on("openndr", lambda e: nav.go_to("Roadshow", "NDR"))
-    geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
-        e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
-        holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
-    _peer_total = sum(v["funds"] for v in peer_by_metro.values())
-    # Fill the instruction moved up under the title (see _geo_note) now that the totals exist.
-    _geo_note.set_text(
-        f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
-        f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
-        "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
-        "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.")
-    ui.button("Manage fund-lineup matches", icon="account_tree",
-              on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
+        def _drill_list(metro, col):
+            d = metro_summary.get(metro, {})
+            if col == "holders":
+                return d.get("holder_list", [])
+            if col == "t1":
+                return d.get("t1_list", [])
+            funds = peer_funds_by_metro.get(metro, [])
+            if col == "funds":
+                return funds
+            return [c for c in funds if _tier_key.get(c.get("tier")) == col]
+
+        def _drill_row(x):
+            # Two shapes reach here: peer-owner candidates ("filer"/"tier"/"conviction"/"comps")
+            # and tracked-institution dicts ("Fund"/"USIO_Holder"/"Engagement_Score"). Normalise both.
+            raw_name = x.get("filer") or x.get("Fund") or ""
+            if "filer" in x:
+                conv = x.get("conviction")
+                peers = ", ".join(sorted((x.get("comps") or {}).keys()))
+                return {"_filer": x.get("filer"),          # row key for selection (not a column)
+                        "Fund": pretty_name(x.get("filer") or "—"),
+                        "City": (x.get("city") or "—").title(),
+                        "Category": x.get("tier") or "—",
+                        "Score": round(conv) if isinstance(conv, (int, float)) else "—",
+                        "Detail": (f"Owns {peers}" if peers else ("Curated target" if x.get("kind") == "curated" else "—")),
+                        "Funds": _fund_lineup_label(raw_name)}
+            sc = x.get("Engagement_Score")
+            # A peer-prospect carried its comps in — show which comp it owns ("owns CASS, FOUR"),
+            # matching the Peer-owners drill. Real tracked institutions have no comps → fall back.
+            peers = ", ".join(sorted((x.get("comps") or {}).keys()))
+            _q = _is_quant_inst(x)
+            if x.get("USIO_Holder"):                 # existing holder → position size + trajectory
+                _cat = "Quant — no 1×1" if _q else "Holder"
+                _score, detail = _holder_position_cells(x)
+            else:                                    # tracked non-holder / promoted prospect → conviction
+                _cat = "Non-holder"
+                _score = round(sc) if isinstance(sc, (int, float)) else "—"
+                detail = f"Owns {peers}" if peers else (x.get("Conviction") or x.get("Action") or "—")
+            return {"_filer": pretty_name(x.get("Fund") or "—"),   # row key for selection
+                    "Fund": pretty_name(x.get("Fund") or "—"),
+                    "City": x.get("City") or (x.get("Metro") or "—"),
+                    "Category": _cat,
+                    "Score": _score,
+                    "Detail": detail,
+                    "Funds": _fund_lineup_label(raw_name)}
+
+        _drill_dialog = ui.dialog()
+
+        # Every bucket drill-down is selectable → Add to NDR (same shortlist flow as the metro
+        # row-click). Holders/Tier-1 (tracked institutions) are invitable too — you defend existing
+        # relationships on a roadshow — EXCEPT quant/systematic shops, excluded at add time.
+        _selectable_cols = {"funds", "inst", "ria", "div", "mm", "curated", "holders", "t1"}
+
+        def _open_cell_drill(e):
+            metro, col = e.args.get("metro"), e.args.get("col")
+            items = _drill_list(metro, col)
+            d_rows = [_drill_row(x) for x in items]
+            is_peer = col in _selectable_cols
+            _drill_dialog.clear()
+            with _drill_dialog, ui.card().style("min-width:min(900px,95vw);max-width:95vw;"):
+                with ui.row().classes("w-full justify-between items-center"):
+                    ui.label(f"{metro} — {_CLICKABLE.get(col, col)} · {len(d_rows)} "
+                             f"name{'s' if len(d_rows) != 1 else ''}").classes("text-lg font-bold")
+                    ui.button(icon="close", on_click=_drill_dialog.close).props("flat round dense")
+                if not d_rows:
+                    ui.label("No names behind this number.").style(f"color:{COLORS['text_muted']};")
+                else:
+                    _n_lineups = sum(1 for r in d_rows if r.get("Funds"))
+                    # Add-to-NDR bar (restored) — only for the peer-owner buckets, which are the
+                    # NDR-prospecting universe. Tick names → shortlist onto a new or existing trip.
+                    trip_sel = new_name = tbl = None
+                    item_by_key = {(it.get("filer") or pretty_name(it.get("Fund") or "")): it
+                                   for it in items} if is_peer else {}
+                    if is_peer:
+                        _open = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+                        trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open}
+                        trip_opts["__new__"] = "＋ New NDR…"
+                        with ui.row().classes("w-full items-end gap-2").style(
+                                f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin-bottom:6px;"):
+                            ui.label("Tick names, then add them to an NDR as shortlisted targets.").style(
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
+                            trip_sel = ui.select(trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+                            new_name = ui.input("New NDR name", value=f"{metro} NDR").props("dense outlined").style("min-width:150px;")
+                            new_name.bind_visibility_from(trip_sel, "value", backward=lambda v: v == "__new__")
+                            add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
+                    _dcol_label = {"Funds": "Fund lineup (SEC)", "Category": "Category",
+                                   "Score": "Conviction / Position"}
+                    dcols = [{"name": k, "label": _dcol_label.get(k, k),
+                              "field": k, "sortable": True,
+                              "align": "right" if k == "Score" else "left",
+                              **({"style": "white-space:normal;min-width:230px;",
+                                  "headerStyle": "white-space:normal;"} if k == "Funds" else {})}
+                             for k in ("Fund", "City", "Category", "Score", "Detail", "Funds")]
+                    _extra = {"selection": "multiple"} if is_peer else {}
+                    tbl = ui.table(columns=dcols, rows=d_rows, row_key=("_filer" if is_peer else "Fund"),
+                                   pagination=25, **_extra).classes("w-full").props("dense flat")   # 25 per page
+                    _header_tooltips(tbl, {
+                        "Fund": "The fund / manager — click the name for its Account 360",
+                        "City": "Fund HQ city",
+                        "Category": "Ownership bucket / holder status",
+                        "Score": "Conviction (peer-owners) or engagement score (holders), 0-100",
+                        "Detail": f"Which of {CT('ticker')}'s comps they own, or their signal",
+                        "Funds": "The manager's individual '40-Act funds, from its latest SEC N-CEN/485 filing",
+                    })
+                    # Fund name → Account 360 profile. @click.stop so it doesn't toggle the row checkbox.
+                    _orig_by_fund = {pretty_name(it.get("filer") or it.get("Fund") or ""): it for it in items}
+                    tbl.add_slot("body-cell-Fund", (
+                        '<q-td :props="props">'
+                        '<span class="cursor-pointer" '
+                        f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
+                        '@click.stop="() => $parent.$emit(\'openProfile\', props.row.Fund)">'
+                        '{{ props.value }}</span></q-td>'))
+                    tbl.on("openProfile", lambda e: _open_account_profile(
+                        _orig_by_fund.get(e.args) or {"Fund": e.args}))
+
+                    if is_peer:
+                        def _do_add():
+                            sel = tbl.selected
+                            if not sel:
+                                ui.notify("Tick at least one name first.", type="warning"); return
+                            trips2 = _load_json("ndr_trips.json", [])
+                            if trip_sel.value == "__new__":
+                                nm = (new_name.value or "").strip()
+                                if not nm:
+                                    ui.notify("Name the new NDR.", type="warning"); return
+                                trips2.append({
+                                    "name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                                    "city": metro, "focus": "", "team": [], "notes": "", "meetings": [], "shortlist": [],
+                                    "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
+                                    "created": datetime.now().strftime("%Y-%m-%d"),
+                                })
+                                target, tname = trips2[-1], nm
+                            else:
+                                target = trips2[int(trip_sel.value)]
+                                tname = target.get("name") or "NDR"
+                            target.setdefault("shortlist", [])
+                            have = {s.get("institution") for s in target["shortlist"]} | \
+                                   {m.get("institution") for m in target.get("meetings", [])}
+                            added = quant_skip = 0
+                            for row in sel:
+                                it = item_by_key.get(row.get("_filer"))
+                                if not it:
+                                    continue
+                                nm2 = it.get("filer") or it.get("Fund")
+                                if not nm2 or nm2 in have:
+                                    continue
+                                if _is_quant_inst(it):
+                                    quant_skip += 1; continue     # quant/systematic — no management 1x1
+                                rec = _shortlist_record(it) if it.get("filer") else _shortlist_from_inst(it)
+                                target["shortlist"].append(rec)
+                                have.add(nm2); added += 1
+                            _save_json("ndr_trips.json", trips2)
+                            dup = len(sel) - added - quant_skip
+                            _m = f"Added {added} target(s) to '{tname}' (Planning)"
+                            if quant_skip:
+                                _m += f" · skipped {quant_skip} quant shop(s) — no 1×1"
+                            if dup:
+                                _m += f" · {dup} already on it"
+                            ui.notify(_m + ". Find it in Outbound → NDR → Active NDRs.", type="positive")
+                            _drill_dialog.close()
+                        add_btn.on_click(_do_add)
+                    if _n_lineups:
+                        ui.label(f"“Fund lineup” names the individual '40-Act funds the manager runs (from its "
+                                 f"latest SEC N-CEN/485 filing) — the strategy sleeve a 13F hides. Shown for "
+                                 f"{_n_lineups} of {len(d_rows)} here; blank where the holder has no registered "
+                                 "fund family (hedge fund / SMA) or isn't yet confirmed in the crosswalk.").style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
+            _drill_dialog.open()
+
+        # pagination=25 → the metro list itself pages 25 at a time; sortable headers sort the full set.
+        geo_table = ui.table(columns=geo_cols, rows=geo_rows, row_key="metro", pagination=25).classes(
+            "w-full cursor-pointer").props("dense flat")
+        # Custom header so a "\n" in a label renders as a two-row heading (pre-line) — lets the numeric
+        # columns stay narrow and hands the freed width to Top name so it isn't truncated. QTh with
+        # :props keeps the sort click/arrow, so the two-row header stays sortable.
+        geo_table.add_slot("header", r'''
+            <q-tr :props="props">
+              <q-th v-for="col in props.cols" :key="col.name" :props="props"
+                    style="white-space:pre-line;vertical-align:bottom;line-height:1.15;"
+                    :class="col.tooltip ? 'cursor-help' : ''">
+                {{ col.label }}
+                <q-tooltip v-if="col.tooltip">{{ col.tooltip }}</q-tooltip>
+              </q-th>
+            </q-tr>
+        ''')
+        # Make each count a clickable, underlined link that opens the drill-down. @click.stop keeps the
+        # row-click ("Add to NDR" select dialog) from also firing. Zero renders as a muted, inert number.
+        for _cc in _CLICKABLE:
+            geo_table.add_slot(f"body-cell-{_cc}", (
+                '<q-td :props="props" class="text-right">'
+                '<span v-if="props.value" class="cursor-pointer" '
+                f'style="color:{COLORS["accent"]};text-decoration:underline dotted;text-underline-offset:2px;" '
+                '@click.stop="() => $parent.$emit(\'cellClick\', {metro: props.row.metro, col: \'%s\'})">'
+                '{{ props.value }}</span>'
+                '<span v-else style="opacity:.45;">{{ props.value }}</span>'
+                '</q-td>'
+            ) % _cc)
+        # NDR status as a colored badge: Scheduled (green) / Planning (blue) / Completed (grey) / — none.
+        # When an NDR EXISTS for the metro, the badge is a shortcut STRAIGHT TO that NDR (Active NDRs) —
+        # @click.stop so it doesn't also fire the row-click's "add names to an NDR" dialog. A metro with
+        # no NDR yet (—) still opens that dialog via the row click, to start one.
+        geo_table.add_slot("body-cell-read", (
+            '<q-td :props="props">'
+            '<q-badge v-if="props.value===\'Scheduled\'" color="green" label="Scheduled" '
+            'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
+            '<q-badge v-else-if="props.value===\'Planning\'" color="blue" label="Planning" '
+            'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
+            '<q-badge v-else-if="props.value===\'Completed\'" outline color="grey" label="Completed" '
+            'class="cursor-pointer" @click.stop="() => $parent.$emit(\'openndr\', props.row.metro)"/>'
+            '<span v-else style="opacity:.4;">—</span></q-td>'))
+        geo_table.on("cellClick", _open_cell_drill)
+        geo_table.on("openndr", lambda e: nav.go_to("Roadshow", "NDR"))
+        geo_table.on("rowClick", lambda e: _open_metro_select_dialog(
+            e.args[1]["metro"], peer_funds_by_metro.get(e.args[1]["metro"], []),
+            holders=metro_summary.get(e.args[1]["metro"], {}).get("holder_list", [])))
+        _peer_total = sum(v["funds"] for v in peer_by_metro.values())
+        # Fill the instruction moved up under the title (see _geo_note) now that the totals exist.
+        _geo_note.set_text(
+            f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
+            f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
+            "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
+            "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.")
+        ui.button("Manage fund-lineup matches", icon="account_tree",
+                  on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
 
 
 def _peer_holder_avg(cid):
