@@ -171,7 +171,7 @@ def _upcoming_conferences():
     return sorted(out, key=lambda r: str(r.get("Date", "")))
 
 
-def _today_story_text(snap, recent):
+def _today_story_parts(snap, recent):
     """Templated narrative built from the real price/volume snapshot
     (core.market_data) and the most recent logged activity — replaces the
     fully hardcoded "Today's Story" prose. Deliberately rule-based rather
@@ -202,7 +202,14 @@ def _today_story_text(snap, recent):
     else:
         activity_line = "No activity logged yet today — resolving a Risk Signal below is the fastest way to get this feed moving."
 
-    return f"{price_line} {activity_line}"
+    return price_line, activity_line
+
+
+def _today_story_text(snap, recent):
+    """The full story paragraph (opening price sentence + activity sentence) as one
+    string — kept for any caller that wants the whole narrative in one label."""
+    _p, _a = _today_story_parts(snap, recent)
+    return f"{_p} {_a}"
 
 
 def _talking_points(state, overdue, readiness_pct):
@@ -251,67 +258,37 @@ def _talking_points(state, overdue, readiness_pct):
     return points
 
 
-def _render_weekly_context_mirror():
-    """Compact mirror of Lighthouse's 'This Week in Context' band on the landing page: the weekly
-    drift never shown without its yardstick. Reads a cached context (refreshed by the scheduler
-    post-close and on any Lighthouse visit), so Today stays fast — no live attribution compute here.
-    Wired for USIO in the MVP; other tenants simply skip it."""
+def _open_lighthouse_nav():
+    """Navigate to the Lighthouse page (with a telemetry ping), from the 'Full band
+    on Lighthouse →' link now carried inside the Today's Focus card."""
+    from config.client_config import get_active_client_id
+    try:
+        from lighthouse import telemetry as _tel
+        _tel.record_view(get_active_client_id(), CT("ticker"), "today_mirror_click")
+    except Exception:
+        pass
+    nav.go_to("Lighthouse")
+
+
+def _weekly_context_data():
+    """The cached weekly context for the active tenant, or None. Reads a context
+    refreshed by the scheduler post-close and on any Lighthouse visit, so Today stays
+    fast (no live attribution compute here). Wired for USIO in the MVP; other tenants
+    skip it. Feeds the weekly sentence + 'Full band on Lighthouse' link now folded
+    into the Today's Focus card (was the standalone 'This week in context' card)."""
     from config.client_config import get_active_client_id
     from core.curated_targets import _is_illustrative
     _cid, _tk = get_active_client_id(), CT("ticker")
     if _tk != "USIO" and not _is_illustrative(_cid):
-        return
+        return None
     try:
         from lighthouse import weekly as _weekly
         wk = _weekly.load_context_cache(_cid, _tk)
     except Exception:
         wk = None
     if not wk or not wk.get("context") or not wk.get("context_read"):
-        return
-
-    comps = [c for c in wk["context"] if c.get("relevant")]
-    drift = wk.get("resid_sum") or 0
-    drift_clr = COLORS["danger"] if drift < 0 else COLORS["success"]
-    try:
-        from lighthouse.weekly import ordinal
-        rarity_txt = f"{ordinal((wk.get('weekly_rarity') or 0) * 100)}-percentile week"
-    except Exception:
-        rarity_txt = ""
-
-    with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_bg']};border:1px solid #B4530955;border-left:3px solid #B45309;"
-            f"border-radius:12px;margin-top:4px;"):
-        def _open_lighthouse(_tk=_tk):
-            try:
-                from lighthouse import telemetry as _tel
-                _tel.record_view(get_active_client_id(), _tk, "today_mirror_click")
-            except Exception:
-                pass
-            nav.go_to("Lighthouse")
-
-        with ui.row().classes("w-full justify-between items-center"):
-            ui.label(f"THIS WEEK IN CONTEXT · {wk['week']}").classes("t-eyebrow").style("color:#B45309;")
-            ui.button("Full band on Lighthouse →", on_click=_open_lighthouse).props("flat dense size=sm")
-        # the punchline — the number with its comparison, never alone. Ticker is the ACTIVE tenant's, never
-        # a hardcoded "USIO" (that mislabeled every other tenant's own data as USIO's).
-        ui.label(f"{_tk} {wk['context_read']}").style(
-            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.5;white-space:nowrap;")
-        # the two comps the model actually uses, as compact inline chips
-        with ui.row().classes("items-center gap-2").style("flex-wrap:wrap;margin-top:2px;"):
-            for c in comps:
-                rel = c.get("rel") or 0
-                rc = COLORS["danger"] if rel < 0 else COLORS["success"]
-                with ui.row().classes("items-baseline gap-1").style(
-                        f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:3px 10px;"):
-                    ui.label(f"{c['label']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                    ui.label(f"{c['ret']*100:+.1f}%").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
-                    ui.label(f"· {_tk} {rel*100:+.1f} pts").style(f"color:{rc};font-size:var(--fs-sm);")
-        # the drift, stated only after the yardstick
-        with ui.row().classes("items-baseline gap-2").style("margin-top:2px;"):
-            ui.label("After market & peer moves:").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-            ui.label(f"{drift*100:+.1f}% unexplained drift").style(f"color:{drift_clr};font-size:var(--fs-md);font-weight:800;")
-            if rarity_txt:
-                ui.label(f"· {rarity_txt}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        return None
+    return wk
 
 
 def _panel(render_fn):
@@ -426,13 +403,58 @@ def render_today_page():
     # Same vertical height (items-stretch) + reduced padding so both hero cards are the same size.
     with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
         with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:0;overflow:hidden;"):
-            with ui.row().classes("rhead rhead-neutral"):
+            # This card now absorbs the old "This week in context" and "Today's top
+            # story" cards: the weekly stat slots in after the opening sentence, the
+            # top story becomes the final talking point, and both cards' supporting
+            # links ("Full band on Lighthouse →" / "More peer & competitor news ↓")
+            # ride along.
+            _wk = _weekly_context_data()
+            with ui.row().classes("rhead rhead-neutral items-center").style(
+                    "justify-content:space-between;" if _wk else ""):
                 ui.label("Today's focus")
+                if _wk:
+                    ui.button("Full band on Lighthouse →", on_click=_open_lighthouse_nav) \
+                        .props("flat dense size=sm no-caps")
             with ui.column().classes("w-full").style("padding:12px 20px 14px;gap:0;"):
-                ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
+                _price_line, _activity_line = _today_story_parts(snap, recent)
+                ui.label(_price_line).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
+                if _wk:
+                    # The weekly move in its yardstick (peers + Russell), right after the
+                    # opening price sentence — the number is never shown without its comp.
+                    ui.label(f"{CT('ticker')} {_wk['context_read']}").style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;"
+                        f"line-height:1.5;margin-top:3px;")
+                ui.label(_activity_line).style(
+                    f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;margin-top:3px;")
                 ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
-                for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
+                _points = _talking_points(state, overdue, readiness_pct)
+                for i, pt in enumerate(_points, 1):
                     ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
+                # Today's top story, folded in as the final talking point.
+                _top, _own, _peer = _top_story_data()
+                if _top:
+                    _n = len(_points) + 1
+                    _tag = CT("ticker") if _own else f"peer ({_top.get('ticker','')})"
+                    with ui.row().classes("items-baseline").style("gap:6px;flex-wrap:wrap;line-height:1.6;margin-top:2px;"):
+                        ui.label(f"{_n}. Today's top story · {_tag}:").style(
+                            f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
+                        # Link out only when there's a real URL — a None target makes NiceGUI's
+                        # link component throw. Illustrative peer news can carry no URL.
+                        if _top.get("url"):
+                            ui.link(_top.get("title", ""), _top["url"]).props("target=_blank") \
+                                .style(f"color:{COLORS['accent']};font-size:var(--fs-base);font-weight:600;text-decoration:none;")
+                        else:
+                            ui.label(_top.get("title", "")).style(
+                                f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
+                    ui.label(f"{_top.get('provider', '')} · {(_top.get('pub') or '')[:10]}").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-left:16px;")
+                    if _peer:
+                        def _to_peer_news():
+                            ui.run_javascript(
+                                "document.getElementById('peer-news-anchor')?."
+                                "scrollIntoView({behavior:'smooth', block:'start'});")
+                        ui.button(f"More peer & competitor news ({len(_peer)}) ↓", on_click=_to_peer_news) \
+                            .props("flat dense no-caps").style(f"color:{COLORS['accent']};font-size:var(--fs-sm);margin-top:2px;margin-left:12px;")
 
         with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:12px 20px;"):
             # Header band flush to the card edges (negative margins cancel the card's padding) so the
@@ -498,9 +520,8 @@ def render_today_page():
                     ui.label("Key takeaway").classes("t-eyebrow")
                     ui.label(_tk).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);line-height:1.5;")
 
-    _render_weekly_context_mirror()
-
-    _render_top_story()
+    # (The old "This week in context" and "Today's top story" cards used to render
+    # here; both are now folded into the Today's Focus card above.)
 
     # ── Dashboard sections in two height-balanced columns ──
     # Sections are grouped to keep the two columns close in height rather than
@@ -1391,46 +1412,18 @@ def _render_analyst_coverage():
     render_list()
 
 
-def _render_top_story():
-    """The single most important headline of the day, raised to the top of Today. The client's OWN
-    news wins when there is any (a microcap often has none); otherwise the freshest peer/competitor
-    item. A pointer scrolls down to the full peer-news feed so that feature isn't lost."""
+def _top_story_data():
+    """(top_item, is_own, peer_list) for the day's single most important headline,
+    or (None, False, []). The client's OWN news wins when there is any (a microcap
+    often has none); otherwise the freshest peer/competitor item. Folded into the
+    Today's Focus card as the final talking point (was the 'Today's top story' card),
+    with a pointer down to the full peer-news feed so that feature isn't lost."""
     from core import news_feed
     ticker = CT("ticker")
     own = news_feed.recent(ticker=ticker, limit=1)
     peer = [i for i in news_feed.recent(limit=8) if i.get("ticker") != ticker]
     top = own[0] if own else (peer[0] if peer else None)
-    if not top:
-        return
-    is_own = bool(own)
-    eyebrow = f"Today's top story · {ticker}" if is_own else f"Today's top story · peer ({top.get('ticker','')})"
-    accent = "#15803D" if is_own else COLORS["accent"]
-    with ui.card().classes("w-full").style(
-            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-            f"border-left:4px solid {accent};margin-top:6px;padding:12px 16px;"):
-        # Same eyebrow treatment as the metric labels (one system); colour carries
-        # the only distinction — green for our own news, accent-blue for a peer.
-        ui.label(eyebrow).classes("t-eyebrow").style(f"color:{accent};")
-        def _story_title():
-            ui.label(top.get("title", "")).classes("font-bold").style(
-                f"color:{COLORS['text_heading']};font-size:var(--fs-md);line-height:1.25;")
-        # Only wrap in a link when there's a real URL — a None target makes NiceGUI's
-        # link component throw (compute_href on undefined). Illustrative peer news
-        # can carry no URL.
-        if top.get("url"):
-            with ui.link(target=top["url"], new_tab=True).style("text-decoration:none;"):
-                _story_title()
-        else:
-            _story_title()
-        ui.label(f"{top.get('provider', '')} · {(top.get('pub') or '')[:10]}").style(
-            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        if peer:
-            def _to_peer_news():
-                ui.run_javascript(
-                    "document.getElementById('peer-news-anchor')?."
-                    "scrollIntoView({behavior:'smooth', block:'start'});")
-            ui.button(f"More peer & competitor news ({len(peer)}) ↓", on_click=_to_peer_news) \
-                .props("flat dense no-caps").style(f"color:{accent};font-size:var(--fs-sm);margin-top:2px;")
+    return top, bool(own), peer
 
 
 def _collapsible_head(title, start_open=True):
