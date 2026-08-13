@@ -2941,7 +2941,7 @@ def _render_big_picture(institutions):
     # every ownership surface): who owns you · who should · who's moving · where to start. Each card now
     # names itself via its eyebrow header, so no redundant subheader row above the grid.
     with ui.row().classes("w-full gap-3").style("margin-top:10px;"):
-        _bp_metric("Current Investor", str(holder_count),
+        _bp_metric("Current Investors", str(holder_count),
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
                     if holders_by_metro else "No holders tracked yet."],
@@ -3417,21 +3417,24 @@ def _bp_metric(label, value, detail_lines, sub=None):
     # A grounded metric card: a clearly OUTLINED white panel (the surface_hover_bg fill on white read
     # as borderless floating text), with a distinct three-part hierarchy — an uppercase eyebrow LABEL
     # so the card is self-identifying, the big value, and a muted sub — then the Details expander.
-    # Clickable box (the Target Database tile pattern): the card pulls up its detail in a dialog on
-    # click, rather than carrying an inline dropdown. Order: header (underlined) → number → analysis.
-    with ui.dialog() as _dlg, ui.card().style("min-width:440px;max-width:620px;gap:6px;padding:18px 20px;"):
-        ui.label(label).classes("rkpi-head")
+    # A clickable box in the same style as the colored-header cards below: a defined header BAND,
+    # then the number and the analysis. Clicking pulls up the detail in a dialog styled to match the
+    # Target Database drill-down (bold title + close X).
+    _dlg = ui.dialog()
+    with _dlg, ui.card().style("min-width:min(560px,94vw);max-width:640px;"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label(label).classes("text-lg font-bold")
+            ui.button(icon="close", on_click=_dlg.close).props("flat round dense")
         for line in (detail_lines or ["No further detail available."]):
             ui.label(str(line)).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);line-height:1.5;")
-        ui.button("Close", on_click=_dlg.close).props("flat").classes("self-end")
-    card = ui.card().classes("flex-1 rkpi cursor-pointer")
+    card = ui.card().classes("flex-1 report-card cursor-pointer")
     with card:
-        ui.label(label).classes("rkpi-head")         # header, with an underline rule
-        ui.label(value).classes("rkpi-n")            # the number
-        if sub:
-            ui.label(sub).classes("rkpi-sub")        # the analysis
-        ui.label("View details →").style(
-            f"color:{COLORS['accent']};font-size:var(--fs-xs);font-weight:600;margin-top:8px;")
+        with ui.row().classes("rhead rhead-accent"):
+            ui.label(label)                          # the defined, colored header band
+        with ui.column().classes("w-full").style("padding:12px 15px;gap:2px;"):
+            ui.label(value).classes("rkpi-n")        # the number
+            if sub:
+                ui.label(sub).classes("rkpi-sub")    # the analysis
     card.on("click", _dlg.open)
 
 
@@ -3681,7 +3684,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     # Composition — the four questions (replaces the Tier 1/2/3 funnel), same tile style as NOBO/Big
     # Picture. Each card self-identifies via its eyebrow header, so no redundant subheader row.
     with ui.row().classes("w-full gap-3").style("margin-top:10px;"):
-        _bp_metric("Current Investor", str(len(_holders)),
+        _bp_metric("Current Investors", str(len(_holders)),
                    [f"{pretty_name(i['Fund'])} — {_holder_dollars(i.get('Position_Value'))}"
                     + (f" · {_dir_label(i.get('Direction'))}" if _dir_label(i.get('Direction')) else "")
                     for i in _top_holders[:6]] or ["No tracked holders yet."],

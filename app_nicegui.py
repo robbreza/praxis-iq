@@ -2155,6 +2155,7 @@ ui.add_head_html(
     ".rhead-bad{background:#FBE9E7;color:#B1352D;border-bottom:1px solid #F0C3BD;}"
     ".rhead-warn{background:#FBF0E0;color:#A35A06;border-bottom:1px solid #EECFA1;}"
     ".rhead-neutral{background:#EEF2F7;color:#64748B;border-bottom:1px solid #D3DBE4;}"
+    ".rhead-accent{background:#ECEEF8;color:#2F3AA8;border-bottom:1px solid #C7CCEC;}"
     ".rrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 15px;"
     "border-bottom:1px solid #CBD5E1;color:#1F2733;}"
     ".rrow:last-child{border-bottom:none;}"
