@@ -3387,7 +3387,7 @@ def _bp_metric(label, value, detail_lines, sub=None):
     # as borderless floating text), with a distinct three-part hierarchy — an uppercase eyebrow LABEL
     # so the card is self-identifying, the big value, and a muted sub — then the Details expander.
     with ui.card().classes("flex-1").style(
-            f"background:{COLORS['surface_bg']};border:1px solid #C2CCD9;border-radius:12px;"
+            f"background:{COLORS['surface_bg']};border:1.5px solid {COLORS['text_muted2']};border-radius:12px;"
             "box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);"
             "padding:14px 16px;gap:3px;"):
         ui.label(label.upper()).style(

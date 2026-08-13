@@ -2098,10 +2098,15 @@ ui.add_head_html(
     # !important + full border shorthand so it beats Quasar's own :before border regardless of
     # stylesheet load order — without it, Quasar's faint default won (rest border invisible, only a
     # grey flash on hover). A solid 1.5px slate edge at REST is the floor; accent on hover/focus.
+    # One plain grey box, the SAME in every state (rest/hover/focus) — a solid 1.5px slate on all four
+    # sides. The :after element (Quasar's focus underline) is forced to the same grey too: left at its
+    # default it overlays the bottom edge and made the bottom look open, and its accent colour made the
+    # outline change on focus. Grey all the time, all sides.
     f".q-field--outlined .q-field__control{{background:{COLORS['surface_hover_bg']};}}"
     f".q-field--outlined .q-field__control:before{{border:1.5px solid {COLORS['text_muted2']} !important;}}"
-    f".q-field--outlined:hover .q-field__control:before{{border-color:{COLORS['accent']} !important;}}"
-    f".q-field--outlined.q-field--focused .q-field__control:after{{border:2px solid {COLORS['accent']} !important;}}"
+    f".q-field--outlined:hover .q-field__control:before{{border:1.5px solid {COLORS['text_muted2']} !important;}}"
+    f".q-field--outlined.q-field--focused .q-field__control:before{{border:1.5px solid {COLORS['text_muted2']} !important;}}"
+    f".q-field--outlined .q-field__control:after{{border:0 !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width
