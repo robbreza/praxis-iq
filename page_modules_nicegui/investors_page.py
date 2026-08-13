@@ -3077,7 +3077,20 @@ def _render_big_picture(institutions, part="all"):
         # "these institutions... where ARE they?" One row per metro with its holders,
         # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
         ui.markdown("---")
-        ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:6px;")
+        # The one-line "where to go" READ — the plain-English marching order the promise is built on
+        # ("see where to go, day one"), sitting right above the geographic table it summarizes. Same
+        # sentence as the IR Read's lead bullet on Ownership, computed from shared scope (top_metro/top_d).
+        _wtg_rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
+                   if top_metro_request else "")
+        with ui.row().classes("w-full items-baseline no-wrap").style(
+                "background:rgba(30,64,175,.06);border:1px solid #1E40AF;border-left:5px solid #1E40AF;"
+                "border-radius:8px;padding:8px 14px;gap:10px;margin-top:6px;flex-wrap:wrap;"):
+            ui.label("WHERE TO GO").style(
+                "color:#1E3A8A;font-size:var(--fs-2xs);font-weight:800;letter-spacing:.05em;white-space:nowrap;")
+            ui.label(f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to "
+                     f"convert and {top_d.get('holders', 0)} holder(s) to defend{_wtg_rq}.").style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;line-height:1.5;")
+        ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:10px;")
         # The "N current holders and M peer-owners across K metros…" instruction moves up here, right under
         # the title (was below the table). Populated once the peer/metro totals are computed (see below).
         _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin:2px 0 6px;")
