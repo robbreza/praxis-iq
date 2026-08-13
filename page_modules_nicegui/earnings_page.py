@@ -6524,12 +6524,44 @@ def _render_workflow_content():
                 ui.label(f"{v.get('completed','')} — {v.get('stage','')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     ui.markdown("---")
-    with ui.expansion("Reset Workflow — Start New Quarter").classes("w-full"):
-        def reset():
+    with ui.expansion("Roll Forward — Start New Quarter").classes("w-full"):
+        from core.quarter_roll import next_quarter_label
+        _cur_q = CE().get("current_quarter", "")
+        _nxt_q = next_quarter_label(_cur_q)
+        ui.label(
+            f"Current reporting quarter: {_cur_q or '—'}. Rolling forward advances the reporting "
+            f"quarter to {_nxt_q} everywhere (guidance, analyst alignment, earnings readiness), files "
+            f"{_cur_q or 'this quarter'} as last-reported, and clears the script workflow for the new "
+            f"cycle. This PERSISTS to the client record — it survives a restart (the old 'reset' only "
+            f"wiped the script and left the quarter unchanged, so a roll never actually stuck)."
+        ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        with ui.row().classes("w-full gap-3"):
+            rf_q = ui.input("New quarter", value=_nxt_q).props("outlined dense").classes("flex-1")
+            rf_dt = ui.input("Next earnings date (YYYY-MM-DD, optional)") \
+                .props("outlined dense").classes("flex-1")
+
+        def roll_forward():
+            from core.quarter_roll import roll_forward_quarter
+            try:
+                new = roll_forward_quarter(new_quarter=(rf_q.value or None),
+                                           new_earnings_date=(rf_dt.value or None))
+            except Exception as exc:
+                ui.notify(f"Couldn't roll forward: {exc}", type="negative")
+                return
             _save_json("script_workflow_state.json", _blank_script_state())
-            ui.notify("Reset. Ready for next quarter.")
+            _dt = f" · next call {new['earnings_date']}" if new.get("earnings_date") else ""
+            ui.notify(f"Rolled forward to {new['current_quarter']}{_dt} and reset the script.",
+                      type="positive")
             _refresh()
-        ui.button("Reset All Stages", on_click=reset).props("color=negative")
+
+        with ui.row().classes("w-full gap-2 items-center").style("margin-top:6px;"):
+            ui.button(f"Roll forward to {_nxt_q}", on_click=roll_forward).props("color=primary")
+
+            def reset():
+                _save_json("script_workflow_state.json", _blank_script_state())
+                ui.notify("Script workflow reset — reporting quarter unchanged.")
+                _refresh()
+            ui.button("Reset script only", on_click=reset).props("flat color=negative")
 
 
 # ─────────────────────────────────────────────────────────────────────────
