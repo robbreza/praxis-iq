@@ -250,11 +250,15 @@ _CODE_SEED = {
             {"ticker": "TOST", "name": "Toast", "ev_rev": 3.5, "tier": "reference",
              "segment": "Large-cap fintech (reference)"},
         ],
-        "earnings": {"current_quarter": "Q2 2026", "earnings_date": "2026-08-12",
+        # Rolled forward after the Q2 FY2026 print (reported 2026-08-12). The current cycle is now
+        # Q3 2026; last_quarter below carries the reported Q2 actuals. Q3 earnings_date is PROVISIONAL
+        # (USIO's typical mid-November cadence) — update when the company announces the actual date.
+        "earnings": {"current_quarter": "Q3 2026", "earnings_date": "2026-11-12",
+            "last_quarter": "Q2 2026", "last_earnings_date": "2026-08-12",
             "call_time": "4:30 PM ET", "dial_in": "+1-844-883-3890",
-            "quiet_start": "2026-07-20", "quiet_end": "2026-08-13"},
-        "financials": {"last_quarter": "Q1 2026", "last_rev": 25.47, "last_rev_yoy": 16.0,
-            "last_eps": 0.00, "last_gm": 20.2, "last_ebitda": 0.8, "cash_m": 7.7,
+            "quiet_start": "2026-10-22", "quiet_end": "2026-11-13"},
+        "financials": {"last_quarter": "Q2 2026", "last_rev": 23.7, "last_rev_yoy": 19.0,
+            "last_eps": 0.01, "last_gm": 24.2, "last_ebitda": 1.1, "cash_m": 6.4,
             # Shares out + debt feed the live EV/Revenue in the peer-benchmarking
             # analysis (core/benchmarking_engine.py); USIO is roughly net-cash.
             "shares_out_m": 26.8, "debt_m": 0.0},

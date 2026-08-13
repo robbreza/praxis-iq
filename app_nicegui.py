@@ -2091,10 +2091,17 @@ ui.add_head_html(
     # into whatever card/canvas sat behind them — which is why every page needed a per-field fix.
     # Give every outlined field a subtle fill + a clear border by default, and an accent border on
     # hover/focus, so an input always reads as a fillable box without page-by-page styling.
+    # The border must read clearly against a white card, so it uses a medium slate (#94A3B8),
+    # NOT the faint card-edge token — a whisper-gray border on white made inputs invisible (the
+    # recurring "I can't tell where to click"). 1.5px so the box edge is unmistakable; the fill
+    # stays subtle so text is still legible.
+    # !important + full border shorthand so it beats Quasar's own :before border regardless of
+    # stylesheet load order — without it, Quasar's faint default won (rest border invisible, only a
+    # grey flash on hover). A solid 1.5px slate edge at REST is the floor; accent on hover/focus.
     f".q-field--outlined .q-field__control{{background:{COLORS['surface_hover_bg']};}}"
-    f".q-field--outlined .q-field__control:before{{border-color:{COLORS['border']};}}"
-    f".q-field--outlined:hover .q-field__control:before{{border-color:{COLORS['accent']};}}"
-    f".q-field--outlined.q-field--focused .q-field__control:after{{border-color:{COLORS['accent']};border-width:2px;}}"
+    f".q-field--outlined .q-field__control:before{{border:1.5px solid {COLORS['text_muted2']} !important;}}"
+    f".q-field--outlined:hover .q-field__control:before{{border-color:{COLORS['accent']} !important;}}"
+    f".q-field--outlined.q-field--focused .q-field__control:after{{border:2px solid {COLORS['accent']} !important;}}"
     # Desktop/tablet only: uniformly magnify the canvas ~8% so the content reads at a comfortable
     # size (the app's body type is inline 11-13px, well below the 17px nav) and uses the wide-monitor
     # space instead of sitting tiny in an empty frame. zoom scales type + cards + spacing + width
