@@ -2937,10 +2937,10 @@ def _render_big_picture(institutions):
             ui.label("• " + _p).style(
                 f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
-    # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape
-    # across every ownership surface): who owns you · who should · who's moving · where to start.
-    ui.label("Who owns you · who should · who's moving · where to start").classes("font-bold").style("margin-top:10px;")
-    with ui.row().classes("w-full gap-3"):
+    # The four questions (matches the Buyside Ownership tab and NOBO's composition — one shape across
+    # every ownership surface): who owns you · who should · who's moving · where to start. Each card now
+    # names itself via its eyebrow header, so no redundant subheader row above the grid.
+    with ui.row().classes("w-full gap-3").style("margin-top:10px;"):
         _bp_metric("Who owns you", str(holder_count),
                    [f"{holder_count} tracked holder(s) · {tracked_total - holder_count} non-holder prospect(s)",
                     ("By city: " + ", ".join(f"{m} ({n})" for m, n in sorted(holders_by_metro.items(), key=lambda x: -x[1])))
@@ -3367,23 +3367,37 @@ def _peer_holder_avg(cid):
 
 
 def _peer_holder_sub(holder_count, cid):
-    """Subtitle for the 'Who owns you' card — 'vs peer avg N · above/below/in line'. '' if no comp data."""
+    """Subtitle for the 'Who owns you' card — 'vs peer avg N · above/below/in line', or honest context
+    when the comparison would mislead. '' if no comp data."""
     pa = _peer_holder_avg(cid)
     if not pa:
-        return ""
+        return "institutional 13F holders"
+    # A raw holder-COUNT comparison is only meaningful among size-comparable companies. When the client
+    # sits well below the peer average — a micro-cap benchmarked against much larger comps (USIO's 28
+    # vs a 187 peer avg dominated by names 10-80x its size) — "below peers" is trivially true and
+    # misleading, so state the honest metric instead of a false judgement.
+    if holder_count < 0.6 * pa:
+        return "institutional 13F holders"
     rel = "above peers" if holder_count > pa else ("below peers" if holder_count < pa else "in line with peers")
     return f"vs peer avg {pa} · {rel}"
 
 
 def _bp_metric(label, value, detail_lines, sub=None):
-    # Match the Today page cards (the app's card standard): softer surface_hover_bg fill, no hard
-    # border, a solid heading-grey title (not the washed-out muted tone that got lost before).
-    with ui.card().classes("flex-1").style(f"background:{COLORS['surface_hover_bg']};"):
-        ui.label(label).style(f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:700;")
-        ui.label(value).classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
+    # A grounded metric card: a clearly OUTLINED white panel (the surface_hover_bg fill on white read
+    # as borderless floating text), with a distinct three-part hierarchy — an uppercase eyebrow LABEL
+    # so the card is self-identifying, the big value, and a muted sub — then the Details expander.
+    with ui.card().classes("flex-1").style(
+            f"background:{COLORS['surface_bg']};border:1px solid #C2CCD9;border-radius:12px;"
+            "box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);"
+            "padding:14px 16px;gap:3px;"):
+        ui.label(label.upper()).style(
+            f"color:{COLORS['text_muted2']};font-size:var(--fs-2xs);font-weight:700;"
+            "letter-spacing:.09em;line-height:1.2;")
+        ui.label(value).classes("text-2xl font-bold").style(
+            f"color:{COLORS['text_heading']};line-height:1.15;margin-top:1px;")
         if sub:
-            ui.label(sub).classes("t-meta").style("margin-top:-2px;")
-        with ui.expansion("Details", value=False).classes("w-full"):
+            ui.label(sub).classes("t-meta")
+        with ui.expansion("Details", value=False).classes("w-full").style("margin-top:4px;"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
@@ -3631,9 +3645,9 @@ def _render_buyside_tab(institutions, meeting_log, mode):
             ui.label("• " + _p).style(
                 f"color:{COLORS['text_heading']};font-size:var(--fs-base);line-height:1.6;font-weight:500;")
 
-    # Composition — the four questions (replaces the Tier 1/2/3 funnel), same tile style as NOBO/Big Picture.
-    ui.label("Who owns you · who should · who's moving").classes("font-bold").style("margin-top:10px;")
-    with ui.row().classes("w-full gap-3"):
+    # Composition — the four questions (replaces the Tier 1/2/3 funnel), same tile style as NOBO/Big
+    # Picture. Each card self-identifies via its eyebrow header, so no redundant subheader row.
+    with ui.row().classes("w-full gap-3").style("margin-top:10px;"):
         _bp_metric("Who owns you", str(len(_holders)),
                    [f"{pretty_name(i['Fund'])} — {_holder_dollars(i.get('Position_Value'))}"
                     + (f" · {_dir_label(i.get('Direction'))}" if _dir_label(i.get('Direction')) else "")
