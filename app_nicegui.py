@@ -2127,6 +2127,16 @@ ui.add_head_html(
     # and the expansion toggle to a clear grey so they read as affordances.
     ".q-select__dropdown-icon{color:#64748B !important;}"
     ".q-expansion-item__toggle-icon{color:#475569 !important;}"
+    # ── Report-professional tables (emulate the validation-scorecard artifact) ────────────────────
+    # One standard for EVERY table app-wide, so they stop reading as ad-hoc: a muted UPPERCASE header
+    # band (not bold-black headers), hairline row separators with breathing room, near-black primary
+    # text, and a soft hover. The look the design lead signed off on, applied once here.
+    ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
+    "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #D3DBE4 !important;}"
+    ".q-table tbody td{border-bottom:1.5px solid #9AA6B8 !important;color:#1F2733;"
+    "padding-top:9px;padding-bottom:9px;}"
+    ".q-table tbody tr:last-child td{border-bottom:none !important;}"
+    ".q-table tbody tr:hover td{background:#F8FAFC !important;}"
     "</style>",
     shared=True)
 

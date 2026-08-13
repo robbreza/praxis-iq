@@ -3397,9 +3397,10 @@ def _bp_metric(label, value, detail_lines, sub=None):
             f"color:{COLORS['text_heading']};line-height:1.15;margin-top:1px;")
         if sub:
             ui.label(sub).classes("t-meta")
-        with ui.expansion("Details", value=False).classes("w-full").style("margin-top:4px;"):
+        with ui.expansion("Details", value=False).classes("w-full").style(
+                "background:#E2E8F0;border-radius:8px;margin-top:6px;"):
             for line in detail_lines:
-                ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);padding:0 8px 6px;")
 
 
 # ─────────────────────────────────────────────────────────────────────────
