@@ -43,10 +43,23 @@ _DEFAULT_MINUTES_SAVED = 5
 
 
 def _resolve_client_id(client_id):
+    # READ-side resolver: lenient — an unbound context reads DEFAULT_CLIENT_ID. Reads
+    # can't corrupt another tenant, and scripts/batch jobs legitimately read the default.
     if client_id is not None:
         return client_id
     from config.client_config import get_active_client_id
     return get_active_client_id()
+
+
+def _resolve_write_client_id(client_id):
+    # WRITE-side resolver: fails closed. An explicit client_id always wins; otherwise
+    # the tenant MUST be explicitly bound to this context. We do NOT fall back to
+    # DEFAULT_CLIENT_ID for a write — that silent default is exactly how demo activity
+    # once landed in the real USIO ledger. Raises RuntimeError when unbound.
+    if client_id is not None:
+        return client_id
+    from config.client_config import require_active_client_id
+    return require_active_client_id()
 
 
 def log_event(event_type, entity=None, client_id=None, **detail):
@@ -56,7 +69,17 @@ def log_event(event_type, entity=None, client_id=None, **detail):
     "resolved" event back to the "sent" event it resolves. `**detail` is
     any extra JSON-serializable context worth keeping (reason text, dollar
     amounts, etc.) — stored but not required by any query helper below."""
-    cid = _resolve_client_id(client_id)
+    try:
+        cid = _resolve_write_client_id(client_id)
+    except RuntimeError as e:
+        # Fail closed: never default a write onto a real client. Skip the write and
+        # warn loudly (a lost audit breadcrumb beats cross-tenant pollution). In normal
+        # app flow this never fires — the tenant is bound per-render and per-callback.
+        import traceback
+        print(f"[activity_log] REFUSED unbound write event_type={event_type!r} "
+              f"entity={entity!r}: {e}")
+        traceback.print_stack()
+        return
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:

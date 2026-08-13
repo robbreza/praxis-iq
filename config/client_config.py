@@ -529,6 +529,30 @@ def set_active_client_id(client_id):
     return client_id
 
 
+def is_active_client_bound() -> bool:
+    """True when a tenant has been explicitly bound to this context (as opposed to
+    falling back to DEFAULT_CLIENT_ID). Write paths use this to fail closed."""
+    return _active_client_ctx.get() is not None
+
+
+def require_active_client_id():
+    """Write-side resolver: the explicitly-bound tenant, or RAISE.
+
+    get_active_client_id() is deliberately lenient — it returns DEFAULT_CLIENT_ID
+    when unbound because it sits on the read hot-path and must never raise. Writes
+    must NOT be lenient: an unbound context silently defaulting to DEFAULT_CLIENT_ID
+    is exactly how demo 'Cascade Securities' activity once polluted the real USIO
+    ledger. Code that PERSISTS tenant-scoped data resolves through here so a stray
+    write fails loudly instead of landing on a real client."""
+    cid = _active_client_ctx.get()
+    if cid is None:
+        raise RuntimeError(
+            "No active tenant bound to this context; refusing to default a write to "
+            f"'{DEFAULT_CLIENT_ID}'. Bind the tenant with set_active_client_id() or "
+            "pass an explicit client_id to the write.")
+    return cid
+
+
 # ── Model-intake access policy (per-client information barrier) ─────────────
 # Who may review/confirm the raw analyst models arriving at a client's IRconnect mailbox BEFORE
 # they enter the consensus roll-up. Configurable PER CLIENT — some want Praxis Point locked out of
