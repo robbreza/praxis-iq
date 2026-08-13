@@ -328,6 +328,24 @@ def _panel(render_fn):
     return True
 
 
+def _panel_head(title, right=None):
+    """A flush grey header band at the top of a .today-panel card, matching the
+    hero cards' TODAY'S FOCUS / KEY MARKET METRICS bands so every section reads
+    the same instead of a bare bold title. The negative margins cancel the panel's
+    14px/16px padding so the band spans edge to edge, and the top corners round to
+    the panel's 12px radius. `right`, if given, is a callable rendered flush-right
+    inside the band (e.g. a collapse chevron)."""
+    band = ui.row().classes("rhead rhead-neutral items-center no-wrap").style(
+        "margin:-14px -16px 12px;width:calc(100% + 32px);"
+        "border-top-left-radius:12px;border-top-right-radius:12px;"
+        + ("justify-content:space-between;" if right else ""))
+    with band:
+        ui.label(title)
+        if right:
+            right()
+    return band
+
+
 def render_today_page():
     state = _load_state()
     today_d = datetime.now().date()
@@ -566,7 +584,7 @@ def _signal_actions():
 
 
 def _render_risk_signals(state, days, snap=None, pt_avg=None):
-    ui.label("Risk signals").classes("section-head")
+    _panel_head("Risk signals")
 
     # Covering analysts whose current PT we haven't logged — the concrete chase list.
     # "No PT on file" ≠ "dropped coverage": they cover, we just haven't collected it.
@@ -950,7 +968,7 @@ def _render_activity_responses(state):
     # received recalculates the consensus input for that analyst.
     if not state.get("models_request_sent"):
         return
-    ui.label("Activity & responses — model requests").classes("section-head")
+    _panel_head("Activity & responses — model requests")
     ui.label("You mark status yourself as replies come in — this app has no email inbox connected, so nothing "
              "here is auto-detected.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
@@ -1049,7 +1067,7 @@ def _render_investor_pipeline():
     written to both activity_log (counts toward "N tasks automated today")
     and meeting_log (shows up on that fund's record everywhere else in
     the app, including its Interaction Score)."""
-    ui.label("Investor pipeline — strongest signal").classes("section-head")
+    _panel_head("Investor pipeline — strongest signal")
     from core.investor_scoring import load_meeting_log, save_meeting_log, top_engagement_targets
     targets = top_engagement_targets(limit=5)
     if not targets:
@@ -1176,7 +1194,7 @@ def _render_investor_pipeline():
 
 def _render_earnings_readiness(days):
     from page_modules_nicegui.earnings_page import STAGES
-    ui.label("Earnings readiness").classes("section-head")   # countdown lives in the card, not here
+    _panel_head("Earnings readiness")   # countdown lives in the card, not here
 
     # Earnings date/time from config, not a hardcoded literal.
     edate = CE().get("earnings_date", "")
@@ -1292,7 +1310,7 @@ def _analyst_alignment():
 
 
 def _render_analyst_coverage():
-    ui.label("Analyst coverage").classes("section-head")
+    _panel_head("Analyst coverage")
     # Real analyst registry (config.client_config.CA), not a hardcoded roster. Each card
     # ranks and flags the analyst by whether their Rev & EPS estimates sit IN LINE with
     # our own guidance — out-of-line analysts float to the top and stay visible.
@@ -1418,13 +1436,18 @@ def _render_top_story():
 def _collapsible_head(title, start_open=True):
     """A section-head with an expand/collapse chevron. Returns the body column to fill; its
     visibility toggles client-side (no re-fetch), so long front-page sections can be folded away."""
-    with ui.row().classes("w-full items-center no-wrap").style("gap:6px;justify-content:space-between;"):
-        ui.label(title).classes("section-head")
-        # Clear grey ring + grey chevron — the old near-white treatment vanished into the panel.
-        btn = ui.button(icon="expand_less" if start_open else "expand_more").props(
+    # A holder for the chevron so it can render flush-right inside the header band.
+    btn_holder = {}
+
+    def _chevron():
+        # White ring so the button stands out on the grey band (not near-white on near-white).
+        btn_holder["btn"] = ui.button(icon="expand_less" if start_open else "expand_more").props(
             "flat dense round size=sm").style(
             f"color:{COLORS['text_secondary']};border:1.5px solid {COLORS['text_muted2']};"
-            f"background:{COLORS['surface_hover_bg']};").tooltip("Collapse / expand this section")
+            f"background:#FFFFFF;").tooltip("Collapse / expand this section")
+
+    _panel_head(title, right=_chevron)
+    btn = btn_holder["btn"]
     body = ui.column().classes("w-full").style("gap:4px;")
     body.set_visibility(start_open)
     state = {"open": start_open}
