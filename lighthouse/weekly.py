@@ -81,8 +81,8 @@ def _context_read(issuer_car, ctx) -> str:
     if peers:
         bits.append(f"payments peers {peers['ret']*100:+.1f}%")
     if rus:
-        bits.append(f"the Russell 2000 {rus['ret']*100:+.1f}%")
-    return (f"{issuer_car*100:+.1f}% on the week vs " + " and ".join(bits) +
+        bits.append(f"Russell 2000 {rus['ret']*100:+.1f}%")
+    return (f"{issuer_car*100:+.1f}% on week vs " + " and ".join(bits) +
             f" — {verb} its peer group by {abs(anchor['rel'])*100:.1f} pts.")
 
 

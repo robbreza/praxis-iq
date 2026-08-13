@@ -295,7 +295,7 @@ def _render_weekly_context_mirror():
         # the punchline — the number with its comparison, never alone. Ticker is the ACTIVE tenant's, never
         # a hardcoded "USIO" (that mislabeled every other tenant's own data as USIO's).
         ui.label(f"{_tk} {wk['context_read']}").style(
-            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.5;")
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.5;white-space:nowrap;")
         # the two comps the model actually uses, as compact inline chips
         with ui.row().classes("items-center gap-2").style("flex-wrap:wrap;margin-top:2px;"):
             for c in comps:
@@ -334,9 +334,7 @@ def render_today_page():
     earnings_date_str = CE().get("earnings_date", "2026-08-12")
     earnings_date = datetime.strptime(earnings_date_str, "%Y-%m-%d").date()
     days = max((earnings_date - today_d).days, 0)
-    td = datetime.now().strftime("%A, %B %d, %Y")
-
-    ui.label(td).style(f"color:{COLORS['accent_light2']};text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-base);")
+    # Date moved to the app header (top bar), off the canvas — so the greeting and cards sit at the top.
     # Greet the persona currently selected in the "Logged in as" switcher (IR / CEO / CFO / CRO) so
     # the picker and the greeting stay aligned — the person for that role comes from the client
     # profile (role_roster), never a hardcoded name. Falls back to the signed-in account, then a
@@ -407,26 +405,22 @@ def render_today_page():
     # ── Today's Story + Key Metrics ──
     # flex-col on phones so the two cards STACK (side-by-side at ~180px each made the story wrap one
     # word per line); md:flex-row restores the 7/3 split on desktop.
-    # Top-align (items-start, not stretch): the shorter metrics card sits at its natural height instead
-    # of stretching to a hollow void beside the tall story card (design-panel P0-2).
-    with ui.row().classes("w-full gap-4 items-start flex-col md:flex-row"):
+    # Same vertical height (items-stretch) + reduced padding so both hero cards are the same size.
+    with ui.row().classes("w-full gap-4 items-stretch flex-col md:flex-row"):
         with ui.card().classes("w-full md:flex-[7]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['accent']};border-radius:12px;padding:0;overflow:hidden;"):
-            # Defined colored header band at the top of the card (change the tint via .rhead-* / the
-            # inline background below — trivially swappable to any colour).
             with ui.row().classes("rhead rhead-neutral"):
                 ui.label("Today's focus")
-            with ui.column().classes("w-full").style("padding:18px 24px 20px;gap:0;"):
-                ui.label("Today's story").classes("section-head").style("margin-top:0;")
+            with ui.column().classes("w-full").style("padding:12px 20px 14px;gap:0;"):
                 ui.label(_today_story_text(snap, recent)).style(f"color:{COLORS['text_body']};font-size:var(--fs-md);line-height:1.7;")
                 ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
                 for i, pt in enumerate(_talking_points(state, overdue, readiness_pct), 1):
                     ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
 
-        with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:22px 24px;"):
+        with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:12px 20px;"):
             # Header band flush to the card edges (negative margins cancel the card's padding) so the
             # body below doesn't need re-indenting — matches the story card's neutral header.
             with ui.row().classes("rhead rhead-neutral items-center").style(
-                    "margin:-22px -24px 14px;width:calc(100% + 48px);"):
+                    "margin:-12px -20px 10px;width:calc(100% + 40px);"):
                 ui.label("Key market metrics")
                 ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm").style("margin-left:auto;")
             # One metric pattern, repeated: eyebrow label · 18px value · semantic-

@@ -48,6 +48,19 @@ def _current_user():
         uid = app.storage.user.get("user_id")
     except Exception:
         return None
+    # LOCAL DEV ONLY: when DEV_AUTOLOGIN is set (never in production), auto-establish a session as that
+    # user so the app can be viewed on localhost without typing a password. Env-gated: inert unless the
+    # operator sets the flag on their own machine.
+    if not uid:
+        import os
+        _dev = os.environ.get("DEV_AUTOLOGIN")
+        if _dev:
+            try:
+                app.storage.user["user_id"] = _dev
+                app.storage.user.setdefault("active_client_id", os.environ.get("DEV_TENANT", "usio"))
+                uid = _dev
+            except Exception:
+                pass
     return auth.get_user(uid) if uid else None
 
 
@@ -1372,6 +1385,12 @@ def main_page(request: Request = None):
             ui.label(client.get("name", "")).classes("text-lg font-bold").style(
                 f"color:{COLORS['text_heading']}")
         ui.space()
+        # Today's date lives in the header (top bar), not on the page canvas.
+        from datetime import datetime as _dt_hdr
+        ui.label(_dt_hdr.now().strftime("%A, %B %d, %Y")).style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);text-transform:uppercase;"
+            "letter-spacing:.08em;font-weight:600;white-space:nowrap;")
+        ui.space()
 
         # Session identity + read-only badge + logout.
         if auth.is_readonly_user(user):
@@ -2126,6 +2145,11 @@ ui.add_head_html(
     # section's heading and its contents read as one card instead of floating loose on the canvas.
     # The light-grey inner tiles (#EEF2F7) nest cleanly inside it.
     ".today-panel{background:#FFFFFF;border:1px solid #64748B;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);}"
+    # THE ROOT-CAUSE FIX for invisible cards: many cards were styled with only a light fill and NO
+    # border, so darkening the border TOKEN never touched them (there was no border to color). Give
+    # EVERY card a visible border box by default. No !important, so a card that sets its own inline
+    # border (accent/warning rails, the report cards) still wins; fill-only cards finally get a box.
+    ".q-card{border:1px solid #64748B;}"
     # Chevrons were near-white and vanished into the background: force the select dropdown arrow
     # and the expansion toggle to a clear grey so they read as affordances.
     ".q-select__dropdown-icon{color:#64748B !important;}"
