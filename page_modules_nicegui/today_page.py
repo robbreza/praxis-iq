@@ -1077,6 +1077,130 @@ def _render_activity_row(state, a):
     render_detail()
 
 
+def _last_note_for_fund(fund):
+    """Most recent logged meeting-note for a fund, or None."""
+    try:
+        from core.investor_scoring import load_meeting_log
+        rows = [r for r in (load_meeting_log() or []) if r.get("Fund") == fund and r.get("Notes")]
+        rows.sort(key=lambda r: r.get("Date", ""), reverse=True)
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
+def _brief_talking_points(inst, full):
+    """Meeting talking points built ONLY from this fund's real tracked fields — the
+    13F direction, peer overlap, call-listening, engagement. No fabricated financial
+    claims (that was the old hardcoded-per-ticker approach)."""
+    points = []
+    d = str((full or {}).get("Direction", "")).lower()
+    if d == "new":
+        points.append("New position this quarter — open with what changed in their thesis to initiate now.")
+    elif d == "adding":
+        points.append("Adding to the position — reinforce the thesis and ask what would make them size up further.")
+    elif d == "trimming":
+        points.append("Trimming — find out what changed and address the concern before it becomes an exit.")
+    elif d == "exited":
+        points.append("Recently exited — a win-back conversation: ask what would bring them back.")
+    peers = (full or {}).get("Peer_Holdings") or inst.get("Peer_Holdings")
+    if peers:
+        points.append(f"Owns {', '.join(peers)} — draw the direct comparison to those peers' positioning.")
+    if inst.get("Call_Listener") and inst.get("Listen_Duration"):
+        points.append(f"Listened to the last earnings call ({inst['Listen_Duration']}) — reference the moments they engaged with.")
+    if (inst.get("Engagement_Score") or 0) >= 80:
+        points.append(f"Top-tier engagement ({inst['Engagement_Score']}/100) — a "
+                      f"{'defend' if inst.get('USIO_Holder') else 'high-priority conversion'} meeting, not a cold intro.")
+    if not points:
+        points.append("No prior signal on file — treat as discovery: confirm mandate fit before going deep on the thesis.")
+    return points
+
+
+def _render_investor_brief(inst, full, nm):
+    """A full investor brief from REAL tracked fields only — 13F position, peer
+    overlap, engagement breakdown, behavioral signals, contact, last note. Anything
+    not on file is omitted rather than invented."""
+    C = COLORS
+
+    def fact(label, value, vcolor=None):
+        if value in (None, "", "—"):
+            return
+        with ui.row().classes("items-baseline no-wrap").style("gap:8px;margin-top:2px;"):
+            ui.label(label).style(f"color:{C['text_muted']};font-size:var(--fs-xs);"
+                                  f"text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;min-width:78px;")
+            ui.label(str(value)).style(f"color:{vcolor or C['text_body']};font-size:var(--fs-sm);font-weight:600;")
+
+    # 1. 13F position — value, weight, conviction, direction, tenure
+    if full and full.get("Position_Value"):
+        pos = f"${full['Position_Value']/1e6:,.1f}M"
+        if full.get("Book_Pct"):
+            pos += f" · {full['Book_Pct']*100:.2f}% of their 13F book"
+        if full.get("AUM"):
+            pos += f" · {full['AUM']} AUM"
+        fact("Position", pos)
+        sig = []
+        if full.get("Conviction"):
+            sig.append(f"{full['Conviction']} conviction")
+        if full.get("Direction"):
+            dtxt = str(full["Direction"]).title()
+            nc = full.get("Net_Change_Shares")
+            if nc:
+                dtxt += f" ({nc:+,} sh)"
+            sig.append(dtxt)
+        dlow = str(full.get("Direction", "")).lower()
+        scolor = C["danger"] if dlow in ("trimming", "exited") else (C["success"] if dlow in ("new", "adding") else None)
+        if sig:
+            fact("Signal", " · ".join(sig), scolor)
+        if full.get("Held_Since_At_Least"):
+            fact("Held since", full["Held_Since_At_Least"])
+    else:
+        fact("Position", "No 13F position on file — prospect / peer-owner")
+
+    peers = (full or {}).get("Peer_Holdings") or inst.get("Peer_Holdings")
+    if peers:
+        fact("Also owns", ", ".join(peers))
+    if inst.get("Action"):
+        fact("Why now", inst["Action"], C["accent"])
+    if inst.get("Call_Listener") and inst.get("Listen_Duration"):
+        fact("Earnings call", f"Listened to the last call ({inst['Listen_Duration']})")
+    if inst.get("IR_Visits_30d"):
+        fact("IR site", f"{inst['IR_Visits_30d']} visit(s) in 30d · last {inst.get('Last_Visit', '—')}")
+    if inst.get("Ownership_Style"):
+        fact("Style", inst["Ownership_Style"])
+    if inst.get("Metro"):
+        fact("Location", inst["Metro"])
+    cn = inst.get("Contact_Name")
+    if cn and cn != "Contact":
+        fact("Contact", cn + (f", {inst['Contact_Title']}" if inst.get("Contact_Title") else ""))
+        if inst.get("Contact_Phone"):
+            fact("Phone", inst["Contact_Phone"])
+
+    # 2. Engagement score, broken down so the number is explainable
+    bd = inst.get("Score_Breakdown")
+    if bd:
+        with ui.element("div").style(
+                f"background:{C['surface_hover_bg']};border:1px solid {C['border']};"
+                f"border-radius:8px;padding:6px 10px;margin-top:8px;"):
+            ui.label(f"Engagement {inst.get('Engagement_Score', '—')}/100").style(
+                f"color:{C['text_heading']};font-size:var(--fs-sm);font-weight:700;")
+            ui.label(" · ".join(f"{c} {p if p is not None else 0}/{m}" for (c, p, m) in bd)).style(
+                f"color:{C['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
+
+    # 3. Talking points
+    ui.label("Talking points").style(
+        f"color:{C['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:8px;")
+    for p in _brief_talking_points(inst, full):
+        ui.label(f"•  {p}").style(f"color:{C['text_secondary']};font-size:var(--fs-sm);line-height:1.45;")
+
+    # 4. Last note on the fund
+    ln = _last_note_for_fund(nm)
+    if ln:
+        with ui.element("div").style(
+                f"background:{C['surface_hover_bg']};border:1px solid {C['border']};"
+                f"border-radius:8px;padding:6px 10px;margin-top:8px;"):
+            ui.label(f"Last note · {ln.get('Date', '')}").style(f"color:{C['text_muted']};font-size:var(--fs-xs);")
+            ui.label(ln.get("Notes", "")).style(f"color:{C['text_body']};font-size:var(--fs-sm);")
+
+
 def _render_investor_pipeline():
     """Top-5 tracked institutions by real Engagement_Score (core.
     investor_scoring — the SAME scoring model and meeting log Investor
@@ -1100,6 +1224,16 @@ def _render_investor_pipeline():
             f"color:{COLORS['text_muted']};font-size:var(--fs-base);"
         )
     contacts = get_institution_contacts()
+    # The richer 13F record (position value, % of book, conviction, direction, peer
+    # overlap) lives in targets_as_institutions, not the engagement row — join on the
+    # fund so the brief can show the full picture. Loaded once, keyed by upper name.
+    try:
+        from core import targets as _tg
+        from config.client_config import get_active_client_id as _gac
+        _full_by_fund = {(r.get("Fund") or "").upper(): r
+                         for r in (_tg.targets_as_institutions(client_id=_gac()) or [])}
+    except Exception:
+        _full_by_fund = {}
     for inst in targets:
         nm = inst["Fund"]
         score = inst["Engagement_Score"]
@@ -1107,15 +1241,18 @@ def _render_investor_pipeline():
         nt = inst.get("Action", "—")
         dot = "" if inst["USIO_Holder"] else ("" if score >= 80 else "")
         info = contacts.get(nm, {"name": "Contact", "email": ""})
-        detail = (f"{inst.get('Action', '')} · {inst.get('IR_Visits_30d', 0)} IR site visits in the last 30 days "
-                  f"(last: {inst.get('Last_Visit', '—')}) · {inst.get('Metro', '—')}.")
+        full = _full_by_fund.get((nm or "").upper())
 
         # Defined before the card so the Details button — now INSIDE the card,
         # in its own bottom action row — can bind to it.
-        def open_detail(nm=nm, info=info, detail=detail, hld=hld, score=score):
-            with ui.dialog() as d, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);"):
-                ui.label(f"{pretty_name(nm)} — {hld} · Engagement {score}/100").classes("font-bold")
-                ui.label(detail).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+        def open_detail(nm=nm, info=info, inst=inst, full=full, hld=hld, score=score):
+            with ui.dialog() as d, ui.card().style(
+                    f"background:{COLORS['surface_bg']};min-width:min(94vw,480px);"
+                    f"max-height:88vh;overflow:auto;"):
+                ui.label(f"{pretty_name(nm)} — {hld} · Engagement {score}/100").classes("font-bold") \
+                    .style(f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
+                # Full investor brief (real tracked fields only).
+                _render_investor_brief(inst, full, nm)
                 _mailto(info.get("email", ""), f"{CT('ticker')} — Following up, {nm}", "Hi,\n\n", f"Email {info.get('name','Contact')}")
 
                 ui.separator().style("margin:6px 0;")
