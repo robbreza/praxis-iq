@@ -2929,10 +2929,9 @@ def _render_big_picture(institutions):
     except Exception:
         _bp_targets = []
     _bp_tier1 = [c for c in _bp_targets if (c.get("conviction") or 0) >= 70]
-    # Tier-1-ready count MUST match the geography table + the Target-DB click-through, which count a
-    # non-holder as Tier-1 on (engagement score >= 80) OR (peer conviction >= 70). The card previously
-    # counted conviction-only, so it read 13 while the click-through read 14. Use the canonical rollup.
-    _bp_tier1_ready = sum(d.get("tier1_nonholder", 0) for d in metro_summary.values())
+    # Tier-1-ready count from the ONE canonical definition, shared with the Target Database (see
+    # _tier1_ready_names) so the card and the click-through can never disagree.
+    _bp_tier1_ready = len(_tier1_ready_names(institutions, client_id))
     _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
     _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
     _ir_read = []
@@ -2980,7 +2979,7 @@ def _render_big_picture(institutions):
         _bp_metric("Target Investors", f"{_bp_tier1_ready} / {_bp_targets_count}",
                    [f"{pretty_name(c.get('filer', ''))} — conviction {round(c.get('conviction') or 0)}"
                     for c in _bp_top_targets[:5]] or ["No conviction targets yet."],
-                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="nonholders"))
+                   on_click=lambda: nav.go_to("Targeting", "Target Database", db_filter="tier1"))
         _bp_metric("Adding / Trimming", f"{len(_bp_adding)} ↑ / {len(_bp_trimming)} ↓",
                    ([f"Adding/new: {', '.join(pretty_name(i['Fund']) for i in _bp_adding[:4])}"] if _bp_adding else ["None adding this cycle."])
                    + ([f"Trimming/exited: {', '.join(pretty_name(i['Fund']) for i in _bp_trimming[:4])}"] if _bp_trimming else []),
@@ -3435,6 +3434,26 @@ def _peer_holder_avg(cid):
         return round(sum(counts) / len(counts)) if counts else None
     except Exception:
         return None
+
+
+def _tier1_ready_names(institutions, client_id):
+    """Canonical 'Tier-1 ready' non-holder set — ONE definition so the count matches on every surface
+    (the Ownership summary card, the geography table, and the Target Database). A non-holder is Tier-1
+    if its engagement score >= 80 OR it clears the conviction model at >= 70 — RAW conviction, not the
+    rounded fit-score (a 69.7 that displays as '70' must NOT flip it into Tier-1; that rounding was why
+    the card read 13 while the Target DB read 14). Returns a set of UPPER-cased fund names."""
+    def _n(s):
+        return (s or "").strip().upper()
+    names = {_n(i.get("Fund")) for i in institutions
+             if not i.get("USIO_Holder") and (i.get("Engagement_Score") or 0) >= 80}
+    try:
+        from core import peer_prospects
+        names |= {_n(c.get("filer")) for c in (peer_prospects.build_candidates(client_id, limit=None) or [])
+                  if (c.get("conviction") or 0) >= 70}
+    except Exception:
+        pass
+    names.discard("")
+    return names
 
 
 def _peer_holder_sub(holder_count, cid):
@@ -7448,10 +7467,13 @@ def _render_target_db_tab(institutions, client_id):
         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
     _db_filter = {"mode": "all"}
+    # Canonical Tier-1-ready set, SHARED with the Ownership summary card via _tier1_ready_names — so the
+    # "Tier-1 ready" count here is exactly the "Target Investors" number the user clicked to get here.
+    _t1set = _tier1_ready_names(institutions, client_id)
     # Arriving from an Ownership Big-Picture card (e.g. "Current Investors" → holders): open pre-filtered
     # to that bucket so the click lands on exactly the list the card summarized.
     _filter_pref = nav.pop_highlight("db_filter", None)
-    if _filter_pref in ("all", "holders", "nonholders", "prospects"):
+    if _filter_pref in ("all", "holders", "nonholders", "prospects", "tier1"):
         _db_filter["mode"] = _filter_pref
     db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
     # The full 91-row list dominated the tab, so search + results live in a
@@ -7471,7 +7493,25 @@ def _render_target_db_tab(institutions, client_id):
     def _db_combined():
         combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
                     "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None} for i in institutions]
+        _seen = {(x["Fund"] or "").strip().upper() for x in combined}
+        # Fold in the peer-owner prospect universe — the SAME set the Ownership summary, the Buyside tab,
+        # and the geography table use. Without this the Target DB showed only the ~14 scored tracked
+        # non-holders, so "Target Investors (N)" linked here to a much smaller list — the 13-vs-14 mismatch.
+        try:
+            from core import peer_prospects
+            for c in (peer_prospects.build_candidates(client_id, limit=None) or []):
+                nm = c.get("filer") or ""
+                if not nm or nm.strip().upper() in _seen:
+                    continue
+                _seen.add(nm.strip().upper())
+                combined.append({"Fund": nm, "Metro": (c.get("city") or "—").title(), "Type": "Peer-owner",
+                                 "USIO_Holder": False, "Score": round(c.get("conviction") or 0),
+                                 "Source": "Peer-owner", "_pidx": None})
+        except Exception:
+            pass
         for idx, p in enumerate(_load_json("prospects.json", [])):
+            if (p.get("fund") or "").strip().upper() in _seen:
+                continue
             combined.append({"Fund": p["fund"], "Metro": p.get("metro", "—"), "Type": p.get("style", "—"),
                              "USIO_Holder": False, "Score": p.get("score", 0), "Source": "Prospect", "_pidx": idx,
                              "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown"))})
@@ -7490,10 +7530,12 @@ def _render_target_db_tab(institutions, client_id):
             combined = [c for c in combined if not c["USIO_Holder"]]
         elif mode == "prospects":
             combined = [c for c in combined if c["Source"] == "Prospect"]
+        elif mode == "tier1":
+            combined = [c for c in combined if not c["USIO_Holder"] and (c["Fund"] or "").strip().upper() in _t1set]
         combined.sort(key=lambda x: -x["Score"])
         with results:
-            _labels = {"all": "All targets", "holders": "Current holders",
-                       "nonholders": "Non-holders", "prospects": "Prospects"}
+            _labels = {"all": "All targets", "holders": "Current holders", "nonholders": "Non-holders",
+                       "prospects": "Prospects", "tier1": "Tier-1 ready (high-conviction non-holders)"}
             clear = "" if mode == "all" else "  ·  click All targets to clear"
             ui.label(f"{len(combined)} result(s) — {_labels[mode]}{clear}").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
@@ -7536,6 +7578,10 @@ def _render_target_db_tab(institutions, client_id):
                         _db_filter["mode"] == "holders", lambda: set_db_filter("holders"))
             _hub_metric("Non-holders", sum(1 for x in c if not x["USIO_Holder"]), "Conversion targets",
                         _db_filter["mode"] == "nonholders", lambda: set_db_filter("nonholders"))
+            _hub_metric("Tier-1 ready",
+                        sum(1 for x in c if not x["USIO_Holder"] and (x["Fund"] or "").strip().upper() in _t1set),
+                        "High-conviction · matches the summary", _db_filter["mode"] == "tier1",
+                        lambda: set_db_filter("tier1"))
             _hub_metric("Prospects", sum(1 for x in c if x["Source"] == "Prospect"), "Added to database",
                         _db_filter["mode"] == "prospects", lambda: set_db_filter("prospects"))
 
