@@ -3386,19 +3386,13 @@ def _bp_metric(label, value, detail_lines, sub=None):
     # A grounded metric card: a clearly OUTLINED white panel (the surface_hover_bg fill on white read
     # as borderless floating text), with a distinct three-part hierarchy — an uppercase eyebrow LABEL
     # so the card is self-identifying, the big value, and a muted sub — then the Details expander.
-    with ui.card().classes("flex-1").style(
-            f"background:{COLORS['surface_bg']};border:1.5px solid {COLORS['text_muted2']};border-radius:12px;"
-            "box-shadow:0 1px 3px rgba(15,23,42,.09),0 1px 1px rgba(15,23,42,.05);"
-            "padding:14px 16px;gap:3px;"):
-        ui.label(label.upper()).style(
-            f"color:{COLORS['text_muted2']};font-size:var(--fs-2xs);font-weight:700;"
-            "letter-spacing:.09em;line-height:1.2;")
-        ui.label(value).classes("text-2xl font-bold").style(
-            f"color:{COLORS['text_heading']};line-height:1.15;margin-top:1px;")
+    with ui.card().classes("flex-1 rkpi"):
+        ui.label(label.upper()).classes("rkpi-lab")
+        ui.label(value).classes("rkpi-n")
         if sub:
-            ui.label(sub).classes("t-meta")
+            ui.label(sub).classes("rkpi-sub")
         with ui.expansion("Details", value=False).classes("w-full").style(
-                "background:#E2E8F0;border-radius:8px;margin-top:6px;"):
+                "background:#F1F5F9;border-radius:8px;margin-top:8px;"):
             for line in detail_lines:
                 ui.label(line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);padding:0 8px 6px;")
 

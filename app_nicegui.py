@@ -2127,16 +2127,55 @@ ui.add_head_html(
     # and the expansion toggle to a clear grey so they read as affordances.
     ".q-select__dropdown-icon{color:#64748B !important;}"
     ".q-expansion-item__toggle-icon{color:#475569 !important;}"
-    # ── Report-professional tables (emulate the validation-scorecard artifact) ────────────────────
-    # One standard for EVERY table app-wide, so they stop reading as ad-hoc: a muted UPPERCASE header
-    # band (not bold-black headers), hairline row separators with breathing room, near-black primary
-    # text, and a soft hover. The look the design lead signed off on, applied once here.
+    # ══ REPORT DESIGN SYSTEM (the validation-scorecard look, applied app-wide) ════════════════════
+    # Approved layout standard: report-style tables, colored active headers with count badges, status
+    # pills, tasteful semantic colour, hairline separators. One place; classes reused across pages.
+    # Separators win by IMPORTANCE (a higher cascade layer than every Quasar border rule, which are all
+    # non-!important) AND by matching Quasar's own (0,3,4) specificity path — settled per the framework
+    # source, not guesswork.
+    # ---- real tables (ui.table) ----
+    ".q-table__container{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;"
+    "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);}"
     ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
     "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #D3DBE4 !important;}"
-    ".q-table tbody td{border-bottom:1.5px solid #9AA6B8 !important;color:#1F2733;"
-    "padding-top:9px;padding-bottom:9px;}"
-    ".q-table tbody tr:last-child td{border-bottom:none !important;}"
+    ".q-table.q-table>tbody>tr:not(:last-child)>td,.q-table__middle>table.q-table>tbody>tr:not(:last-child)>td"
+    "{border-bottom:1px solid #CBD5E1 !important;}"
+    ".q-table.q-table>tbody>tr:last-child>td{border-bottom:0 !important;}"
+    ".q-table tbody td{color:#1F2733;padding:9px 14px;}"
     ".q-table tbody tr:hover td{background:#F8FAFC !important;}"
+    # ---- report card + colored active header + count badge ----
+    ".report-card{background:#FFFFFF !important;border:1px solid #E2E8F0 !important;border-radius:12px !important;"
+    "overflow:hidden !important;box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;"
+    "padding:0 !important;gap:0 !important;}"
+    ".rhead{display:flex;align-items:center;gap:8px;width:100%;padding:10px 15px;font-size:12.5px;"
+    "letter-spacing:.04em;text-transform:uppercase;font-weight:700;}"
+    ".rhead .count{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px;"
+    "background:rgba(255,255,255,.6);border-radius:999px;padding:1px 10px;}"
+    ".rhead-good{background:#E7F4EC;color:#127A4A;border-bottom:1px solid #BFE2CD;}"
+    ".rhead-bad{background:#FBE9E7;color:#B1352D;border-bottom:1px solid #F0C3BD;}"
+    ".rhead-warn{background:#FBF0E0;color:#A35A06;border-bottom:1px solid #EECFA1;}"
+    ".rhead-neutral{background:#EEF2F7;color:#64748B;border-bottom:1px solid #D3DBE4;}"
+    ".rrow{display:flex;align-items:center;gap:10px;width:100%;padding:10px 15px;"
+    "border-bottom:1px solid #CBD5E1;color:#1F2733;}"
+    ".rrow:last-child{border-bottom:none;}"
+    ".rrow:hover{background:#F8FAFC;}"
+    ".rrow .rmeta{color:#727A89;font-size:12.5px;}"
+    ".rrow .rval{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;}"
+    # ---- status pills (the "buttons") ----
+    ".rpill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 9px;"
+    "border-radius:999px;white-space:nowrap;}"
+    ".rpill-t1{background:#ECEEF8;color:#2F3AA8;}"
+    ".rpill-good{background:#E7F4EC;color:#127A4A;}"
+    ".rpill-bad{background:#FBE9E7;color:#B1352D;}"
+    ".rpill-warn{background:#FBF0E0;color:#A35A06;}"
+    ".rpill-def{background:#EEF2F7;color:#64748B;}"
+    # ---- report KPI card ----
+    ".rkpi{background:#FFFFFF !important;border:1px solid #E2E8F0 !important;border-radius:12px !important;"
+    "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06) !important;padding:15px 16px !important;gap:3px !important;}"
+    ".rkpi-lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;font-weight:700;}"
+    ".rkpi-n{font-size:26px;font-weight:800;line-height:1.1;color:#141821;}"
+    ".rkpi-sub{font-size:12.5px;color:#4A5160;}"
+    ".rkpi-good{color:#127A4A;} .rkpi-bad{color:#B1352D;}"
     "</style>",
     shared=True)
 
