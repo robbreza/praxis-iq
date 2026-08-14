@@ -153,7 +153,7 @@ NAV_GROUPS = [
     ("INVESTOR TARGETING", [
         ("Targeting", "my_location", "Targeting\nwho should own you", "Target database · Peer prospects · Import"),
         ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
-        ("Roadshow",  "route", "Outbound\nreach & track", "Meeting Hub · NDR · CRM"),
+        ("Roadshow",  "route", "NDR/CRM\nreach & track", "Meeting Hub · NDR · CRM"),
     ]),
     ("MARKET INTELLIGENCE", [
         ("Markets",   "trending_up", "Consensus & Estimates\nwhere the Street stands", "Consensus · PT tracker · Peer benchmarking"),
