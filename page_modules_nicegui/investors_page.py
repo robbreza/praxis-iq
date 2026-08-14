@@ -4110,6 +4110,19 @@ def _candidate_to_inst(c):
     return out
 
 
+def _list_item_card(rail_color=None):
+    """The app's ONE standard shell for an actionable list item — a bounded grey tile
+    (surface_hover_bg fill + the global `.q-card` border), matching `_institution_card`
+    and the Today cards. Use this for EVERY list row (prospects, holders, suggestions,
+    requests) instead of hand-rolling `border-bottom` line separators, so lists read the
+    same everywhere. The border is what keeps it legible even inside a grey expander
+    (where a borderless same-grey tile would blend). Optional `rail_color` adds a left
+    attention rail (same cue Today uses for repeat meetings). Returns the card CM."""
+    rail = f"border-left:3px solid {rail_color};" if rail_color else ""
+    return ui.card().classes("w-full").style(
+        f"background:{COLORS['surface_hover_bg']};{rail}padding:9px 13px;gap:2px;margin:0 0 6px 0;")
+
+
 def _institution_card(inst, meeting_log, contacts):
     fund_meetings = _get_fund_meetings(meeting_log, inst["Fund"])
     repeat_gap = _get_repeat_signal(fund_meetings)
@@ -7796,12 +7809,12 @@ def _render_target_db_tab(institutions, client_id):
                                  f"Click ADD to move one into the Prospects count on the cards above.{_fnote}").style(
                             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     for p in result["prospects"][:25]:
-                        with ui.row().classes("w-full items-start justify-between").style(
-                                f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-                            with ui.column().classes("flex-1"):
+                        with _list_item_card():
+                          with ui.row().classes("w-full items-start justify-between no-wrap"):
+                            with ui.column().classes("gap-0 flex-1"):
                                 ui.label(f"{pretty_name(p['fund'])} — via {p['source_ticker']} ({p['source_name']})").classes("font-bold").style(
-                                    f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
-                                ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                    f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
+                                ui.label(p["talking_point"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                                 # size_known=False means this holder came from the EDGAR full-text-search
                                 # path (sec_filings._search_holders_for_ticker) — confirmed to hold a
                                 # position, but exact share/dollar size wasn't fetched (see that
@@ -7810,7 +7823,7 @@ def _render_target_db_tab(institutions, client_id):
                                 size_line = (f"{p['shares']:,} shares · ${p['value']:,} reported · relevance {p['relevance']}/100"
                                              if p.get("size_known", True)
                                              else f"confirmed holder (position size not available) · relevance {p['relevance']}/100")
-                                ui.label(size_line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                ui.label(size_line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                             def add_this(p=p):
                                 plist = _load_json("prospects.json", [])
@@ -7844,14 +7857,14 @@ def _render_target_db_tab(institutions, client_id):
                                      "NDR scheduler defaults it to a video call. Ranked by position size.").style(
                                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                             for r in _rias[:25]:
-                                with ui.row().classes("w-full items-center justify-between").style(
-                                        f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                                with _list_item_card():
+                                  with ui.row().classes("w-full items-center justify-between no-wrap"):
                                     with ui.column().classes("gap-0 flex-1"):
                                         ui.label(r["fund"]).style(
-                                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                                            f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                                         ui.label(f"{r['shares']:,} shares of {r['source_ticker']} "
                                                  f"({r['source_name']})").style(
-                                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
                                     def add_ria(r=r):
                                         plist = _load_json("prospects.json", [])
