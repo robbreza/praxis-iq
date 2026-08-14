@@ -1897,17 +1897,26 @@ def _render_curated_targets(client_id):
              "Client scope is this issuer's own book; Global is the house book, shared across every client and "
              "growing as we scale.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
+    _cur_filter = {"scope": "total"}
+
+    def _set_scope(s):
+        # Clicking the active tile again clears back to the full "Total in view".
+        _cur_filter["scope"] = "total" if _cur_filter["scope"] == s else s
+        _panel.refresh()
+
     @ui.refreshable
     def _panel():
         cc = curated_targets.counts(client_id)
-        with ui.row().classes("gap-3").style("margin-top:6px;"):
-            for lbl, val, clr in [("This client", cc["client"], COLORS["accent"]),
-                                  ("Global (house book)", cc["global"], "#6D28D9"),
-                                  ("Total in view", cc["total"], COLORS["text_secondary"])]:
-                with ui.card().classes("flex-1").style(
-                        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};min-width:110px;"):
-                    ui.label(str(val)).classes("font-bold").style(f"color:{clr};font-size:var(--fs-2xl);")
-                    ui.label(lbl).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+        _scope = _cur_filter["scope"]
+        # Same clickable-filter tiles as the Target Database summary (_hub_metric): click one to
+        # filter the list below by scope; the active tile highlights with the accent top edge.
+        with ui.row().classes("w-full gap-3").style("margin-top:6px;"):
+            _hub_metric("This client", cc["client"], "This issuer's own book",
+                        _scope == "client", lambda: _set_scope("client"))
+            _hub_metric("Global (house book)", cc["global"], "House book — all clients",
+                        _scope == "global", lambda: _set_scope("global"))
+            _hub_metric("Total in view", cc["total"], "Client + global",
+                        _scope == "total", lambda: _set_scope("total"))
 
         # ── Add form ──────────────────────────────────────────────────────────
         with ui.card().classes("w-full").style(
@@ -1944,9 +1953,16 @@ def _render_curated_targets(client_id):
                     _panel.refresh()
                 ui.button("Add target", icon="add", on_click=_add).props("dense color=primary")
 
-        # ── Current list ──────────────────────────────────────────────────────
+        # ── Current list (filtered by the active scope tile above) ──────────────
         entries = curated_targets.merged(client_id)
+        if _scope == "client":
+            entries = [e for e in entries if e.get("scope") == "client"]
+        elif _scope == "global":
+            entries = [e for e in entries if e.get("scope") != "client"]
         if not entries:
+            ui.label("No curated targets in this view — add one above, or click Total in view."
+                     if _scope != "total" else "No curated targets yet — add one above.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:6px;")
             return
         for r in sorted(entries, key=lambda x: (x.get("scope") != "client", x.get("filer", "").lower())):
             is_client = r.get("scope") == "client"
