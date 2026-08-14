@@ -517,6 +517,15 @@ def apply_theme():
         .panel-tinted .q-expansion-item__container > .q-item,
         .panel-tinted .q-expansion-item__content {{
             background:{COLORS["surface_hover_bg"]} !important; }}
+        /* Every collapsible must read as a BOUNDED BOX, not a stray line of text on the
+           page. Default Quasar expansions have no fill and no border, so their headers
+           looked like floating text (recurring complaint). Give every expansion a grey
+           fill + visible border + radius, app-wide, via tokens (adapts to theme). */
+        .q-expansion-item {{
+            background:{COLORS["surface_hover_bg"]};
+            border:1px solid {COLORS["border"]};
+            border-radius:8px;
+            margin-bottom:6px; }}
         /* Status colour utilities — tied to tokens, replacing hardcoded hexes */
         .c-pos    {{ color:{COLORS["positive"]}; }}
         .c-neg    {{ color:{COLORS["negative"]}; }}
