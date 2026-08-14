@@ -6125,7 +6125,11 @@ async def _open_ndr_reply_dialog(req, on_done):
     dlg.open()
 
 
-def _render_ndr_requests_tab():
+def _render_ndr_requests_tab(refresh_fn=None):
+    # Self-contained refresh so this renders wherever it's mounted (it now lives on the IR Inbox, not
+    # the NDR tab). The caller passes a refresh that repaints just its own section in place; falls back
+    # to the page-level _refresh (which navigates) only if none is given.
+    _do_refresh = refresh_fn or _refresh
     with ui.row().classes("w-full items-center").style("gap:10px;"):
         ui.label("Inbound NDR / Meeting Requests").classes("font-bold")
         ui.space()
@@ -6149,7 +6153,7 @@ def _render_ndr_requests_tab():
             ui.notify(f"Checked {r['checked']} message(s) — {r['matched']} threaded onto requests.",
                       type="positive")
             if r["matched"]:
-                _refresh()
+                _do_refresh()
         ui.button("Check for replies", icon="mark_email_unread", on_click=_check_replies).props(
             "flat dense").style(f"color:{COLORS['text_muted']};")
     ui.label(
@@ -6186,7 +6190,7 @@ def _render_ndr_requests_tab():
             })
             _save_ndr_requests(reqs)
             ui.notify(f"Request from {r_analyst.value} logged.")
-            _refresh()
+            _do_refresh()
 
         ui.button("Log Request", on_click=log_request).props("color=primary")
 
@@ -6298,13 +6302,13 @@ def _render_ndr_requests_tab():
                         rr["resolved_at"] = datetime.now().strftime("%b %d, %Y")
                 _save_ndr_requests(current)
                 ui.notify("Marked resolved.")
-                _refresh()
+                _do_refresh()
 
             with ui.row().classes("gap-2").style("margin-top:6px;"):
                 ui.button("Reply", icon="reply",
-                          on_click=lambda r=r: _open_ndr_reply_dialog(r, _refresh)).props("flat dense color=primary")
+                          on_click=lambda r=r: _open_ndr_reply_dialog(r, _do_refresh)).props("flat dense color=primary")
                 ui.button("Schedule into NDR", icon="event_available",
-                          on_click=lambda r=r: _open_schedule_request_dialog(r, _refresh)).props("flat dense")
+                          on_click=lambda r=r: _open_schedule_request_dialog(r, _do_refresh)).props("flat dense")
                 ui.button("Resolve without scheduling", on_click=mark_resolved).props("flat dense")
 
     if resolved_reqs:

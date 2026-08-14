@@ -67,6 +67,18 @@ def render_inbox_page():
                      "mailbox and it appears here — parsed, with the numbers pulled out, ready to file.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
+    # Inbound NDR / Meeting Requests — an analyst asking to slot a management meeting into a city.
+    # Relocated here from the NDR tab: a confirmed NDR-request email lands in this list, where you
+    # reply / schedule it into a roadshow / resolve it. Wrapped in a refreshable so those actions
+    # repaint just this section (not the whole page).
+    from page_modules_nicegui.investors_page import _render_ndr_requests_tab
+    ui.markdown("---")
+
+    @ui.refreshable
+    def _ndr_requests_section():
+        _render_ndr_requests_tab(refresh_fn=_ndr_requests_section.refresh)
+    _ndr_requests_section()
+
     # Recently filed — a short history so the ingestion is visible even when the queue is clear.
     recent = []
     for cat in ("model", "research_note", "ndr_request", "speak_to_management", "conference_invite",
