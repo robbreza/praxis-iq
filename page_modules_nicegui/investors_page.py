@@ -2938,11 +2938,48 @@ def _render_big_picture(institutions, part="all"):
                  "Intelligence tab, and log requests as they come in.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         return
-    top_metro, _tp, top_d, top_visits, _tr = metro_priority[0]
+    # Peer-owner universe by metro (all buckets), computed ONCE here so both "where to go" reads (the
+    # Ownership IR READ and the Targeting WHERE TO GO), the "Where to start" tile, and the metro table
+    # all rank from the same live data every render — and therefore always agree and update automatically.
+    try:
+        from core import peer_prospects as _pp
+        _all_cands = _pp.all_candidates(get_active_client_id())
+    except Exception:
+        _all_cands = []
+    _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
+                 "Market maker": "mm", "Curated": "curated"}
+    peer_by_metro = {}
+    peer_funds_by_metro = {}          # metro -> [candidate dicts], for the click-to-select dialog
+    for _c in _all_cands:
+        _m = _metro_from_city(_c.get("city"), _c.get("state"))
+        peer_funds_by_metro.setdefault(_m, []).append(_c)
+        _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
+        _pm["funds"] += 1
+        _k = _tier_key.get(_c.get("tier"))
+        if _k:
+            _pm[_k] += 1
+
+    # THE top destination = the metro table's #1 row: ranked by ORGANIC peer-owners (Inst+RIA+Divsfd+MM,
+    # curated EXCLUDED) with the same holders/Tier-1 tiebreak the table uses. Every "where to go" surface
+    # reads this, so they name the same city. (The old visit/request-weighted priority formula survives
+    # only for the ranked "Priority cities" detail list on the Where-to-start tile.)
+    def _organic(_mm):
+        _p = peer_by_metro.get(_mm, {})
+        return _p.get("funds", 0) - _p.get("curated", 0)
+    _geo_rank = sorted(
+        (set(metro_summary) | set(peer_by_metro)),
+        key=lambda _mm: (-_organic(_mm),
+                         -metro_summary.get(_mm, {}).get("holders", 0),
+                         -metro_summary.get(_mm, {}).get("tier1_nonholder", 0)))
+    top_metro = _geo_rank[0] if _geo_rank else metro_priority[0][0]
+    top_d = metro_summary.get(top_metro, {})
+    top_visits = visits_by_metro.get(top_metro, 0)
     top_metro_request = next((r for r in ndr_requests if r["metro"] == top_metro), None)
     top_metro_conf = None
     if top_metro_request and wainwright_conf and "Wainwright" in top_metro_request["firm"]:
         top_metro_conf = wainwright_conf
+    _wtg_rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
+               if top_metro_request else "")
 
     # weakest_request / quiet_period_days removed with the "respond before the quiet
     # period begins in N days" line. That countdown collapsed "not configured" and
@@ -2971,11 +3008,9 @@ def _render_big_picture(institutions, part="all"):
         _bp_top_targets = sorted(_bp_targets, key=lambda c: -(c.get("conviction") or 0))
         _bp_targets_count = max(tracked_total - holder_count, 0)   # ALL non-holder targets (tracked + peer-owners) — matches the split list
         _ir_read = []
-        _rq = (f" — plus {top_metro_request['analyst']} ({top_metro_request['firm']}) asked for it directly"
-               if top_metro_request else "")
         _ir_read.append(
             f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to convert and "
-            f"{top_d.get('holders', 0)} holder(s) to defend{_rq}.")
+            f"{top_d.get('holders', 0)} holder(s) to defend{_wtg_rq}.")
         if ndr_requests:
             _ir_read.append(
                 f"{len(ndr_requests)} inbound NDR request(s) on the desk across "
@@ -3023,7 +3058,9 @@ def _render_big_picture(institutions, part="all"):
             # "Where to start" is the roadshow-geography answer: the #1 city, then a ranked summary of
             # the other cities in play, and — the part IR actually acts on — who asked for each one.
             _wts_detail = ["Priority cities (convert · defend):"]
-            for _m, _pri, _d, _v, _rc in metro_priority[:5]:
+            for _m in _geo_rank[:5]:
+                _d = metro_summary.get(_m, {})
+                _rc = requests_by_metro.get(_m, 0)
                 _seg = f"  {_m}: {_d.get('tier1_nonholder', 0)} to convert · {_d.get('holders', 0)} to defend"
                 if _rc:
                     _seg += f" · {_rc} request(s)"
@@ -3102,52 +3139,17 @@ def _render_big_picture(institutions, part="all"):
         # "these institutions... where ARE they?" One row per metro with its holders,
         # ready-to-convert Tier-1 non-holders, NDR trips so far, and its top name.
         ui.markdown("---")
-        # Peer-owner universe by metro (all buckets), computed up front so the WHERE TO GO read below
-        # can point to the SAME #1 destination the metro table ranks. Uses all_candidates (every bucket)
-        # rather than build_candidates (institutional only), matching the Peer Prospects counts.
-        try:
-            from core import peer_prospects as _pp
-            _all_cands = _pp.all_candidates(get_active_client_id())
-        except Exception:
-            _all_cands = []
-        _tier_key = {"Institutional": "inst", "RIA / wealth": "ria", "Diversified": "div",
-                     "Market maker": "mm", "Curated": "curated"}
-        peer_by_metro = {}
-        peer_funds_by_metro = {}          # metro -> [candidate dicts], for the click-to-select dialog
-        for _c in _all_cands:
-            _m = _metro_from_city(_c.get("city"), _c.get("state"))
-            peer_funds_by_metro.setdefault(_m, []).append(_c)
-            _pm = peer_by_metro.setdefault(_m, {"funds": 0, "inst": 0, "ria": 0, "div": 0, "mm": 0, "curated": 0})
-            _pm["funds"] += 1
-            _k = _tier_key.get(_c.get("tier"))
-            if _k:
-                _pm[_k] += 1
-
-        # The WHERE TO GO read points to the metro table's #1 row — ranked by ORGANIC peer-owners
-        # (Inst+RIA+Divsfd+MM, curated EXCLUDED) with the same holders/Tier-1 tiebreak the table uses —
-        # so the read and the table always agree on the top destination (previously it used a separate
-        # visit/request-weighted priority formula, which disagreed with the table).
-        def _organic(_mm):
-            _p = peer_by_metro.get(_mm, {})
-            return _p.get("funds", 0) - _p.get("curated", 0)
-        _geo_rank = sorted(
-            (set(metro_summary) | set(peer_by_metro)),
-            key=lambda _mm: (-_organic(_mm),
-                             -metro_summary.get(_mm, {}).get("holders", 0),
-                             -metro_summary.get(_mm, {}).get("tier1_nonholder", 0)))
-        _geo_top = _geo_rank[0] if _geo_rank else top_metro
-        _geo_top_d = metro_summary.get(_geo_top, {})
-        _geo_top_request = next((r for r in ndr_requests if r["metro"] == _geo_top), None)
-        _wtg_rq = (f" — plus {_geo_top_request['analyst']} ({_geo_top_request['firm']}) asked for it directly"
-                   if _geo_top_request else "")
+        # peer_by_metro / peer_funds_by_metro and the top destination (top_metro / top_d / _wtg_rq) are
+        # computed once in the shared section above, so this WHERE TO GO read names the same city as the
+        # Ownership IR READ and the metro table below.
         with ui.column().classes("w-full").style(
                 "background:rgba(30,64,175,.06);border:1px solid #1E40AF;border-left:5px solid #1E40AF;"
                 "border-radius:8px;padding:9px 14px;gap:5px;margin-top:6px;"):
             with ui.row().classes("w-full items-baseline no-wrap").style("gap:10px;flex-wrap:wrap;"):
                 ui.label("WHERE TO GO").style(
                     "color:#1E3A8A;font-size:var(--fs-2xs);font-weight:800;letter-spacing:.05em;white-space:nowrap;")
-                ui.label(f"Start in {_geo_top}: {_geo_top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to "
-                         f"convert and {_geo_top_d.get('holders', 0)} holder(s) to defend{_wtg_rq}.").style(
+                ui.label(f"Start in {top_metro}: {top_d.get('tier1_nonholder', 0)} Tier-1 non-holder(s) ready to "
+                         f"convert and {top_d.get('holders', 0)} holder(s) to defend{_wtg_rq}.").style(
                     f"color:{COLORS['text_heading']};font-size:var(--fs-base);font-weight:600;line-height:1.5;")
             # The "N current holders and M peer-owners across K metros…" instruction, FOLDED INTO this box
             # (was a separate line under the title). Populated once the peer/metro totals are computed.
