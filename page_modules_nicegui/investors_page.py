@@ -7550,7 +7550,13 @@ def _render_target_db_tab(institutions, client_id):
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                         ui.label(f"{pretty_name(c['Fund'])} ({c['Source']})").style(
                             f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
-                        ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                        # Drop any empty / None / placeholder segment (real SEC-sourced holders
+                        # often carry no Type) so the meta line never renders a literal "· None ·".
+                        _meta = "  ·  ".join(str(s) for s in (
+                            c["Metro"], c["Type"], "Holder" if c["USIO_Holder"] else "Non-holder",
+                            f"Score {c['Score']}")
+                            if s is not None and str(s).strip().lower() not in ("none", "—", ""))
+                        ui.label(_meta).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     # Outcome marker — only for prospects that were added WITH a
                     # stored Fit Score breakdown (see run_fit_score_ranking's
                     # add_scored_prospect), since that's what
