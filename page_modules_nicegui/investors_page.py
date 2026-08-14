@@ -5105,7 +5105,6 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
     with ui.tabs().classes("w-full") as ndr_tabs:
         nt1 = ui.tab("Plan New NDR")
         nt2 = ui.tab("Active NDRs", label=_active_lbl)
-        nt3 = ui.tab("Meeting Requests")
         nt4 = ui.tab("Prep Cards")
         nt5 = ui.tab("Post-NDR Debrief")
     # Land on Active NDRs when a roadshow is in flight, so a Planning NDR you just built isn't hidden.
@@ -5324,6 +5323,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
 
             ui.button("Create NDR Trip", on_click=save_trip).props("color=primary").style("margin-top:8px;")
 
+        # Remember which trips' "NDR pipeline" expander is open, so a status change (Contact → mark
+        # invited, Decline, Confirm…) that repaints this panel keeps the pipeline OPEN instead of
+        # collapsing it shut and scrolling away. Defined OUTSIDE the refreshable so it survives rebuilds.
+        _pipe_open = {}
+
         def _refresh_ndr():
             # Defer the refresh out of the current click/dialog handler (once=True timer) so the
             # refreshable reliably repaints — a direct in-handler .refresh() from a dialog that lives
@@ -5518,8 +5522,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         _summ = " · ".join(f"{_counts[k]} {k}" for k in _order if _counts.get(k))
                         _badge = {"shortlisted": ("#64748B", "Shortlisted"), "invited": ("#B45309", "Invited"),
                                   "confirmed": ("#15803D", "Confirmed"), "declined": ("#94A3B8", "Declined")}
-                        with ui.expansion(f"NDR pipeline — {len(shortlist)} target(s) · {_summ}",
-                                          icon="filter_alt").classes("w-full").style("margin-top:6px;"):
+                        _pipe_exp = ui.expansion(f"NDR pipeline — {len(shortlist)} target(s) · {_summ}",
+                                                 icon="filter_alt", value=_pipe_open.get(idx, False)).classes(
+                                                 "w-full").style("margin-top:6px;")
+                        _pipe_exp.on_value_change(lambda e, ti=idx: _pipe_open.update({ti: e.value}))
+                        with _pipe_exp:
                             for si, s in enumerate(shortlist):
                                 st = s.get("status", "shortlisted")
                                 clr, lbl = _badge.get(st, ("#64748B", st.title()))
@@ -6025,9 +6032,6 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
 
         with ui.tab_panel(nt2):
             _active_ndrs_panel()
-
-        with ui.tab_panel(nt3):
-            _render_ndr_requests_tab()
 
         with ui.tab_panel(nt4):
             _render_ndr_prep_cards_tab(institutions, meeting_log)
@@ -7245,7 +7249,7 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                         })
                         _save_ndr_requests(reqs)
                         inbox_queue.mark_confirmed(item_id, outcome=f"Logged NDR request for {n_city.value}")
-                        ui.notify(f"NDR request from {contact} logged — see Outbound → NDR → Meeting Requests.")
+                        ui.notify(f"NDR request from {contact} logged — start a roadshow from it in Outbound → NDR → Plan New NDR.")
                         _refresh()
                     confirm_label = "Log NDR Request"
 
