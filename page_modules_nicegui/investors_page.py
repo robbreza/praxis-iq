@@ -3407,9 +3407,8 @@ def _render_big_picture(institutions, part="all"):
         # Fill the instruction moved up under the title (see _geo_note) now that the totals exist.
         _geo_note.set_text(
             f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
-            f"{len(_all_metros)} metros. Holders = own you · Peer-owners break into Inst / RIA / Diversified / MM / "
-            "Curated (they sum to Peer-owners). Click any column header to sort · click any underlined number to see "
-            "the exact names behind it (25 per page) · click a metro row to shortlist its peer-owners onto an NDR.")
+            f"{len(_all_metros)} metros. Peer-owners break into Inst / RIA / Diversified / MM / Curated "
+            "(they sum to Peer-owners).")
         ui.button("Manage fund-lineup matches", icon="account_tree",
                   on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
 
