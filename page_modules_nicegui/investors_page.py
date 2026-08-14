@@ -1434,9 +1434,8 @@ def render_investors_page(section="ownership"):
         _mode_ctx["institutions"] = _score_institutions(raw_institutions, new_mode, q2_listeners, meeting_log)
         mode_state["mode"] = new_mode
         _save_json("buyside_mode.json", mode_state)
-        if section in ("ownership", "targeting"):
-            _big_picture_section.refresh()
         if section == "ownership":
+            _big_picture_section.refresh()
             _buyside_section.refresh()
         _mode_desc_section.refresh()
         _invalidate_mode_tabs()
@@ -1448,13 +1447,23 @@ def render_investors_page(section="ownership"):
     # Peer Ownership By City/Metro Area" table) leads TARGETING — it's the strategic "where to go"
     # overview, and Targeting is now the first section. Ownership opens straight into its Buy-side/
     # NOBO/Website tabs (whose Buyside Read already carries the who-owns-you summary).
-    if section in ("ownership", "targeting"):
+    # Ownership leads with the "who owns you" summary. Targeting's geographic block (WHERE TO GO
+    # read + the metro table) no longer sits here — it now renders inside the Target Database tab,
+    # directly under the summary cards (see _render_target_db_tab), per the requested layout.
+    if section == "ownership":
         _big_picture_section()
         ui.markdown("---")
-    if section in ("ownership", "targeting"):
+    # Ownership shows the Pre/Post-earnings mode toggle at the top. Targeting's toggle no longer sits
+    # here — it renders inside the Target Database tab, directly BELOW the metro table (per request),
+    # via this callback passed into _render_target_db_tab.
+    if section == "ownership":
         _render_mode_toggle_control(_mode_ctx["mode"], on_mode_change)
         _mode_desc_section()
         ui.markdown("---")
+
+    def _render_targeting_mode_controls():
+        _render_mode_toggle_control(_mode_ctx["mode"], on_mode_change)
+        _mode_desc_section()
 
     # Each section's ~3 tabs: (label, build fn, mode-dependent?). Only the active section is built.
     _SPECS = {
@@ -1463,7 +1472,7 @@ def render_investors_page(section="ownership"):
                       ("NOBO Ownership", lambda: _render_nobo_tab(), False),
                       ("Website Ownership", lambda: _render_web_flow_tab(client_id), False)],
         # ── Targeting — who should own it
-        "targeting": [("Target Database", lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id), True),
+        "targeting": [("Target Database", lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id, mode_controls=_render_targeting_mode_controls), True),
                       ("Peer Prospects", lambda: _render_peer_prospects_tab(client_id), False),
                       ("Import list", lambda: _render_import_verify_tab(client_id), False)],
         # ── Outbound — reach & track. Tab identities are short (Meeting Hub / NDR / CRM) and match the
@@ -3148,7 +3157,11 @@ def _render_big_picture(institutions, part="all"):
               "ria": pm["ria"], "div": pm["div"], "mm": pm["mm"], "curated": pm["curated"],
               "read": ndr_status_by_metro.get(m, "—"), "top": pretty_name(d.get("top")) if d.get("top") else "—"}
              for m in _all_metros],
-            key=lambda r: (-r["funds"], -r["holders"], -r["t1"]))
+            # Rank destinations by ORGANIC peer-owners (Inst+RIA+Divsfd+MM), EXCLUDING hand-entered
+            # Curated targets: curated are known-fit accounts you added by hand, not evidence of where
+            # peer-ownership actually clusters, so they must not push a metro up the destination order.
+            # Curated still shows in its own column; it just no longer drives the ranking.
+            key=lambda r: (-(r["funds"] - r["curated"]), -r["holders"], -r["t1"]))
         _tk = CT("ticker")
         geo_cols = [
             {"name": "metro", "label": "Metro / region", "field": "metro", "align": "left", "sortable": True,
@@ -7460,7 +7473,7 @@ def _safe_date(s):
 # ─────────────────────────────────────────────────────────────────────────
 # Target Database tab
 # ─────────────────────────────────────────────────────────────────────────
-def _render_target_db_tab(institutions, client_id):
+def _render_target_db_tab(institutions, client_id, mode_controls=None):
     prospects = _load_json("prospects.json", [])
 
     ui.label("Target Database").classes("text-lg font-bold")
@@ -7479,6 +7492,17 @@ def _render_target_db_tab(institutions, client_id):
     if _filter_pref in ("all", "holders", "nonholders", "prospects", "tier1"):
         _db_filter["mode"] = _filter_pref
     db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
+    # Geographic "where to go" block — the WHERE TO GO read + the "Institutions & Peer Ownership
+    # By City/Metro Area" table — sits directly under the summary cards (moved here from the page
+    # top per the requested layout). Rendered inline; refreshes with the tab on a mode change.
+    _render_big_picture(institutions, "geo")
+    # Pre/Post-earnings mode toggle + scoring-weights bar sit directly BELOW the metro table (moved
+    # down from the page top per request). Passed in from render_investors_page so it keeps the same
+    # on_mode_change wiring and refreshable description.
+    if mode_controls:
+        ui.markdown("---")
+        mode_controls()
+        ui.markdown("---")
     # The full 91-row list dominated the tab, so search + results live in a
     # collapsed expansion — the cards above are the summary. It auto-opens when
     # a card filter is clicked, a search runs, or a global-search prefill lands,
@@ -7611,8 +7635,9 @@ def _render_target_db_tab(institutions, client_id):
     render_db_cards()
     do_search()
 
-    ui.markdown("---")
-    with ui.expansion("Add a prospect manually").classes("w-full"):
+    _add_div = ui.markdown("---")
+    _add_exp = ui.expansion("Add a prospect manually").classes("w-full")
+    with _add_exp:
         p_fund = ui.input("Fund name *").classes("w-full").props("outlined dense")
         p_metro = ui.input("Metro / region").classes("w-full").props("outlined dense")
         p_style = ui.input("Investment style").classes("w-full").props("outlined dense")
@@ -7632,8 +7657,9 @@ def _render_target_db_tab(institutions, client_id):
 
         ui.button("Add Prospect", on_click=add_prospect).props("color=primary")
 
-    ui.markdown("---")
-    with ui.expansion("Bulk paste-from-website", value=False).classes("w-full"):
+    _bulk_div = ui.markdown("---")
+    _bulk_exp = ui.expansion("Bulk paste-from-website", value=False).classes("w-full")
+    with _bulk_exp:
         ui.label("Some sites (WhaleWisdom in particular) render holder tables as styled grids, not plain HTML "
                   "tables — copy/paste from those won't preserve columns cleanly through a file upload. Paste raw "
                   "text here instead; it's parsed by tab or by runs of 2+ spaces.").style(
@@ -7692,8 +7718,9 @@ def _render_target_db_tab(institutions, client_id):
         bp_raw.on_value_change(bp_parse)
         ui.button("Parse", on_click=bp_parse).props("dense flat")
 
-    ui.markdown("---")
-    with ui.expansion("Analyst Coverage Network Targeting", value=False).classes("w-full"):
+    _analyst_div = ui.markdown("---")
+    _analyst_exp = ui.expansion("Analyst Coverage Network Targeting", value=False).classes("w-full")
+    with _analyst_exp:
         ui.label("Institutions already owning other stocks a covering analyst rates Buy have demonstrated they "
                   "trust that analyst's research and understand the surrounding sector thesis — the "
                   "highest-probability prospects once that analyst raises this client's target.").style(
@@ -8022,6 +8049,16 @@ def _render_target_db_tab(institutions, client_id):
 
     ui.markdown("---")
     _render_peer_universe_manager(institutions)
+
+    # Requested layout: the Search box and the manual-entry tools (Add a prospect · Bulk paste ·
+    # Analyst Coverage) drop to the page BOTTOM, so the first section after the metro table is the
+    # Automated Prospecting Pipeline. They're created earlier (so their search/init wiring runs in
+    # place), then repositioned here into a bottom slot — creation order and handlers unchanged.
+    _tools_slot = ui.column().classes("w-full").style("gap:0;")
+    with _tools_slot:
+        ui.markdown("---")
+    for _el in (_search_exp, _add_div, _add_exp, _bulk_div, _bulk_exp, _analyst_div, _analyst_exp):
+        _el.move(_tools_slot)
 
 
 def _render_peer_universe_manager(institutions):
