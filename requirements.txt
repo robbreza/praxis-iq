@@ -13,7 +13,3 @@ pywebpush   # lighthouse/push.py — Web Push (VAPID) for Lighthouse phone alert
 python-pptx   # core/board_slides.py — PT Drift Tracker board-slide export (replaces app.py's
               # broken Node.js subprocess approach — generate_pt_slide.js was never actually
               # included in the project, so that button never worked even in the original demo)
-
-# streamlit — kept temporarily so the original app.py still runs during the
-# NiceGUI migration. Remove once every page is ported and app.py is retired.
-streamlit
