@@ -2182,7 +2182,8 @@ def _render_automation_tracker_tab():
         if breakdown:
             for item in breakdown:
                 label = EVENT_LABELS.get(item["event_type"], item["event_type"].replace("_", " ").title())
-                with ui.row().classes("w-full justify-between items-center").style(f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+                with ui.card().classes("w-full list-tile"):
+                  with ui.row().classes("w-full justify-between items-center no-wrap"):
                     ui.label(label).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                     ui.label(f"{item['count']}× · {item['minutes']} min").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         else:

@@ -502,6 +502,13 @@ def apply_theme():
         .ir-tile    {{ background:{COLORS["surface_hover_bg"]}; border-radius:8px; padding:10px 12px; }}
         .ir-card-sm {{ background:{COLORS["surface_bg"]}; border:1px solid {COLORS["border"]};
                        border-radius:8px; padding:12px 14px; }}
+        /* THE standard actionable-list-item tile — one bounded grey card per row, used
+           app-wide (via _list_item_card in investors, or `ui.card().classes("list-tile")`
+           anywhere else) so lists render the same everywhere instead of some using cards
+           and some using bare border-bottom line separators. Border/radius come from the
+           global .q-card rule; this adds the grey fill + item padding + inter-card gap. */
+        .list-tile {{ background:{COLORS["surface_hover_bg"]}; padding:9px 13px;
+                      gap:2px; margin:0 0 6px 0; }}
         /* Collapsible (expansion) HEADERS — Quasar renders the header label in its own
            element, so a per-expansion inline `color:` never reaches it and the title fell
            back to a near-white default "part of the time". Force every expansion header to a

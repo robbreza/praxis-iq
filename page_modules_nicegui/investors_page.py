@@ -2134,15 +2134,15 @@ def _render_peer_prospects_tab(client_id):
                          "travel. Ranked by position size; a large one can still be worth a call.").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for r in _rias:
-                    with ui.row().classes("w-full items-center justify-between no-wrap").style(
-                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                    with _list_item_card():
+                      with ui.row().classes("w-full items-center justify-between no-wrap"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
-                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps}").style(
-                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         with ui.row().classes("gap-1").style("flex-shrink:0;"):
                             if r.get("promoted"):
                                 ui.button("Undo", on_click=lambda r=r: (
@@ -2177,16 +2177,16 @@ def _render_peer_prospects_tab(client_id):
                          "when they want industry colour on a name they don't own. Ranked by peer position.").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                 for r in _div:
-                    with ui.row().classes("w-full items-center justify-between no-wrap").style(
-                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                    with _list_item_card():
+                      with ui.row().classes("w-full items-center justify-between no-wrap"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
                             ui.label(pretty_name(r["filer"])).style(
-                                f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
                             why = "wide book" if r.get("broad_book") else "index / bank AM"
                             ui.label(f"{loc} · ${r['peer_value']/1e6:.1f}M across {comps} · {why}").style(
-                                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                         with ui.row().classes("gap-1").style("flex-shrink:0;"):
                             if r.get("promoted"):
                                 ui.button("Undo", on_click=lambda r=r: (
@@ -2220,9 +2220,9 @@ def _render_peer_prospects_tab(client_id):
                 for r in sorted(_mm, key=lambda x: -(x.get("peer_value") or 0)):
                     loc = _loc_line(r)
                     comps = ", ".join(sorted(r["comps"].keys()))
-                    ui.label(f"{r['filer']} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
-                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);border-bottom:1px solid {COLORS['border']};"
-                        "padding:4px 0;")
+                    with _list_item_card():
+                        ui.label(f"{pretty_name(r['filer'])} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
     _list()
@@ -2667,8 +2667,8 @@ def _open_lineup_crosswalk_dialog():
             ui.label("Nothing waiting — every ambiguous match is resolved.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         for e in review:
-            with ui.row().classes("w-full items-center gap-2").style(
-                    f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+            with _list_item_card():
+              with ui.row().classes("w-full items-center gap-2 no-wrap"):
                 ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
                 if e.get("note"):
                     ui.label(e["note"]).style(f"color:{COLORS['warning']};font-size:var(--fs-xs);max-width:200px;")
@@ -2694,8 +2694,8 @@ def _open_lineup_crosswalk_dialog():
             reg = e.get("registrant") or fl._registrant_name(e.get("cik"))
             roster = fl.series_roster(e.get("cik"))
             cnt = (roster or {}).get("expected_series")
-            with ui.row().classes("w-full items-center gap-2").style(
-                    f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
+            with _list_item_card():
+              with ui.row().classes("w-full items-center gap-2 no-wrap"):
                 ui.label(_row(e.get("manager"), e["norm"])).style("min-width:210px;font-weight:600;")
                 ui.label(f"→ {pretty_name(reg or '—')}" + (f"  ·  {cnt} funds" if cnt else "")).style(
                     f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);flex:1;")
@@ -4119,8 +4119,7 @@ def _list_item_card(rail_color=None):
     (where a borderless same-grey tile would blend). Optional `rail_color` adds a left
     attention rail (same cue Today uses for repeat meetings). Returns the card CM."""
     rail = f"border-left:3px solid {rail_color};" if rail_color else ""
-    return ui.card().classes("w-full").style(
-        f"background:{COLORS['surface_hover_bg']};{rail}padding:9px 13px;gap:2px;margin:0 0 6px 0;")
+    return ui.card().classes("w-full list-tile").style(rail)
 
 
 def _institution_card(inst, meeting_log, contacts):
@@ -7546,10 +7545,12 @@ def _render_target_db_tab(institutions, client_id):
             if not combined:
                 ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
             for c in combined:
-                with ui.row().classes("w-full items-center justify-between").style(
-                        f"border-bottom:1px solid {COLORS['border']};padding:6px 0;"):
-                    ui.label(f"{c['Fund']} ({c['Source']})").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
-                    ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                with _list_item_card():
+                  with ui.row().classes("w-full items-center justify-between no-wrap"):
+                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
+                        ui.label(f"{pretty_name(c['Fund'])} ({c['Source']})").style(
+                            f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
+                        ui.label(f"{c['Metro']} · {c['Type']} · {'Holder' if c['USIO_Holder'] else 'Non-holder'} · Score {c['Score']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     # Outcome marker — only for prospects that were added WITH a
                     # stored Fit Score breakdown (see run_fit_score_ranking's
                     # add_scored_prospect), since that's what

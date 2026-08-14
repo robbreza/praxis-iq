@@ -972,8 +972,8 @@ def _render_illustrative_lookback(prior_q, rec):
                 sev = {"HIGH": "#B91C1C", "MEDIUM": "#B45309", "LOW": "#64748B"}
                 for t in topics:
                     clr = sev.get(t.get("severity"), "#64748B")
-                    with ui.row().classes("w-full items-start gap-2").style(
-                            f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                    with ui.card().classes("w-full list-tile"):
+                      with ui.row().classes("w-full items-start gap-2 no-wrap"):
                         ui.label(t.get("severity", "?")).style(
                             f"background:{clr}22;color:{clr};font-size:var(--fs-2xs);font-weight:700;"
                             "padding:1px 7px;border-radius:9px;white-space:nowrap;")
@@ -1153,7 +1153,7 @@ def _render_lookback_tab():
             ]
             for takeaway, view, clr in alignment:
                 icon = "" if clr == "#15803D" else ("" if clr == "#B45309" else "")
-                with ui.column().classes("gap-0").style(f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+                with ui.card().classes("w-full list-tile"):
                     ui.label(f"{icon} {takeaway}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                     ui.label(view).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 

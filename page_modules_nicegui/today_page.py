@@ -1411,8 +1411,8 @@ def _render_earnings_readiness(days):
     for i, s in enumerate(STAGES, 1):
         st = stages.get(s["id"], {}).get("status", "pending")
         lbl, clr, glyph = _status.get(st, _status["pending"])
-        with ui.row().classes("w-full justify-between items-center").style(
-                f"border-bottom:1px solid {COLORS['border']};padding:5px 0;"):
+        with ui.card().classes("w-full list-tile"):
+          with ui.row().classes("w-full justify-between items-center no-wrap"):
             ui.label(f"{i}.  {s['name']}").classes("t-body")
             ui.label(f"{glyph} {lbl}").style(f"color:{clr};font-size:var(--fs-sm);font-weight:600;")
 
