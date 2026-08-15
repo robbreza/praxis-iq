@@ -1055,7 +1055,7 @@ def _open_metro_select_dialog(metro, funds, holders=None):
         # clickable. @click.stop so opening the profile doesn't also toggle the row's selection checkbox.
         tbl.add_slot("body-cell-Fund", '''
             <q-td :props="props">
-              <span class="cursor-pointer" style="color:#1D4ED8;text-decoration:underline;text-underline-offset:2px;"
+              <span class="name-link"
                     @click.stop="() => $parent.$emit('nameclick', props.row._filer)">{{ props.row.Fund }}</span>
             </q-td>
         ''')
@@ -2177,7 +2177,8 @@ def _render_peer_prospects_tab(client_id):
                     with _list_item_card():
                       with ui.row().classes("w-full items-center justify-between no-wrap"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                            ui.label(pretty_name(r["filer"])).style(
+                            ui.label(pretty_name(r["filer"])).classes("name-link").on(
+                                "click", lambda r=r: _open_account_profile(r)).style(
                                 f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
@@ -2220,7 +2221,8 @@ def _render_peer_prospects_tab(client_id):
                     with _list_item_card():
                       with ui.row().classes("w-full items-center justify-between no-wrap"):
                         with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                            ui.label(pretty_name(r["filer"])).style(
+                            ui.label(pretty_name(r["filer"])).classes("name-link").on(
+                                "click", lambda r=r: _open_account_profile(r)).style(
                                 f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                             loc = _loc_line(r)
                             comps = ", ".join(sorted(r["comps"].keys()))
@@ -2261,7 +2263,8 @@ def _render_peer_prospects_tab(client_id):
                     loc = _loc_line(r)
                     comps = ", ".join(sorted(r["comps"].keys()))
                     with _list_item_card():
-                        ui.label(f"{pretty_name(r['filer'])} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").style(
+                        ui.label(f"{pretty_name(r['filer'])} · {loc} · ${(r.get('peer_value') or 0)/1e6:.1f}M across {comps}").classes("name-link").on(
+                            "click", lambda r=r: _open_account_profile(r)).style(
                             f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
 
     _sort_toggle.on_value_change(lambda e: (_state.update(sort=e.value), _list.refresh()))
@@ -4224,7 +4227,9 @@ def _institution_card(inst, meeting_log, contacts):
                 _title_txt = _dots(pretty_name(inst["Fund"]), inst.get("Type"), _aum_seg)
                 _meta_txt = _dots(inst.get("Metro"), inst.get("Turnover_Style"), ownership_badge, holder_badge)
                 with ui.row().classes("items-center gap-2"):
-                    ui.label(_title_txt).classes("font-bold").style(f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
+                    ui.label(_title_txt).classes("font-bold name-link").on(
+                        "click", lambda inst=inst: _open_account_profile(_card_rec(inst))).style(
+                        f"color:{COLORS['text_heading']};font-size:var(--fs-lg);")
                     _src = inst.get("Source", "Seed (demo)")
                     ui.label(_src).style(
                         f"background:{_source_color(_src)};color:#fff;border-radius:6px;padding:1px 6px;"
@@ -7628,7 +7633,8 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 with _list_item_card():
                   with ui.row().classes("w-full items-center justify-between no-wrap"):
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        ui.label(f"{pretty_name(c['Fund'])} ({c['Source']})").style(
+                        ui.label(f"{pretty_name(c['Fund'])} ({c['Source']})").classes("name-link").on(
+                            "click", lambda c=c: _open_account_profile(c)).style(
                             f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
                         # Drop any empty / None / placeholder segment (real SEC-sourced holders
                         # often carry no Type) so the meta line never renders a literal "· None ·".

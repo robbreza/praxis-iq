@@ -509,6 +509,12 @@ def apply_theme():
            global .q-card rule; this adds the grey fill + item padding + inter-card gap. */
         .list-tile {{ background:{COLORS["surface_hover_bg"]}; padding:9px 13px;
                       gap:2px; margin:0 0 6px 0; }}
+        /* Clickable account/fund NAME — the ONE consistent "click a name → Account 360" affordance
+           used across every list, table and card. Subtle underline signals it's clickable; turns the
+           accent colour on hover. Apply with .classes("name-link") + an on-click that opens the profile. */
+        .name-link {{ cursor:pointer; text-decoration:underline; text-decoration-thickness:1px;
+                      text-underline-offset:2px; text-decoration-color:{COLORS["text_muted2"]}; }}
+        .name-link:hover {{ color:#1D4ED8; text-decoration-color:#1D4ED8; }}
         /* Collapsible (expansion) HEADERS — Quasar renders the header label in its own
            element, so a per-expansion inline `color:` never reaches it and the title fell
            back to a near-white default "part of the time". Force every expansion header to a
