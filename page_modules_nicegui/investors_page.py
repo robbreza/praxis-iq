@@ -5555,7 +5555,11 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                         f"margin:2px 0;{'opacity:.55;' if st == 'declined' else ''}"):
                                     ui.label(lbl).style(f"background:{clr}22;color:{clr};border-radius:6px;"
                                                         "padding:1px 8px;font-size:var(--fs-2xs);font-weight:700;white-space:nowrap;")
-                                    ui.label(pretty_name(s.get("institution", ""))).classes("flex-1").style(
+                                    ui.label(pretty_name(s.get("institution", ""))).classes("flex-1 name-link").on(
+                                        "click", lambda s=s: _open_account_profile(
+                                            {"Fund": s.get("institution"), "cik": s.get("cik"),
+                                             "city": s.get("city"), "state": s.get("state"),
+                                             "conviction": s.get("conviction")})).style(
                                         f"color:{COLORS['text_body']};font-size:var(--fs-base);")
                                     _sl_loc = ", ".join(x for x in [s.get("city"), s.get("state")] if x) or s.get("metro", "—")
                                     ui.label(_sl_loc).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
