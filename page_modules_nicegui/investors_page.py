@@ -1051,6 +1051,21 @@ def _open_metro_select_dialog(metro, funds, holders=None):
                   for k in ("Fund", "City", "Category", "Score", "Detail")]
         tbl = ui.table(columns=d_cols, rows=d_rows, row_key="_filer",
                        selection="multiple").classes("w-full").props("dense flat")
+        # Click a fund NAME → open its Account 360 detail — consistent with every other place a name is
+        # clickable. @click.stop so opening the profile doesn't also toggle the row's selection checkbox.
+        tbl.add_slot("body-cell-Fund", '''
+            <q-td :props="props">
+              <span class="cursor-pointer" style="color:#1D4ED8;text-decoration:underline;text-underline-offset:2px;"
+                    @click.stop="() => $parent.$emit('nameclick', props.row._filer)">{{ props.row.Fund }}</span>
+            </q-td>
+        ''')
+
+        def _open_name(e):
+            _k = e.args[0] if isinstance(e.args, (list, tuple)) else e.args
+            it = by_key.get(_k)
+            if it:
+                _open_account_profile(it)
+        tbl.on("nameclick", _open_name)
         if _preselect:                            # names already on this metro's NDR start ticked
             tbl.selected = _preselect
         _hint = ("Names already on this metro's NDR are ticked and marked ✓. " if _preselect else "")
