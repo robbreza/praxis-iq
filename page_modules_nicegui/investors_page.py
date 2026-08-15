@@ -3152,6 +3152,7 @@ def _render_big_picture(institutions, part="all"):
         # "Where to start" summary card above already answers it, and the metro table below carries the
         # geographic detail. Can be relocated elsewhere if wanted.)
 
+    _geo_table_exp = None                     # the metro-table collapsible, returned so a card click can collapse it
     if part in ("all", "geo"):
         # Geographic breakdown — answers the obvious question the counts above raise:
         # "these institutions... where ARE they?" One row per metro with its holders,
@@ -3172,7 +3173,11 @@ def _render_big_picture(institutions, part="all"):
             # The "N current holders and M peer-owners across K metros…" instruction, FOLDED INTO this box
             # (was a separate line under the title). Populated once the peer/metro totals are computed.
             _geo_note = ui.label("").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.45;")
-        ui.label("Institutions & Peer Ownership By City/Metro Area").classes("section-head").style("margin-top:10px;")
+        # The metro table lives in a collapsible so a summary-card click (see set_db_filter) can collapse
+        # it to focus on the filtered results; the header re-opens it any time. The WHERE TO GO read above
+        # stays put — only the table collapses.
+        _geo_table_exp = ui.expansion("Institutions & Peer Ownership By City/Metro Area", icon="map",
+                                      value=True).classes("w-full").style("margin-top:10px;")
 
         # (peer_by_metro / peer_funds_by_metro were computed above, before the WHERE TO GO read, so the
         # read can point to the table's #1 destination.)
@@ -3473,8 +3478,15 @@ def _render_big_picture(institutions, part="all"):
             f"{holder_count} current holders and {_peer_total} peer-owners (own a comp, not you) across "
             f"{len(_all_metros)} metros. Peer-owners break into Inst / RIA / Diversified / MM / Curated "
             "(they sum to Peer-owners).")
-        ui.button("Manage fund-lineup matches", icon="account_tree",
-                  on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
+        _manage_btn = ui.button("Manage fund-lineup matches", icon="account_tree",
+                                on_click=_open_lineup_crosswalk_dialog).props("flat dense").style("font-size:var(--fs-xs);margin-top:2px;")
+        # Tuck the metro table + its Manage button inside the collapsible header created above (they
+        # render at top level because the table build sits between title and table; move() preserves
+        # all their slots and row/cell event handlers).
+        geo_table.move(_geo_table_exp)
+        _manage_btn.move(_geo_table_exp)
+
+    return _geo_table_exp
 
 
 def _peer_holder_avg(cid):
@@ -7557,27 +7569,25 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
     if _filter_pref in ("all", "holders", "nonholders", "prospects", "tier1"):
         _db_filter["mode"] = _filter_pref
     db_cards_row = ui.row().classes("w-full gap-3").style("margin-top:6px;")
-    # Geographic "where to go" block — the WHERE TO GO read + the "Institutions & Peer Ownership
-    # By City/Metro Area" table — sits directly under the summary cards (moved here from the page
-    # top per the requested layout). Rendered inline; refreshes with the tab on a mode change.
-    _render_big_picture(institutions, "geo")
-    # Pre/Post-earnings mode toggle + scoring-weights bar sit directly BELOW the metro table (moved
-    # down from the page top per request). Passed in from render_investors_page so it keeps the same
-    # on_mode_change wiring and refreshable description.
-    if mode_controls:
-        ui.markdown("---")
-        mode_controls()
-        ui.markdown("---")
-    # The full 91-row list dominated the tab, so search + results live in a
-    # collapsed expansion — the cards above are the summary. It auto-opens when
-    # a card filter is clicked, a search runs, or a global-search prefill lands,
-    # so a filtered view is never hidden behind a closed panel.
+    # Geographic "where to go" block — the WHERE TO GO read + the "Institutions & Peer Ownership By
+    # City/Metro Area" table — sits directly under the summary cards. Returns the metro-table expansion
+    # so a summary-card click can collapse it (see set_db_filter) to focus on the filtered results.
+    _geo_exp = _render_big_picture(institutions, "geo")
+    # Search sits directly UNDER the metro table (the primary action); the mode toggle and the
+    # automated-prospecting sections now follow it. Search + results live in a collapsed expansion —
+    # the cards above are the summary; it auto-opens when a card filter is clicked, a search runs, or a
+    # global-search prefill lands, so a filtered view is never hidden behind a closed panel.
     _search_exp = ui.expansion("Search by fund name", icon="search", value=False).classes("w-full").style(
         f"border:1px solid {COLORS['border']};border-radius:8px;margin-top:8px;")
     with _search_exp:
         search_in = ui.input("Search by fund name").classes("w-full").props("outlined dense")
         _search_btn_row = ui.row().classes("gap-2 items-center")
         results = ui.column().classes("w-full gap-2")
+    # Pre/Post-earnings mode toggle + scoring-weights bar, now BELOW Search (moved down per request).
+    if mode_controls:
+        ui.markdown("---")
+        mode_controls()
+        ui.markdown("---")
 
     _OUTCOME_OPTIONS = {"— unresolved —": None, "Won (meeting set / met / owns)": "positive", "Passed": "negative"}
     _OUTCOME_REVERSE = {"positive": "Won (meeting set / met / owns)", "negative": "Passed", None: "— unresolved —"}
@@ -7633,6 +7643,9 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if not combined:
                 ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
+            # Cap the results window to ~5 rows tall (scroll for the rest) so a 100+ set doesn't dominate.
+            _cards_box = ui.column().classes("w-full").style("max-height:360px;overflow-y:auto;gap:0;")
+        with _cards_box:
             for c in combined:
                 with _list_item_card():
                   with ui.row().classes("w-full items-center justify-between no-wrap"):
@@ -7668,6 +7681,8 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
         render_db_cards()
         do_search()
         _search_exp.set_value(True)  # a filtered list must not stay hidden
+        if _geo_exp is not None:
+            _geo_exp.set_value(False)  # collapse the metro table so the filtered results take the screen
 
     def render_db_cards():
         c = _db_combined()
@@ -8123,7 +8138,7 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
     _tools_slot = ui.column().classes("w-full").style("gap:0;")
     with _tools_slot:
         ui.markdown("---")
-    for _el in (_search_exp, _add_div, _add_exp, _bulk_div, _bulk_exp, _analyst_div, _analyst_exp):
+    for _el in (_add_div, _add_exp, _bulk_div, _bulk_exp, _analyst_div, _analyst_exp):
         _el.move(_tools_slot)
 
 
