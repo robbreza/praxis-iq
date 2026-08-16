@@ -1401,6 +1401,19 @@ def _render_earnings_readiness(days):
             ui.label(f"in {days} days").style(f"color:{COLORS['accent_light']};font-size:var(--fs-base);font-weight:700;")
         ui.label(f"{date_lbl}  ·  {time_lbl}").style(f"color:{COLORS['accent_light2']};font-size:var(--fs-sm);")
 
+    # The stage-by-stage review is only "on the clock" in the final two weeks before earnings (the last
+    # two weeks of the quarter). Outside that window, don't score it — keep the countdown above, but drop
+    # the completion count + the checklist pressure and say when the clock starts. Same T-14 rule as
+    # Today's Focus item 3 (see _talking_points).
+    if days is not None and days > 14:
+        ui.label(f"Script review opens in the final two weeks before earnings — the clock starts in "
+                 f"{days - 14} day(s). Nothing to work yet.").classes("t-sec").style(
+            f"color:{COLORS['text_muted']};margin-top:8px;line-height:1.5;")
+        ui.button("Preview Script Generation →", icon="edit_note",
+                  on_click=lambda: nav.go_to("Earnings", "Script Generation")).props("outline").classes(
+                  "w-full").style("margin-top:8px;")
+        return
+
     # The 5-stage Script Generation workflow — ALWAYS show all five, NUMBERED, so it's clear these
     # are the five stages whether or not the script has been started (the old version hid them
     # entirely on an un-started script, so the "5 stages" weren't evident). Real status from
