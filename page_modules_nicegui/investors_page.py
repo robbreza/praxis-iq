@@ -7607,8 +7607,8 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
         mode_controls()
         ui.markdown("---")
 
-    _OUTCOME_OPTIONS = {"— unresolved —": None, "Won (meeting set / met / owns)": "positive", "Passed": "negative"}
-    _OUTCOME_REVERSE = {"positive": "Won (meeting set / met / owns)", "negative": "Passed", None: "— unresolved —"}
+    _OUTCOME_OPTIONS = {"— unresolved —": None, "Added": "positive", "Passed": "negative"}
+    _OUTCOME_DISPLAY = {"positive": "Added", "negative": "Passed", None: "— unresolved —"}
 
     def _db_combined():
         combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
@@ -7686,18 +7686,60 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 if c.get("_kind") == "prospect":
                     return c["_src"].get("notes") or c.get("Type") or "—"
                 return _dir_label((c["_src"] or {}).get("Direction")) or ("Holder" if c["USIO_Holder"] else "Non-holder")
+            # Added/Passed outcome is editable for any SCORED prospect (one with a stored fit-score
+            # breakdown — the label the re-weight learns from), matched by fund name. Manually-added
+            # prospects get folded into the scored universe and show as "Tracked", so keying off the
+            # display Source would never fire; key off prospects.json directly instead.
+            _scored = {(p.get("fund") or "").strip().upper(): (idx, p.get("outcome"))
+                       for idx, p in enumerate(_load_json("prospects.json", [])) if p.get("score_breakdown")}
+            def _out_for(c):
+                hit = _scored.get((c["Fund"] or "").strip().upper())
+                if not hit:
+                    return {"_outEditable": False, "_outPidx": None, "Outcome": None}
+                return {"_outEditable": True, "_outPidx": hit[0], "Outcome": _OUTCOME_DISPLAY.get(hit[1])}
             d_rows = [{"_key": c["Fund"], "Fund": pretty_name(c["Fund"]), "City": c.get("Metro") or "—",
                        "Category": "Current holder" if c["USIO_Holder"] else (c.get("Type") or "Non-holder"),
-                       "Score": c.get("Score"), "Detail": _s_detail(c)} for c in combined]
+                       "Score": c.get("Score"), "Detail": _s_detail(c), **_out_for(c)} for c in combined]
             _s_cols = [{"name": k, "label": ("Conviction / Position" if k == "Score" else k),
                         "field": k, "sortable": True, "align": "right" if k == "Score" else "left"}
                        for k in ("Fund", "City", "Category", "Score", "Detail")]
+            _s_cols.append({"name": "Outcome", "label": "Added / Passed", "field": "Outcome", "align": "left"})
             _s_tbl = ui.table(columns=_s_cols, rows=d_rows, row_key="_key", selection="multiple",
                               pagination=5).classes("w-full").props("dense flat")   # 5 rows per page
             _s_tbl.add_slot("body-cell-Fund", (
                 '<q-td :props="props"><span class="name-link" '
                 '@click.stop="() => $parent.$emit(\'openProfile\', props.row._key)">{{ props.value }}</span></q-td>'))
             _s_tbl.on("openProfile", lambda e: _open_account_profile(_src_by_key.get(e.args) or {"Fund": e.args}))
+            # Added / Passed outcome — a dropdown on scored prospects only (blank otherwise). Saves the
+            # label the fit-score re-weight learns from; @click.stop so it doesn't toggle the row checkbox.
+            _s_tbl.add_slot("body-cell-Outcome", '''
+                <q-td :props="props">
+                  <div v-if="props.row._outEditable" @click.stop>
+                    <q-select dense options-dense outlined :model-value="props.row.Outcome"
+                              :options="['— unresolved —','Added','Passed']"
+                              @update:model-value="(v) => $parent.$emit('setOutcome', {key: props.row._key, val: v})"
+                              style="min-width:132px;" />
+                  </div>
+                  <span v-else style="opacity:.35;">—</span>
+                </q-td>
+            ''')
+
+            def _s_set_outcome(e):
+                key, val = e.args.get("key"), e.args.get("val")
+                _row = next((r for r in d_rows if r["_key"] == key), None)
+                if not _row or _row.get("_outPidx") is None:
+                    return
+                outcome = _OUTCOME_OPTIONS.get(val)
+                plist = _load_json("prospects.json", [])
+                try:
+                    plist[_row["_outPidx"]]["outcome"] = outcome
+                except (IndexError, KeyError, TypeError):
+                    return
+                _save_json("prospects.json", plist)
+                _row["Outcome"] = _OUTCOME_DISPLAY.get(outcome)
+                _s_tbl.update()
+                ui.notify(f"Outcome saved: {val}.")
+            _s_tbl.on("setOutcome", _s_set_outcome)
 
             def _s_do_add():
                 sel = _s_tbl.selected
