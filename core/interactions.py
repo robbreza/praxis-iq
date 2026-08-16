@@ -14,6 +14,7 @@ Two sources, merged on read:
     the NDR pipeline stays the single source of truth for those and nothing is
     double-materialized.
 """
+import time
 import uuid
 from datetime import date, datetime
 
@@ -23,6 +24,29 @@ from config.client_config import get_active_client_id
 _KEY = "crm_interactions"          # per-client list of manually logged events
 
 TYPES = {"meeting": "Meeting", "call": "Call", "email": "Email", "note": "Note"}
+
+# summary()/for_account() run once per institution card (hundreds/render), and each re-reads the
+# WHOLE crm_interactions list + the WHOLE ndr_trips book — db.load_json deep-copies on every hit,
+# so those two stores were deep-copied ~278x per Ownership render just to filter to one account.
+# Cache them per (key, cid) on a SHORT TTL: within a render every card hits the cache, and because
+# ndr_trips.json has external writers (the NDR pipeline, sandbox reset) the TTL self-heals rather
+# than us tracking every writer. This module's OWN writes to crm_interactions invalidate at once.
+_LIST_CACHE = {}
+_LIST_TTL = 10.0
+
+
+def _cached_load(json_key, cid):
+    ck = (json_key, cid)
+    hit = _LIST_CACHE.get(ck)
+    if hit is not None and hit[0] > time.monotonic():
+        return hit[1]
+    v = db.load_json(json_key, [], client_id=cid) or []
+    _LIST_CACHE[ck] = (time.monotonic() + _LIST_TTL, v)
+    return v
+
+
+def _invalidate(json_key, cid):
+    _LIST_CACHE.pop((json_key, cid), None)
 
 
 def _today():
@@ -37,7 +61,7 @@ def _as_list(v):
 
 
 def _manual(cid):
-    return db.load_json(_KEY, [], client_id=cid) or []
+    return _cached_load(_KEY, cid)         # read path — cached (writers use the raw load below)
 
 
 def log(account_key, type="note", date=None, who=None, summary=None, source="manual", cid=None):
@@ -47,9 +71,10 @@ def log(account_key, type="note", date=None, who=None, summary=None, source="man
           "type": type if type in TYPES else "note",
           "date": (date or _today()), "who": who or "", "summary": summary or "",
           "source": source, "created_at": datetime.now().isoformat()}
-    lst = _manual(cid)
+    lst = db.load_json(_KEY, [], client_id=cid) or []    # raw — don't mutate the cached list
     lst.append(ev)
     db.save_json(_KEY, lst, client_id=cid)
+    _invalidate(_KEY, cid)
     return ev
 
 
@@ -57,8 +82,9 @@ def delete(event_id, cid=None):
     """Remove a manually-logged event (NDR-derived events can't be deleted here —
     they follow the pipeline)."""
     cid = cid or get_active_client_id()
-    lst = [e for e in _manual(cid) if e.get("id") != event_id]
+    lst = [e for e in (db.load_json(_KEY, [], client_id=cid) or []) if e.get("id") != event_id]
     db.save_json(_KEY, lst, client_id=cid)
+    _invalidate(_KEY, cid)
 
 
 def _ndr_events(account_key, cid):
@@ -66,7 +92,7 @@ def _ndr_events(account_key, cid):
     never double-stored. A shortlist entry that reached invited+ (or a scheduled
     meeting) is a real touch; a bare 'shortlisted' target is not."""
     out = []
-    for t in db.load_json("ndr_trips.json", [], client_id=cid) or []:
+    for t in _cached_load("ndr_trips.json", cid):
         tname = t.get("name") or "NDR"
         tdate = t.get("dates") or t.get("created") or ""
         seen = set()
@@ -135,7 +161,7 @@ def active_index(cid=None):
 
     for e in _manual(cid):
         _bump(e.get("account"), e.get("date"))
-    for t in db.load_json("ndr_trips.json", [], client_id=cid) or []:
+    for t in _cached_load("ndr_trips.json", cid):
         tdate = t.get("dates") or t.get("created") or ""
         seen = set()
         for s in _as_list(t.get("shortlist")):

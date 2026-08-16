@@ -47,8 +47,26 @@ def _norm(name):
     return fund_lineup._norm(name)
 
 
+# Per-process cache of the single global notes dict. account_api.get_account reads it once per
+# institution card (hundreds/render), and db.load_json deep-copies its own cache on every hit —
+# so the whole notes book was deep-copied ~278x per Ownership render for one-key lookups. The key
+# is read/written ONLY through _store()/_save() here, and every writer mutates the held dict and
+# saves it (re-syncing this cache), so holding the live object is safe. Mirrors core.accounts.
+_UNSET = object()
+_CACHE = {}
+
+
 def _store():
-    return db.load_json(_KEY, {}, client_id=_GLOBAL) or {}
+    v = _CACHE.get(_KEY, _UNSET)
+    if v is _UNSET:
+        v = db.load_json(_KEY, {}, client_id=_GLOBAL) or {}
+        _CACHE[_KEY] = v
+    return v
+
+
+def _save(s):
+    db.save_json(_KEY, s, client_id=_GLOBAL)
+    _CACHE[_KEY] = s
 
 
 def _key(name, cik=None, register=True):
@@ -91,7 +109,7 @@ def save(name, cik=None, **fields):
         e[k] = v
     e["updated_at"] = datetime.now().isoformat()
     s[key] = e
-    db.save_json(_KEY, s, client_id=_GLOBAL)
+    _save(s)
     return e
 
 
@@ -111,7 +129,7 @@ def save_by_key(key, **fields):
         e[k] = v
     e["updated_at"] = datetime.now().isoformat()
     s[key] = e
-    db.save_json(_KEY, s, client_id=_GLOBAL)
+    _save(s)
     return e
 
 
@@ -126,4 +144,4 @@ def _migrate_key(old_key, new_key):
     merged = dict(s.pop(old_key))
     merged.update(s.get(new_key, {}))         # keep the more-specific record's edits
     s[new_key] = merged
-    db.save_json(_KEY, s, client_id=_GLOBAL)
+    _save(s)
