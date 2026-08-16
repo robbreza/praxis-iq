@@ -23,9 +23,21 @@ False-positive control:
   • every candidate carries its evidence + filing date so a bad one costs a glance.
 """
 
+import time
 from datetime import datetime
 
 from config.client_config import CP, CT, get_active_client_id
+
+# Per-process memo for build_candidates: {(cid,limit,include_dismissed,sort,kind): (expiry, result)}.
+# A single Ownership render calls build_candidates ~12x with identical args (perf audit hotspot); this
+# collapses them to one build. Short TTL so a 13F refresh / peer-universe edit shows within it, and the
+# in-app mutations (promote/dismiss/reset) invalidate immediately via _bc_invalidate() in _set_decision.
+_BC_CACHE = {}
+_BC_TTL = 20.0
+
+
+def _bc_invalidate():
+    _BC_CACHE.clear()
 
 # Closest small/mid-cap payment comps — holding these is the highest signal.
 _TIGHT_FALLBACK = {"RPAY", "CASS", "CSGS", "PSFE", "PAY"}
@@ -304,7 +316,21 @@ def build_candidates(cid=None, limit=40, include_dismissed=False, sort="convicti
     kind="institutional" (default) → real NDR targets, conviction-scored.
     kind="ria" → the RIA/wealth bucket: firms that genuinely own the peers but
     have no PM to pitch (video-call tier), ranked by position size. They were
-    previously discarded entirely."""
+    previously discarded entirely.
+
+    Memoized per-process (short TTL) so the ~12 identical calls a single page render makes collapse to
+    one real build; the work lives in _build_candidates_impl."""
+    cid = cid or get_active_client_id()
+    _k = (cid, limit, include_dismissed, sort, kind)
+    _hit = _BC_CACHE.get(_k)
+    if _hit is not None and _hit[0] > time.monotonic():
+        return _hit[1]
+    _res = _build_candidates_impl(cid, limit, include_dismissed, sort, kind)
+    _BC_CACHE[_k] = (time.monotonic() + _BC_TTL, _res)
+    return _res
+
+
+def _build_candidates_impl(cid, limit, include_dismissed, sort, kind):
     from core import db, sec_filings
     cid = cid or get_active_client_id()
     prospecting = [p for p in CP() if p.get("tier") != "reference"]
@@ -495,6 +521,7 @@ def _set_decision(key, decision, cid):
     else:
         d[key] = {"decision": decision, "date": datetime.now().isoformat()}
     db.save_json(_DECISIONS_KEY, d, client_id=cid)
+    _bc_invalidate()    # promote/dismiss/reset change the candidate set — drop the memo immediately
 
 
 def promote(candidate, cid=None):

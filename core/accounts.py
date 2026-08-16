@@ -28,17 +28,31 @@ _ALIAS_KEY = "crm_account_aliases"     # {norm_name: canonical_id}
 _ACCT_KEY = "crm_accounts"             # {canonical_id: {id, name, cik, aliases[], created_at}}
 _GLOBAL = "_global"
 
+# Per-process cache of the two GLOBAL CRM tables. Rendering Buyside Ownership calls
+# account_api.get_account once per institution card (hundreds of times), and each call resolves
+# through these tables — and db.load_json deep-copies its own cache on EVERY hit, so the alias map
+# alone was reloaded ~4.7k times per page render (a perf audit's #1 hotspot). These keys are read and
+# written ONLY through _g/_s here, and every mutation path saves immediately after (re-syncing this
+# cache), so holding the live object instead of a per-call deep-copy is safe.
+_UNSET = object()
+_CACHE = {}
+
 
 def _norm(name):
     return fund_lineup._norm(name)
 
 
 def _g(key, default):
-    return db.load_json(key, default, client_id=_GLOBAL) or default
+    v = _CACHE.get(key, _UNSET)
+    if v is _UNSET:
+        v = db.load_json(key, default, client_id=_GLOBAL)
+        _CACHE[key] = v
+    return v if v else default
 
 
 def _s(key, value):
     db.save_json(key, value, client_id=_GLOBAL)
+    _CACHE[key] = value
 
 
 def _cik_int(cik):
