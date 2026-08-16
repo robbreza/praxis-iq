@@ -212,7 +212,7 @@ def _today_story_text(snap, recent):
     return f"{_p} {_a}"
 
 
-def _talking_points(state, overdue, readiness_pct):
+def _talking_points(state, overdue, readiness_pct, days_to_earnings=None):
     """Real, computed stand-ins for the old 3 hardcoded talking points —
     each line reflects an actual queryable fact (overdue count, script
     readiness, open signal count) rather than a fixed script."""
@@ -237,7 +237,13 @@ def _talking_points(state, overdue, readiness_pct):
     else:
         points.append("No analyst follow-ups are outstanding — nothing sent unanswered, nothing awaiting your reply.")
 
-    if readiness_pct >= 80:
+    # The earnings-script % clock only STARTS in the final two weeks before earnings (the last two
+    # weeks of the quarter). Outside that window the review is intentionally NOT scored or flagged —
+    # the event stays on the list, but with no % and no "needs attention" until the clock is running.
+    if days_to_earnings is not None and days_to_earnings > 14:
+        points.append(f"Earnings script review — the review clock starts in the final two weeks before "
+                      f"earnings ({days_to_earnings - 14} day(s) out); nothing to measure yet.")
+    elif readiness_pct >= 80:
         points.append(f"Earnings script is {readiness_pct:.0f}% through its review stages — on track.")
     elif readiness_pct > 0:
         points.append(f"Earnings script is only {readiness_pct:.0f}% through its review stages — needs attention this week.")
@@ -427,7 +433,7 @@ def render_today_page():
                 ui.label("Talking points for management").classes("section-head").style("margin-top:12px;")
                 # "Recent activity" now leads the talking points rather than sitting in
                 # the story paragraph above.
-                _points = [_activity_line] + _talking_points(state, overdue, readiness_pct)
+                _points = [_activity_line] + _talking_points(state, overdue, readiness_pct, days)
                 for i, pt in enumerate(_points, 1):
                     ui.label(f"{i}. {pt}").style(f"color:{COLORS['text_secondary']};font-size:var(--fs-base);line-height:1.6;")
                 # Today's top story, folded in as the final talking point.
