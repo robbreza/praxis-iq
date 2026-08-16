@@ -1149,21 +1149,48 @@ def _open_shortlist_outreach(entry, contact, on_invited):
     ir = CI()
     where = entry.get("metro") or entry.get("city") or "your area"
     peers = entry.get("peers") or "names in our space"
-    greeting = (contact.get("name", "").split()[0] if contact.get("name") else "there")
     subject = f"{tkr} — meeting request during our {where} investor visit"
-    body = (f"Hi {greeting},\n\nWe're planning an investor visit around {where} and would value 30 "
-            f"minutes with your team. {pretty_name(fund)} holds {peers}, so {tkr}'s story should be "
-            f"directly relevant.\n\nWould a meeting work during that window?\n\n"
-            f"{ir.get('name', '')}\n{ir.get('title', 'Investor Relations')} · {cname} (NASDAQ: {tkr})")
+
+    def _body(greeting):
+        return (f"Hi {greeting},\n\nWe're planning an investor visit around {where} and would value 30 "
+                f"minutes with your team. {pretty_name(fund)} holds {peers}, so {tkr}'s story should be "
+                f"directly relevant.\n\nWould a meeting work during that window?\n\n"
+                f"{ir.get('name', '')}\n{ir.get('title', 'Investor Relations')} · {cname} (NASDAQ: {tkr})")
+
+    def _first(name):
+        return (name or "").split()[0] if name else "there"
+
+    email = contact.get("email", "")
+    body = _body(_first(contact.get("name")))
     with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(520px,94vw);"):
         ui.label(f"Contact — {pretty_name(fund)}").classes("text-lg font-bold")
         ui.textarea(value=body).classes("w-full").props("rows=10 outlined")
-        email = contact.get("email", "")
         if email:
             _mailto(email, subject, body, f"✉ Open email to {contact.get('name', 'the contact')} ({email})")
         else:
-            ui.label("No contact email on file — reach out via your own channel, then mark Invited below.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+            # No primary email (the name-matched contact is often the 13F signatory — phone only).
+            # Fall back to the Account 360 investment-team roster: a firm can still have a named PM /
+            # analyst with an email on file. Offer up to four, decision-makers first, each pre-filled
+            # with a draft addressed to that person.
+            roster = []
+            try:
+                from core import contacts as _contacts
+                roster = [p for p in _contacts.roster_for_firm(firm=fund)
+                          if (p.get("email") or "").strip()]
+            except Exception:
+                roster = []
+            if roster:
+                ui.label("No primary email on file — reach a named team member (from Account 360):").style(
+                    f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
+                for p in roster[:4]:
+                    _lbl = f"✉ {p['name']}"
+                    if p.get("title"):
+                        _lbl += f" · {p['title']}"
+                    _lbl += f" ({p['email']})"
+                    _mailto(p["email"], subject, _body(_first(p.get("name"))), _lbl)
+            else:
+                ui.label("No contact email on file — reach out via your own channel, then mark Invited below.").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
         with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
             ui.button("Cancel", on_click=dlg.close).props("flat")
 
