@@ -900,6 +900,24 @@ def _shortlist_from_inst(inst):
     }
 
 
+def _shortlist_from_search_row(c):
+    """Shortlist record from a Target-DB SEARCH row — dispatches on the source object the row carries
+    (`_kind`/`_src`), so a tracked holder, a peer-owner candidate, or a manual prospect all feed the
+    same NDR pipeline as the metro cell-drill dialog does."""
+    k = c.get("_kind")
+    if k == "cand":
+        return _shortlist_record(c["_src"])
+    if k == "inst":
+        return _shortlist_from_inst(c["_src"])
+    from datetime import datetime as _dt
+    p = c.get("_src") or {}
+    return {"institution": p.get("fund") or c.get("Fund"), "city": None, "state": None,
+            "metro": p.get("metro") or c.get("Metro"), "conviction": p.get("score") or c.get("Score"),
+            "peers": p.get("style") or "", "bucket": "Prospect",
+            "status": "shortlisted", "source": "outbound",
+            "added_at": _dt.now().strftime("%Y-%m-%d %H:%M")}
+
+
 _DIR_LABEL = {"add": "Adding", "adding": "Adding", "increase": "Adding",
               "trim": "Trimming", "trimming": "Trimming", "decrease": "Trimming",
               "new": "New", "flat": "Steady", "exit": "Exited", "exited": "Exited"}
@@ -7594,7 +7612,8 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
 
     def _db_combined():
         combined = [{"Fund": i["Fund"], "Metro": i["Metro"], "Type": i["Type"], "USIO_Holder": i["USIO_Holder"],
-                    "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None} for i in institutions]
+                    "Score": i["Engagement_Score"], "Source": "Tracked", "_pidx": None,
+                    "_src": i, "_kind": "inst"} for i in institutions]
         _seen = {(x["Fund"] or "").strip().upper() for x in combined}
         # Fold in the peer-owner prospect universe — the SAME set the Ownership summary, the Buyside tab,
         # and the geography table use. Without this the Target DB showed only the ~14 scored tracked
@@ -7608,7 +7627,7 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 _seen.add(nm.strip().upper())
                 combined.append({"Fund": nm, "Metro": (c.get("city") or "—").title(), "Type": "Peer-owner",
                                  "USIO_Holder": False, "Score": round(c.get("conviction") or 0),
-                                 "Source": "Peer-owner", "_pidx": None})
+                                 "Source": "Peer-owner", "_pidx": None, "_src": c, "_kind": "cand"})
         except Exception:
             pass
         for idx, p in enumerate(_load_json("prospects.json", [])):
@@ -7616,7 +7635,8 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 continue
             combined.append({"Fund": p["fund"], "Metro": p.get("metro", "—"), "Type": p.get("style", "—"),
                              "USIO_Holder": False, "Score": p.get("score", 0), "Source": "Prospect", "_pidx": idx,
-                             "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown"))})
+                             "_outcome": p.get("outcome"), "_has_score": bool(p.get("score_breakdown")),
+                             "_src": p, "_kind": "prospect"})
         return combined
 
     def do_search():
@@ -7643,38 +7663,80 @@ def _render_target_db_tab(institutions, client_id, mode_controls=None):
                 f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             if not combined:
                 ui.label("No matches.").style(f"color:{COLORS['text_muted']};")
-            # Cap the results window to ~5 rows tall (scroll for the rest) so a 100+ set doesn't dominate.
-            _cards_box = ui.column().classes("w-full").style("max-height:360px;overflow-y:auto;gap:0;")
-        with _cards_box:
-            for c in combined:
-                with _list_item_card():
-                  with ui.row().classes("w-full items-center justify-between no-wrap"):
-                    with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        ui.label(f"{pretty_name(c['Fund'])} ({c['Source']})").classes("name-link").on(
-                            "click", lambda c=c: _open_account_profile(c)).style(
-                            f"color:{COLORS['text_heading']};font-size:var(--fs-lg);font-weight:700;")
-                        # Drop any empty / None / placeholder segment (real SEC-sourced holders
-                        # often carry no Type) so the meta line never renders a literal "· None ·".
-                        _meta = "  ·  ".join(str(s) for s in (
-                            c["Metro"], c["Type"], "Holder" if c["USIO_Holder"] else "Non-holder",
-                            f"Score {c['Score']}")
-                            if s is not None and str(s).strip().lower() not in ("none", "—", ""))
-                        ui.label(_meta).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                    # Outcome marker — only for prospects that were added WITH a
-                    # stored Fit Score breakdown (see run_fit_score_ranking's
-                    # add_scored_prospect), since that's what
-                    # core.fit_score.suggest_reweight() needs to learn from.
-                    # Every "Won" or "Passed" logged here is a labeled data
-                    # point the re-weight suggestion picks up next time it runs.
-                    if c["Source"] == "Prospect" and c.get("_has_score"):
-                        def set_outcome(e, pidx=c["_pidx"]):
-                            plist = _load_json("prospects.json", [])
-                            plist[pidx]["outcome"] = _OUTCOME_OPTIONS.get(e.value)
-                            _save_json("prospects.json", plist)
-                            ui.notify("Outcome saved.")
+                return
+            # SAME capability + layout as the metro cell-drill dialog: a selectable table you tick and
+            # add to an NDR. Fund name → Account 360; paginated 5 at a time.
+            _src_by_key = {c["Fund"]: c for c in combined}
+            _open_trips = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+            _trip_opts = {str(i): (t.get("name") or f"NDR {i+1}") for i, t in _open_trips}
+            _trip_opts["__new__"] = "＋ New NDR…"
+            with ui.row().classes("w-full items-end gap-2").style(
+                    f"background:{COLORS['surface_hover_bg']};border-radius:8px;padding:8px 10px;margin:4px 0 6px;"):
+                ui.label("Tick names, then add them to an NDR as shortlisted targets.").style(
+                    f"color:{COLORS['text_muted']};font-size:var(--fs-sm);flex:1;")
+                _s_trip_sel = ui.select(_trip_opts, value="__new__", label="NDR").props("dense outlined").style("min-width:170px;")
+                _s_new_name = ui.input("New NDR name", value=f"{_labels[mode]} NDR").props("dense outlined").style("min-width:150px;")
+                _s_new_name.bind_visibility_from(_s_trip_sel, "value", backward=lambda v: v == "__new__")
+                _s_add_btn = ui.button("Add selected", icon="playlist_add").props("dense color=primary")
 
-                        ui.select(list(_OUTCOME_OPTIONS.keys()), value=_OUTCOME_REVERSE.get(c.get("_outcome")),
-                                  on_change=set_outcome).props("dense outlined").classes("min-w-[220px]")
+            def _s_detail(c):
+                if c.get("_kind") == "cand":
+                    _co = ", ".join(sorted((c["_src"].get("comps") or {}).keys()))
+                    return f"Owns {_co}" if _co else ("Curated target" if c["_src"].get("kind") == "curated" else "—")
+                if c.get("_kind") == "prospect":
+                    return c["_src"].get("notes") or c.get("Type") or "—"
+                return _dir_label((c["_src"] or {}).get("Direction")) or ("Holder" if c["USIO_Holder"] else "Non-holder")
+            d_rows = [{"_key": c["Fund"], "Fund": pretty_name(c["Fund"]), "City": c.get("Metro") or "—",
+                       "Category": "Current holder" if c["USIO_Holder"] else (c.get("Type") or "Non-holder"),
+                       "Score": c.get("Score"), "Detail": _s_detail(c)} for c in combined]
+            _s_cols = [{"name": k, "label": ("Conviction / Position" if k == "Score" else k),
+                        "field": k, "sortable": True, "align": "right" if k == "Score" else "left"}
+                       for k in ("Fund", "City", "Category", "Score", "Detail")]
+            _s_tbl = ui.table(columns=_s_cols, rows=d_rows, row_key="_key", selection="multiple",
+                              pagination=5).classes("w-full").props("dense flat")   # 5 rows per page
+            _s_tbl.add_slot("body-cell-Fund", (
+                '<q-td :props="props"><span class="name-link" '
+                '@click.stop="() => $parent.$emit(\'openProfile\', props.row._key)">{{ props.value }}</span></q-td>'))
+            _s_tbl.on("openProfile", lambda e: _open_account_profile(_src_by_key.get(e.args) or {"Fund": e.args}))
+
+            def _s_do_add():
+                sel = _s_tbl.selected
+                if not sel:
+                    ui.notify("Tick at least one name first.", type="warning"); return
+                trips2 = _load_json("ndr_trips.json", [])
+                if _s_trip_sel.value == "__new__":
+                    nm = (_s_new_name.value or "").strip()
+                    if not nm:
+                        ui.notify("Name the new NDR.", type="warning"); return
+                    trips2.append({"name": nm, "sponsor_bank": "", "dates": "TBD", "ndr_type": "in-person",
+                                   "city": "", "focus": "", "team": [], "notes": "", "meetings": [], "shortlist": [],
+                                   "status": "Planning", "debrief": {}, "days": 2, "slots_per_day": 6,
+                                   "created": datetime.now().strftime("%Y-%m-%d")})
+                    target, tname = trips2[-1], nm
+                else:
+                    target = trips2[int(_s_trip_sel.value)]
+                    tname = target.get("name") or "NDR"
+                target.setdefault("shortlist", [])
+                have = {s.get("institution") for s in target["shortlist"]} | \
+                       {m.get("institution") for m in target.get("meetings", [])}
+                added = quant_skip = 0
+                for row in sel:
+                    c = _src_by_key.get(row.get("_key"))
+                    if not c or c["Fund"] in have:
+                        continue
+                    if c.get("_kind") in ("inst", "cand") and _is_quant_inst(c["_src"]):
+                        quant_skip += 1; continue     # quant/systematic — no management 1x1
+                    target["shortlist"].append(_shortlist_from_search_row(c))
+                    have.add(c["Fund"]); added += 1
+                _save_json("ndr_trips.json", trips2)
+                dup = len(sel) - added - quant_skip
+                _m = f"Added {added} target(s) to '{tname}' (Planning)"
+                if quant_skip:
+                    _m += f" · skipped {quant_skip} quant shop(s) — no 1×1"
+                if dup:
+                    _m += f" · {dup} already on it"
+                ui.notify(_m + ". Find it in Outbound → NDR → Active NDRs.", type="positive")
+            _s_add_btn.on_click(_s_do_add)
 
     def set_db_filter(mode):
         _db_filter["mode"] = mode
