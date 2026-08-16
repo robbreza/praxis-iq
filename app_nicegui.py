@@ -1766,29 +1766,73 @@ async def _kick_off_peer_watch():
     asyncio.create_task(_run())
 
 
-def _warm_cache():
-    """Pre-read the heavy JSON-store keys the investor views touch (13F holders
-    per tracked ticker, NOBO, the conviction candidates) into core.db's in-memory
-    cache, so the FIRST navigation to a heavy tab is served from memory (~30 ms)
-    instead of paying dozens of cold Neon round-trips (~2 s)."""
+def _warm_cache_for(cid):
+    """Warm every JSON-store key ONE Ownership render for `cid` touches into core.db's
+    in-memory cache, so that tenant's first heavy navigation is served from memory (~30 ms)
+    instead of paying dozens of cold Neon round-trips (~2 s). Binds the active tenant for the
+    duration — build_candidates/CP() read the ACTIVE client, not just the cid arg — and restores
+    it; this runs in a copied context (asyncio.to_thread), so the bind never leaks to request
+    handlers."""
+    from config.client_config import set_active_client_id, get_active_client_id
     from core import sec_filings
-    from config.client_config import get_active_client_id
-    cid = get_active_client_id()
-    for tk, _name in sec_filings.tracked_tickers():
+    prev = get_active_client_id()
+    try:
+        set_active_client_id(cid)
+        for tk, _name in sec_filings.tracked_tickers():           # 13F holders per tracked peer
+            try:
+                sec_filings.get_cached_13f_holders(tk)
+            except Exception:
+                pass
         try:
-            sec_filings.get_cached_13f_holders(tk)
+            from core import nobo_engine
+            nobo_engine.get_active_pulls(cid)                     # NOBO active pulls
         except Exception:
             pass
-    try:
-        from core import nobo_engine
-        nobo_engine.get_active_pulls(cid)
+        try:
+            # The EXACT candidate calls the Ownership render makes — limit=None across all four
+            # buckets — so the scoring pass, not just limit=40/institutional, is served warm.
+            from core import peer_prospects
+            for kind in ("institutional", "ria", "diversified", "market_maker"):
+                peer_prospects.build_candidates(cid, limit=None, kind=kind)
+        except Exception:
+            pass
+        try:
+            from core import interactions                          # crm_interactions + ndr_trips
+            interactions.summary("cik:0", cid)                     # any key — loads the per-client stores
+        except Exception:
+            pass
+    finally:
+        set_active_client_id(prev)
+
+
+def _warm_cache():
+    """Pre-read the heavy JSON-store keys the investor views touch into core.db's in-memory
+    cache, so the FIRST navigation to a heavy tab is served from memory instead of dozens of
+    cold Neon round-trips. The GLOBAL CRM identity/relationship tables serve every tenant (warm
+    once); the per-client 13F/NOBO/candidate/interaction stores are warmed for each registered
+    client so ANY tenant's first render is fast."""
+    try:                                                          # global CRM identity tables (fix A)
+        from core import accounts
+        accounts._g(accounts._ALIAS_KEY, {})
+        accounts._g(accounts._ACCT_KEY, {})
     except Exception:
         pass
     try:
-        from core import peer_prospects
-        peer_prospects.build_candidates(cid, limit=40)
+        from core import relationship_notes                       # global ir_relationship_notes store
+        relationship_notes.get("__warm_probe__")                  # unknown name → pure read, no mutation
     except Exception:
         pass
+    from config.client_config import get_active_client_id
+    try:
+        from config.client_config import CLIENT_REGISTRY
+        cids = list(CLIENT_REGISTRY)
+    except Exception:
+        cids = []
+    for cid in (cids or [get_active_client_id()]):
+        try:
+            _warm_cache_for(cid)
+        except Exception:
+            pass
 
 
 async def _kick_off_ndr_reply_poll():

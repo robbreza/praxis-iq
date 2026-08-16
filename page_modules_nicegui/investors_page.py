@@ -4025,6 +4025,40 @@ def _render_buyside_tab(institutions, meeting_log, mode):
         with banner_container:
             _render_repeat_alert_banner(holders_f, meeting_log)
 
+        def _cards_into(items, kind):
+            """Render institution cards into the fixed-height scroll box, but only the first
+            _CARD_PAGE eagerly — the tail renders on a 'Show all' click. kind 'h' = holders
+            (checkbox stores the institution); 'n' = non-holders (a peer-owner candidate is
+            adapted into the institution shape, and the checkbox stores the ORIGINAL record so
+            _bs_add routes it correctly)."""
+            box = ui.column().classes("w-full gap-2").style(
+                "max-height:560px;overflow-y:auto;padding-right:6px;")
+
+            def _one(rec):
+                inst = _candidate_to_inst(rec) if (kind == "n" and rec.get("filer")) else rec
+                with ui.row().classes("w-full items-start no-wrap gap-2"):
+                    bs_checks[inst["Fund"]] = (
+                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"),
+                        rec if kind == "n" else inst)
+                    with ui.column().classes("flex-1").style("min-width:0;"):
+                        _institution_card(inst, meeting_log, contacts)
+
+            with box:
+                for rec in items[:_CARD_PAGE]:
+                    _one(rec)
+            rest = items[_CARD_PAGE:]
+            if rest:
+                with box:
+                    more = ui.button(f"Show all {len(items)}  ↓").props("flat dense").style(
+                        f"color:{COLORS['accent']};align-self:center;margin-top:2px;")
+
+                    def _show_all():
+                        more.delete()
+                        with box:
+                            for rec in rest:
+                                _one(rec)
+                    more.on_click(_show_all)
+
         with list_container:
             # Holders and Non-Holders sit SIDE BY SIDE (two columns) on a wide screen and stack on a
             # narrow one — halves this section's height vs stacking, and each has its own inner scroll
@@ -4043,14 +4077,8 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                                 "Sort by city (click again to restore position order)")
                         if not holders_f:
                             ui.label("No current holders match these filters.").style(f"color:{COLORS['text_muted']};")
-                        with ui.column().classes("w-full gap-2").style(
-                                "max-height:560px;overflow-y:auto;padding-right:6px;"):
-                            for inst in holders_f:
-                                with ui.row().classes("w-full items-start no-wrap gap-2"):
-                                    bs_checks[inst["Fund"]] = (
-                                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), inst)
-                                    with ui.column().classes("flex-1").style("min-width:0;"):
-                                        _institution_card(inst, meeting_log, contacts)
+                        else:
+                            _cards_into(holders_f, "h")
 
                 # ── Non-Holders — who should own you (conviction targets, incl. the metro-identified peer-owners) ──
                 with ui.column().style("flex:1 1 400px;min-width:0;"):
@@ -4068,15 +4096,8 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                         # Same rich card as the holders — a peer-owner candidate is adapted into the
                         # institution shape first (_candidate_to_inst); a tracked non-holder is already
                         # one. The checkbox stores the ORIGINAL record so _bs_add routes it correctly.
-                        with ui.column().classes("w-full gap-2").style(
-                                "max-height:560px;overflow-y:auto;padding-right:6px;"):
-                            for x in nonh:
-                                inst = _candidate_to_inst(x) if x.get("filer") else x
-                                with ui.row().classes("w-full items-start no-wrap gap-2"):
-                                    bs_checks[inst["Fund"]] = (
-                                        ui.checkbox().props("dense").style("margin-top:12px;flex:0 0 auto;"), x)
-                                    with ui.column().classes("flex-1").style("min-width:0;"):
-                                        _institution_card(inst, meeting_log, contacts)
+                        else:
+                            _cards_into(nonh, "n")
 
     filter_btn.on_click(apply_and_render)
     apply_and_render()
@@ -4214,6 +4235,13 @@ def _list_item_card(rail_color=None):
     attention rail (same cue Today uses for repeat meetings). Returns the card CM."""
     rail = f"border-left:3px solid {rail_color};" if rail_color else ""
     return ui.card().classes("w-full list-tile").style(rail)
+
+
+# How many institution cards to build eagerly per column before deferring the rest behind a
+# "Show all" click. Each card is heavy (~20+ elements: badges, peer-holdings, handlers) and the
+# columns scroll inside a fixed 560px viewport (~5 visible), so building all ~140 up front was the
+# top warm-render cost. 20 gives a generous scroll buffer while cutting the eager build ~3x.
+_CARD_PAGE = 20
 
 
 def _institution_card(inst, meeting_log, contacts):
