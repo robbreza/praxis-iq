@@ -32,24 +32,58 @@ def render_inbox_page():
     ui.label("IR Inbox").classes("text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
     capability_banner(
         "Every investor email, read and filed",
-        "Models, research notes, meeting and NDR requests are auto-classified, the key numbers "
-        "pulled out, and routed here for one-click confirmation.",
+        "Models, research notes, and meeting/NDR requests emailed to your IR mailbox are auto-parsed "
+        "and filed here for one-click confirmation.",
         tag="AI mail classification")
-    ui.element("div").style("height:6px;")
+    ui.element("div").style("height:8px;")
 
-    # Connection / auto-sync status — makes the poller visible.
+    # One compact action bar. The Sync action lives HERE now — it previously existed only on the
+    # Meeting Hub, so this page told you to go sync somewhere else (a broken flow). The connection
+    # facts ride alongside as a status chip instead of a prose paragraph re-explaining the pipeline.
     from core import mail_gateway
-    if mail_gateway.is_configured():
-        _h, _p, user, _pw = mail_gateway.get_imap_config()
-        every = os.environ.get("MAIL_INBOX_POLL_MINUTES", "5")
-        auto = bool(os.environ.get("MAIL_INBOX_CLIENT_IDS"))
-        note = (f"Connected to {user}. Models, research notes and requests emailed here are parsed and filed "
-                + (f"automatically — checked every {every} min."
-                   if auto else "when you Sync the inbox (Investor Targeting → Meeting Hub)."))
-    else:
-        note = ("The IR inbox isn’t connected yet. Once IMAP credentials are set, anything emailed to your "
-                "IR mailbox — a model, a research note, an NDR ask — is parsed and lands here for review.")
-    ui.label(note).style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-bottom:6px;")
+
+    def _do_sync():
+        if not mail_gateway.is_configured():
+            ui.notify("IR inbox isn’t connected yet — add IMAP credentials in .env.", type="warning")
+            return
+        from config.client_config import CA, get_active_client_id
+        from data.seed.institution_contacts import get_institution_contacts
+        lookup = {}
+        for firm_name, info in (get_institution_contacts() or {}).items():
+            if info.get("email"):
+                lookup[info["email"].lower()] = {"name": info.get("name"), "firm": firm_name, "kind": "institution"}
+        for a in CA():
+            if a.get("email"):
+                lookup[a["email"].lower()] = {"name": a.get("name"), "firm": a.get("firm"), "kind": "analyst"}
+        result = mail_gateway.sync_inbox(lookup, client_id=get_active_client_id())
+        if not result.get("ok"):
+            ui.notify(result.get("message", "Sync failed."), type="warning")
+            return
+        msgs = result.get("messages", [])
+        routed = sum(1 for m in msgs if m.get("category") != "general")
+        if msgs:
+            ui.notify(f"Synced — {len(msgs)} message(s)"
+                      + (f" · {routed} flagged for review below." if routed else " · nothing new to review."))
+        else:
+            ui.notify("Synced — no new messages from known contacts.")
+        ui.timer(0.9, lambda: ui.run_javascript("location.reload()"), once=True)   # reveal newly-filed items
+
+    _configured = mail_gateway.is_configured()
+    with ui.row().classes("w-full items-center gap-3").style("margin-bottom:10px;"):
+        _btn = ui.button("Sync inbox", icon="sync", on_click=_do_sync).props("unelevated dense").style(
+            f"background:{COLORS['accent']};color:#fff;")
+        if not _configured:
+            _btn.props("disable")
+        if _configured:
+            _h, _p, user, _pw = mail_gateway.get_imap_config()
+            every = os.environ.get("MAIL_INBOX_POLL_MINUTES", "5")
+            auto = bool(os.environ.get("MAIL_INBOX_CLIENT_IDS"))
+            _chip = f"{user}  ·  " + (f"auto-checked every {every} min" if auto else "manual sync")
+        else:
+            _chip = "Not connected — add IMAP credentials in .env to start ingesting mail"
+        ui.label(_chip).style(
+            f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};"
+            "border-radius:999px;padding:4px 12px;font-size:var(--fs-xs);white-space:nowrap;")
 
     from core import inbox_queue
     pending = inbox_queue.list_pending_items()
@@ -63,8 +97,7 @@ def render_inbox_page():
                 f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
                 f"border-left:4px solid {COLORS['accent']};margin-top:10px;"):
             ui.label("Inbox is clear").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-            ui.label("Nothing waiting on you. Email a model (.xlsx / .pdf) or a research note to your IR "
-                     "mailbox and it appears here — parsed, with the numbers pulled out, ready to file.").style(
+            ui.label("Nothing waiting on you.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
 
     # Inbound NDR / Meeting Requests — an analyst asking to slot a management meeting into a city.
@@ -136,9 +169,6 @@ def _render_research_library():
         with ui.card().classes("w-full").style(
                 f"background:{COLORS['surface_bg']};border:1px dashed {COLORS['border']};"):
             ui.label("No models or research notes filed yet.").style(f"color:{COLORS['text_muted']};")
-            ui.label("Confirm a model or research note from the inbox above (or upload one) and it lands "
-                     "here — every version kept, newest first.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         return
 
     _TYPE = {"model": ("Model", COLORS["accent"]), "research_note": ("Research note", COLORS["positive"])}
