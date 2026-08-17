@@ -2550,10 +2550,14 @@ def _open_account_profile(rec):
             ui.label("The named PMs / analysts we hold at this firm — decision-makers first. Click Notes "
                      "for a per-person timeline.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
             _pnotes = db.load_json("contact_notes.json", default={}) or {}   # one read for the counts
-            with ui.column().classes("w-full gap-0").style("max-height:236px;overflow-y:auto;margin-top:2px;"):
+            # flex-shrink:0 is REQUIRED — the dialog card is a flex column, and without it this
+            # scrollable child gets squeezed to a few pixels (the "almost non-existent" box). min-height
+            # keeps a single-person roster comfortably readable; it scrolls once it fills.
+            with ui.column().classes("w-full gap-0").style(
+                    "min-height:64px;max-height:320px;overflow-y:auto;flex-shrink:0;margin-top:4px;"):
                 for p in _team:
-                    with ui.row().classes("w-full items-center gap-2").style(
-                            f"padding:3px 0;border-bottom:1px solid {COLORS['border']};"):
+                    with ui.row().classes("w-full items-center gap-2 no-wrap").style(
+                            f"padding:6px 0;border-bottom:1px solid {COLORS['border']};flex-shrink:0;"):
                         ui.label(pretty_name(p["name"])).style(
                             f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:600;min-width:150px;")
                         ui.label(_rlbl.get(p.get("primary_role"), "—")).style(
