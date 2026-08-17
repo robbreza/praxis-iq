@@ -8318,11 +8318,22 @@ def _render_peer_universe_manager(institutions):
         def render_manage_list():
             manage_list.clear()
             current = _load_peer_universe()
+            # Fixed grid so every row's Tier / Weight / delete line up in true columns. justify-between
+            # on a variable-length label scattered the controls to ragged x-positions (each row's label
+            # is a different width). minmax(0,1fr) lets the peer label truncate instead of pushing them.
+            _grid = "display:grid;grid-template-columns:minmax(0,1fr) 120px 92px 44px;align-items:center;gap:10px;"
             with manage_list:
+                with ui.element("div").classes("w-full").style(
+                        _grid + f"padding:2px 0;border-bottom:1px solid {COLORS['border']};"):
+                    for _h in ("Peer", "Fit tier", "Weight", ""):
+                        ui.label(_h).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);"
+                                           "font-weight:700;letter-spacing:.03em;text-transform:uppercase;")
                 for idx, p in enumerate(current):
-                    with ui.row().classes("w-full items-center justify-between").style(f"border-bottom:1px solid {COLORS['border']};padding:4px 0;"):
+                    with ui.element("div").classes("w-full").style(f"{_grid}border-bottom:1px solid {COLORS['border']};padding:4px 0;"):
                         ev = f"{p['ev_rev']}x" if p.get("ev_rev") else "no EV/Rev on file"
-                        ui.label(f"{p['ticker']} — {p['name']} · {p.get('sector','—')} · {ev}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
+                        ui.label(f"{p['ticker']} — {p['name']} · {p.get('sector','—')} · {ev}").style(
+                            f"color:{COLORS['text_body']};font-size:var(--fs-base);"
+                            "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")
 
                         def do_delete(idx=idx):
                             cur = _load_peer_universe()
@@ -8360,10 +8371,11 @@ def _render_peer_universe_manager(institutions):
                         if _tier_val not in _tier_opts:
                             _tier_opts = _tier_opts + [_tier_val]
                         ui.select(_tier_opts, value=_tier_val,
-                                  on_change=set_tier).props("dense outlined").classes("min-w-[90px]")
+                                  on_change=set_tier).props("dense outlined").style("width:100%;")
                         ui.number(value=p.get("weight", 1.0), min=0.1, max=5.0, step=0.5,
-                                  on_change=set_weight).props("dense outlined").classes("min-w-[70px]")
-                        ui.button("", on_click=do_delete).props("flat dense")
+                                  on_change=set_weight).props("dense outlined").style("width:100%;")
+                        ui.button(icon="delete", on_click=do_delete).props("flat dense round").style(
+                            "justify-self:center;").tooltip("Remove peer")
 
         render_manage_list()
         ui.label("Tier: \"core\" = closest-size direct comp (full Fit Score points, +5 conviction bonus) · "
