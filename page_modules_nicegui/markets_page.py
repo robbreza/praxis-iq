@@ -1209,20 +1209,27 @@ def _render_rating_actions():
     ui.markdown("---")
 
     def _export_board_slide():
-        # Reuses this exact function's own already-computed seed/last_price;
-        # revision_momentum comes from core.risk_scorecard's shared
-        # get_revision_momentum() so the slide's number never disagrees with
-        # the IR Risk Dashboard's "Revision Momentum" tile.
-        rm = risk_scorecard.get_revision_momentum()
-        pptx_bytes = board_slides.generate_pt_drift_slide(
-            CT("name"), CT("ticker"), seed,
-            revision_momentum={"headline": rm["headline"], "detail": rm["detail"], "status": rm["status"]},
-        )
-        fname = f"{CT('ticker')}_PT_Drift_Board_Slide_{datetime.now().strftime('%Y%m%d')}.pptx"
-        ui.download(pptx_bytes, filename=fname)
-        activity_log.log_event("board_slide_generated", entity="pt_drift",
-                                launched_from="Markets · PT Drift Tracker")
-        ui.notify("Board slide downloaded.", type="positive")
+        # Acknowledge the click first — this button used to NameError silently (it referenced a `seed`
+        # that lives in the consensus renderer, a different function), so it read as a dead link.
+        ui.notify("Generating PT Drift board slide…")
+        try:
+            # seed is the per-tenant consensus dict (same source the on-screen tracker uses); compute it
+            # HERE, in this handler's own scope. revision_momentum comes from core.risk_scorecard's shared
+            # get_revision_momentum() so the slide's number never disagrees with the IR Risk Dashboard's
+            # "Revision Momentum" tile.
+            seed = consensus_store.get_consensus(get_active_client_id())
+            rm = risk_scorecard.get_revision_momentum()
+            pptx_bytes = board_slides.generate_pt_drift_slide(
+                CT("name"), CT("ticker"), seed,
+                revision_momentum={"headline": rm["headline"], "detail": rm["detail"], "status": rm["status"]},
+            )
+            fname = f"{CT('ticker')}_PT_Drift_Board_Slide_{datetime.now().strftime('%Y%m%d')}.pptx"
+            ui.download(pptx_bytes, filename=fname)
+            activity_log.log_event("board_slide_generated", entity="pt_drift",
+                                    launched_from="Markets · PT Drift Tracker")
+            ui.notify(f"Board slide ready — downloading {fname}.", type="positive")
+        except Exception as e:
+            ui.notify(f"Couldn't generate the board slide: {e}", type="negative")
 
     # Re-enabled (2026-07-21): generate_pt_drift_slide() now reads the HONEST pt_history served by
     # core.consensus (empty until a real PT-snapshot series exists), so with no real drift it exports
