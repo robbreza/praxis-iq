@@ -8438,30 +8438,42 @@ def _render_peer_universe_manager(institutions):
     ui.markdown("---")
     all_tickers = [p["ticker"] for p in peers]
 
-    # Data-freshness summary — shown BEFORE the selector so it's clear
-    # up front which tickers this analysis can actually back with a real
-    # SEC 13F filing right now vs. which are still on the original seed
-    # guess (see _enrich_peer_holdings_with_live_13f). A ticker only
-    # becomes "live" after someone clicks "Refresh 13F Institutional
-    # Holders" on the SEC Intelligence tab for it — this list doesn't
-    # trigger that fetch itself (13F refresh is heavy, see
-    # core/sec_filings.py's module docstring).
+    # Data freshness (a real 13F filing vs. the original seed guess) is folded INTO the selector —
+    # each option carries a live/seed badge and the collapsed field summarizes the count — instead of
+    # a separate line that re-listed every ticker. A ticker only becomes "live" after someone clicks
+    # "Refresh 13F Institutional Holders" on SEC Intelligence for it (13F refresh is heavy and this
+    # list doesn't trigger it — see core/sec_filings.py). The full annotated roster lives once, in the
+    # Manage Peer Universe expander above.
     _live_tickers = [t for t in all_tickers if sec_filings.get_cached_13f_holders(t).get("quarter")]
     _seed_tickers = [t for t in all_tickers if t not in _live_tickers]
-    _freshness_bits = []
-    if _live_tickers:
-        _freshness_bits.append(f"Live SEC 13F data: {', '.join(_live_tickers)}")
-    if _seed_tickers:
-        _freshness_bits.append(f"Seed data only (not yet 13F-refreshed): {', '.join(_seed_tickers)}")
-    ui.label(" · ".join(_freshness_bits)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-    if _seed_tickers:
-        ui.label("Refresh a ticker from Settings → Data Sources "
-                  "to replace its seed guess with a real filing.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
+    _name_by_tkr = {p["ticker"]: (p.get("name") or "") for p in peers}
+
+    def _peer_label(t):
+        nm = _name_by_tkr.get(t) or ""
+        badge = "live" if t in _live_tickers else "seed"
+        return f"{t} — {nm} · {badge}" if nm else f"{t} · {badge}"
 
     with ui.row().classes("w-full gap-4"):
-        peer_select = ui.select(all_tickers, multiple=True, value=all_tickers,
+        peer_select = ui.select({t: _peer_label(t) for t in all_tickers}, multiple=True, value=list(all_tickers),
                                  label="Select peers to cross-reference").classes("flex-1").props("outlined dense")
         aum_select = ui.select(["Any", "$100M+", "$500M+", "$1B+"], value="$100M+", label="Min fund AUM").classes("min-w-[140px]").props("outlined dense")
+
+    # Collapse the chip wall: show a compact count summary ("All 14 peers · 3 on seed") in place of one
+    # chip per selected ticker. The dropdown (checkmarks + live/seed badges) is the source of truth for
+    # exactly which peers are on; this just keeps the collapsed field from re-listing the whole roster.
+    def _sync_peer_summary(_=None):
+        sel = peer_select.value or []
+        seed_sel = [t for t in sel if t in _seed_tickers]
+        head = f"All {len(sel)} peers" if len(sel) == len(all_tickers) else f"{len(sel)} of {len(all_tickers)} peers"
+        tail = f" · {len(seed_sel)} on seed" if seed_sel else ""
+        peer_select.props(f'display-value="{head}{tail}"')
+    _sync_peer_summary()
+    peer_select.on_value_change(_sync_peer_summary)
+
+    if _seed_tickers:
+        ui.label(f"{len(_seed_tickers)} peer(s) still on seed data — refresh from Settings → Data Sources "
+                 "to back them with a real 13F filing.").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
     results_area = ui.column().classes("w-full")
 
@@ -8483,11 +8495,9 @@ def _render_peer_universe_manager(institutions):
                 if from_click:
                     ui.notify("Select at least one peer ticker first.", type="warning")
                 return
-            for t in sel:
-                info = next((p for p in peers if p["ticker"] == t), None)
-                if info:
-                    ui.label(f"{t} — {info['name']} · {info.get('sector','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-
+            # (No per-peer echo here — the selector already shows which peers are on, and the result
+            # header below names them; re-listing every peer with its name/sector was the third
+            # redundant copy of the roster in this section.)
             cross_targets = [i for i in institutions
                               if not i["USIO_Holder"]
                               and any(p in i["Peer_Holdings"] for p in sel)
