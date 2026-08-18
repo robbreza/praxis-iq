@@ -2076,7 +2076,7 @@ def _render_peer_prospects_tab(client_id):
     _tk = CT("ticker")
     _tight = sorted(peer_prospects.tight_comps(client_id))
     _comps = " / ".join(_tight[:5]) if _tight else "its closest comps"
-    ui.label("Peer Prospects — comp overlap, to qualify").classes("text-lg font-bold")
+    ui.label("Peer Prospects — comp overlap, to qualify").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label(f"Funds that hold a close comp ({_comps}) but not {_tk}, "
              "ranked by conviction — position weight in their own book, focus on the tightest comps, active "
              "vs. index breadth, and size fit. Anyone already yours (13F / NOBO / tracked / 13D-G), plus "
@@ -3807,11 +3807,11 @@ def _render_buyside_tab(institutions, meeting_log, mode):
     contacts = get_institution_contacts()
 
     if mode == "pre":
-        ui.label("Buyside Ownership — Pre-Earnings Engagement").classes("text-lg font-bold")
+        ui.label("Buyside Ownership — Pre-Earnings Engagement").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Existing holders to defend · non-holder targets to convert · ranked by conviction "
                  "(likelihood to buy) and position (size, trajectory).").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
     else:
-        ui.label("Buyside Ownership — Post-Earnings Prospecting").classes("text-lg font-bold")
+        ui.label("Buyside Ownership — Post-Earnings Prospecting").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         ui.label("Post-earnings: who heard the beat and fits the upgrade thesis · holders to defend, "
                  "targets to convert, ranked by conviction and position.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
@@ -7634,7 +7634,7 @@ def _safe_date(s):
 def _render_target_db_tab(institutions, client_id, mode_controls=None):
     prospects = _load_json("prospects.json", [])
 
-    ui.label("Target Database").classes("text-lg font-bold")
+    ui.label("Target Database").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label("Search and filter the tracked institution universe, plus manually-added prospects. The automated "
              "prospecting pipeline below (Analyst Coverage Network, live-13F auto-generation, NOBO cross-reference, "
              "bulk paste) is ported and rebuilt on the live SEC 13F fetcher — see each section for details.").style(
@@ -8705,7 +8705,7 @@ def _render_peer_universe_manager(institutions):
 # and both are explicit, user-initiated actions.
 # ─────────────────────────────────────────────────────────────────────────
 def _render_sec_intelligence_tab():
-    ui.label("SEC Intelligence").classes("text-lg font-bold")
+    ui.label("SEC Intelligence").classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
     ui.label(
         "Ownership-stake filings (13D/13G) and institutional holders (13F) for this client and its full peer "
         "universe — tracked tickers come straight from the Peer Cross-Targeting list in Target Database, so "

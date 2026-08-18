@@ -1475,7 +1475,7 @@ def main_page(request: Request = None):
             with sresults:
                 if not hits:
                     ui.label(f"No matches for “{q}”").style(
-                        "padding:10px 16px;color:#64748B;font-size:var(--fs-sm);")
+                        f"padding:10px 16px;color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
                 else:
                     grouped = {}
                     for r in hits:
@@ -1486,12 +1486,12 @@ def main_page(request: Request = None):
                             continue
                         ui.label(f"{label} ({len(grp)})").style(
                             "padding:7px 16px 2px;font-size:var(--fs-2xs);letter-spacing:.06em;"
-                            "color:#94A3B8;font-weight:700;text-transform:uppercase;")
+                            f"color:{COLORS['text_muted']};font-weight:700;text-transform:uppercase;")
                         for r in grp:
                             with ui.item(on_click=lambda r=r: _search_go(r)).props("clickable dense"):
                                 with ui.item_section():
-                                    ui.item_label(r["label"]).style("font-size:var(--fs-base);font-weight:600;color:#0F172A;")
-                                    ui.item_label(r["sublabel"]).props("caption").style("font-size:var(--fs-xs);color:#64748B;")
+                                    ui.item_label(r["label"]).style(f"font-size:var(--fs-base);font-weight:600;color:{COLORS['text_heading']};")
+                                    ui.item_label(r["sublabel"]).props("caption").style(f"font-size:var(--fs-xs);color:{COLORS['text_secondary']};")
             smenu.open()
 
         search.on_value_change(lambda: _run_search())
