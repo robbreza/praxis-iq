@@ -2273,7 +2273,7 @@ ui.add_head_html(
     ".q-table__container{background:#FFFFFF;border:1px solid #64748B;border-radius:10px;overflow:hidden;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);}"
     ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
-    "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #D3DBE4 !important;}"
+    "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #9AA6B8 !important;}"
     ".q-table.q-table>tbody>tr:not(:last-child)>td,.q-table__middle>table.q-table>tbody>tr:not(:last-child)>td"
     "{border-bottom:1px solid #64748B !important;}"
     ".q-table.q-table>tbody>tr:last-child>td{border-bottom:0 !important;}"

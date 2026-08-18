@@ -209,7 +209,7 @@ def _render_risk_dashboard(seed, days_to_earn, state):
         r_key, n_key, d_key, rs_key = f"risk_{i}_resolved", f"risk_{i}_noted", f"risk_{i}_date", f"risk_{i}_reason"
         m_key = f"risk_{i}"  # mute key — separate namespace from resolved/noted/date/reason above
         if signals.is_muted(state, m_key):
-            with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
+            with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #9AA6B8;"):
                 with ui.row().classes("w-full items-center justify-between"):
                     with ui.column().classes("gap-0"):
                         ui.label(f"{sig['title']} — muted").classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")
@@ -224,7 +224,7 @@ def _render_risk_dashboard(seed, days_to_earn, state):
                     ui.button("Reset", on_click=lambda i=i: _reset_signal(state, i)).props("flat dense")
         elif state.get(n_key):
             reason = f" — {state[rs_key]}" if state.get(rs_key) else ""
-            with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
+            with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #9AA6B8;"):
                 with ui.row().classes("w-full items-center justify-between"):
                     with ui.column().classes("gap-0"):
                         ui.label(f"{sig['title']}").classes("font-bold").style("color:#0F172A;font-size:var(--fs-md);")

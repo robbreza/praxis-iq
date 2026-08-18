@@ -1015,7 +1015,7 @@ def _render_lookback_tab():
     with ui.row().classes("w-full gap-3 items-stretch"):
         # LISTEN — the whole card opens the Chorus Call replay (folds in the old separate Play link).
         _listen = ui.card().classes("flex-1 cursor-pointer click-card").style(
-            "background:#E8EEF7;border:1px solid #D3DBE4;border-radius:10px;")
+            "background:#E8EEF7;border:1px solid #9AA6B8;border-radius:10px;")
         _listen.on("click", lambda: ui.navigate.to("https://www.choruscall.com", new_tab=True))
         _listen.tooltip("Play the replay on Chorus Call")
         with _listen, ui.row().classes("items-center gap-3 w-full no-wrap"):

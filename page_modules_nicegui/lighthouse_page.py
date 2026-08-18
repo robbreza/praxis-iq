@@ -94,7 +94,7 @@ def _render_peer_synthesis(s):
     if not s or s.get("error"):
         return
     tier_color = {"trading": "#0EA5E9", "narrative": "#7C3AED", "fundamental": "#B45309"}
-    with ui.card().classes("w-full").style("border:1px solid #CBD5E1;margin-bottom:12px;padding:14px 16px;"):
+    with ui.card().classes("w-full").style("border:1px solid #9AA6B8;margin-bottom:12px;padding:14px 16px;"):
         ui.label("PEER INTELLIGENCE — three definitions of “peer”") \
             .style("color:#0F172A;font-weight:800;font-size:var(--fs-sm);letter-spacing:.04em;")
         ui.label(s.get("headline", "")).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-style:italic;margin-bottom:6px;")
@@ -347,7 +347,7 @@ def render_lighthouse_page():
             pass
 
     if not _lh_ready(client_id, ticker):
-        with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #D3DBE4;"):
+        with ui.card().classes("w-full").style("background:#EEF2F7;border:1px solid #9AA6B8;"):
             ui.label("Lighthouse is wired for USIO in this MVP.").classes("font-bold")
             ui.label(f"A new client is a config file + a historical data load — {ticker} isn't loaded yet.") \
                 .style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
@@ -385,7 +385,7 @@ def render_lighthouse_page():
             day = v["day"]
             up = v["actual"] >= 0
             move_color = "#15803D" if up else "#B91C1C"
-            with ui.card().classes("w-full").style("border:1px solid #D3DBE4;margin-bottom:6px;"):
+            with ui.card().classes("w-full").style("border:1px solid #9AA6B8;margin-bottom:6px;"):
                 with ui.row().classes("items-center w-full justify-between"):
                     with ui.row().classes("items-baseline gap-3"):
                         ui.label(str(day)).classes("font-bold").style(f"color:{COLORS['text_heading']};")

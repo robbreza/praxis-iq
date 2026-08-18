@@ -7146,7 +7146,7 @@ def _open_attachment_preview(doc_id, filename):
                                 rows_html.append("<tr>" + "".join(tds) + "</tr>")
                         ui.html(
                             "<table style='border-collapse:collapse;font-size:var(--fs-sm);width:100%;"
-                            "border:1px solid #E2E8F0;'>" + "".join(rows_html) + "</table>")
+                            "border:1px solid #9AA6B8;'>" + "".join(rows_html) + "</table>")
                         rendered = True
             elif ext == "csv":
                 text = raw.decode("utf-8", errors="replace")
@@ -7163,7 +7163,7 @@ def _open_attachment_preview(doc_id, filename):
                 b64 = base64.b64encode(raw).decode("ascii")
                 with body:
                     ui.html(f"<embed src='data:application/pdf;base64,{b64}' type='application/pdf' "
-                            f"style='width:100%;height:60vh;border:1px solid #E2E8F0;'/>")
+                            f"style='width:100%;height:60vh;border:1px solid #9AA6B8;'/>")
                     rendered = True
             elif ext in ("ics", "txt", "eml", "md", "json"):
                 text = raw.decode("utf-8", errors="replace")
