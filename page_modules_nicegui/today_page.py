@@ -1227,9 +1227,11 @@ def _render_investor_brief(inst, full, nm):
             ui.label(" · ".join(f"{c} {p if p is not None else 0}/{m}" for (c, p, m) in bd)).style(
                 f"color:{C['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
 
-    # 3. Talking points
+    # 3. Talking points — full-width divider under the header, matching the Peer Watch inner-card
+    # treatment (title · rule · list) for cross-surface consistency.
     ui.label("Talking points").style(
-        f"color:{C['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:8px;")
+        f"color:{C['text_heading']};font-size:var(--fs-sm);font-weight:700;margin-top:8px;width:100%;"
+        f"border-bottom:1px solid {C['border']};padding-bottom:5px;margin-bottom:6px;")
     for p in _brief_talking_points(inst, full):
         ui.label(f"•  {p}").style(f"color:{C['text_secondary']};font-size:var(--fs-sm);line-height:1.45;")
 
