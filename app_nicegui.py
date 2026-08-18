@@ -514,7 +514,7 @@ def apply_theme():
            accent colour on hover. Apply with .classes("name-link") + an on-click that opens the profile. */
         .name-link {{ cursor:pointer; text-decoration:underline; text-decoration-thickness:1px;
                       text-underline-offset:2px; text-decoration-color:{COLORS["text_muted2"]}; }}
-        .name-link:hover {{ color:#1D4ED8; text-decoration-color:#1D4ED8; }}
+        .name-link:hover {{ color:#1E40AF; text-decoration-color:#1E40AF; }}
         /* Collapsible (expansion) HEADERS — Quasar renders the header label in its own
            element, so a per-expansion inline `color:` never reaches it and the title fell
            back to a near-white default "part of the time". Force every expansion header to a
@@ -1596,10 +1596,10 @@ def main_page(request: Request = None):
                     if not role_can_view(state["role"], section):
                         continue
                     active = state["page"] == section
-                    clr = "#1D4ED8" if active else COLORS["text_muted"]
+                    clr = "#1E40AF" if active else COLORS["text_muted"]
                     with ui.column().classes("items-center").style(
                         "flex:1;gap:1px;padding:6px 0 8px;cursor:pointer;"
-                        + (f"border-top:2px solid #1D4ED8;background:#1D4ED80D;"
+                        + (f"border-top:2px solid #1E40AF;background:#1E40AF0D;"
                            if active else "border-top:2px solid transparent;")
                     ).on("click", lambda s=section, t=sub: go_to(s, t)):
                         ui.icon(icon).style(f"color:{clr};font-size:var(--fs-3xl);")
@@ -2273,7 +2273,7 @@ ui.add_head_html(
     ".q-table__container{background:#FFFFFF;border:1px solid #64748B;border-radius:10px;overflow:hidden;"
     "box-shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);}"
     ".q-table thead th{background:#EEF2F7 !important;color:#64748B !important;text-transform:uppercase;"
-    "letter-spacing:.06em;font-weight:700;font-size:11.5px;border-bottom:1px solid #9AA6B8 !important;}"
+    "letter-spacing:.06em;font-weight:700;font-size:12px;border-bottom:1px solid #9AA6B8 !important;}"
     ".q-table.q-table>tbody>tr:not(:last-child)>td,.q-table__middle>table.q-table>tbody>tr:not(:last-child)>td"
     "{border-bottom:1px solid #64748B !important;}"
     ".q-table.q-table>tbody>tr:last-child>td{border-bottom:0 !important;}"
@@ -2299,7 +2299,7 @@ ui.add_head_html(
     ".rrow .rmeta{color:#727A89;font-size:12.5px;}"
     ".rrow .rval{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;}"
     # ---- status pills (the "buttons") ----
-    ".rpill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 9px;"
+    ".rpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.03em;padding:2px 9px;"
     "border-radius:999px;white-space:nowrap;}"
     ".rpill-t1{background:#ECEEF8;color:#2F3AA8;}"
     ".rpill-good{background:#E7F4EC;color:#127A4A;}"
