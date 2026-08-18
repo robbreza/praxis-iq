@@ -28,7 +28,7 @@ from page_modules_nicegui import nav
 
 def _card():
     return ui.card().classes("w-full").style(
-        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:14px;")
+        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;")
 
 
 def _last_note_for(fund):
@@ -59,7 +59,7 @@ def _open_brief(fund, inst_by_fund, client_id, meeting=None):
 
     with ui.dialog() as dialog, ui.card().style(
             f"background:{COLORS['surface_bg']};min-width:min(92vw,440px);"
-            f"max-height:88vh;overflow:auto;border-radius:14px;"):
+            f"max-height:88vh;overflow:auto;border-radius:12px;"):
         ui.label(pretty_name(fund)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
         if meeting:
             ctx = " · ".join(x for x in [meeting.get("Date"), meeting.get("Time"),
@@ -192,7 +192,7 @@ def render_home_page():
     # ── 2. PULSE (a glance — the whole card taps through to Lighthouse) ─────────────────────────
     snap = market_data.get_snapshot(ticker)
     pulse = _card().style(
-        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:14px;"
+        f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"
         "cursor:pointer;").on("click", lambda: nav.go_to("Lighthouse"))
     with pulse:
         ui.label(f"{ticker} · pulse").classes("section-head")

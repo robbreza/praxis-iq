@@ -2326,7 +2326,7 @@ ui.add_body_html(
     '<button id="pwa-install-btn" style="display:flex;align-items:center;gap:8px;background:#1E40AF;'
     'color:#fff;border:0;border-radius:10px;padding:10px 16px;font:600 13px -apple-system,Segoe UI,'
     'Roboto,sans-serif;box-shadow:0 6px 20px rgba(30,64,175,.35);cursor:pointer;">'
-    '<img src="/pwa/icon-192.png" width="20" height="20" style="border-radius:5px;">Install IRconnect</button></div>'
+    '<img src="/pwa/icon-192.png" width="20" height="20" style="border-radius:8px;">Install IRconnect</button></div>'
     '<script>(function(){'
     "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}"
     "var d=null,w=document.getElementById('pwa-install'),b=document.getElementById('pwa-install-btn');"

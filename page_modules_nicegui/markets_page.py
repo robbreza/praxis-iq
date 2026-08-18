@@ -1405,10 +1405,10 @@ def _render_nobo():
             "<div style='display:flex;gap:22px;flex-wrap:wrap;margin-top:7px;"
             f"font-size:var(--fs-xs);color:{COLORS['text_muted']};'>"
             "<span style='white-space:nowrap;'><span style='display:inline-block;width:11px;height:11px;"
-            f"border-radius:2px;background:#1E40AF;margin-right:6px;vertical-align:middle;'></span>"
+            f"border-radius:8px;background:#1E40AF;margin-right:6px;vertical-align:middle;'></span>"
             f"NOBO visible {_visible:.0f}%</span>"
             "<span style='white-space:nowrap;'><span style='display:inline-block;width:11px;height:11px;"
-            f"border-radius:2px;background:#E2E8F0;margin-right:6px;vertical-align:middle;'></span>"
+            f"border-radius:8px;background:#E2E8F0;margin-right:6px;vertical-align:middle;'></span>"
             f"OBO · registered · insider {_rest:.0f}%</span>"
             "</div>")
 

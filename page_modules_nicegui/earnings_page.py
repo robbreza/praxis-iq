@@ -1092,7 +1092,7 @@ def _render_lookback_tab():
                 vs_clr = "#B45309" if wc > hist_wc * 1.15 else COLORS["text_muted"]
                 with ui.row().classes("w-full items-center gap-2"):
                     ui.label(sec).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);min-width:150px;")
-                    with ui.element("div").classes("flex-1").style(f"background:{COLORS['canvas_bg']};border-radius:4px;height:8px;overflow:hidden;"):
+                    with ui.element("div").classes("flex-1").style(f"background:{COLORS['canvas_bg']};border-radius:8px;height:8px;overflow:hidden;"):
                         ui.element("div").style(f"width:{pct}%;height:100%;background:#3B82F6;")
                     ui.label(f"{wc:,}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);min-width:50px;")
                     ui.label(f"vs {hist_wc:,} hist").style(f"color:{vs_clr};font-size:var(--fs-xs);min-width:70px;")
@@ -2585,7 +2585,7 @@ def _qa_anchor(m):
 def _bridge_chip(label, val, good=None):
     clr = COLORS["text_muted"] if good is None else (COLORS["positive"] if good else COLORS["danger"])
     with ui.row().classes("items-baseline gap-1 no-wrap").style(
-            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:7px;padding:2px 9px;"):
+            f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};border-radius:8px;padding:2px 9px;"):
         ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.03em;")
         ui.label(val).style(f"color:{clr};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
 
@@ -2611,7 +2611,7 @@ def _bridge_rangebar(m):
             ui.label(label).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);width:74px;text-align:right;flex:none;")
             with ui.element("div").classes("flex-1").style("position:relative;height:18px;"):
                 ui.element("div").style(f"position:absolute;top:50%;left:0;right:0;height:1px;background:{COLORS['border']};")
-                _bs = f"position:absolute;top:3px;left:{_p(lo_v):.1f}%;width:{max(1.0,_p(hi_v)-_p(lo_v)):.1f}%;height:12px;border-radius:4px;"
+                _bs = f"position:absolute;top:3px;left:{_p(lo_v):.1f}%;width:{max(1.0,_p(hi_v)-_p(lo_v)):.1f}%;height:12px;border-radius:8px;"
                 ui.element("div").style(_bs + (f"background:{COLORS['accent']};opacity:.9;" if filled
                                                else f"background:transparent;border:1.5px dashed {COLORS['text_muted']};"))
                 if street is not None:
@@ -2778,7 +2778,7 @@ def _bridge_quarterbars(full_path, fmt, comp_note=None, comp_adjust=None):
                 ui.label(_fmt_metric(x["value"], fmt)).style(
                     f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;")
                 ui.element("div").style(f"width:100%;max-width:46px;height:{h:.0f}px;background:{col};"
-                                        f"opacity:{'0.9' if filled else '0.45'};border-radius:5px 5px 0 0;")
+                                        f"opacity:{'0.9' if filled else '0.45'};border-radius:8px 5px 0 0;")
                 ui.label(x["q"] or "").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-weight:600;")
                 if x.get("yoy_pct") is not None:
                     _yc = COLORS["positive"] if x["yoy_pct"] >= 0 else COLORS["danger"]
@@ -3642,7 +3642,7 @@ def _diff_html(old, new):
                          + _h.escape(" ".join(ow[i1:i2])) + "</span>")
         if j2 > j1:
             parts.append('<span style="background:#DCFCE7;color:#166534;font-weight:600;'
-                         'border-radius:3px;padding:0 2px;">' + _h.escape(" ".join(nw[j1:j2])) + "</span>")
+                         'border-radius:8px;padding:0 2px;">' + _h.escape(" ".join(nw[j1:j2])) + "</span>")
     return " ".join(p for p in parts if p) or "<em>No wording changed.</em>"
 
 
@@ -5083,7 +5083,7 @@ def _render_decision_bar(ss):
     _m = lambda v: _fmt_metric(v, "money")
     with ui.card().classes("w-full").style(
             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:5px solid {tagclr};"
-            "border-radius:11px;padding:12px 16px;margin-bottom:10px;"):
+            "border-radius:12px;padding:12px 16px;margin-bottom:10px;"):
         with ui.row().classes("w-full items-center gap-3 flex-wrap"):
             ui.label(_ch["tag"]).style(
                 f"background:{tagclr}22;color:{tagclr};font-weight:800;font-size:var(--fs-xs);letter-spacing:.03em;padding:3px 10px;border-radius:999px;")

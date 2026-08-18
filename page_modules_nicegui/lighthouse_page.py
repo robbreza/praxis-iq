@@ -40,10 +40,10 @@ def _bar_row(label, note, value, scale, *, is_issuer=False, is_comp=False, rel=N
             ui.label(label).style(f"color:{lab_color};font-weight:{weight};font-size:var(--fs-sm);text-align:right;")
         # bar track with a centre zero line
         with ui.element("div").style(f"position:relative;width:{half*2}px;height:16px;flex:none;"
-                                     f"background:{COLORS.get('surface_alt', '#F1F5F9')};border-radius:4px;"):
+                                     f"background:{COLORS.get('surface_alt', '#F1F5F9')};border-radius:8px;"):
             ui.element("div").style(f"position:absolute;left:{half}px;top:0;width:1px;height:16px;background:#94A3B8;")
             ui.element("div").style(f"position:absolute;left:{left}px;top:3px;width:{blen}px;height:10px;"
-                                    f"background:{color};border-radius:3px;opacity:{'1' if (is_issuer or is_comp) else '0.55'};")
+                                    f"background:{color};border-radius:8px;opacity:{'1' if (is_issuer or is_comp) else '0.55'};")
         val = f"{value*100:+.1f}%"
         rel_txt = ""
         if rel is not None:
@@ -106,7 +106,7 @@ def _render_peer_synthesis(s):
                     ui.label(t["subtitle"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     with ui.row().style("flex-wrap:wrap;gap:4px;margin:4px 0;"):
                         for m in t["members"]:
-                            ui.label(m).style(f"background:{c}18;color:{c};border-radius:4px;padding:1px 7px;font-size:var(--fs-xs);font-weight:600;")
+                            ui.label(m).style(f"background:{c}18;color:{c};border-radius:8px;padding:1px 7px;font-size:var(--fs-xs);font-weight:600;")
                         if not t["members"]:
                             ui.label("—").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     ui.label(t["note"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);line-height:1.4;")
@@ -420,7 +420,7 @@ def render_lighthouse_page():
                         c = _ROLE_COLOR.get(d["cls"], "#64748B")
                         with ui.row().classes("items-center gap-2"):
                             ui.label(d["cls"].title()).style(f"color:{c};font-weight:700;font-size:var(--fs-xs);"
-                                                             f"border:1px solid {c}55;border-radius:4px;padding:0 6px;")
+                                                             f"border:1px solid {c}55;border-radius:8px;padding:0 6px;")
                             ui.label(f"{d['label']} — {d['detail']}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                             if d.get("link"):
                                 ui.link("evidence ↗", d["link"], new_tab=True).style("font-size:var(--fs-xs);")
