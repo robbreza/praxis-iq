@@ -1154,7 +1154,10 @@ def _render_investor_brief(inst, full, nm):
     if full and full.get("Position_Value"):
         pos = f"${full['Position_Value']/1e6:,.1f}M"
         if full.get("Book_Pct"):
-            pos += f" · {full['Book_Pct']*100:.2f}% of their 13F book"
+            # Book_Pct is ALREADY a percentage (core.targets: value / book_total * 100) — the same
+            # convention markets_page and the conviction tiers use. Do NOT multiply by 100 again;
+            # that was showing a 0.75%-of-book position as "75.00% of their 13F book".
+            pos += f" · {full['Book_Pct']:.2f}% of their 13F book"
         if full.get("AUM"):
             pos += f" · {full['AUM']} AUM"
         fact("Position", pos)
