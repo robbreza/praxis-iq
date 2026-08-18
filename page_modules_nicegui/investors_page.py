@@ -6883,15 +6883,13 @@ def _render_meeting_hub_tab():
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     if not shown:
                         ui.label("No upcoming meetings in this view.").style(f"color:{COLORS['text_muted']};")
+                    from core import meetings as _meetings
+                    from page_modules_nicegui.signals import meeting_card
                     for mtg in shown:
-                        cap = f"{mtg['Date']} {mtg.get('Time','')} · {mtg['Firm']} · {mtg.get('Side','')} · {mtg.get('Status','—')}"
-                        with ui.expansion(f"{mtg['Contact']} ({mtg['Firm']})", caption=cap).classes("w-full").style(
-                                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
-                            ui.label(f"{mtg['Type']} · Priority: {mtg.get('Priority','—')}").style(
-                                f"color:{COLORS['text_secondary']};font-size:var(--fs-base);")
-                            if mtg.get("Topic"):
-                                ui.label(f"Topic: {mtg['Topic']}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
-                            _render_linked_documents(mtg["Contact"], mtg["Firm"])
+                        # Shared meeting card over the canonical record — the same component the
+                        # Calendar overlay uses, so meetings read identically across surfaces.
+                        meeting_card(_meetings.normalize_scheduled(mtg),
+                                     extras=lambda mtg=mtg: _render_linked_documents(mtg["Contact"], mtg["Firm"]))
 
             render_hub_list()
 
