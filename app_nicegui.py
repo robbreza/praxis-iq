@@ -2099,6 +2099,41 @@ def _pwa_manifest():
     return Response(data, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
 
 
+def _compute_version_info():
+    """The commit THIS process is running. On Render, RENDER_GIT_COMMIT is the exact deployed SHA;
+    locally we read the working copy's HEAD as the best proxy. Computed once at startup — exposes only
+    the commit/branch, nothing sensitive."""
+    commit = os.environ.get("RENDER_GIT_COMMIT") or None
+    branch = os.environ.get("RENDER_GIT_BRANCH") or None
+    source = "render" if commit else "local"
+    if not commit:
+        try:
+            import subprocess
+            here = os.path.dirname(os.path.abspath(__file__))
+            commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=here,
+                                             stderr=subprocess.DEVNULL, timeout=5).decode().strip() or None
+            if commit and not branch:
+                branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=here,
+                                                 stderr=subprocess.DEVNULL, timeout=5).decode().strip() or None
+        except Exception:
+            pass
+    return {"commit": commit, "short": (commit[:7] if commit else None),
+            "branch": branch, "source": source,
+            "service": os.environ.get("RENDER_SERVICE_NAME") or "local"}
+
+
+_VERSION_INFO = _compute_version_info()
+
+
+@app.get("/version")
+def _version():
+    """Public build probe: returns the git commit this instance is serving, so 'is the hosted app on
+    the latest code?' is a one-line `curl https://…/version` (no dashboard, no login). Render sets
+    RENDER_GIT_COMMIT to the deployed SHA; locally it reflects the working copy's HEAD at startup."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(_VERSION_INFO, headers={"Cache-Control": "no-cache"})
+
+
 # Head: manifest + theme color + iOS home-screen tags (iOS has no manifest install, uses these).
 ui.add_head_html(
     '<link rel="manifest" href="/manifest.webmanifest">'
