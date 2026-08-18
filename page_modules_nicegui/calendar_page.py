@@ -35,6 +35,76 @@ from core import conferences, db, ui_context
 from data.seed.conferences import get_seed_conferences
 from page_modules_nicegui.signals import empty_state
 
+
+# ── Phase-0 engagement overlay — show the client's 1x1 meetings + NDR trip meetings ON the calendar
+# (read-only), so it's the one place to see WHEN everything is, not just conferences. Pure read, no
+# schema change; the conference store is never touched by these.
+def _parse_ymd(s):
+    """Tolerant YYYY-MM-DD parse → date or None (never raises)."""
+    try:
+        return datetime.strptime((s or "").strip()[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _parse_trip_start(dates_str):
+    """Best-effort absolute start date from a trip's free-text `dates` (often 'TBD'). None → the
+    trip's meetings are undated and can't be placed on the grid (the caller counts them for a note)."""
+    s = (dates_str or "").strip()
+    if not s or s.upper() == "TBD":
+        return None
+    d = _parse_ymd(s)
+    if d:
+        return d
+    m = re.match(r"([A-Za-z]{3,9})\s+(\d{1,2})(?:\s*[–-]\s*\d{1,2})?,?\s*(\d{4})", s)
+    if m:
+        for fmt in ("%b %d %Y", "%B %d %Y"):
+            try:
+                return datetime.strptime(f"{m.group(1)} {m.group(2)} {m.group(3)}", fmt).date()
+            except Exception:
+                pass
+    return None
+
+
+def _engagement_overlay(cid):
+    """Read-only calendar events for the client's 1x1 meetings (scheduled_meetings.json) and NDR trip
+    meetings (ndr_trips.json). Returns (events, undated_ndr_count); undated NDR meetings (TBD trip
+    dates) are counted, not placed on the grid."""
+    out, undated = [], 0
+    for mtg in (db.load_json("scheduled_meetings.json", [], client_id=cid) or []):
+        d = _parse_ymd(mtg.get("Date"))
+        if not d:
+            continue
+        out.append({
+            "Event": "1×1 · " + (mtg.get("Firm") or mtg.get("Contact") or "Meeting"),
+            "Date": d.isoformat(), "Type": "1×1 Meeting",
+            "Status": mtg.get("Status", ""), "Priority": mtg.get("Priority", ""),
+            "Attending": mtg.get("Contact", ""), "Organizer": mtg.get("Firm", ""),
+            "Location": mtg.get("Location", ""), "Notes": mtg.get("Topic", "") or mtg.get("Notes", ""),
+            "_readonly": True, "_layer": "meeting",
+        })
+    for t in (db.load_json("ndr_trips.json", [], client_id=cid) or []):
+        start = _parse_trip_start(t.get("dates"))
+        for mtg in (t.get("meetings") or []):
+            if not start:
+                undated += 1
+                continue
+            try:
+                md = start + timedelta(days=max(0, int(mtg.get("day", 1) or 1) - 1))
+            except Exception:
+                undated += 1
+                continue
+            out.append({
+                "Event": "NDR · " + (mtg.get("institution") or "Meeting"),
+                "Date": md.isoformat(), "Type": "NDR",
+                "Status": mtg.get("status", ""), "Priority": "",
+                "Attending": mtg.get("contact", ""), "Organizer": t.get("name", ""),
+                "Location": t.get("city", ""),
+                "Notes": " · ".join(x for x in (mtg.get("time", ""), mtg.get("notes", "")) if x and x != "—"),
+                "_readonly": True, "_layer": "ndr",
+            })
+    return out, undated
+
 STATUS_OPTIONS = [
     "Confirmed", "Needs to be Scheduled", "Invited — pending confirmation", "Scheduled",
     "Evaluating", "Not yet contacted", "Declined", "Completed",
@@ -119,11 +189,21 @@ def render_calendar_page():
     events, was_freshly_seeded = _load_conferences(conf_path)
     if was_freshly_seeded:
         _save_conferences(conf_path, events)
+    # Read-only overlay (Phase 0): `events` stays conference-only for add/edit/delete/export; the
+    # overlay only feeds the read views (list + month + counts).
+    _overlay, _undated_ndr = _engagement_overlay(get_active_client_id())
 
     ui.html(
         "<div class='section-eyebrow'>CALENDAR</div>"
         "<div class='section-title'>Earnings &middot; Conferences &middot; Deadlines</div>"
     )
+    ui.label("Conferences, earnings & registration deadlines — now alongside your 1×1 and NDR "
+             "meetings, so every dated engagement lives in one view.").style(
+        f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-top:2px;")
+    if _undated_ndr:
+        ui.label(f"{_undated_ndr} NDR meeting(s) have dates TBD — set the trip dates to place them "
+                 "on the calendar.").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;")
 
     # RBAC: view-only roles (e.g. Legal) can browse the calendar and export it
     # but not add/edit/delete events. Mutating controls below call
@@ -136,15 +216,21 @@ def render_calendar_page():
     # Compute-on-demand so the counts and filters stay correct after an event
     # is added or deleted (no stale snapshot from page-render time).
     def _upcoming():
-        return [e for e in events if datetime.strptime(e["Date"], "%Y-%m-%d").date() >= today]
+        # conferences + the read-only engagement overlay; tolerant parse so one bad/free-text date
+        # never takes the page down (a real risk once meetings/NDRs are folded in).
+        out = []
+        for e in events + _overlay:
+            d = _parse_ymd(e.get("Date"))
+            if d and d >= today:
+                out.append(e)
+        return out
 
     def _deadlines():
         out = []
         for e in _upcoming():
-            if e.get("Deadline"):
-                dl = datetime.strptime(e["Deadline"], "%Y-%m-%d").date()
-                if dl >= today and (dl - today).days <= 30:
-                    out.append(e)
+            dl = _parse_ymd(e.get("Deadline"))
+            if dl and today <= dl <= today + timedelta(days=30):
+                out.append(e)
         return out
 
     def _high():
@@ -153,7 +239,7 @@ def render_calendar_page():
     # Each metric card is a clickable filter over the event list below.
     _filter = {"mode": "all"}
     _filter_sets = {
-        "all": ("Total events tracked", "Everything on the calendar", lambda: events),
+        "all": ("Total events tracked", "Everything on the calendar", lambda: events + _overlay),
         "upcoming": ("Upcoming", "Events still ahead", _upcoming),
         "deadlines": ("Deadlines in 30 days", "Register before these close", _deadlines),
         "high": ("High priority", "Flagged must-attend", _high),
@@ -244,12 +330,16 @@ def render_calendar_page():
                     # Export is read-only-safe, so it's available to every role.
                     ui.button("Add to my calendar (.ics)", icon="event",
                               on_click=lambda e=ev: _dl_event_ics(e)).props("flat dense")
-                    if not ui_context.is_read_only():
+                    if not ui_context.is_read_only() and not ev.get("_readonly"):
                         ui.button("Edit", icon="edit",
                                   on_click=lambda e=ev: open_edit_dialog(e)).props("flat dense")
                         ui.button("Delete", icon="delete",
                                   on_click=lambda e=ev: delete_event(e)).props("flat dense").style(
                             f"color:{COLORS['danger']};")
+                    elif ev.get("_readonly"):
+                        ui.label({"meeting": "From Meeting Hub — edit it there.",
+                                  "ndr": "From an NDR trip — edit it in NDR/CRM."}.get(ev.get("_layer"), "")).style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-xs);font-style:italic;margin-top:4px;")
 
     def _day_cell(m, day, day_events):
         is_today = (m.year, m.month, day) == (today.year, today.month, today.day)
@@ -262,13 +352,17 @@ def render_calendar_page():
                 f"color:{COLORS['text_heading'] if is_today else COLORS['text_secondary']};"
                 f"font-size:var(--fs-sm);font-weight:{'700' if is_today else '500'};")
             for ev in day_events[:3]:
-                clr = COLORS["danger"] if ev.get("Priority") == "High" else COLORS["accent"]
-                chip = ui.label(ev["Event"]).classes("cursor-pointer").style(
+                # Distinct layers: teal = 1×1 meeting, purple = NDR, else the conference accent/High.
+                clr = ({"meeting": "#0E7490", "ndr": "#7C3AED"}.get(ev.get("_layer"))
+                       or (COLORS["danger"] if ev.get("Priority") == "High" else COLORS["accent"]))
+                chip = ui.label(ev["Event"]).style(
                     f"background:{clr}22;color:{clr};font-size:var(--fs-2xs);font-weight:600;border-radius:6px;"
                     f"padding:1px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;"
                     f"text-overflow:ellipsis;max-width:100%;")
                 chip.tooltip(f"{ev['Event']} · {ev.get('Status','')}")
-                chip.on("click", lambda e=ev: open_edit_dialog(e))
+                if not ev.get("_readonly"):   # overlay meetings are read-only — edit them where they live
+                    chip.classes("cursor-pointer")
+                    chip.on("click", lambda e=ev: open_edit_dialog(e))
             if len(day_events) > 3:
                 ui.label(f"+{len(day_events) - 3} more").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);margin-top:2px;")
