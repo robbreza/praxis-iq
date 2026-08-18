@@ -2311,7 +2311,7 @@ def _render_regfd_tab():
                         ui.label("No interactions logged yet.").style(f"color:{COLORS['text_muted']}")
                         return
                     for entry in reversed(log):
-                        icon = "" if entry.get("risk_level") == "HIGH" else ""
+                        icon = "⚠" if entry.get("risk_level") == "HIGH" else "•"
                         qb = " · QUIET" if entry.get("in_quiet") else ""
                         rb = " · Reviewed" if entry.get("reviewed") else " · Pending"
                         with ui.expansion(f"{icon} {entry.get('date')} · {entry.get('institution')} · {entry.get('type')}{qb}{rb}").classes("w-full"):

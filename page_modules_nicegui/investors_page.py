@@ -2195,7 +2195,7 @@ def _render_peer_prospects_tab(client_id):
             ui.button(f"Show all {_total} funds that own a peer but not {CT('ticker')}",
                       icon="expand_more", on_click=_showall).props("flat dense").style("margin-top:8px;")
         elif _state.get("show_all"):
-            ui.label(f"Showing all {len(cands)} qualified peer-owners (funds holding a comp, not USIO).").style(
+            ui.label(f"Showing all {len(cands)} qualified peer-owners (funds holding a comp, not {CT('ticker')}).").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:8px;")
 
             def _showtop():
@@ -3886,7 +3886,7 @@ def _render_buyside_tab(institutions, meeting_log, mode):
                       value=False, icon="tune").classes("w-full").style(
             f"border:1px solid {COLORS['border']};border-radius:8px;background:{COLORS['surface_bg']};"
             f"color:{COLORS['text_heading']};font-weight:600;"):
-        ui.label("These narrow the institution list below — they don't affect the Engagement Funnel or metrics "
+        ui.label("These narrow the institution list below — they don't affect the composition cards or metrics "
                  "above, which always show the complete tracked set. All defaults below are unfiltered (everything "
                  "shown), so the list you see with no filters applied matches the same ranked order Today's "
                  "Investor Pipeline widget pulls from — narrow it from here if you want a subset.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")

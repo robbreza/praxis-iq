@@ -976,8 +976,9 @@ def _open_disconnect_dialog(snap=None, pt_avg=None):
         ui.label("Suggested CEO talking point:").classes("font-bold").style("margin-top:8px;")
         ui.textarea(
             "Talking point — edit before adding to script",
-            value="The gap between our stock price and Street targets reflects thin, aging coverage more than a "
-                  "fundamental disagreement — 3 of 5 analysts haven't updated models since before our Q1 beat.",
+            value=(f"The gap between our stock price and Street targets reflects thin, aging coverage more than a "
+                   f"fundamental disagreement — {total_n - active_n} of {total_n} covering analysts don't have a "
+                   f"current model on file."),
         ).classes("w-full").props("rows=4 outlined")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
@@ -1064,15 +1065,20 @@ def _render_activity_row(state, a):
                         content = await e.file.text()
                         rows = list(csv.reader(io.StringIO(content)))
                         new_vals = {r[0].strip(): r[1].strip() for r in rows if len(r) >= 2}
-                        old_rev = 24.1  # last known figure on file for this analyst, illustrative
-                        new_rev = float(new_vals.get("Revenue", old_rev))
+                        # The analyst's ACTUAL last committed figure, if any — never a hardcoded placeholder
+                        # (this used to show a literal $24.1M "old model" for every analyst, a fabricated
+                        # baseline inside a real workflow). Omit the OLD card entirely when none is on file.
+                        old_rev = state.get(f"committed_model_{a['name']}")
+                        _rev = new_vals.get("Revenue")
+                        new_rev = float(_rev) if _rev else float(old_rev or 0)
                         with result_area:
                             with ui.row().classes("w-full gap-3"):
-                                ui.html(
-                                    f"<div style='background:#EEF2F7;border-radius:8px;padding:8px 12px;'>"
-                                    f"<span style='font-size:var(--fs-xs);color:#64748B;'>OLD MODEL</span><br>"
-                                    f"<b style='color:#1E293B;'>Revenue: ${old_rev}M</b></div>"
-                                )
+                                if old_rev is not None:
+                                    ui.html(
+                                        f"<div style='background:#EEF2F7;border-radius:8px;padding:8px 12px;'>"
+                                        f"<span style='font-size:var(--fs-xs);color:#64748B;'>OLD MODEL</span><br>"
+                                        f"<b style='color:#1E293B;'>Revenue: ${old_rev}M</b></div>"
+                                    )
                                 ui.html(
                                     f"<div style='background:#E9F6EF;border-radius:8px;padding:8px 12px;'>"
                                     f"<span style='font-size:var(--fs-xs);color:#64748B;'>NEW MODEL</span><br>"

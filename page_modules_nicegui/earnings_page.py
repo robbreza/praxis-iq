@@ -1129,9 +1129,9 @@ def _render_lookback_tab():
             qa_topics = _Q1_QA_TOPICS
             for topic, preempted, note in qa_topics:
                 clr = "#15803D" if preempted else "#B91C1C"
-                icon = "" if preempted else ""
+                icon = "✓" if preempted else "!"
                 with ui.row().classes("w-full items-start gap-2").style(f"padding:4px 0;"):
-                    ui.label(icon)
+                    ui.label(icon).style(f"color:{clr};font-weight:700;")
                     with ui.column().classes("gap-0"):
                         ui.label(topic).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                         ui.label(note).style(f"color:{clr};font-size:var(--fs-sm);")
@@ -1152,7 +1152,7 @@ def _render_lookback_tab():
                 ("H2 margin expansion", "Neither analyst modeled the H2 improvement explicitly", "#B45309"),
             ]
             for takeaway, view, clr in alignment:
-                icon = "" if clr == "#15803D" else ("" if clr == "#B45309" else "")
+                icon = "▲" if clr == "#15803D" else ("◆" if clr == "#B45309" else "▼")
                 with ui.card().classes("w-full list-tile"):
                     ui.label(f"{icon} {takeaway}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);font-weight:600;")
                     ui.label(view).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
@@ -6517,7 +6517,7 @@ def _render_workflow_content():
         ui.label("Version History").classes("font-bold").style("font-size:var(--fs-md);")
         for v in reversed(ss["versions"]):
             if "version" in v:
-                icon = "" if v["version"] == "FINAL" else ""
+                icon = "★" if v["version"] == "FINAL" else "·"
                 ui.label(f"{icon} {v['version']} — {v.get('label','')} · {v.get('created','')} · {v.get('by','—')}").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             else:
                 # Legacy shape from the earlier simplified port
@@ -6880,7 +6880,7 @@ def _render_surprise_tracker_tab():
                 with ui.row().classes("w-full gap-3"):
                     for label, value in [
                         ("Quarters tracked", str(len(df))),
-                        ("Avg revenue beat", f"+{avg_surp:.1f}%"),
+                        ("Avg revenue beat", f"{avg_surp:+.1f}%"),
                         ("Avg AH move", f"{df['ah_move'].mean()*100:+.1f}%"),
                         ("Beat quarters", f"{beat_q}/{len(df)}"),
                     ]:
@@ -6917,7 +6917,7 @@ def _render_surprise_tracker_tab():
                 for row in surprises:
                     gve = row.get("guidance_vs_embedded", "—")
                     excess = (row["ah_move"] - row["implied_move"]) * 100
-                    icon = "" if gve in ["Beat", "Above"] else "" if gve == "In-line" else ""
+                    icon = "▲" if gve in ["Beat", "Above"] else "•" if gve == "In-line" else "▼"
                     ui.label(f"{icon} {row['quarter']}: Guidance {gve} embedded · AH "
                              f"{'exceeded' if excess>0 else 'undershot'} implied by {abs(excess):.1f}pp").style(
                         f"color:{COLORS['text_body']};font-size:var(--fs-base);")
@@ -6944,10 +6944,10 @@ def _render_surprise_tracker_tab():
                 with _scol():
                     _sh("RESULTS vs STREET")
                     s_ra = ui.number("Actual revenue ($M)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
-                    s_rc = ui.number("Consensus ($M)", value=25.1, step=0.1).props("outlined dense").classes("w-full")
-                    s_rw = ui.number("Whisper ($M)", value=24.5, step=0.1).props("outlined dense").classes("w-full")
+                    s_rc = ui.number("Consensus ($M)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
+                    s_rw = ui.number("Whisper ($M)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
                     s_ea = ui.number("Actual EPS ($)", value=0.0, step=0.01).props("outlined dense").classes("w-full")
-                    s_ec = ui.number("EPS consensus ($)", value=0.01, step=0.01).props("outlined dense").classes("w-full")
+                    s_ec = ui.number("EPS consensus ($)", value=0.0, step=0.01).props("outlined dense").classes("w-full")
                 with _scol():
                     _sh("STOCK REACTION")
                     s_ah = ui.number("AH move (%)", value=0.0, step=0.1).props("outlined dense").classes("w-full")
@@ -7009,8 +7009,8 @@ def _render_surprise_tracker_tab():
                 _fin = CF()
                 _street = market_data.street_for_quarter(
                     CT("ticker"),
-                    fy_revenue_actual=_fin.get("fy_revenue") or 85.4,
-                    q_year_ago_actual=_fin.get("q_year_ago_rev") or 19.90)
+                    fy_revenue_actual=_fin.get("fy_revenue"),
+                    q_year_ago_actual=_fin.get("q_year_ago_rev"))
             except Exception:
                 _street = None
             _st_ok = bool(_street and _street.get("verified") and _street.get("avg_m") is not None)
@@ -7046,9 +7046,9 @@ def _render_surprise_tracker_tab():
             precall = _load_json("q2_precall.json", {})
             with ui.row().classes("w-full gap-4"):
                 pc_imp = ui.number("Options implied move %", value=precall.get("implied", 0.0), step=0.5).props("outlined dense").classes("flex-1")
-                pc_wh = ui.number("Whisper ($M)", value=precall.get("whisper", 24.5), step=0.1).props("outlined dense").classes("flex-1")
+                pc_wh = ui.number("Whisper ($M)", value=precall.get("whisper", 0.0), step=0.1).props("outlined dense").classes("flex-1")
                 pc_30d = ui.number(f"{CT('ticker')} 30d vs FINX (%)", value=precall.get("30d_sector", 0.0), step=0.5).props("outlined dense").classes("flex-1")
-                pc_si = ui.number("Short interest % float", value=precall.get("short", 0.02), step=0.01).props("outlined dense").classes("flex-1")
+                pc_si = ui.number("Short interest % float", value=precall.get("short", 0.0), step=0.01).props("outlined dense").classes("flex-1")
             pc_notes = ui.textarea("Positioning notes", value=precall.get("notes", "")).props("outlined autogrow").classes("w-full")
 
             def save_precall():
