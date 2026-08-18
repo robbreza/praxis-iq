@@ -31,78 +31,34 @@ from nicegui import ui
 
 from config.client_config import get_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
-from core import conferences, db, ui_context
+from core import conferences, db, meetings, ui_context
 from data.seed.conferences import get_seed_conferences
 from page_modules_nicegui.signals import empty_state
 
 
-# ── Phase-0 engagement overlay — show the client's 1x1 meetings + NDR trip meetings ON the calendar
-# (read-only), so it's the one place to see WHEN everything is, not just conferences. Pure read, no
-# schema change; the conference store is never touched by these.
-def _parse_ymd(s):
-    """Tolerant YYYY-MM-DD parse → date or None (never raises)."""
-    try:
-        return datetime.strptime((s or "").strip()[:10], "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-
-def _parse_trip_start(dates_str):
-    """Best-effort absolute start date from a trip's free-text `dates` (often 'TBD'). None → the
-    trip's meetings are undated and can't be placed on the grid (the caller counts them for a note)."""
-    s = (dates_str or "").strip()
-    if not s or s.upper() == "TBD":
-        return None
-    d = _parse_ymd(s)
-    if d:
-        return d
-    m = re.match(r"([A-Za-z]{3,9})\s+(\d{1,2})(?:\s*[–-]\s*\d{1,2})?,?\s*(\d{4})", s)
-    if m:
-        for fmt in ("%b %d %Y", "%B %d %Y"):
-            try:
-                return datetime.strptime(f"{m.group(1)} {m.group(2)} {m.group(3)}", fmt).date()
-            except Exception:
-                pass
-    return None
-
-
+# Engagement overlay — the client's 1x1 + NDR meetings, mapped to the calendar's event shape so they
+# show ON the calendar (read-only) next to conferences. Phase 1: the normalization/date-resolution now
+# lives once in core.meetings; this is just the calendar-shape adapter over its canonical records.
 def _engagement_overlay(cid):
-    """Read-only calendar events for the client's 1x1 meetings (scheduled_meetings.json) and NDR trip
-    meetings (ndr_trips.json). Returns (events, undated_ndr_count); undated NDR meetings (TBD trip
-    dates) are counted, not placed on the grid."""
+    """Read-only calendar events for the client's meetings, via core.meetings. Returns
+    (events, undated_ndr_count); undated (TBD-trip) NDR meetings are counted, not placed."""
     out, undated = [], 0
-    for mtg in (db.load_json("scheduled_meetings.json", [], client_id=cid) or []):
-        d = _parse_ymd(mtg.get("Date"))
-        if not d:
+    for r in meetings.all_meetings(cid):
+        if not r["date"]:
+            undated += 1 if r["source"] == "ndr" else 0
             continue
+        layer = "meeting" if r["source"] == "scheduled" else "ndr"
+        pre = "1×1 · " if layer == "meeting" else "NDR · "
         out.append({
-            "Event": "1×1 · " + (mtg.get("Firm") or mtg.get("Contact") or "Meeting"),
-            "Date": d.isoformat(), "Type": "1×1 Meeting",
-            "Status": mtg.get("Status", ""), "Priority": mtg.get("Priority", ""),
-            "Attending": mtg.get("Contact", ""), "Organizer": mtg.get("Firm", ""),
-            "Location": mtg.get("Location", ""), "Notes": mtg.get("Topic", "") or mtg.get("Notes", ""),
-            "_readonly": True, "_layer": "meeting",
+            "Event": pre + (r["firm"] or r["contact"] or "Meeting"),
+            "Date": r["date"].isoformat(),
+            "Type": "1×1 Meeting" if layer == "meeting" else "NDR",
+            "Status": r["status"], "Priority": r["priority"],
+            "Attending": r["contact"], "Organizer": r["group"] or r["firm"],
+            "Location": r["location"],
+            "Notes": " · ".join(x for x in (r["time"], r["topic"]) if x),
+            "_readonly": True, "_layer": layer,
         })
-    for t in (db.load_json("ndr_trips.json", [], client_id=cid) or []):
-        start = _parse_trip_start(t.get("dates"))
-        for mtg in (t.get("meetings") or []):
-            if not start:
-                undated += 1
-                continue
-            try:
-                md = start + timedelta(days=max(0, int(mtg.get("day", 1) or 1) - 1))
-            except Exception:
-                undated += 1
-                continue
-            out.append({
-                "Event": "NDR · " + (mtg.get("institution") or "Meeting"),
-                "Date": md.isoformat(), "Type": "NDR",
-                "Status": mtg.get("status", ""), "Priority": "",
-                "Attending": mtg.get("contact", ""), "Organizer": t.get("name", ""),
-                "Location": t.get("city", ""),
-                "Notes": " · ".join(x for x in (mtg.get("time", ""), mtg.get("notes", "")) if x and x != "—"),
-                "_readonly": True, "_layer": "ndr",
-            })
     return out, undated
 
 STATUS_OPTIONS = [
@@ -220,7 +176,7 @@ def render_calendar_page():
         # never takes the page down (a real risk once meetings/NDRs are folded in).
         out = []
         for e in events + _overlay:
-            d = _parse_ymd(e.get("Date"))
+            d = meetings.parse_ymd(e.get("Date"))
             if d and d >= today:
                 out.append(e)
         return out
@@ -228,7 +184,7 @@ def render_calendar_page():
     def _deadlines():
         out = []
         for e in _upcoming():
-            dl = _parse_ymd(e.get("Deadline"))
+            dl = meetings.parse_ymd(e.get("Deadline"))
             if dl and today <= dl <= today + timedelta(days=30):
                 out.append(e)
         return out
