@@ -198,41 +198,45 @@ def render_lighthouse_page():
             except Exception as e:
                 ui.notify(f"Error: {e}", type="negative", timeout=15000)
 
-        with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-            ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
-                .props("outline size=sm color=primary")
-            ui.label("sends the daily digest to your configured address and shows the result here — "
-                     "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
-        # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
-        # it sends a real notification on demand — so delivery can be proven without waiting for a
-        # Critical market day.
-        with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-            ui.html(f'<button onclick="window.irconnectSubscribePush(\'{client_id}\')" '
-                    'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
-                    'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
-                    'sans-serif;cursor:pointer;">🔔 Enable phone alerts</button>')
+        # Operator delivery/test controls — tucked into a collapsed expander so they don't lead the
+        # CEO-facing "why did my stock move" answer (which renders above via _answer_slot).
+        with ui.expansion("Alert & delivery setup — send a test digest, enable phone alerts",
+                          icon="settings", value=False).classes("w-full").style("margin-bottom:8px;"):
+            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
+                    .props("outline size=sm color=primary")
+                ui.label("sends the daily digest to your configured address and shows the result here — "
+                         "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
+            # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
+            # it sends a real notification on demand — so delivery can be proven without waiting for a
+            # Critical market day.
+            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                ui.html(f'<button onclick="window.irconnectSubscribePush(\'{client_id}\')" '
+                        'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
+                        'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
+                        'sans-serif;cursor:pointer;">🔔 Enable phone alerts</button>')
 
-            def _send_test_push():
-                try:
-                    import os
-                    from lighthouse import push
-                    rep = push.send_to_client(
-                        client_id, f"{ticker} — test alert",
-                        "Phone alerts are working. This is a Lighthouse test push.",
-                        url=(os.environ.get("LIGHTHOUSE_APP_URL", "") or "/"), tag="lh-test")
-                    if rep.get("sent"):
-                        ui.notify(f"Test push sent to {rep['sent']} device(s).", type="positive")
-                    elif rep.get("total") == 0:
-                        ui.notify("No subscribed devices yet — tap Enable phone alerts on your phone first.",
-                                  type="warning")
-                    else:
-                        ui.notify("Couldn't deliver — the subscription may be stale; re-enable on your phone.",
-                                  type="warning")
-                except Exception:
-                    ui.notify("Test push failed — see server log.", type="negative")
+                def _send_test_push():
+                    try:
+                        import os
+                        from lighthouse import push
+                        rep = push.send_to_client(
+                            client_id, f"{ticker} — test alert",
+                            "Phone alerts are working. This is a Lighthouse test push.",
+                            url=(os.environ.get("LIGHTHOUSE_APP_URL", "") or "/"), tag="lh-test")
+                        if rep.get("sent"):
+                            ui.notify(f"Test push sent to {rep['sent']} device(s).", type="positive")
+                        elif rep.get("total") == 0:
+                            ui.notify("No subscribed devices yet — tap Enable phone alerts on your phone first.",
+                                      type="warning")
+                        else:
+                            ui.notify("Couldn't deliver — the subscription may be stale; re-enable on your phone.",
+                                      type="warning")
+                    except Exception:
+                        ui.notify("Test push failed — see server log.", type="negative")
 
-            ui.button("Send test push", on_click=_send_test_push).props("flat dense size=sm")
+                ui.button("Send test push", on_click=_send_test_push).props("flat dense size=sm")
 
         try:                                            # used-vs-ignored readout (measure, don't hope)
             from lighthouse import telemetry as _tel
