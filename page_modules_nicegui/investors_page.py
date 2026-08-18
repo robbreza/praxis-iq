@@ -6269,11 +6269,8 @@ def _render_ndr_requests_tab(refresh_fn=None):
                 _do_refresh()
         ui.button("Check for replies", icon="mark_email_unread", on_click=_check_replies).props(
             "flat dense").style(f"color:{COLORS['text_muted']};")
-    ui.label(
-        "Analyst requests to slot a management meeting into a city — they feed the WHERE TO GO read and "
-        "the 'Who's asking' detail on Targeting / Ownership. Resolve a request once it's been scheduled "
-        "(or declined) so it stops counting as open demand."
-    ).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+    ui.label("Analyst asks to meet management in a city. Resolve once scheduled or declined so it stops "
+             "counting as open demand.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
     with ui.expansion("Log a new request", value=False).classes("w-full"):
         with ui.row().classes("w-full gap-4"):

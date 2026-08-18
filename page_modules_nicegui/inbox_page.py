@@ -34,8 +34,8 @@ def render_inbox_page():
         "Every investor email, read and filed",
         "Models, research notes, and meeting/NDR requests emailed to your IR mailbox are auto-parsed "
         "and filed here for one-click confirmation.",
-        tag="AI mail classification")
-    ui.element("div").style("height:8px;")
+        tag="AI mail classification", compact=True)
+    ui.element("div").style("height:10px;")
 
     # One compact action bar. The Sync action lives HERE now — it previously existed only on the
     # Meeting Hub, so this page told you to go sync somewhere else (a broken flow). The connection
@@ -88,29 +88,52 @@ def render_inbox_page():
     from core import inbox_queue
     pending = inbox_queue.list_pending_items()
 
+    # One header system so the page reads as two clear zones (act-on-this over archive) instead of a
+    # flat stack of differently-styled blocks. The count pill turns accent ONLY when something needs
+    # you — the single reserved use of the accent colour on this page.
+    def _zone_head(title, count=None):
+        with ui.row().classes("w-full items-center gap-2").style(
+                f"margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid {COLORS['border']};"):
+            ui.label(title.upper()).style(
+                f"color:{COLORS['text_heading']};font-size:var(--fs-sm);font-weight:700;"
+                "text-transform:uppercase;letter-spacing:.06em;")
+            if count is not None:
+                _hot = count > 0
+                ui.label(str(count)).style(
+                    f"background:{COLORS['accent'] if _hot else COLORS['surface_hover_bg']};"
+                    f"color:{'#fff' if _hot else COLORS['text_muted']};border-radius:999px;"
+                    "padding:1px 9px;font-size:var(--fs-2xs);font-weight:700;min-width:20px;text-align:center;")
+
+    # ══ ZONE 1 · Needs you — parsed items + open meeting/NDR requests awaiting a decision ══
+    try:
+        from page_modules_nicegui.investors_page import _load_ndr_requests
+        _open_reqs = len([r for r in (_load_ndr_requests() or []) if not r.get("resolved")])
+    except Exception:
+        _open_reqs = 0
+    _zone_head("Needs you", count=len(pending) + _open_reqs)
+
     if pending:
         # Same category-specific confirm/dismiss cards used in Investor Targeting.
         from page_modules_nicegui.investors_page import _render_pending_inbox_items
         _render_pending_inbox_items()
     else:
+        # Quiet empty state — no accent rail (nothing to act on), so the accent stays meaningful.
         with ui.card().classes("w-full").style(
-                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
-                f"border-left:4px solid {COLORS['accent']};margin-top:10px;"):
-            ui.label("Inbox is clear").classes("font-bold").style(f"color:{COLORS['text_heading']};")
-            ui.label("Nothing waiting on you.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+                f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"):
+            ui.label("Nothing waiting on you — parsed emails land here for one-click confirmation.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-    # Inbound NDR / Meeting Requests — an analyst asking to slot a management meeting into a city.
-    # Relocated here from the NDR tab: a confirmed NDR-request email lands in this list, where you
-    # reply / schedule it into a roadshow / resolve it. Wrapped in a refreshable so those actions
-    # repaint just this section (not the whole page).
+    # Inbound NDR / Meeting Requests — a confirmed NDR-request email lands in this list, where you
+    # reply / schedule / resolve it. Refreshable so those actions repaint just this section.
     from page_modules_nicegui.investors_page import _render_ndr_requests_tab
-    ui.markdown("---")
 
     @ui.refreshable
     def _ndr_requests_section():
         _render_ndr_requests_tab(refresh_fn=_ndr_requests_section.refresh)
     _ndr_requests_section()
+
+    # ══ ZONE 2 · Filed — the searchable archive of everything already handled ══
+    _zone_head("Filed")
 
     # Recently filed — a short history so the ingestion is visible even when the queue is clear.
     recent = []
@@ -122,7 +145,7 @@ def render_inbox_page():
     recent.sort(key=lambda i: i.get("received_at", ""), reverse=True)
     recent = recent[:12]
     if recent:
-        ui.label("Recently filed").classes("section-head").style("margin-top:18px;")
+        ui.label("Recently filed").classes("section-head").style("margin-top:4px;")
         for it in recent:
             # Expandable so a filed row isn't a dead end — tap to see what it was, where it was
             # filed, and the original text, without leaving the inbox.
