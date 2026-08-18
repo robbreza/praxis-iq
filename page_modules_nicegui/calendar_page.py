@@ -173,18 +173,6 @@ def render_calendar_page():
                 _metric_card(label, counts[mode], hint, _filter["mode"] == mode,
                              lambda m=mode: set_filter(m))
 
-    if _deadlines():
-        ui.label("Registration Deadlines Coming Up").classes("text-lg font-bold").style(
-            f"margin-top:20px;color:{COLORS['text_heading']}"
-        )
-        for e in sorted(_deadlines(), key=lambda x: x["Deadline"]):
-            days_left = (datetime.strptime(e["Deadline"], "%Y-%m-%d").date() - today).days
-            color = COLORS["danger"] if days_left <= 7 else COLORS["warning"]
-            with ui.row().classes("items-center w-full").style(
-                f"border:1px solid {color};border-radius:8px;padding:8px 14px;margin-bottom:6px;"
-            ):
-                ui.label(f"{e['Event']} · Deadline {e['Deadline']} ({days_left}d) · {e['Status']}").style(f"color:{color}")
-
     # View state (list vs. calendar) and calendar-month navigation.
     _view = {"mode": "list"}
     _cal = {"month": today.replace(day=1)}
@@ -338,6 +326,20 @@ def render_calendar_page():
 
     render_cards()
     render_view()
+
+    # Registration deadlines — placed just above the Add-Event form so the "what's closing soon"
+    # prompt sits right where you'd act on it (moved down from the top of the page).
+    if _deadlines():
+        ui.label("Registration Deadlines Coming Up").classes("text-lg font-bold").style(
+            f"margin-top:20px;color:{COLORS['text_heading']}"
+        )
+        for e in sorted(_deadlines(), key=lambda x: x["Deadline"]):
+            days_left = (datetime.strptime(e["Deadline"], "%Y-%m-%d").date() - today).days
+            color = COLORS["danger"] if days_left <= 7 else COLORS["warning"]
+            with ui.row().classes("items-center w-full").style(
+                f"border:1px solid {color};border-radius:8px;padding:8px 14px;margin-bottom:6px;"
+            ):
+                ui.label(f"{e['Event']} · Deadline {e['Deadline']} ({days_left}d) · {e['Status']}").style(f"color:{color}")
 
     with ui.expansion("Add Event to Calendar").classes("w-full").style("margin-top:20px;"):
         with ui.row().classes("w-full gap-4"):
