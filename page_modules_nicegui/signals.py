@@ -43,6 +43,18 @@ def waiting_signal(what, detail=None, unlocks=None, compact=False):
                 f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);font-style:italic;")
 
 
+def empty_state(message, hint=None):
+    """Neutral "nothing here yet" placeholder — the calm counterpart to the amber waiting_signal.
+    Use for a genuinely empty list ("no items match", "none logged yet"), NOT for a data source that
+    isn't wired (that's waiting_signal). One shared shape so empty states read the same across pages."""
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:8px;padding:12px 16px;gap:2px;"):
+        ui.label(message).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
+        if hint:
+            ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+
+
 def capability_banner(title, why, *, tag="IRconnect capability", icon="◆", compact=False):
     """Elevate a SIGNATURE, LIVE capability in a page's hierarchy so it reads as a platform
     strength at a glance — not commodity data sitting flat among equal-weight cards. The accent

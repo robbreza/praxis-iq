@@ -33,6 +33,7 @@ from config.client_config import get_active_client_id
 from config.theme_tokens import ACTIVE as COLORS
 from core import conferences, db, ui_context
 from data.seed.conferences import get_seed_conferences
+from page_modules_nicegui.signals import empty_state
 
 STATUS_OPTIONS = [
     "Confirmed", "Needs to be Scheduled", "Invited — pending confirmation", "Scheduled",
@@ -221,7 +222,7 @@ def render_calendar_page():
             f"color:{COLORS['text_muted']};"
         )
         if not shown:
-            ui.label("No events match this filter.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-base);")
+            empty_state("No events match this filter.")
         for ev in shown:
             is_high = ev.get("Priority") == "High"
             caption = f"{ev['Date']} · {ev.get('Location','—')} · {ev['Status']}" + (
@@ -299,8 +300,7 @@ def render_calendar_page():
                     else:
                         _day_cell(m, day, by_day.get(day, []))
         if not shown:
-            ui.label("No events match this filter.").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-base);margin-top:6px;")
+            empty_state("No events match this filter.")
 
     def render_view():
         view_body.clear()
