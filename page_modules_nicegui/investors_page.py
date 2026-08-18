@@ -4861,6 +4861,10 @@ def _build_ndr_itinerary_html(trip, ticker):
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
         f"<title>{esc(ticker)} NDR — {esc(trip.get('name', ''))}</title><style>"
+        # This is a standalone window.open() document — the app's --fs-* type-scale vars do NOT exist
+        # here, so the var(--fs-*) sizes below all collapsed to the ~16px default (no hierarchy on a
+        # doc physically handed to management/analysts). Define the scale locally so the rules resolve.
+        ":root{--fs-2xl:21px;--fs-xl:19px;--fs-md:15px;--fs-base:14px;--fs-sm:13px;--fs-xs:12px;}"
         "body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0F172A;margin:32px;}"
         "h1{font-size:var(--fs-2xl);margin:0 0 2px;}.sub{color:#475569;font-size:var(--fs-base);margin-bottom:12px;}"
         ".meta-block div{font-size:var(--fs-base);margin:2px 0;color:#334155;}"
