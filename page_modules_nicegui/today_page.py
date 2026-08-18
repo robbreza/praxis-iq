@@ -995,14 +995,16 @@ def _open_target_list_dialog():
                  "RSVP data. Below is a same-profile candidate list from the Target Database (New York route, "
                  "small-cap value/growth mandate), not a verified roster of who's actually attending.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        # No numeric "fit" here — these are illustrative same-profile names, and a two-digit score
+        # would read as real precision the app can't back for this (unscored) list.
         candidates = [
-            ("Royce Investment Partners", "Small-cap value", 82),
-            ("Kennedy Capital Management", "Small-cap growth", 76),
-            ("Conestoga Capital Advisors", "Small-cap growth", 71),
-            ("Robotti & Company", "Deep value / special situations", 68),
+            ("Royce Investment Partners", "Small-cap value"),
+            ("Kennedy Capital Management", "Small-cap growth"),
+            ("Conestoga Capital Advisors", "Small-cap growth"),
+            ("Robotti & Company", "Deep value / special situations"),
         ]
-        for name, mandate, fit in candidates:
-            ui.label(f"• {name} — {mandate} · Fit {fit:.0f}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
+        for name, mandate in candidates:
+            ui.label(f"• {name} — {mandate}").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
         ui.button("Close", on_click=dialog.close).props("flat")
     dialog.open()
 
@@ -1289,7 +1291,6 @@ def _render_investor_pipeline():
         score = inst["Engagement_Score"]
         hld = "Holder" if inst["USIO_Holder"] else "Non-holder"
         nt = inst.get("Action", "—")
-        dot = "" if inst["USIO_Holder"] else ("" if score >= 80 else "")
         info = contacts.get(nm, {"name": "Contact", "email": ""})
         full = _full_by_fund.get((nm or "").upper())
 
@@ -1380,7 +1381,7 @@ def _render_investor_pipeline():
 
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border:1px solid {COLORS['border']};"):
             with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"{dot} {pretty_name(nm)}".strip()).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-base);")
+                ui.label(pretty_name(nm)).classes("font-bold").style(f"color:{COLORS['accent_light']};font-size:var(--fs-base);")
                 ui.label(f"{score}/100").classes("font-bold").style(f"color:{COLORS['text_heading']};")
             ui.label(f"{hld} · {nt}").classes("t-meta")
             with _signal_actions():

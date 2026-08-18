@@ -1,13 +1,14 @@
 """
 page_modules_nicegui/reports_page.py — Reports & Deliverables page, NiceGUI version.
 
-Five tabs, ported from the original Streamlit "Reports" section:
+Five tabs:
 1. Board IR Reports        — embedded report-page images + reviewed tracking
+2. 90-Day IR Plan          — the rolling IR plan (t_plan)
 3. Peer & Market Analysis  — embedded report-page images + key findings
 4. Reg FD & Compliance     — the important one: quiet-period banner, log-an-
                               interaction form, full log with filters, risk
                               flags, and a CSV export. Legal audit trail.
-6. Automation Tracker      — new, not in app.py. Same "expansion card with
+5. Automation Tracker      — Same "expansion card with
                               a KEY FINDING" visual pattern as Peer & Market
                               Analysis, but live-computed from
                               core/activity_log.py instead of static

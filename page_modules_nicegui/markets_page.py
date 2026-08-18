@@ -439,22 +439,6 @@ def _mute_signal(state, key, days, launched_from):
 # ─────────────────────────────────────────────────────────────────────────
 # Consensus Matrix
 # ─────────────────────────────────────────────────────────────────────────
-def _risk_level(g, models_in, models_total):
-    cov = models_in / models_total if models_total else 0
-    rev_var = (g.get("street_rev", 0) - g["Revenue Est ($M)"]) / g["Revenue Est ($M)"] * 100 if g.get("Revenue Est ($M)") else 0
-    if cov == 0:
-        return "red", "No data yet"
-    if cov < 0.5:
-        return "red", "Problem"
-    if abs(rev_var) > 5:
-        return "red", "Beat/miss bar too wide"
-    if cov < 0.8:
-        return "amber", "Watch"
-    if abs(rev_var) <= 3:
-        return "green", "In line"
-    return "amber", "Watch"
-
-
 def _safe_avg(vals):
     v = [x for x in vals if x is not None]
     return round(sum(v) / len(v), 2) if v else None

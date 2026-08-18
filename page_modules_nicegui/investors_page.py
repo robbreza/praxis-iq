@@ -1950,7 +1950,7 @@ def _render_curated_targets(client_id):
     from core import curated_targets, peer_prospects
 
     ui.label("Curated targets — known accounts the crawl can't find").classes(
-        "text-md font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
+        "text-lg font-bold").style(f"color:{COLORS['text_heading']};margin-top:6px;")
     ui.label("A peer-holder crawl only finds funds that already own a comp. Accounts you know are a fit but "
              "that don't hold a peer today — a Geneva/Lugano private bank, a relationship from a prior seat — "
              "go here by hand and appear in the metro view above, tagged 'Curated' (never 'holds a comp'). "
@@ -2753,7 +2753,7 @@ def _open_lineup_crosswalk_dialog():
         confirmed = [e for e in entries if e.get("confirmed")]
         rejected = [e for e in entries if e.get("rejected")]
 
-        ui.label(f"Needs your confirmation ({len(review)})").classes("text-md font-bold").style(
+        ui.label(f"Needs your confirmation ({len(review)})").classes("text-lg font-bold").style(
             f"color:{COLORS['text_heading']};margin-top:4px;")
         if not review:
             ui.label("Nothing waiting — every ambiguous match is resolved.").style(
@@ -2778,7 +2778,7 @@ def _open_lineup_crosswalk_dialog():
                     _body.refresh()
                 ui.button("Confirm", on_click=_do).props("dense color=primary")
 
-        ui.label(f"Auto-matched — high confidence ({len(high)})").classes("text-md font-bold").style(
+        ui.label(f"Auto-matched — high confidence ({len(high)})").classes("text-lg font-bold").style(
             f"color:{COLORS['text_heading']};margin-top:14px;")
         ui.label("Validated against the family's current SEC name. Skim for anything off.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
@@ -6765,7 +6765,10 @@ def _render_meeting_hub_tab():
     # either list yet (e.g. a brand-new prospect) rather than locking the
     # form to only known names.
     known_contacts = get_institution_contacts()
-    firm_options = sorted({i["Fund"] for i in get_seed_buyside_institutions(get_active_client_id())}
+    # Source firm suggestions from the LIVE 13F-derived institutions + real contacts, not the retired
+    # fabricated buyside seed (which could suggest firms that aren't in the live book).
+    from core import targets as _tg_mod
+    firm_options = sorted({i["Fund"] for i in (_tg_mod.targets_as_institutions(client_id=get_active_client_id()) or [])}
                            | set(known_contacts.keys()))
 
     def _autofill_contact(e, contact_field):
@@ -6960,7 +6963,7 @@ def _render_meeting_hub_tab():
                     n_firm.on_value_change(lambda e: _autofill_contact(e, n_contact))
                     n_side = ui.select(["Buy-side", "Sell-side"], label="Side", value="Buy-side").classes("w-full").props("outlined dense")
                     n_type = ui.select(["Intro call", "Follow-up call", "1x1 — Investor Conference",
-                                         "Model update call", "Callback", "Other", "Remove"],
+                                         "Model update call", "Callback", "Other"],
                                         label="Meeting Type", value="Intro call").classes("w-full").props("outlined dense")
                 with ui.column().classes("flex-1"):
                     n_raw = ui.textarea("Raw notes", placeholder="Type exactly what you heard and said, no need to format").classes("w-full").props("rows=8 outlined")
