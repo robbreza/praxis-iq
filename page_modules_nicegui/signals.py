@@ -55,6 +55,43 @@ def empty_state(message, hint=None):
             ui.label(hint).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
 
+def meeting_card(rec, *, extras=None, actions=None):
+    """One meeting rendered from a core.meetings canonical record — the shared card for the Calendar
+    overlay, Meeting Hub, and anywhere else, so meetings read the same everywhere. Source-tinted:
+    teal = standalone 1×1, purple = NDR.
+      rec     — a record from core.meetings (all_meetings / normalize_*).
+      extras  — optional callable() rendered in the body (e.g. linked documents).
+      actions — optional callable() rendered as a bottom action row (e.g. Notes / Edit)."""
+    src = rec.get("source")
+    tint = {"scheduled": "#0E7490", "ndr": "#7C3AED"}.get(src, COLORS["accent"])
+    tag = {"scheduled": "1×1", "ndr": "NDR"}.get(src, "Meeting")
+    firm = rec.get("firm") or rec.get("contact") or "Meeting"
+    contact = rec.get("contact") or ""
+    d = rec.get("date")
+    when = (d.isoformat() if d else ("dates TBD" if rec.get("date_tbd") else "—"))
+    if rec.get("time"):
+        when += " · " + rec["time"]
+    side = {"buy": "Buy-side", "sell": "Sell-side"}.get(rec.get("side"), "")
+    cap = "  ·  ".join(x for x in (when, side, rec.get("status"), rec.get("group")) if x)
+    header = firm + (f" · {contact}" if contact else "")
+    with ui.expansion(header, caption=cap).classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            f"border-left:3px solid {tint};border-radius:8px;"):
+        with ui.row().classes("items-center gap-2").style("margin-bottom:2px;"):
+            ui.label(tag).style(f"background:{tint}22;color:{tint};border-radius:6px;padding:0 7px;"
+                                "font-size:var(--fs-2xs);font-weight:700;")
+            _t = "  ·  ".join(x for x in (rec.get("type"),
+                                          (f"Priority: {rec['priority']}" if rec.get("priority") else "")) if x)
+            if _t:
+                ui.label(_t).style(f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);")
+        if rec.get("topic"):
+            ui.label(rec["topic"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+        if extras:
+            extras()
+        if actions:
+            actions()
+
+
 def capability_banner(title, why, *, tag="IRconnect capability", icon="◆", compact=False):
     """Elevate a SIGNATURE, LIVE capability in a page's hierarchy so it reads as a platform
     strength at a glance — not commodity data sitting flat among equal-weight cards. The accent
