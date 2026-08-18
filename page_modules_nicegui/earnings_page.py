@@ -7184,7 +7184,35 @@ def _render_transcripts_tab():
                         transcripts.delete_transcript(q)
                         ui.notify(f"{q} transcript deleted.")
                         _refresh()
-                    ui.button("", on_click=delete_this).props("flat dense")
+                    ui.button(icon="delete", on_click=delete_this).props("flat dense round").tooltip(
+                        "Delete this transcript")
+
+            # Read the FULL transcript text. The "Read the transcript" card on the Script Prep tab lands
+            # on this tab, so every ingested call must be openable here — not only searchable or
+            # AI-summarized (a just-ingested quarter has full text but no summary yet, so without this it
+            # was a dead end). Loaded lazily on expand: list_transcripts omits the body; get_transcript
+            # fetches it, so we pay that read only when the user actually opens a call.
+            _ft_exp = ui.expansion("Read full text", icon="description").classes("w-full").props("dense")
+            _ft_state = {"loaded": False}
+
+            def _load_full_text(_=None, q=rec["quarter"], holder=_ft_exp, state=_ft_state):
+                if state["loaded"]:
+                    return
+                state["loaded"] = True
+                full = transcripts.get_transcript(q) or {}
+                text = full.get("full_text") or ""
+                with holder:
+                    if text:
+                        ui.label(text).style(
+                            f"color:{COLORS['text_body']};font-size:var(--fs-sm);white-space:pre-wrap;"
+                            "display:block;max-height:460px;overflow-y:auto;"
+                            f"border:1px solid {COLORS['border']};border-radius:8px;padding:10px 12px;"
+                            f"background:{COLORS['surface_hover_bg']};")
+                    else:
+                        ui.label("No stored text for this transcript — re-ingest it from the form above.").style(
+                            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+
+            _ft_exp.on_value_change(_load_full_text)
 
             if not rec.get("ai_summary"):
                 summary_area = ui.column().classes("w-full")
