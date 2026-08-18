@@ -1703,14 +1703,20 @@ def _render_peer_watch():
         ui.label("Daily monitor of the segmented peer group — price moves and SEC filings.").style(
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
+        # Consistent inner-card header: bold title + a full-width divider rule under it, so every
+        # sub-card (moves · filings · headlines · peer news) reads the same way.
+        def _inner_head(text):
+            ui.label(text).classes("font-bold").style(
+                f"color:{COLORS['text_body']};font-size:var(--fs-sm);width:100%;"
+                f"border-bottom:1px solid {COLORS['border']};padding-bottom:5px;margin-bottom:6px;")
+
         movers = s["movers"] or s["all_movers"][:4]
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
             if not movers:
                 ui.label("Peer market data refreshing — check back shortly.").style(
                     f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
             else:
-                ui.label("Today's moves").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                _inner_head("Today's moves")
                 for m in movers[:5]:
                     clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
                     tag = ("  ◆ closest analog" if m.get("closest_analog")
@@ -1726,8 +1732,7 @@ def _render_peer_watch():
 
         if s["filings"]:
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-                ui.label("Recent peer SEC filings").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                _inner_head("Recent peer SEC filings")
                 for f in s["filings"][:5]:
                     who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
                     def _filing_line():
@@ -1747,8 +1752,7 @@ def _render_peer_watch():
         _tk = CT("ticker")
         own = news_feed.recent(ticker=_tk, limit=6)
         with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-            ui.label(f"{_tk} headlines · rolling 7 days").classes("font-bold").style(
-                f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+            _inner_head(f"{_tk} headlines · rolling 7 days")
             if own:
                 for n in own:
                     with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
@@ -1766,8 +1770,7 @@ def _render_peer_watch():
         peer_news = [i for i in news_feed.recent(limit=12) if i.get("ticker") != _tk][:6]
         if peer_news:
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
-                ui.label("Peer & competitor news · rolling 7 days").classes("font-bold").style(
-                    f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                _inner_head("Peer & competitor news · rolling 7 days")
                 for n in peer_news:
                     with ui.link(target=n.get("url") or "#", new_tab=True).style("text-decoration:none;"):
                         with ui.column().classes("gap-0").style("padding:2px 0;"):
