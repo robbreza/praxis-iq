@@ -468,10 +468,25 @@ def render_today_page():
         with ui.card().classes("w-full md:flex-[3]").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;padding:12px 20px;"):
             # Header band flush to the card edges (negative margins cancel the card's padding) so the
             # body below doesn't need re-indenting — matches the story card's neutral header.
+            async def _refresh_metrics():
+                # Acknowledge the click immediately (the fetch is a live network call and can take a
+                # second or two), then confirm on completion. Runs the snapshot off the event loop so
+                # the "Refreshing…" toast actually paints before the fetch blocks.
+                import asyncio
+                ui.notify("Refreshing market data…")
+                await asyncio.to_thread(market_data.get_snapshot, CT("ticker"),
+                                        refresh_if_stale=True, max_age_minutes=0)
+                ui.notify("Market metrics updated.", type="positive")
+                nav.go_to("Today")
+
             with ui.row().classes("rhead rhead-neutral items-center").style(
                     "margin:-12px -20px 10px;width:calc(100% + 40px);"):
                 ui.label("Key market metrics")
-                ui.button(icon="refresh", on_click=lambda: (market_data.get_snapshot(CT("ticker"), refresh_if_stale=True, max_age_minutes=0), nav.go_to("Today"))).props("flat dense round size=sm").style("margin-left:auto;")
+                # Refresh control: the icon with the word "Refresh" beneath it (was a bare circle).
+                with ui.column().classes("items-center gap-0").style("margin-left:auto;"):
+                    ui.button(icon="refresh", on_click=_refresh_metrics).props("flat dense round size=sm")
+                    ui.label("Refresh").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-2xs);line-height:1;margin-top:-2px;")
             # One metric pattern, repeated: eyebrow label · 18px value · semantic-
             # coloured delta. Consistent sizing is what makes it read as a designed
             # data panel rather than three differently-styled lines.
