@@ -297,7 +297,7 @@ def _last_price():
     snap = market_data.get_snapshot(CT("ticker"))
     if snap and snap.get("last_price") is not None:
         return snap["last_price"]
-    return CT("last_price", 2.15)
+    return CT("last_price", 0)
 
 
 def _metric(label, value, sub, delta=None):
@@ -677,7 +677,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
             _seps = "—" if con_eps is None else f"${con_eps:.2f}"
             _grev = "—" if grev is None else f"${grev:.1f}M"
             _geps = "—" if geps is None else f"${geps:.2f}"
-            upside_pct = round((con_pt - last_price) / last_price * 100, 1) if con_pt else None
+            upside_pct = round((con_pt - last_price) / last_price * 100, 1) if (con_pt and last_price) else None
             with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {bc};"):
                 ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:var(--fs-sm);font-weight:600;")
                 ui.label(label).style(f"color:{bc};font-size:var(--fs-sm);font-weight:700;")
@@ -726,7 +726,7 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                 _metric("Models Ingested", f"{len(ingested_ests)}/{len(firms)}", period)
                 _metric("Street Rating", f"{buy_count} Buy" if ingested_ests else "—", f"{len(ingested_ests)} rated")
                 _metric("Consensus PT", f"${con_pt:.2f}" if con_pt else "—",
-                        f"{(con_pt-last_price)/last_price*100:+.0f}% upside" if con_pt else "")
+                        f"{(con_pt-last_price)/last_price*100:+.0f}% upside" if (con_pt and last_price) else "")
                 _eps_d = _bm_tag(con_eps, g.get("EPS Est"), money=False)
                 _rev_d = _bm_tag(con_rev, g.get("Revenue Est ($M)"), money=True)
                 _metric("Consensus EPS", f"${con_eps:.2f}" if con_eps is not None else "—",
