@@ -641,6 +641,7 @@ import copy as _copy
 
 _MEM_CACHE = {}
 _ABSENT = object()   # cached marker: "queried, no such key in the DB"
+_PREFETCHED_ALL = set()   # client_ids whose whole JSON store prefetch_all() already loaded this process
 
 
 def _cache_return(v, default):
@@ -654,6 +655,7 @@ def clear_cache(client_id=None, key=None):
     clears just that entry (for the active or given client)."""
     if key is None:
         _MEM_CACHE.clear()
+        _PREFETCHED_ALL.clear()   # a full clear must let prefetch_all() re-run
         return
     _MEM_CACHE.pop((_resolve_client_id(client_id), key), None)
 
@@ -757,8 +759,14 @@ def prefetch_all(client_id=None):
 
     Only fills keys NOT already cached (never clobbers a value a save_json may have just updated).
     Same present-only + authoritative-store rules as prefetch(). Pulls the whole client_data blob, so
-    prefer targeted prefetch(keys) on pages that read only a handful of stores."""
+    prefer targeted prefetch(keys) on pages that read only a handful of stores.
+
+    Idempotent per process: once it has loaded a client's store it records the client and returns
+    immediately on later calls, so re-rendering a heavy page doesn't re-run the full-table SELECT every
+    time. clear_cache() (no args) resets this; save_json keeps individual entries coherent meanwhile."""
     cid = _resolve_client_id(client_id)
+    if cid in _PREFETCHED_ALL:
+        return
     conn = get_connection()
     try:
         pg = connection_is_postgres(conn)
@@ -779,6 +787,7 @@ def prefetch_all(client_id=None):
                     _MEM_CACHE[(cid, k)] = json.loads(v)
                 except Exception:
                     pass
+        _PREFETCHED_ALL.add(cid)   # whole store loaded — later calls short-circuit
     finally:
         conn.close()
 
