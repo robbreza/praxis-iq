@@ -90,6 +90,12 @@ def meeting_card(rec, *, extras=None, actions=None):
             extras()
         if actions:
             actions()
+        if rec.get("source_inbox_id"):   # Phase 2: this meeting came from a parsed email — link back
+            def _open_inbox():
+                from page_modules_nicegui import nav as _nav
+                _nav.go_to("IR Inbox")
+            ui.label("✉ From an inbox email — open IR Inbox").classes("cursor-pointer").style(
+                f"color:{COLORS['accent']};font-size:var(--fs-xs);margin-top:2px;").on("click", _open_inbox)
 
 
 def capability_banner(title, why, *, tag="IRconnect capability", icon="◆", compact=False):
