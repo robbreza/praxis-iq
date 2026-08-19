@@ -1231,6 +1231,60 @@ def _next_open_slot(trip):
     return None, None
 
 
+def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
+    """Unified inbound scheduler (Phase 2): a meeting request from the IR Inbox becomes either a
+    standalone 1×1 (scheduled_meetings) or logged NDR demand (ndr_requests) — the classifier tag no
+    longer hard-picks the store; you do, in one dialog. Every write stamps source_inbox_id so the
+    meeting links back to its email. Scheduling straight into an existing trip stays the 2-step
+    (log demand → Plan NDR → _open_schedule_request_dialog)."""
+    from core import meetings as _m
+    cid = get_active_client_id()
+    contact, firm = item.get("contact", ""), item.get("firm", "")
+    with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(460px,94vw);"):
+        ui.label(f"Schedule — {contact or firm or 'meeting request'}").classes("text-lg font-bold")
+        mode = ui.toggle({"1x1": "Standalone 1×1", "ndr": "NDR demand (roadshow)"},
+                         value=default_mode).props("dense")
+        with ui.column().classes("w-full gap-2") as _c1:
+            d1_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date")
+                               or (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")).props("dense outlined").classes("w-full")
+            d1_time = ui.input("Time", value=extracted.get("time") or "").props("dense outlined").classes("w-full")
+            d1_type = ui.select(["Intro call", "Follow-up call", "Callback", "1x1 — Investor Conference",
+                                 "Model update call", "Other"], value="Callback", label="Type").props("dense outlined").classes("w-full")
+            d1_topic = ui.textarea("Topic", value=extracted.get("topic") or extracted.get("reason") or "").props("dense outlined").classes("w-full")
+        with ui.column().classes("w-full gap-2") as _c2:
+            d2_city = ui.input("City *", value=extracted.get("city") or "").props("dense outlined").classes("w-full")
+            d2_metro = ui.input("Metro region", value=extracted.get("metro") or "").props("dense outlined").classes("w-full")
+            d2_reason = ui.textarea("Reason / context", value=extracted.get("reason") or extracted.get("topic") or "").props("dense outlined").classes("w-full")
+
+        def _sync():
+            _c1.set_visibility(mode.value == "1x1")
+            _c2.set_visibility(mode.value == "ndr")
+        mode.on_value_change(_sync)
+        _sync()
+
+        def _submit():
+            if mode.value == "1x1":
+                _m.create_scheduled(cid, contact=contact, firm=firm, date=d1_date.value, time=d1_time.value,
+                                    type=d1_type.value, topic=d1_topic.value, status="Requested",
+                                    source_inbox_id=item.get("id"))
+                out = f"Scheduled 1×1 with {contact or firm} → Meeting Hub"
+            else:
+                if not (d2_city.value or "").strip():
+                    ui.notify("City is required for an NDR request.", type="warning"); return
+                _m.log_ndr_request(cid, analyst=contact, firm=firm, city=d2_city.value, metro=d2_metro.value,
+                                   reason=d2_reason.value, source_inbox_id=item.get("id"))
+                out = f"Logged NDR request for {d2_city.value} → Outbound · NDR"
+            inbox_queue.mark_confirmed(item["id"], outcome=out)
+            dlg.close()
+            ui.notify(out + ".")
+            on_done()
+
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:8px;"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+            ui.button("Schedule", on_click=_submit).props("color=primary")
+    dlg.open()
+
+
 def _open_schedule_request_dialog(request, on_done):
     """NDR pipeline Phase 4 — an inbound analyst request IS a confirmation, so it goes straight into
     an NDR's schedule at the next open slot (flagged source='inbound'), and the request is resolved.
@@ -7351,26 +7405,15 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     confirm_label = "Confirm Review"
 
                 elif category == "ndr_request":
-                    n_city = ui.input("City *", value=extracted.get("city") or "").classes("w-full").style("margin-top:6px;").props("outlined dense")
-                    n_metro = ui.input("Metro region", value=extracted.get("metro") or "").classes("w-full").props("outlined dense")
-                    n_reason = ui.textarea("Reason / context", value=extracted.get("reason") or "").classes("w-full").props("outlined autogrow")
+                    ui.label((extracted.get('city') or 'city ?')
+                             + (f"  ·  {extracted.get('reason')}" if extracted.get('reason') else "")).style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
+                    ui.label("Log as NDR demand for a roadshow, or schedule a standalone 1×1 — you choose in the dialog.").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-                    def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
-                                n_city=n_city, n_metro=n_metro, n_reason=n_reason):
-                        if not n_city.value:
-                            ui.notify("City is required.", type="warning")
-                            return
-                        reqs = _load_ndr_requests()
-                        reqs.append({
-                            "id": datetime.now().strftime("%Y%m%d%H%M%S"), "analyst": contact, "firm": firm,
-                            "city": n_city.value, "metro": n_metro.value or n_city.value, "reason": n_reason.value or "—",
-                            "received": datetime.now().strftime("%b %d, %Y"), "resolved": False, "seeded": False,
-                        })
-                        _save_ndr_requests(reqs)
-                        inbox_queue.mark_confirmed(item_id, outcome=f"Logged NDR request for {n_city.value}")
-                        ui.notify(f"NDR request from {contact} logged — start a roadshow from it in Outbound → NDR → Plan New NDR.")
-                        _refresh()
-                    confirm_label = "Log NDR Request"
+                    def confirm(item=item, extracted=extracted):
+                        _open_schedule_dialog(item, extracted, _refresh, default_mode="ndr")
+                    confirm_label = "Schedule…"
 
                 elif category == "conference_invite":
                     c_event = ui.input("Event name *", value=extracted.get("event_name") or "").classes("w-full").style("margin-top:6px;").props("outlined dense")
@@ -7457,24 +7500,15 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
                     confirm_label = "Add to Calendar"
 
                 elif category == "speak_to_management":
-                    m_contact_role = ui.input("Requested contact", value=extracted.get("requested_contact") or "CFO / IR").classes("w-full").style("margin-top:6px;").props("outlined dense")
-                    m_topic = ui.textarea("Topic", value=extracted.get("topic") or "").classes("w-full").props("outlined autogrow")
-                    m_date = ui.input("Proposed date (YYYY-MM-DD)", value=(datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")).classes("w-full").props("outlined dense")
+                    ui.label(f"Requested: {extracted.get('requested_contact') or 'CFO / IR'}"
+                             + (f"  ·  {extracted.get('topic')}" if extracted.get('topic') else "")).style(
+                        f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
+                    ui.label("Schedule as a standalone 1×1 or log as NDR demand — you choose in the dialog.").style(
+                        f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-                    def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
-                                m_topic=m_topic, m_date=m_date):
-                        meetings = db.load_json("scheduled_meetings.json", None) or []
-                        meetings.append({
-                            "id": str(uuid.uuid4()), "Contact": contact, "Firm": firm, "Side": "Buy-side",
-                            "Date": m_date.value, "Time": "", "Type": "Callback",
-                            "Topic": m_topic.value or "Speak-to-management request from email — confirm date/time.",
-                            "Status": "Requested", "Priority": "Medium",
-                        })
-                        db.save_json("scheduled_meetings.json", meetings)
-                        inbox_queue.mark_confirmed(item_id, outcome=f"Scheduled meeting request for {contact}")
-                        ui.notify(f"Meeting request from {contact} added to Meeting Hub — confirm date/time there.")
-                        _refresh()
-                    confirm_label = "Schedule Meeting"
+                    def confirm(item=item, extracted=extracted):
+                        _open_schedule_dialog(item, extracted, _refresh, default_mode="1x1")
+                    confirm_label = "Schedule…"
 
                 elif category == "meeting_confirmation":
                     mc_type = ui.select(["1x1 call", "Conference call", "Video call", "In-person", "Other"],
@@ -7485,14 +7519,12 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
 
                     def confirm(item_id=item["id"], contact=item["contact"], firm=item["firm"],
                                 mc_type=mc_type, mc_date=mc_date, mc_time=mc_time, mc_notes=mc_notes):
-                        meetings = db.load_json("scheduled_meetings.json", None) or []
-                        meetings.append({
-                            "id": str(uuid.uuid4()), "Contact": contact, "Firm": firm, "Side": "Buy-side",
-                            "Date": mc_date.value, "Time": mc_time.value, "Type": mc_type.value,
-                            "Topic": mc_notes.value or "Confirmed via email — see original message for details.",
-                            "Status": "Confirmed", "Priority": "Medium",
-                        })
-                        db.save_json("scheduled_meetings.json", meetings)
+                        from core import meetings as _m
+                        _m.create_scheduled(
+                            get_active_client_id(), contact=contact, firm=firm, date=mc_date.value,
+                            time=mc_time.value, type=mc_type.value, status="Confirmed",
+                            topic=mc_notes.value or "Confirmed via email — see original message for details.",
+                            source_inbox_id=item_id)
                         inbox_queue.mark_confirmed(item_id, outcome=f"Logged confirmed meeting with {contact} on {mc_date.value}")
                         ui.notify(f"Confirmed meeting with {contact} added to Meeting Hub.")
                         _refresh()
