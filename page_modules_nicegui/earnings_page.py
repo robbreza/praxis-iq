@@ -3140,6 +3140,35 @@ def _callback_qa_anchors(ss):
     return [a for a in (_qa_anchor(m) for m in b["metrics"]) if a]
 
 
+def _promote_callback_questions(ss):
+    """Accrue this quarter's KPI-DIRECTION questions into the Praxis house Q&A book (global scope,
+    sector-scoped) — closing the gap where the callback prep was live-only per client/quarter. Only the
+    TEMPLATE ("How is <KPI> trending?") is promoted: it's a recurring sector ask worth seeding future
+    same-sector clients. The implied ANSWER (the numbers + the anchor guidance) stays live and is NEVER
+    stored globally — a house entry must be a generic question, never one client's facts. Editors only;
+    writes only genuinely-new questions (so it's not a per-render DB write); failure is non-fatal."""
+    try:
+        from core import ui_context, qa_bank, guidance_engine
+        if ui_context.is_read_only():
+            return
+        inputs = ss.get("guidance_inputs")
+        if not inputs:
+            return
+        b = guidance_engine.guidance_bridge(inputs, surprises=_load_json("earnings_surprise_log.json", None))
+        sec = qa_bank.client_sector(get_active_client_id())
+        existing = {qa_bank._norm(r.get("question", "")) for r in qa_bank.list_scope("global")}
+        for m in b.get("metrics", []):
+            lbl = (m.get("label") or "").strip()
+            if not (lbl and _qa_anchor(m)):          # only KPIs that actually have a trend to defend
+                continue
+            q = f"How is {lbl} trending?"
+            if qa_bank._norm(q) not in existing:
+                qa_bank.add(q, kind="kpi_callback", scope="global", sector=sec, added_by="callback-qa-prep")
+                existing.add(qa_bank._norm(q))
+    except Exception as exc:
+        print(f"[callback-qa] house-book promotion skipped: {exc}")
+
+
 def _render_callback_qa_prep(ss):
     """Callback Q&A prep — what to say if asked how each number is trending. Analysts probe metric/KPI
     DIRECTION on callbacks ("how's take-rate trending?") and pause; management must anchor to what the
@@ -3158,6 +3187,8 @@ def _render_callback_qa_prep(ss):
             f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:2px;")
         for _a in _anchors:
             ui.label(_a).style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:2px;line-height:1.4;")
+    # Accrue the generic KPI-direction TEMPLATES into the house Q&A book (the answers stay live here).
+    _promote_callback_questions(ss)
 
 
 def _render_guidance_drafter(ss, on_submit=None):
