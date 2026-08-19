@@ -1589,10 +1589,10 @@ def render_investors_page(section="ownership"):
         "targeting": [("Target Database", lambda: _render_target_db_tab(_mode_ctx["institutions"], client_id, mode_controls=_render_targeting_mode_controls), True),
                       ("Peer Prospects", lambda: _render_peer_prospects_tab(client_id), False),
                       ("Import list", lambda: _render_import_verify_tab(client_id), False)],
-        # ── Outbound — reach & track. Tab identities are short (Meeting Hub / NDR / CRM) and match the
-        # sidebar's NAV_SUBITEMS["Roadshow"] pointers exactly, so each pointer deep-links to its tab.
-        "roadshow":  [("Meeting Hub", lambda: _render_meeting_hub_tab(), False),
-                      ("NDR", lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"]), True),
+        # ── Outbound — reach & track. Tab identities are short (NDR / CRM) and match the sidebar's
+        # NAV_SUBITEMS["Roadshow"] pointers exactly, so each pointer deep-links to its tab. Meeting Hub
+        # moved to the IR Inbox (the single meeting front door) — see inbox_page.render_inbox_page.
+        "roadshow":  [("NDR", lambda: _render_ndr_tab(_mode_ctx["institutions"], meeting_log, client_id, _mode_ctx["mode"]), True),
                       ("CRM", lambda: _render_accounts_tab(client_id, _mode_ctx["institutions"]), False)],
     }
     specs = _SPECS.get(section, _SPECS["ownership"])
@@ -7242,7 +7242,7 @@ def _open_attachment_preview(doc_id, filename):
     dialog.open()
 
 
-def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
+def _render_pending_inbox_items(categories=None, title="Pending Inbox Items", exclude=None):
     """The human half of the email-routing pipeline: core/mail_gateway.py
     classifies an inbound email (model / research note / NDR request /
     conference invite / speak-to-management) and queues it here rather than
@@ -7270,11 +7270,17 @@ def _render_pending_inbox_items(categories=None, title="Pending Inbox Items"):
 
     `categories` optionally restricts which classified categories are shown, so a page can surface
     only the items that belong to it — the Meeting Hub passes the meeting-scheduling categories only,
-    so a model / research note (which belong in the IR Inbox) never appears there. None = show all."""
+    so a model / research note (which belong in the IR Inbox) never appears there. None = show all.
+    `exclude` is the inverse: hide these categories (the IR Inbox's own "Needs you" zone excludes the
+    meeting categories because the embedded Meeting Hub above it already surfaces them — otherwise the
+    same request card would appear twice on one page)."""
     pending = inbox_queue.list_pending_items()
     if categories is not None:
         _cats = set(categories)
         pending = [p for p in pending if p.get("category", "general") in _cats]
+    if exclude:
+        _ex = set(exclude)
+        pending = [p for p in pending if p.get("category", "general") not in _ex]
     if not pending:
         return
 

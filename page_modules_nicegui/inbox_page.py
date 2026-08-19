@@ -85,8 +85,18 @@ def render_inbox_page():
             f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};"
             "border-radius:999px;padding:4px 12px;font-size:var(--fs-xs);white-space:nowrap;")
 
+    # ── Meetings — the Meeting Hub lives here now (moved out of NDR/CRM) so the inbox is the single
+    #    meeting front door: schedule and track 1×1s right where the parsed requests land just below.
+    ui.label("Meetings").classes("section-head").style("margin-top:14px;")
+    from page_modules_nicegui.investors_page import _render_meeting_hub_tab
+    _render_meeting_hub_tab()
+
     from core import inbox_queue
     pending = inbox_queue.list_pending_items()
+    # Meeting-scheduling requests are surfaced by the Meeting Hub above; exclude them from the "Needs
+    # you" zone below so a request card never appears twice on this one page.
+    _MEETING_CATS = ("speak_to_management", "meeting_confirmation")
+    _needs_you_pending = [p for p in pending if p.get("category", "general") not in _MEETING_CATS]
 
     # One header system so the page reads as two clear zones (act-on-this over archive) instead of a
     # flat stack of differently-styled blocks. The count pill turns accent ONLY when something needs
@@ -110,12 +120,13 @@ def render_inbox_page():
         _open_reqs = len([r for r in (_load_ndr_requests() or []) if not r.get("resolved")])
     except Exception:
         _open_reqs = 0
-    _zone_head("Needs you", count=len(pending) + _open_reqs)
+    _zone_head("Needs you", count=len(_needs_you_pending) + _open_reqs)
 
-    if pending:
-        # Same category-specific confirm/dismiss cards used in Investor Targeting.
+    if _needs_you_pending:
+        # Same category-specific confirm/dismiss cards used in Investor Targeting — minus the meeting
+        # categories, which the Meeting Hub section above already renders.
         from page_modules_nicegui.investors_page import _render_pending_inbox_items
-        _render_pending_inbox_items()
+        _render_pending_inbox_items(exclude=_MEETING_CATS)
     else:
         # Quiet empty state — no accent rail (nothing to act on), so the accent stays meaningful.
         with ui.card().classes("w-full").style(

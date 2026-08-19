@@ -153,7 +153,7 @@ NAV_GROUPS = [
     ("INVESTOR TARGETING", [
         ("Targeting", "my_location", "Targeting\nwho should own you", "Target database · Peer prospects · Import"),
         ("Ownership", "donut_large", "Ownership\nwho owns you", "Buy-side · NOBO · Website"),
-        ("Roadshow",  "route", "NDR/CRM\nreach & track", "Meeting Hub · NDR · CRM"),
+        ("Roadshow",  "route", "NDR/CRM\nreach & track", "NDR · CRM"),
     ]),
     ("MARKET INTELLIGENCE", [
         ("Markets",   "trending_up", "Consensus & Estimates\nwhere the Street stands", "Consensus · PT tracker · Peer benchmarking"),
@@ -201,9 +201,10 @@ _MOBILE_TABS = [
 # single-view and render as plain nav buttons with no expander.
 NAV_SUBITEMS = {
     "Markets":   ["IR Risk Dashboard", "Consensus / Guidance", "PT Drift Tracker"],
-    # Outbound (page key "Roadshow") surfaces its three destinations as sidebar pointers — the labels
+    # Outbound (page key "Roadshow") surfaces its destinations as sidebar pointers — the labels
     # match the page's ui.tab identities exactly so each one deep-links straight to its tab.
-    "Roadshow":  ["Meeting Hub", "NDR", "CRM"],
+    # (Meeting Hub moved to the IR Inbox — see inbox_page.render_inbox_page.)
+    "Roadshow":  ["NDR", "CRM"],
     # Ownership / Targeting are DELIBERATELY absent here — they render as plain rail sections (no
     # sub-item expander), so their tabs live only on the page (one menu, not two). Deep-links
     # (go_to(section, tab)) still work — the target tab is consumed by the page.

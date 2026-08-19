@@ -149,7 +149,7 @@ def render_home_page():
     with _card():
         with ui.row().classes("w-full justify-between items-center"):
             ui.label("Your meetings").classes("section-head")
-            ui.button("Schedule →", on_click=lambda: nav.go_to("Roadshow", "Meeting Hub")) \
+            ui.button("Schedule →", on_click=lambda: nav.go_to("Inbox")) \
                 .props("flat dense size=sm")
         if meetings:
             for m in meetings[:6]:
@@ -176,7 +176,7 @@ def render_home_page():
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
         else:
             ui.label("No meetings booked yet.").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")
-            ui.button("Schedule a meeting →", on_click=lambda: nav.go_to("Roadshow", "Meeting Hub")) \
+            ui.button("Schedule a meeting →", on_click=lambda: nav.go_to("Inbox")) \
                 .props("flat dense").style(f"color:{COLORS['accent']};margin-top:2px;")
         # Secondary: prep anyone who isn't booked (the old holder lookup, now clearly subordinate).
         if inst_by_fund:
