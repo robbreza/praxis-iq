@@ -129,6 +129,23 @@ def _render_inbox_body():
     re-bound) and directly by smoke_render via lazy_tab_probe."""
     from core import inbox_queue
 
+    # Batch-warm the JSON-store cache: one round-trip for the stores this page reads instead of ~8
+    # sequential ~100 ms Neon SELECTs (profiled cold). This shortens the deferred body itself, on top
+    # of the page-shell-first change that only moved WHEN it starts. Pure optimization — every
+    # load_json below still works if this is skipped, so a failure must never break the render.
+    try:
+        from core import db as _db
+        from config.client_config import get_active_client_id, get_client
+        _cid = get_active_client_id()
+        _tk = (get_client(_cid) or {}).get("ticker") or ""
+        _db.prefetch([
+            "scheduled_meetings.json", "post_meeting_notes.json", "inbox_queue.json",
+            "ndr_requests.json", "ndr_trips.json", "holder_profiles.json",
+            f"sec_13f_holders_{_tk}.json", f"holder_history_{_tk}.json",
+        ], client_id=_cid)
+    except Exception:
+        pass
+
     # ── Meetings — the Meeting Hub lives here now (moved out of NDR/CRM) so the inbox is the single
     #    meeting front door: schedule and track 1×1s right where the parsed requests land just below.
     ui.label("Meetings").classes("section-head").style("margin-top:14px;")
@@ -245,8 +262,10 @@ def _render_research_library():
     from core import documents
     from page_modules_nicegui.investors_page import _open_attachment_preview
 
-    docs = (documents.list_documents(doc_type="model") or []) + \
-           (documents.list_documents(doc_type="research_note") or [])
+    # One metadata query for both types, filtered in Python — was two separate SELECTs against the
+    # documents table (list_documents(doc_type=...) is uncached, unlike the JSON-store cache).
+    docs = [d for d in (documents.list_documents() or [])
+            if d.get("doc_type") in ("model", "research_note")]
     docs.sort(key=lambda d: str(d.get("uploaded_at") or ""), reverse=True)
 
     ui.label("Research Library").classes("section-head").style("margin-top:18px;")

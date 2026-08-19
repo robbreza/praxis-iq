@@ -707,6 +707,47 @@ def load_json(key, default=None, client_id=None):
         conn.close()
 
 
+def prefetch(keys, client_id=None):
+    """Warm the in-memory JSON-store cache for many keys in ONE round-trip, instead of one SELECT
+    per load_json. A heavy page reads ~8-12 distinct stores; issued individually those are that many
+    sequential ~100 ms Neon round-trips blocking the event loop. Call prefetch(list_of_keys) once up
+    front and the subsequent load_json calls are all served from _MEM_CACHE.
+
+    Only keys not already cached are fetched, via a single `key = ANY(...)` (Postgres) / `key IN
+    (...)` (SQLite) query. Each PRESENT value is inserted into the cache; missing or unparseable keys
+    are left UNCACHED so load_json still handles them normally (default value + legacy-file migration).
+    So prefetch only ever accelerates keys that already exist — it never changes semantics, and a
+    failure is harmless (individual load_json still runs). No-op on the degraded SQLite fallback while
+    Postgres is configured (same non-authoritative rule as load_json)."""
+    cid = _resolve_client_id(client_id)
+    want = [k for k in dict.fromkeys(keys) if k and (cid, k) not in _MEM_CACHE]
+    if not want:
+        return
+    conn = get_connection()
+    try:
+        pg = connection_is_postgres(conn)
+        if postgres_configured() and not pg:
+            return  # degraded fallback — don't cache non-authoritative reads
+        cur = conn.cursor()
+        if pg:
+            cur.execute("SELECT key, value FROM client_data WHERE client_id = %s AND key = ANY(%s)",
+                        (cid, want))
+        else:
+            qs = ",".join("?" for _ in want)
+            cur.execute(f"SELECT key, value FROM client_data WHERE client_id = ? AND key IN ({qs})",
+                        (cid, *want))
+        for k, v in cur.fetchall():
+            if pg:
+                _MEM_CACHE[(cid, k)] = v            # JSONB → native dict/list
+            else:
+                try:
+                    _MEM_CACHE[(cid, k)] = json.loads(v)
+                except Exception:
+                    pass                             # leave uncached; load_json handles the failure
+    finally:
+        conn.close()
+
+
 def save_json(key, data, client_id=None):
     """Write `data` (anything json-serializable) under `key` for the given
     (or active) client. Upserts, so repeated saves to the same key just
