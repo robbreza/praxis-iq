@@ -184,6 +184,7 @@ def _fetch_one(ticker):
 
 def _save_snapshot(ticker, snap, client_id=None):
     cid = _resolve_client_id(client_id)
+    _SNAP_MEMO.pop((cid, (ticker or "").upper()), None)   # keep the batch memo coherent with writes
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
@@ -213,10 +214,40 @@ def _save_snapshot(ticker, snap, client_id=None):
         conn.close()
 
 
+# (cid, TICKER) -> snapshot dict | None. Warmed by prefetch_cached() so a peer/benchmark loop's
+# per-ticker get_cached() reads collapse into ONE query; kept coherent by _save_snapshot() dropping a
+# ticker's entry on every write (in-process refresh_all runs on startup + a ~12h timer, so a memoized
+# value can only go stale via a write we see). Same per-process contract as core.db._MEM_CACHE.
+_SNAP_MEMO = {}
+
+
+def _row_to_snap(row):
+    """A market_data_cache row (last_price, prev_close, pct_change, volume, avg_volume_10d, as_of,
+    fetched_at) -> snapshot dict. Postgres NUMERIC comes back as decimal.Decimal and SQLite REAL as
+    float; every page does plain float arithmetic on these (pt_avg / last_price, EV / revenue, …), so
+    normalize to float/int here once, at the single read path, instead of patching every call site."""
+    def _f(v):
+        return float(v) if v is not None else None
+
+    def _i(v):
+        return int(v) if v is not None else None
+
+    return {
+        "last_price": _f(row[0]), "prev_close": _f(row[1]), "pct_change": _f(row[2]),
+        "volume": _i(row[3]), "avg_volume_10d": _i(row[4]), "as_of": str(row[5]), "fetched_at": str(row[6]),
+    }
+
+
 def get_cached(ticker, client_id=None):
     """Whatever's in the cache for this ticker, or None if it's never been
-    fetched. Does not trigger a fetch — pure read."""
+    fetched. Does not trigger a fetch — pure read. Served from the snapshot memo
+    when a prefetch_cached() warmed it (else a direct DB read, which never
+    populates the memo — so an un-prefetched read is always fresh)."""
     cid = _resolve_client_id(client_id)
+    mk = (cid, (ticker or "").upper())
+    if mk in _SNAP_MEMO:
+        v = _SNAP_MEMO[mk]
+        return dict(v) if v else None       # copy so a caller can't mutate the shared memo
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
@@ -228,24 +259,36 @@ def get_cached(ticker, client_id=None):
             (cid, ticker),
         )
         row = cur.fetchone()
-        if not row:
-            return None
-        # Postgres' NUMERIC columns come back via psycopg2 as decimal.Decimal,
-        # not float — SQLite's REAL columns always come back as plain float,
-        # which is why this only ever surfaced once Neon was actually reachable.
-        # Every page does plain float arithmetic on these (pt_avg / last_price,
-        # EV / revenue, etc.), so normalize to float/int here once, at the
-        # single read path, instead of patching every call site.
-        def _f(v):
-            return float(v) if v is not None else None
+        return _row_to_snap(row) if row else None
+    finally:
+        conn.close()
 
-        def _i(v):
-            return int(v) if v is not None else None
 
-        return {
-            "last_price": _f(row[0]), "prev_close": _f(row[1]), "pct_change": _f(row[2]),
-            "volume": _i(row[3]), "avg_volume_10d": _i(row[4]), "as_of": str(row[5]), "fetched_at": str(row[6]),
-        }
+def prefetch_cached(tickers, client_id=None):
+    """Batch-load market_data_cache rows for many tickers in ONE query into the snapshot memo, so the
+    per-ticker get_cached() reads that follow (peer_watch.movers, benchmarking's live_ev per peer, …)
+    are served from memory instead of one SELECT each. Skips tickers already memoized; a ticker with
+    no row memoizes as None (matching a get_cached miss). Coherence is handled by _save_snapshot()
+    invalidation — see _SNAP_MEMO. Pure read; harmless to call redundantly."""
+    cid = _resolve_client_id(client_id)
+    have = {t for (c, t) in _SNAP_MEMO if c == cid}
+    want = sorted({(t or "").upper() for t in tickers if t} - have)
+    if not want:
+        return
+    conn = db.get_connection()
+    pg = db.connection_is_postgres(conn)
+    try:
+        cur = conn.cursor()
+        cols = ("SELECT ticker, last_price, prev_close, pct_change, volume, avg_volume_10d, as_of, "
+                "fetched_at FROM market_data_cache WHERE client_id = ")
+        if pg:
+            cur.execute(cols + "%s AND ticker = ANY(%s)", (cid, want))
+        else:
+            qs = ",".join("?" for _ in want)
+            cur.execute(cols + f"? AND ticker IN ({qs})", (cid, *want))
+        got = {row[0].upper(): _row_to_snap(row[1:]) for row in cur.fetchall()}
+        for t in want:
+            _SNAP_MEMO[(cid, t)] = got.get(t)
     finally:
         conn.close()
 

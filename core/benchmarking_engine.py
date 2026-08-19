@@ -225,8 +225,13 @@ def _build_benchmark_uncached(client_id=None):
     # Warm every company's SEC facts in parallel before resolving them one by one.
     # _resolve_company -> filing_margin -> _facts is otherwise 9 sequential HTTP
     # round-trips (~4.7s of a ~10s cold render) waiting on one at a time.
+    _tickers = [CT("ticker")] + [p.get("ticker") for p in CP() if p.get("ticker")]
     try:
-        forensics.prefetch([CT("ticker")] + [p.get("ticker") for p in CP() if p.get("ticker")])
+        forensics.prefetch(_tickers)
+        # Same idea for the price snapshots: _resolve_company -> live_ev -> get_cached is one
+        # market_data_cache SELECT per company; warm them all in one query up front.
+        from core import market_data
+        market_data.prefetch_cached(_tickers)
     except Exception as exc:
         print(f"[benchmark] prefetch skipped: {exc}")
 

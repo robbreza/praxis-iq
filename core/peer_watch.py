@@ -47,8 +47,10 @@ def movers(cid=None):
     cache only — safe to call on every Today render."""
     from core import market_data
     cid = cid or get_active_client_id()
+    universe = _peer_universe(cid)
+    market_data.prefetch_cached([p["ticker"] for p in universe], cid)   # one query, not one per peer
     out = []
-    for p in _peer_universe(cid):
+    for p in universe:
         snap = market_data.get_cached(p["ticker"], cid)
         if not snap or snap.get("pct_change") is None:
             continue
