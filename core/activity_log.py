@@ -99,12 +99,25 @@ def log_event(event_type, entity=None, client_id=None, **detail):
                 (cid, event_type, entity, _json.dumps(detail, default=str), datetime.now().isoformat()),
             )
         conn.commit()
+        _ROWS_MEMO.clear()   # a new event changes today's / this week's counts — drop the read memo
     finally:
         conn.close()
 
 
+# Short-lived query memo. count_this_week / minutes_saved_this_week / breakdown_this_week each fire
+# the IDENTICAL _rows_since(monday, None) read, so one Automation Tracker (or Board summary) render hit
+# the DB three times for the same rows. Cache by the EXACT (cid, since, event_type) key — no Python-side
+# date comparison, so no timezone hazard — and clear it in log_event() so counts never go stale. Same
+# per-process, in-process-write contract as core.db._MEM_CACHE / market_data._SNAP_MEMO.
+_ROWS_MEMO = {}
+
+
 def _rows_since(since_dt, event_type=None, client_id=None):
     cid = _resolve_client_id(client_id)
+    mk = (cid, since_dt.isoformat(), event_type)
+    cached = _ROWS_MEMO.get(mk)
+    if cached is not None:
+        return cached
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
@@ -116,7 +129,9 @@ def _rows_since(since_dt, event_type=None, client_id=None):
             sql += f" AND event_type = {ph}"
             params.append(event_type)
         cur.execute(sql, params)
-        return cur.fetchall()
+        rows = cur.fetchall()
+        _ROWS_MEMO[mk] = rows
+        return rows
     finally:
         conn.close()
 
