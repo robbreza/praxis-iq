@@ -1575,6 +1575,19 @@ def render_investors_page(section="ownership"):
     ui.label(f"{CT('name')} — {_TITLES.get(section, 'Investor Targeting')}").classes(
         "text-2xl font-bold").style(f"color:{COLORS['text_heading']};")
 
+    # Signature-capability highlight: the target book is built from REAL 13F filings (core/targets.py),
+    # ranked by conviction — the wedge vs a rented investor database. Only `targeting` is badged; the
+    # ownership NOBO/website signals are wired-not-live, and capability_banner is reserved for live ones.
+    if section == "targeting":
+        from page_modules_nicegui.signals import capability_banner as _cap
+        ui.element("div").style("height:8px;")
+        _cap("The funds that should own you — from real 13F filings",
+             "Built from actual 13F holdings across your peer set and style comps: funds that own your "
+             "profile but not your name yet, ranked by conviction — position size, book weight, and "
+             "buying direction. Not a licensed investor database.",
+             compact=True)
+        ui.element("div").style("height:4px;")
+
     # Mode-dependent sections re-render in place when the Pre/Post toggle changes — no full reload.
     _mode_ctx = {"mode": mode, "institutions": institutions}
 
