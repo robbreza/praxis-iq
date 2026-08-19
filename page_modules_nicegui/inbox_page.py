@@ -146,12 +146,16 @@ def render_inbox_page():
     recent = recent[:12]
     if recent:
         ui.label("Recently filed").classes("section-head").style("margin-top:4px;")
-        for it in recent:
-            # Expandable so a filed row isn't a dead end — tap to see what it was, where it was
-            # filed, and the original text, without leaving the inbox.
-            _hdr = f"{_cat_label(it.get('category'))}  ·  {it.get('firm') or it.get('contact') or '—'}"
-            with ui.expansion(_hdr, caption=it.get("received_at", "")).classes("w-full").style(
-                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
+
+        def _fill_filed(exp, it):
+            # Build a filed row's detail (subject / sender / attachment / full body) only the FIRST
+            # time it's expanded. ui.expansion renders its children eagerly into the DOM, so without
+            # this every collapsed archive row would ship its ≤2KB body on the initial render. A
+            # collapsed row now costs just its header; the body streams in on demand.
+            if not exp.value or getattr(exp, "_filled", False):
+                return
+            exp._filled = True
+            with exp:
                 if it.get("subject"):
                     ui.label(it["subject"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
                 if it.get("outcome"):
@@ -166,6 +170,14 @@ def render_inbox_page():
                 if not any(it.get(k) for k in ("subject", "outcome", "sender_email", "filename", "body")):
                     ui.label("No further detail captured for this item.").style(
                         f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+
+        for it in recent:
+            # Expandable so a filed row isn't a dead end — tap to see what it was, where it was
+            # filed, and the original text, without leaving the inbox. Body is filled lazily.
+            _hdr = f"{_cat_label(it.get('category'))}  ·  {it.get('firm') or it.get('contact') or '—'}"
+            _exp = ui.expansion(_hdr, caption=it.get("received_at", "")).classes("w-full").style(
+                    f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;")
+            _exp.on_value_change(lambda e, exp=_exp, it=it: _fill_filed(exp, it))
 
     _render_research_library()
     _render_ir_knowledge_editor()
@@ -195,7 +207,8 @@ def _render_research_library():
         return
 
     _TYPE = {"model": ("Model", COLORS["accent"]), "research_note": ("Research note", COLORS["positive"])}
-    state = {"type": "all", "q": ""}
+    state = {"type": "all", "q": "", "show_all": False}
+    _CAP = 20   # cap the always-visible archive on first paint; a large tenant can have hundreds of docs
 
     with ui.row().classes("w-full items-center gap-3").style("margin-bottom:6px;flex-wrap:wrap;"):
         _toggle = ui.toggle({"all": "All", "model": "Models", "research_note": "Research notes"},
@@ -217,10 +230,13 @@ def _render_research_library():
         rows = [d for d in docs
                 if (state["type"] == "all" or d.get("doc_type") == state["type"])
                 and (not q or q in f"{d.get('firm') or ''} {d.get('contact') or ''} {d.get('filename') or ''}".lower())]
+        shown = rows if (state["show_all"] or len(rows) <= _CAP) else rows[:_CAP]
         with lib:
-            ui.label(f"{len(rows)} document{'s' if len(rows) != 1 else ''}").style(
-                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            for d in rows:
+            _cnt = f"{len(rows)} document{'s' if len(rows) != 1 else ''}"
+            if len(shown) < len(rows):
+                _cnt += f"  ·  showing {len(shown)}"
+            ui.label(_cnt).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            for d in shown:
                 _lbl, _col = _TYPE.get(d.get("doc_type"), ("Document", COLORS["text_muted"]))
                 with ui.row().classes("w-full items-center gap-3").style(
                         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
@@ -240,9 +256,14 @@ def _render_research_library():
                     ui.button("Download", icon="download",
                               on_click=lambda i=d["id"]: _download(i)).props("flat dense size=sm").style(
                         f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
+            if len(shown) < len(rows):
+                ui.button(f"Show all {len(rows)}", icon="unfold_more",
+                          on_click=lambda: (state.update(show_all=True), _render())).props(
+                    "flat dense no-caps").style(f"color:{COLORS['accent_light']};font-size:var(--fs-xs);")
 
-    _toggle.on_value_change(lambda e: (state.update(type=e.value), _render()))
-    _search.on_value_change(lambda e: (state.update(q=e.value or ""), _render()))
+    # Changing the filter re-collapses to the cap so a narrowed result never starts fully expanded.
+    _toggle.on_value_change(lambda e: (state.update(type=e.value, show_all=False), _render()))
+    _search.on_value_change(lambda e: (state.update(q=e.value or "", show_all=False), _render()))
     _render()
 
 
@@ -254,8 +275,9 @@ def _render_ir_knowledge_editor():
     cid = get_active_client_id()
     _ro = ui_context.is_read_only()  # capture once — a rebuild fires from callbacks (unbound context)
 
-    with ui.expansion("Approved answers — used when drafting shareholder replies", icon="menu_book").classes(
-            "w-full").style("margin-top:18px;"):
+    _exp = ui.expansion("Approved answers — used when drafting shareholder replies", icon="menu_book").classes(
+            "w-full").style("margin-top:18px;")
+    with _exp:
         ui.label("Pre-vetted PUBLIC answers the reply drafter may state directly — dividend policy, transfer "
                  "agent, filing locations, how to reach IR. Anything not here defers to your filings; nothing "
                  "is invented. Keep every answer to publicly disclosed information.").style(
@@ -306,4 +328,12 @@ def _render_ir_knowledge_editor():
                             ui.notify("Added to the knowledge base.", type="positive")
                             _rebuild()
                         ui.button("Add answer", icon="add", on_click=_add).props("color=primary dense").style("margin-top:4px;")
-        _rebuild()
+
+        # Build the (input-heavy: ~2 Quasar fields per entry) editor only when the section is first
+        # opened. It's collapsed on load, so eagerly rendering every entry's Topic/Answer inputs was
+        # the single largest chunk of this page's initial WebSocket payload.
+        def _lazy_build(_=None):
+            if _exp.value and not getattr(_exp, "_built", False):
+                _exp._built = True
+                _rebuild()
+        _exp.on_value_change(_lazy_build)
