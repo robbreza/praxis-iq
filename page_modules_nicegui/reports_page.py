@@ -266,18 +266,11 @@ def _reviewed_row(reviews, review_path, key):
 
 
 def render_reports_page():
-    # This is the app's heaviest page: it reads ~68 distinct JSON stores cold (per-peer EDGAR
-    # summaries, market fundamentals, 13F holders, estimates, guidance, NOBO, prospects…), which
-    # otherwise fire that many sequential ~100ms Neon SELECTs. One prefetch_all warms them in a single
-    # round-trip; every load_json below is then served from _MEM_CACHE. Pure optimization — a failure
-    # just falls back to individual reads, so never let it break the render.
-    try:
-        from core import db as _db
-        from config.client_config import get_active_client_id as _gacid
-        _db.prefetch_all(_gacid())
-    except Exception:
-        pass
+    import asyncio
+    from core import lazy_tab_probe
+    from config.client_config import get_active_client_id, set_active_client_id
 
+    # ── SHELL (paints immediately) ─────────────────────────────────────────────────────────────────
     ui.html(
         "<div class='section-eyebrow'>REPORTS &amp; DELIVERABLES</div>"
         "<div class='section-title'>Board Package &middot; Weekly Reports &middot; Compliance &middot; Downloads</div>"
@@ -293,7 +286,6 @@ def render_reports_page():
         ui_context.read_only_banner(ui)
 
     review_path = "report_reviews.json"
-    reviews = _load_json(review_path, {})
 
     with ui.tabs().classes("w-full") as tabs:
         t1 = ui.tab("Board IR Reports")
@@ -302,23 +294,104 @@ def render_reports_page():
         t4 = ui.tab("Reg FD & Compliance")
         t6 = ui.tab("Automation Tracker")
 
-    _panels = ui.tab_panels(tabs, value=nav.consume_target_tab() or t1).classes("w-full")
-    _panels.on_value_change(lambda e: nav.tab_changed(e.value))
-    with _panels:
-        with ui.tab_panel(t1):
-            _render_board_reports_tab(reviews, review_path)
-        with ui.tab_panel(t_plan):
-            _render_ir_plan(reviews, review_path)
-            ui.markdown("---")
-            with ui.expansion("NDR Coverage by City — where the money is vs where we're going · Live",
-                              value=True).classes("w-full"):
-                _render_ndr_by_city()
-        with ui.tab_panel(t3):
-            _render_peer_market_tab(reviews, review_path)
-        with ui.tab_panel(t4):
-            _render_regfd_tab()
-        with ui.tab_panel(t6):
-            _render_automation_tracker_tab()
+    # This is the app's heaviest page. It used to build ALL FIVE tab panels eagerly on every nav — each
+    # one running its own EDGAR / market / 13F / activity-log queries — even though four are hidden. Now
+    # each panel builds LAZILY: only the tab you open runs its work, the others stay a spinner until
+    # clicked. Reviews are read fresh inside each build so a "reviewed" toggle on one tab is reflected
+    # on another.
+    def _build_board():
+        _render_board_reports_tab(_load_json(review_path, {}), review_path)
+
+    def _build_plan():
+        _render_ir_plan(_load_json(review_path, {}), review_path)
+        ui.markdown("---")
+        with ui.expansion("NDR Coverage by City — where the money is vs where we're going · Live",
+                          value=True).classes("w-full"):
+            _render_ndr_by_city()
+
+    def _build_peer():
+        _render_peer_market_tab(_load_json(review_path, {}), review_path)
+
+    _tabobjs = {"Board IR Reports": t1, "90-Day IR Plan": t_plan, "Peer & Market Analysis": t3,
+                "Reg FD & Compliance": t4, "Automation Tracker": t6}
+    _build_fns = {"Board IR Reports": _build_board, "90-Day IR Plan": _build_plan,
+                  "Peer & Market Analysis": _build_peer, "Reg FD & Compliance": _render_regfd_tab,
+                  "Automation Tracker": _render_automation_tracker_tab}
+    default_tab = _tabobjs.get(nav.consume_target_tab(), t1)
+
+    _panels = {}
+    with ui.tab_panels(tabs, value=default_tab).classes("w-full"):
+        for _name, _tobj in _tabobjs.items():
+            with ui.tab_panel(_tobj) as _pnl:
+                ui.spinner(size="lg").classes("mx-auto").style("margin-top:32px;")
+            _panels[_name] = _pnl
+
+    lazy_panels = {name: (_panels[name], _build_fns[name]) for name in _tabobjs}
+    lazy_tab_probe.register("Reports", lazy_panels)   # no-op unless smoke is capturing
+    loaded_tabs = set()
+
+    def _ensure_warm():
+        # One idempotent full-store prefetch (see db.prefetch_all), so whichever tab builds is served
+        # from _MEM_CACHE instead of firing its own ~dozens of Neon SELECTs. Never break the build.
+        try:
+            db.prefetch_all(get_active_client_id())
+        except Exception:
+            pass
+
+    def _safe_build(name):
+        # Build one tab's real content into its panel (replacing the spinner). Used by BOTH the on-click
+        # loader and the default-tab timer, so a failing tab always shows an actionable error instead of
+        # being stranded on its spinner forever — and only a SUCCESSFUL build is remembered, so a failed
+        # tab rebuilds when reselected.
+        if name not in lazy_panels:
+            return
+        container, build_fn = lazy_panels[name]
+        try:
+            _ensure_warm()
+            container.clear()
+            with container:
+                build_fn()
+            loaded_tabs.add(name)
+        except Exception as ex:
+            try:
+                container.clear()
+                with container:
+                    ui.label("This tab didn't finish loading.").style(
+                        f"color:{COLORS['text_heading']};font-weight:600;")
+                    ui.label(str(ex)).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+                    ui.button("Reload page", on_click=lambda: ui.navigate.reload()).props("outline dense")
+            except Exception:
+                pass
+
+    async def _load_tab_on_demand(e):
+        name = e.value
+        try:
+            nav.tab_changed(name)   # keep the sidebar highlight in sync (guarded: stale client raises)
+        except Exception:
+            pass
+        if name in loaded_tabs or name not in lazy_panels:
+            return
+        await asyncio.sleep(0)      # let the spinner reach the browser before the synchronous queries
+        _safe_build(name)
+
+    tabs.on_value_change(_load_tab_on_demand)
+
+    # Shell-first: defer even the default tab so the header + tab strip + spinners paint before its
+    # (heavy) queries run. A ui.timer callback runs in a fresh async context that does NOT pass through
+    # the app's Element._handle_event tenant hook, so re-bind the captured render context first — exactly
+    # as render_inbox_page does. (The on-click tab builds above ride a browser event, which the hook
+    # already re-binds, so they don't need this.)
+    _ctx = (get_active_client_id(), ui_context.current_role(),
+            ui_context.current_page(), ui_context.is_read_only())
+
+    def _build_default():
+        _cid, _role, _pg, _ro = _ctx
+        set_active_client_id(_cid)      # re-bind the tenant the timer's fresh context dropped
+        db.set_session_readonly(_ro)
+        ui_context.set_page_context(_role, _pg)
+        _safe_build(default_tab.props["name"])
+
+    ui.timer(0.1, _build_default, once=True)
 
 
 def _render_quarterly_trend():
