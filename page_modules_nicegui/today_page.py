@@ -294,6 +294,22 @@ def _weekly_context_data():
         wk = None
     if not wk or not wk.get("context") or not wk.get("context_read"):
         return None
+    # ── Gate the weekly read so it can never contradict the fresh daily move shown right above it.
+    # The daily line comes from core.market_data (a real-time-ish snapshot); this weekly comes from
+    # Lighthouse's price model, which lags by up to a day. Its "latest ISO week" is therefore often a
+    # 1-2 day PARTIAL that EXCLUDES today — e.g. USIO read -10.9% over just Aug 17-18 while the day was
+    # +4.1%. Only surface it when it's a COMPLETE, recent week; otherwise show the daily line alone.
+    # (Product decision: keep the peer/Russell context, but never let a stale partial window show.)
+    from datetime import datetime as _dt, date as _date
+    if (wk.get("trading_days") or 0) < 4:                 # a 1-3 day partial isn't "the week"
+        return None
+    if not _is_illustrative(_cid):                        # real data must also be recent, not a lagged
+        try:                                              # snapshot; illustrative seed data is static
+            _end = _date.fromisoformat((wk.get("week") or "").split("..")[-1].strip())
+        except Exception:
+            return None
+        if (_dt.now().date() - _end).days > 7:
+            return None
     return wk
 
 
