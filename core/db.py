@@ -748,6 +748,41 @@ def prefetch(keys, client_id=None):
         conn.close()
 
 
+def prefetch_all(client_id=None):
+    """Warm the cache with EVERY JSON-store key for a client in ONE round-trip. For the heaviest
+    pages — Reports reads ~68 distinct stores, most of them dynamic per-peer-ticker keys
+    (edgar_fin_summary_<T>, market_fundamentals_<T>, sec_13f_holders_<T>…) that a targeted
+    prefetch(keys) list can't practically enumerate. A single `SELECT key, value WHERE client_id=%s`
+    replaces dozens of sequential load_json SELECTs, and incidentally warms every other page too.
+
+    Only fills keys NOT already cached (never clobbers a value a save_json may have just updated).
+    Same present-only + authoritative-store rules as prefetch(). Pulls the whole client_data blob, so
+    prefer targeted prefetch(keys) on pages that read only a handful of stores."""
+    cid = _resolve_client_id(client_id)
+    conn = get_connection()
+    try:
+        pg = connection_is_postgres(conn)
+        if postgres_configured() and not pg:
+            return  # degraded fallback — don't cache non-authoritative reads
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT key, value FROM client_data WHERE client_id = {'%s' if pg else '?'}",
+            (cid,),
+        )
+        for k, v in cur.fetchall():
+            if (cid, k) in _MEM_CACHE:
+                continue                             # don't clobber a possibly-newer cached value
+            if pg:
+                _MEM_CACHE[(cid, k)] = v
+            else:
+                try:
+                    _MEM_CACHE[(cid, k)] = json.loads(v)
+                except Exception:
+                    pass
+    finally:
+        conn.close()
+
+
 def save_json(key, data, client_id=None):
     """Write `data` (anything json-serializable) under `key` for the given
     (or active) client. Upserts, so repeated saves to the same key just

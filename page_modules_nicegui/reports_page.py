@@ -266,6 +266,18 @@ def _reviewed_row(reviews, review_path, key):
 
 
 def render_reports_page():
+    # This is the app's heaviest page: it reads ~68 distinct JSON stores cold (per-peer EDGAR
+    # summaries, market fundamentals, 13F holders, estimates, guidance, NOBO, prospects…), which
+    # otherwise fire that many sequential ~100ms Neon SELECTs. One prefetch_all warms them in a single
+    # round-trip; every load_json below is then served from _MEM_CACHE. Pure optimization — a failure
+    # just falls back to individual reads, so never let it break the render.
+    try:
+        from core import db as _db
+        from config.client_config import get_active_client_id as _gacid
+        _db.prefetch_all(_gacid())
+    except Exception:
+        pass
+
     ui.html(
         "<div class='section-eyebrow'>REPORTS &amp; DELIVERABLES</div>"
         "<div class='section-title'>Board Package &middot; Weekly Reports &middot; Compliance &middot; Downloads</div>"
