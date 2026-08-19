@@ -48,7 +48,7 @@ def _record(**kw):
     base = {"id": None, "source": None, "contact": "", "firm": "", "side": None,
             "date": None, "time": "", "type": "", "status": "", "priority": "",
             "location": "", "topic": "", "meeting_link": "", "non_holder": None,
-            "group": None, "date_tbd": False, "editable": True}
+            "group": None, "date_tbd": False, "editable": True, "source_inbox_id": None}
     base.update(kw)
     return base
 
@@ -61,7 +61,7 @@ def normalize_scheduled(m):
         side=_SIDE.get((m.get("Side") or "").strip().lower()),
         date=parse_ymd(m.get("Date")), time=m.get("Time", ""),
         type=m.get("Type", ""), status=m.get("Status", ""), priority=m.get("Priority", ""),
-        topic=m.get("Topic", ""),
+        topic=m.get("Topic", ""), source_inbox_id=m.get("source_inbox_id"),
     )
 
 
@@ -86,6 +86,7 @@ def normalize_ndr(trip, m, _start=None):
         location=trip.get("city", ""), topic=m.get("notes", ""),
         meeting_link=m.get("meeting_link", ""), non_holder=m.get("non_holder"),
         group=trip.get("name"), date_tbd=tbd,
+        source_inbox_id=m.get("source_inbox_id") or m.get("inbound_request_id"),
     )
 
 
@@ -111,3 +112,30 @@ def undated_ndr_count(cid):
     """Count of NDR meetings that can't be placed (their trip's dates are TBD) — for a 'set the trip
     dates' nudge on the calendar."""
     return sum(1 for r in all_meetings(cid) if r["source"] == "ndr" and r["date_tbd"])
+
+
+# ── Write path (Phase 2) — centralized so the inbound-confirm flow routes through one place, and
+# every created meeting/request records the inbox item it came from (source_inbox_id) for a back-link.
+def create_scheduled(cid, *, contact, firm, side="Buy-side", date="", time="", type="Meeting",
+                     topic="", status="Requested", priority="Medium", source_inbox_id=None):
+    """Append a standalone 1x1 to scheduled_meetings.json; return its id."""
+    import uuid
+    mid = str(uuid.uuid4())
+    rows = db.load_json("scheduled_meetings.json", [], client_id=cid) or []
+    rows.append({"id": mid, "Contact": contact, "Firm": firm, "Side": side, "Date": date,
+                 "Time": time, "Type": type, "Topic": topic, "Status": status, "Priority": priority,
+                 "source_inbox_id": source_inbox_id})
+    db.save_json("scheduled_meetings.json", rows, client_id=cid)
+    return mid
+
+
+def log_ndr_request(cid, *, analyst, firm, city, metro="", reason="—", source_inbox_id=None):
+    """Append an open NDR/meeting request to ndr_requests.json; return its id. Matches the existing
+    id/date convention so it reads identically to a hand-logged request."""
+    rid = datetime.now().strftime("%Y%m%d%H%M%S")
+    rows = db.load_json("ndr_requests.json", [], client_id=cid) or []
+    rows.append({"id": rid, "analyst": analyst, "firm": firm, "city": city, "metro": metro or city,
+                 "reason": reason or "—", "received": datetime.now().strftime("%b %d, %Y"),
+                 "resolved": False, "seeded": False, "source_inbox_id": source_inbox_id})
+    db.save_json("ndr_requests.json", rows, client_id=cid)
+    return rid
