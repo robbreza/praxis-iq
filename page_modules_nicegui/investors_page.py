@@ -1232,17 +1232,31 @@ def _next_open_slot(trip):
 
 
 def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
-    """Unified inbound scheduler (Phase 2): a meeting request from the IR Inbox becomes either a
-    standalone 1×1 (scheduled_meetings) or logged NDR demand (ndr_requests) — the classifier tag no
-    longer hard-picks the store; you do, in one dialog. Every write stamps source_inbox_id so the
-    meeting links back to its email. Scheduling straight into an existing trip stays the 2-step
-    (log demand → Plan NDR → _open_schedule_request_dialog)."""
+    """Unified inbound scheduler (Phase 2): a meeting request from the IR Inbox becomes, in ONE dialog,
+    a standalone 1×1 (scheduled_meetings), a meeting dropped straight into an existing/new roadshow
+    trip (ndr_trips), or logged NDR demand (ndr_requests). The classifier tag only pre-selects the
+    mode; you choose the destination. Every write stamps source_inbox_id so the meeting links back to
+    its email. Phase 2(b) added the "into a trip" mode so scheduling onto a roadshow is no longer a
+    two-step (was: log demand → Plan NDR → _open_schedule_request_dialog)."""
     from core import meetings as _m
     cid = get_active_client_id()
     contact, firm = item.get("contact", ""), item.get("firm", "")
+    # Open trips for the "into a trip" mode; pre-match one by the request's city/metro so the common
+    # case (a request for a city we're already visiting) is one click.
+    _open_trips = [(i, t) for i, t in enumerate(_load_json("ndr_trips.json", [])) if t.get("status") != "Completed"]
+
+    def _tmatch(t):
+        tc = (t.get("city") or "").lower()
+        rm, rc = (extracted.get("metro") or "").lower(), (extracted.get("city") or "").lower()
+        return bool(tc) and ((rm and (rm in tc or tc in rm)) or (rc and (rc in tc or tc in rc)))
+    _topts = {str(i): (("★ " if _tmatch(t) else "") + (t.get("name") or f"NDR {i+1}")) for i, t in _open_trips}
+    _topts["__new__"] = "＋ New NDR…"
+    _tdefault = next((str(i) for i, t in _open_trips if _tmatch(t)),
+                     (str(_open_trips[0][0]) if _open_trips else "__new__"))
+
     with ui.dialog() as dlg, ui.card().style(f"background:{COLORS['surface_bg']};min-width:min(460px,94vw);"):
         ui.label(f"Schedule — {contact or firm or 'meeting request'}").classes("text-lg font-bold")
-        mode = ui.toggle({"1x1": "Standalone 1×1", "ndr": "NDR demand (roadshow)"},
+        mode = ui.toggle({"1x1": "Standalone 1×1", "trip": "Into a trip", "ndr": "NDR demand"},
                          value=default_mode).props("dense")
         with ui.column().classes("w-full gap-2") as _c1:
             d1_date = ui.input("Date (YYYY-MM-DD)", value=extracted.get("date")
@@ -1251,6 +1265,12 @@ def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
             d1_type = ui.select(["Intro call", "Follow-up call", "Callback", "1x1 — Investor Conference",
                                  "Model update call", "Other"], value="Callback", label="Type").props("dense outlined").classes("w-full")
             d1_topic = ui.textarea("Topic", value=extracted.get("topic") or extracted.get("reason") or "").props("dense outlined").classes("w-full")
+        with ui.column().classes("w-full gap-2") as _c3:
+            d3_sel = ui.select(_topts, value=_tdefault, label="Add to roadshow").props("dense outlined").classes("w-full")
+            d3_new = ui.input("New NDR name", value=f"{extracted.get('city', '') or firm} NDR").props("dense outlined").classes("w-full")
+            d3_new.bind_visibility_from(d3_sel, "value", backward=lambda v: v == "__new__")
+            ui.label("Drops in at the trip's next open slot.").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
         with ui.column().classes("w-full gap-2") as _c2:
             d2_city = ui.input("City *", value=extracted.get("city") or "").props("dense outlined").classes("w-full")
             d2_metro = ui.input("Metro region", value=extracted.get("metro") or "").props("dense outlined").classes("w-full")
@@ -1258,6 +1278,7 @@ def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
 
         def _sync():
             _c1.set_visibility(mode.value == "1x1")
+            _c3.set_visibility(mode.value == "trip")
             _c2.set_visibility(mode.value == "ndr")
         mode.on_value_change(_sync)
         _sync()
@@ -1268,6 +1289,34 @@ def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
                                     type=d1_type.value, topic=d1_topic.value, status="Requested",
                                     source_inbox_id=item.get("id"))
                 out = f"Scheduled 1×1 with {contact or firm} → Meeting Hub"
+            elif mode.value == "trip":
+                trips2 = _load_json("ndr_trips.json", [])
+                if d3_sel.value == "__new__":
+                    nm = (d3_new.value or "").strip()
+                    if not nm:
+                        ui.notify("Name the new NDR.", type="warning"); return
+                    trips2.append({
+                        "name": nm, "sponsor_bank": firm, "dates": "TBD", "ndr_type": "in-person",
+                        "city": extracted.get("city", ""), "focus": "", "team": [], "notes": "",
+                        "meetings": [], "shortlist": [], "status": "Planning", "debrief": {},
+                        "days": 2, "slots_per_day": 6, "created": datetime.now().strftime("%Y-%m-%d"),
+                    })
+                    trip, tname = trips2[-1], nm
+                else:
+                    trip = trips2[int(d3_sel.value)]
+                    tname = trip.get("name") or "NDR"
+                day, slot = _next_open_slot(trip)
+                if day is None:
+                    ui.notify("That NDR's slots are full — raise its capacity or pick another.", type="warning"); return
+                trip.setdefault("meetings", []).append({
+                    "institution": firm, "contact": contact, "day": day, "slot_index": slot,
+                    "time": _slot_time(slot), "type": "1x1", "format": "In-person", "status": "scheduled",
+                    "notes": extracted.get("reason") or extracted.get("topic") or "", "non_holder": True,
+                    "score": None, "source": "inbound", "source_inbox_id": item.get("id"),
+                    "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                })
+                _save_json("ndr_trips.json", trips2)
+                out = f"Scheduled {contact or firm} into {tname} → Outbound · NDR"
             else:
                 if not (d2_city.value or "").strip():
                     ui.notify("City is required for an NDR request.", type="warning"); return
