@@ -588,7 +588,13 @@ def seed_lighthouse(cid=CID):
     conn.commit()
 
     rng = np.random.default_rng(7)                          # deterministic
-    days = pd.bdate_range(end=TODAY, periods=320)
+    # End the synthetic history on a FRIDAY so the model's latest ISO week is a COMPLETE 5-day week.
+    # weekly_digest() reads the latest ISO week; a mid-week end (a Mon TODAY produced a 1-DAY "week")
+    # yields a partial that the Today-page gate now suppresses as misleading. Ending on Friday also
+    # lands the seeded notable up-move (r[-1] below) inside that complete week, so the weekly card
+    # tells its intended story. See page_modules_nicegui/today_page._weekly_context_data.
+    _last_friday = (TODAY - timedelta(days=(TODAY.weekday() - 4) % 7)).date()
+    days = pd.bdate_range(end=_last_friday, periods=320)
     kts = datetime.now(timezone.utc)
     for t in all_t:
         cur.execute("SELECT 1 FROM lh_ohlcv WHERE ticker=%s LIMIT 1", (t,))
