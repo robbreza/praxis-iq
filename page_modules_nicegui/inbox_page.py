@@ -85,13 +85,56 @@ def render_inbox_page():
             f"background:{COLORS['surface_hover_bg']};color:{COLORS['text_secondary']};"
             "border-radius:999px;padding:4px 12px;font-size:var(--fs-xs);white-space:nowrap;")
 
+    # Page-shell-first: everything above (header + sync bar) paints immediately; the data-heavy body
+    # below — the Meeting Hub, the Needs-you zone, the Filed archive, the Research Library, each firing
+    # its own Neon reads (15–50 sequential round-trips for the page) — is built one tick later behind a
+    # spinner, so opening the inbox feels instant instead of blocking on those queries.
+    #
+    # Capture the render context NOW (correct tenant + read-only + role/page) to re-assert it inside the
+    # deferred build: a ui.timer callback runs in a fresh async context that does NOT pass through the
+    # app's Element._handle_event tenant hook, so the active-tenant / read-only ContextVars have fallen
+    # back to their defaults — without re-binding, the body would load the DEFAULT tenant's data.
+    from config.client_config import get_active_client_id, set_active_client_id
+    from core import db, ui_context, lazy_tab_probe
+    _ctx = (get_active_client_id(), ui_context.current_role(),
+            ui_context.current_page(), ui_context.is_read_only())
+
+    _body = ui.column().classes("w-full")
+    with _body:
+        with ui.row().classes("w-full items-center").style(
+                "padding:44px 0;gap:12px;justify-content:center;"):
+            ui.spinner(size="lg").style(f"color:{COLORS['accent']};")
+            ui.label("Loading your inbox…").style(
+                f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
+
+    def _populate():
+        _cid, _role, _pg, _ro = _ctx
+        set_active_client_id(_cid)                 # the timer's fresh context dropped these — restore
+        db.set_session_readonly(_ro)
+        ui_context.set_page_context(_role, _pg)
+        _body.clear()
+        with _body:
+            _render_inbox_body()
+
+    # Make the deferred body visible to tests/smoke_render.py (which never fires timers) via the same
+    # hook the lazy tab-panels use — it renders + demo-leak-checks the build_fn. No-op in production.
+    lazy_tab_probe.register("Inbox", {"IR Inbox body": _render_inbox_body})
+    ui.timer(0.1, _populate, once=True)
+
+
+def _render_inbox_body():
+    """The data-heavy half of the IR Inbox — Meeting Hub, Needs-you, Filed archive, Research Library,
+    Approved answers. Split out of render_inbox_page so the page shell can paint before these queries
+    run (see the page-shell-first comment there). Called by the deferred ui.timer in-app (tenant already
+    re-bound) and directly by smoke_render via lazy_tab_probe."""
+    from core import inbox_queue
+
     # ── Meetings — the Meeting Hub lives here now (moved out of NDR/CRM) so the inbox is the single
     #    meeting front door: schedule and track 1×1s right where the parsed requests land just below.
     ui.label("Meetings").classes("section-head").style("margin-top:14px;")
     from page_modules_nicegui.investors_page import _render_meeting_hub_tab
     _render_meeting_hub_tab()
 
-    from core import inbox_queue
     pending = inbox_queue.list_pending_items()
     # Meeting-scheduling requests are surfaced by the Meeting Hub above; exclude them from the "Needs
     # you" zone below so a request card never appears twice on this one page.
