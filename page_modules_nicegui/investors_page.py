@@ -6885,38 +6885,9 @@ def _render_meeting_hub_tab():
 
             render_hub_cards()
 
-            def sync_inbox():
-                # "kind" tells mail_gateway who's who — sell-side analysts
-                # (CA()) get their models/notes/NDR asks routed for review;
-                # buy-side/institutional contacts are classified too (e.g.
-                # "speak to management" requests) but never treated as a
-                # model source. See core/mail_gateway.py's module docstring.
-                contact_lookup = {}
-                for firm_name, info in known_contacts.items():
-                    if info.get("email"):
-                        contact_lookup[info["email"].lower()] = {"name": info["name"], "firm": firm_name, "kind": "institution"}
-                for a in CA():
-                    if a.get("email"):
-                        contact_lookup[a["email"].lower()] = {"name": a["name"], "firm": a.get("firm"), "kind": "analyst"}
-                result = mail_gateway.sync_inbox(contact_lookup, client_id=get_active_client_id())
-                if not result["ok"]:
-                    ui.notify(f"{result['message']}", type="warning")
-                else:
-                    n = len(result["messages"])
-                    routed = sum(1 for m in result["messages"] if m.get("category") != "general")
-                    if n:
-                        extra = f" · {routed} item(s) flagged for review below" if routed else ""
-                        ui.notify(f"Synced — {n} message(s) from known contacts.{extra}")
-                    else:
-                        ui.notify("Synced — no new messages from known contacts.")
-                    _refresh()
-
-            ui.button("Sync IR Inbox", on_click=sync_inbox).props("flat dense").style(
-                f"color:{COLORS['accent_light']};font-size:var(--fs-sm);margin-top:4px;")
-            if not mail_gateway.is_configured():
-                ui.label("Email sync isn't configured yet (no IMAP credentials in .env) — this button will "
-                          "explain that rather than pretend to have fetched anything.").style(
-                    f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            # The sync control lives once, in the IR Inbox header above this hub (this hub now renders
+            # inside that page) — so there's no "Sync IR Inbox" button here anymore. That sync reloads
+            # the page on completion, which rebuilds these cards + the pending list below.
 
             # Meeting Hub is about meetings — surface only inbound emails asking for / confirming a
             # meeting. Models, research notes, conference invites, etc. are triaged on the IR Inbox
