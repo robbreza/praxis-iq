@@ -184,11 +184,13 @@ NAV_SECTIONS = [page for _group, items in NAV_GROUPS for page, *_ in items]
 # sub-tab or None). Shown only on phones (CSS); the heavy authoring tools stay behind the header ☰ drawer.
 # NDR deep-links into Investor Targeting's NDR Planner — the one on-the-road piece of that otherwise-heavy
 # page worth a one-tap.
+# The four page-destinations in the phone tab bar; render_bottom_nav appends a fifth "More" entry that
+# opens the full drawer (every other page — IR Inbox, Earnings, Reports, NDR, Consensus, Ownership,
+# Settings). "More" replaces the header ☰ on phones, so the bottom bar is the single mobile nav system.
 _MOBILE_TABS = [
     ("Home", "home", "Home", None),
     ("Lighthouse", "lightbulb", "Lighthouse", None),
     ("Calendar", "calendar_month", "Calendar", None),
-    ("Roadshow", "route", "NDR", "NDR"),
     ("Markets", "trending_up", "Markets", None),
 ]
 
@@ -1374,10 +1376,10 @@ def main_page(request: Request = None):
     ).props("width=280 bordered")
 
     with ui.header().style(f"background:{COLORS['sidebar_bg']}; border-bottom:1px solid {COLORS['border']};"):
-        # Drawer toggle (☰). Hidden on desktop (≥1024px, where the drawer is docked and always
-        # visible, so it's redundant) via the .drawer-toggle CSS rule. Kept below 1024px, where the
-        # drawer is an off-canvas overlay and this is the only way to open the nav — so the mobile
-        # app is unaffected (its dedicated nav is handled separately in the mobile pass).
+        # Drawer toggle (☰). Shown ONLY on tablet (641–1023px): hidden ≥1024px (drawer docked, so it's
+        # redundant) and hidden ≤640px (phones, where the bottom tab bar's "More" opens the drawer
+        # instead) — both via .drawer-toggle CSS rules. Tablet is the one range with no bottom bar, so
+        # it's the only width that still needs the header hamburger.
         ui.button(icon="menu", on_click=drawer.toggle).props("flat color=white round").classes("drawer-toggle")
         # Tenant identity / switcher. Options are the tenants THIS user may see
         # (auth.allowed_clients) — so a client_user never gets a switcher (one tenant ->
@@ -1605,6 +1607,14 @@ def main_page(request: Request = None):
                     ).on("click", lambda s=section, t=sub: go_to(s, t)):
                         ui.icon(icon).style(f"color:{clr};font-size:var(--fs-3xl);")
                         ui.label(label).style(f"color:{clr};font-size:var(--fs-2xs);font-weight:{'700' if active else '500'};")
+                # "More" — opens the full drawer (every page not in the bar). It replaces the header ☰
+                # on phones (hidden ≤640px via CSS), making the bottom bar the single mobile nav system.
+                _mclr = COLORS["text_muted"]
+                with ui.column().classes("items-center").style(
+                    "flex:1;gap:1px;padding:6px 0 8px;cursor:pointer;border-top:2px solid transparent;"
+                ).on("click", drawer.toggle):
+                    ui.icon("menu").style(f"color:{_mclr};font-size:var(--fs-3xl);")
+                    ui.label("More").style(f"color:{_mclr};font-size:var(--fs-2xs);font-weight:500;")
 
     render_nav()
     render_page()
@@ -2188,6 +2198,7 @@ ui.add_head_html(
     ".nav-group--desktop-only{display:none !important;}"  # hide heavy authoring groups on phones
     ".mobile-only{display:block !important;}"
     ".mobile-tabbar{display:block !important;}"
+    ".drawer-toggle{display:none !important;}"            # header ☰ replaced by the tab bar's "More" on phones
     ".resp-wide{display:none !important;}"                # hide the wide table on phones...
     ".resp-stack{display:block !important;}"              # ...and show the stacked cards instead
     "}"
