@@ -52,6 +52,11 @@ from datetime import datetime
 from core import db
 from core.security import get_anthropic_api_key
 
+# Short-lived read memo for list_transcripts, keyed by client_id. The Reports page reaches it through
+# nested core modules on more than one tab; this shares one query. Cleared by every writer to the
+# call_transcripts table (ingest / delete / summarize). Same per-process contract as core.db._MEM_CACHE.
+_LIST_MEMO = {}
+
 
 def _resolve_client_id(client_id):
     if client_id is not None:
@@ -160,6 +165,7 @@ def ingest_transcript(full_text, quarter, call_date=None, source="upload", sourc
                 (cid, quarter, call_date, source, source_filename, full_text, now.isoformat()),
             )
         conn.commit()
+        _LIST_MEMO.clear()   # a transcript changed — drop the list memo
     finally:
         conn.close()
 
@@ -196,6 +202,9 @@ def list_transcripts(client_id=None):
     """Metadata for every ingested transcript (no full_text — use
     get_transcript() for that), newest quarter first by upload time."""
     cid = _resolve_client_id(client_id)
+    cached = _LIST_MEMO.get(cid)
+    if cached is not None:
+        return list(cached)
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
@@ -207,7 +216,9 @@ def list_transcripts(client_id=None):
             f"FROM call_transcripts WHERE client_id = {ph} ORDER BY uploaded_at DESC",
             (cid,),
         )
-        return [_row_to_dict(r, include_full_text=False) for r in cur.fetchall()]
+        rows = [_row_to_dict(r, include_full_text=False) for r in cur.fetchall()]
+        _LIST_MEMO[cid] = rows
+        return list(rows)
     finally:
         conn.close()
 
@@ -359,6 +370,7 @@ def delete_transcript(quarter, client_id=None):
         ph = "%s" if pg else "?"
         cur.execute(f"DELETE FROM call_transcripts WHERE client_id = {ph} AND quarter = {ph}", (cid, quarter))
         conn.commit()
+        _LIST_MEMO.clear()   # a transcript changed — drop the list memo
     finally:
         conn.close()
 
@@ -511,6 +523,7 @@ def summarize_transcript(quarter, client_id=None):
                  datetime.now().isoformat(), cid, quarter),
             )
         conn.commit()
+        _LIST_MEMO.clear()   # a transcript changed — drop the list memo
     finally:
         conn.close()
 

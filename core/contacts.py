@@ -32,6 +32,12 @@ EMAIL_UNKNOWN = "unknown"
 
 # 60s memo for institution_contacts_map() — see its docstring. Cleared on every write.
 _MAP_MEMO = {"at": None, "val": None}
+# Short-lived read memo for list_contacts, keyed by (firm_key, cik, limit). The Reports page reaches
+# it several times per render through nested core modules (board_package / benchmarking); this shares
+# one query across identical calls. Cleared by upsert_contact. Same per-process, in-process-write
+# contract as core.db._MEM_CACHE. Callers get a shallow copy (this is used app-wide — don't hand out
+# the shared list for someone to sort/append in place).
+_LIST_MEMO = {}
 
 _COLS = ("contact_id", "cik", "firm", "firm_key", "name", "title", "phone", "email",
          "email_status", "email_source", "email_checked_at", "domain", "source",
@@ -111,6 +117,7 @@ def upsert_contact(name, firm, cik=None, title=None, phone=None, email=None,
                  now_v, now_v))
         conn.commit()
         _MAP_MEMO.update({"at": None, "val": None})
+        _LIST_MEMO.clear()   # a new/changed contact can shift any filtered list
         return cid
     finally:
         conn.close()
@@ -216,6 +223,10 @@ def update_classification(contact_id, **fields):
 
 def list_contacts(firm=None, cik=None, limit=None):
     """Contacts, optionally filtered by firm (normalized match) or CIK."""
+    mk = (_norm(firm) if firm else None, norm_cik(cik) if cik else None, limit)
+    cached = _LIST_MEMO.get(mk)
+    if cached is not None:
+        return list(cached)
     conn = db.get_connection()
     pg = db.connection_is_postgres(conn)
     try:
@@ -235,7 +246,9 @@ def list_contacts(firm=None, cik=None, limit=None):
         if limit:
             sql += f" LIMIT {int(limit)}"
         cur.execute(sql, params)
-        return [_row(r) for r in cur.fetchall()]
+        rows = [_row(r) for r in cur.fetchall()]
+        _LIST_MEMO[mk] = rows
+        return list(rows)
     finally:
         conn.close()
 
