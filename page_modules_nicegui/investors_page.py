@@ -5295,17 +5295,14 @@ def _open_add_to_trip_dialog(idx, fund, contact, non_holder, score, default_metr
 
         def commit():
             trips_ = _load_json("ndr_trips.json", [])
-            trips_[idx].setdefault("meetings", []).append({
-                "institution": fund, "contact": contact,
-                "address": (address_in.value or "").strip(), "notes": "",
-                "day": int(day_in.value or 1),
-                "time": (slot_in.value or "").strip() or "—",
-                "type": "1x1", "format": format_in.value, "status": "scheduled",
-                "meeting_link": (link_in.value or "").strip(),
-                "non_holder": non_holder, "score": score, "metro": default_metro or "",
-                "lunch": bool(lunch_in.value),
-                "dietary": (diet_in.value or "").strip() if lunch_in.value else "",
-            })
+            from core import meetings as _m
+            _m.add_trip_meeting(
+                trips_[idx], int(day_in.value or 1), None,
+                institution=fund, contact=contact, time=(slot_in.value or "").strip() or "—",
+                format=format_in.value, notes="", non_holder=non_holder, score=score,
+                address=(address_in.value or "").strip(), meeting_link=(link_in.value or "").strip(),
+                metro=default_metro or "", lunch=bool(lunch_in.value),
+                dietary=(diet_in.value or "").strip() if lunch_in.value else "")
             _save_json("ndr_trips.json", trips_)
             _t = (slot_in.value or "").strip()
             ui.notify(f"{fund} added to trip{(' at ' + _t) if _t else ' — time TBD'}"
@@ -5510,29 +5507,29 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                 slots = max(1, int(slots_in.value or 5))
                 # Lay the initial meetings out on a 90-min cadence starting at the management window's
                 # opening time (not a hardcoded 9:00), so the seeded schedule already respects the hours.
+                from core import meetings as _m
                 _day_open = _parse_time_min(daystart_in.value) or (9 * 60)
-                meetings = []
-                for idx, (fund_name, inst) in enumerate(selected):
-                    day = idx // slots + 1
-                    slot_in_day = idx % slots
-                    time_label = _fmt_min_12h(_day_open + slot_in_day * 90)
-                    meetings.append({
-                        "institution": fund_name, "day": day, "time": time_label,
-                        "type": "virtual" if type_in.value == "virtual" else "1x1",
-                        "format": "Zoom" if type_in.value == "virtual" else "In-person",
-                        "status": "scheduled", "notes": inst.get("Action", ""),
-                        "non_holder": not inst["USIO_Holder"], "score": inst["Engagement_Score"], "contact": "",
-                    })
-                trips = _load_json("ndr_trips.json", [])
-                trips.append({
+                _new_trip = {
                     "name": name_in.value, "sponsor_bank": sponsor_in.value, "dates": dates_in.value or "TBD",
                     "ndr_type": type_in.value, "city": city_in.value or ("Virtual" if type_in.value == "virtual" else "TBD"),
                     "focus": focus_in.value, "team": team_in.value or [], "notes": notes_in.value,
                     "day_start": (daystart_in.value or "8:00 AM").strip(),
                     "day_end": (dayend_in.value or "5:00 PM").strip(),
-                    "meetings": meetings, "status": "Planning", "debrief": {},
+                    "meetings": [], "status": "Planning", "debrief": {},
                     "created": datetime.now().strftime("%Y-%m-%d"),
-                })
+                }
+                for idx, (fund_name, inst) in enumerate(selected):
+                    day = idx // slots + 1
+                    slot_in_day = idx % slots
+                    time_label = _fmt_min_12h(_day_open + slot_in_day * 90)
+                    _m.add_trip_meeting(
+                        _new_trip, day, None, institution=fund_name, time=time_label,
+                        type="virtual" if type_in.value == "virtual" else "1x1",
+                        format="Zoom" if type_in.value == "virtual" else "In-person",
+                        notes=inst.get("Action", ""), non_holder=not inst["USIO_Holder"],
+                        score=inst["Engagement_Score"])
+                trips = _load_json("ndr_trips.json", [])
+                trips.append(_new_trip)
                 _save_json("ndr_trips.json", trips)
                 n_non = sum(1 for _, i in selected if not i["USIO_Holder"])
                 ui.notify(f"NDR '{name_in.value}' created — {len(selected)} meeting(s) "
@@ -5612,13 +5609,10 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                     ui.notify("This NDR's slots are full — raise its days or meetings/day to schedule more.",
                               type="warning")
                     return
-                trip_.setdefault("meetings", []).append({
-                    "institution": entry.get("institution"), "day": day, "slot_index": slot,
-                    "time": _slot_time(slot), "type": "1x1", "format": "In-person", "status": "scheduled",
-                    "notes": entry.get("peers", ""), "non_holder": True, "score": entry.get("conviction"),
-                    "contact": "", "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "source": entry.get("source", "outbound"),
-                })
+                from core import meetings as _m
+                _m.add_trip_meeting(trip_, day, slot, institution=entry.get("institution"),
+                                    time=_slot_time(slot), notes=entry.get("peers", ""),
+                                    score=entry.get("conviction"), source=entry.get("source", "outbound"))
                 del trip_["shortlist"][si]
                 _save_json("ndr_trips.json", trips_)
                 try:
@@ -6182,18 +6176,15 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                                 ui.notify("Institution is required.", type="warning")
                                 return
                             trips_ = _load_json("ndr_trips.json", [])
-                            trips_[idx].setdefault("meetings", []).append({
-                                "institution": inst_in.value.strip(),
-                                "contact": (contact_in.value or "").strip(),
-                                "address": (address_in.value or "").strip(),
-                                "notes": notes_m.value,
-                                "day": int(day_in.value or 1),
-                                "time": (time_in.value or "").strip() or "—",
-                                "type": type_in.value, "format": format_in.value, "status": "scheduled",
-                                "meeting_link": (link_m.value or "").strip(),
-                                "non_holder": holder_in.value == "Non-holder", "score": None,
-                                "metro": trip.get("city", ""),
-                            })
+                            from core import meetings as _m
+                            _m.add_trip_meeting(
+                                trips_[idx], int(day_in.value or 1), None,
+                                institution=inst_in.value.strip(), contact=(contact_in.value or "").strip(),
+                                time=(time_in.value or "").strip() or "—", type=type_in.value,
+                                format=format_in.value, notes=notes_m.value,
+                                non_holder=holder_in.value == "Non-holder", score=None,
+                                address=(address_in.value or "").strip(), meeting_link=(link_m.value or "").strip(),
+                                metro=trip.get("city", ""))
                             _save_json("ndr_trips.json", trips_)
                             ui.notify(f"{inst_in.value.strip()} added to trip.")
                             _refresh_ndr()
