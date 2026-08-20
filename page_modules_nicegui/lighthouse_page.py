@@ -159,19 +159,8 @@ def render_lighthouse_page():
 
         # Lead with the ANSWER, not the instrumentation: this slot sits at the top of the page but
         # is populated further down (once the engine has computed the verdicts + weekly context), so
-        # "why is it moving" renders above the shadow-mode / test / calibration diagnostics below.
+        # "why is it moving" renders above the operator diagnostics below.
         _answer_slot = ui.column().classes("w-full").style("gap:8px;")
-        try:
-            from lighthouse import shadow as _shadow
-            st = _shadow.shadow_status(client_id, ticker)
-            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-                ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
-                    "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
-                ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
-                         f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
-                         f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        except Exception:
-            pass
 
         # In-app "send test digest" — verifies the email setup from the BROWSER (no Shell/terminal, no
         # paste), showing the delivery result or the exact SMTP error on screen. Forces a send (bypasses
@@ -198,10 +187,23 @@ def render_lighthouse_page():
             except Exception as e:
                 ui.notify(f"Error: {e}", type="negative", timeout=15000)
 
-        # Operator delivery/test controls — tucked into a collapsed expander so they don't lead the
-        # CEO-facing "why did my stock move" answer (which renders above via _answer_slot).
-        with ui.expansion("Alert & delivery setup — send a test digest, enable phone alerts",
+        # ALL operator instrumentation — shadow-mode status, test digest/push delivery, 30-day
+        # engagement, model calibration — collapsed into ONE expander so the CEO-facing "why did my
+        # stock move" answer (above, via _answer_slot) and the peer intelligence (below) lead the page,
+        # not the plumbing. Nothing diagnostic renders naked in the lead anymore.
+        with ui.expansion("Diagnostics & delivery — shadow mode, alerts, engagement, calibration",
                           icon="settings", value=False).classes("w-full").style("margin-bottom:8px;"):
+            try:
+                from lighthouse import shadow as _shadow
+                st = _shadow.shadow_status(client_id, ticker)
+                with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                    ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
+                        "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
+                    ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
+                             f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
+                             f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+            except Exception:
+                pass
             with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
                 ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
                     .props("outline size=sm color=primary")
@@ -237,29 +239,28 @@ def render_lighthouse_page():
                         ui.notify("Test push failed — see server log.", type="negative")
 
                 ui.button("Send test push", on_click=_send_test_push).props("flat dense size=sm")
-
-        try:                                            # used-vs-ignored readout (measure, don't hope)
-            from lighthouse import telemetry as _tel
-            eng = _tel.summary(client_id, ticker, days=30)
-            if eng["app_views"] or eng["emails_sent"]:
-                bits = [f"{eng['app_views']} page view(s)"]
-                if eng["emails_sent"]:
-                    orate = f" ({eng['open_rate']*100:.0f}% open)" if eng["open_rate"] is not None else ""
-                    bits.append(f"{eng['emails_opened']}/{eng['emails_sent']} digest(s) opened{orate}")
-                if eng["clicks"]:
-                    bits.append(f"{eng['clicks']} click-through(s)")
-                if eng["last_engaged"]:
-                    bits.append(f"last engaged {eng['last_engaged']}")
-                ui.label("Engagement (30d): " + " · ".join(bits)) \
-                    .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
-        except Exception:
-            pass
-        try:                                            # live calibration (cached; scheduler-refreshed)
-            from lighthouse import calibration as _cal
-            cc = _cal.load_cache(client_id)
-            if cc and not cc.get("error"):
-                with ui.expansion("Model calibration — is 'abnormal' actually informative?", icon="verified") \
-                        .classes("w-full").style("margin-bottom:8px;"):
+            try:                                            # used-vs-ignored readout (measure, don't hope)
+                from lighthouse import telemetry as _tel
+                eng = _tel.summary(client_id, ticker, days=30)
+                if eng["app_views"] or eng["emails_sent"]:
+                    bits = [f"{eng['app_views']} page view(s)"]
+                    if eng["emails_sent"]:
+                        orate = f" ({eng['open_rate']*100:.0f}% open)" if eng["open_rate"] is not None else ""
+                        bits.append(f"{eng['emails_opened']}/{eng['emails_sent']} digest(s) opened{orate}")
+                    if eng["clicks"]:
+                        bits.append(f"{eng['clicks']} click-through(s)")
+                    if eng["last_engaged"]:
+                        bits.append(f"last engaged {eng['last_engaged']}")
+                    ui.label("Engagement (30d): " + " · ".join(bits)) \
+                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
+            except Exception:
+                pass
+            try:                                            # live calibration (cached; scheduler-refreshed)
+                from lighthouse import calibration as _cal
+                cc = _cal.load_cache(client_id)
+                if cc and not cc.get("error"):
+                    ui.label("Model calibration — is 'abnormal' actually informative?").style(
+                        f"color:{COLORS['text_heading']};font-weight:600;font-size:var(--fs-sm);margin-top:4px;")
                     ui.label(f"{cc['days']} sessions · FDR alerts ~{cc.get('fdr_per_year', 0):.0f}/yr, "
                              f"{(cc.get('fdr_precision') or 0)*100:.0f}% with an identifiable catalyst · "
                              f"top-decile move recall {(cc.get('big_move_recall') or 0)*100:.0f}%") \
@@ -271,8 +272,8 @@ def render_lighthouse_page():
                         ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
                         ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
                             .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-        except Exception:
-            pass
+            except Exception:
+                pass
         # The "market-revealed peers" diagnostics (co-ownership / co-movement / sell-side coverage
         # overlap) need a real holder + coverage graph to be meaningful; on the illustrative demo they
         # compute ~0% and are hardcoded to USIO, so skip them — the core verdict + weekly context is
