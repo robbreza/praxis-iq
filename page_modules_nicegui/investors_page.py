@@ -1308,13 +1308,10 @@ def _open_schedule_dialog(item, extracted, on_done, default_mode="1x1"):
                 day, slot = _next_open_slot(trip)
                 if day is None:
                     ui.notify("That NDR's slots are full — raise its capacity or pick another.", type="warning"); return
-                trip.setdefault("meetings", []).append({
-                    "institution": firm, "contact": contact, "day": day, "slot_index": slot,
-                    "time": _slot_time(slot), "type": "1x1", "format": "In-person", "status": "scheduled",
-                    "notes": extracted.get("reason") or extracted.get("topic") or "", "non_holder": True,
-                    "score": None, "source": "inbound", "source_inbox_id": item.get("id"),
-                    "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                })
+                _m.add_trip_meeting(trip, day, slot, institution=firm, contact=contact,
+                                    time=_slot_time(slot),
+                                    notes=extracted.get("reason") or extracted.get("topic") or "",
+                                    source="inbound", source_inbox_id=item.get("id"))
                 _save_json("ndr_trips.json", trips2)
                 out = f"Scheduled {contact or firm} into {tname} → Outbound · NDR"
             else:
@@ -1379,14 +1376,11 @@ def _open_schedule_request_dialog(request, on_done):
                 day, slot = _next_open_slot(trip)
                 if day is None:
                     ui.notify("That NDR's slots are full — raise its capacity or pick another.", type="warning"); return
-                trip.setdefault("meetings", []).append({
-                    "institution": request.get("firm", ""), "contact": request.get("analyst", ""),
-                    "day": day, "slot_index": slot, "time": _slot_time(slot), "type": "1x1",
-                    "format": "In-person", "status": "scheduled", "notes": request.get("reason", ""),
-                    "non_holder": True, "score": None, "source": "inbound",
-                    "inbound_request_id": request.get("id"),
-                    "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                })
+                from core import meetings as _m
+                _m.add_trip_meeting(trip, day, slot, institution=request.get("firm", ""),
+                                    contact=request.get("analyst", ""), time=_slot_time(slot),
+                                    notes=request.get("reason", ""), source="inbound",
+                                    source_inbox_id=request.get("id"))
                 _save_json("ndr_trips.json", trips2)
                 reqs = _load_ndr_requests()
                 for rr in reqs:

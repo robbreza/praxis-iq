@@ -139,3 +139,30 @@ def log_ndr_request(cid, *, analyst, firm, city, metro="", reason="—", source_
                  "resolved": False, "seeded": False, "source_inbox_id": source_inbox_id})
     db.save_json("ndr_requests.json", rows, client_id=cid)
     return rid
+
+
+def add_trip_meeting(trip, day, slot_index=None, *, institution, contact="", time="",
+                     type="1x1", format="In-person", status="scheduled", notes="",
+                     non_holder=True, score=None, source=None, source_inbox_id=None, **extra):
+    """Append one canonically-shaped meeting into an NDR trip's `meetings` list IN PLACE — the single
+    builder for a trip-meeting's core shape, so the "schedule into a trip" write paths can't drift.
+    (They had drifted: the inbox Schedule dialog stamped `source_inbox_id`, the NDR-request scheduler a
+    legacy `inbound_request_id` — normalize_ndr reads either, but the store now writes ONE key.) The
+    caller supplies (day, slot_index) from the trip's day×slot grid (investors_page._next_open_slot) and
+    persists the trips list afterward; `**extra` carries richer planner-only fields (address, metro,
+    meeting_link, lunch…) for callers that need them. Returns the appended meeting dict.
+
+    Write-side twin of normalize_ndr(): keeping the stored shape in one place means the two physical
+    stores (scheduled_meetings.json + ndr_trips.json[].meetings) never drift again — no risky physical
+    merge needed, since the read model (all_meetings) already unifies them."""
+    m = {
+        "institution": institution, "contact": contact, "day": day,
+        "time": time, "type": type, "format": format, "status": status, "notes": notes,
+        "non_holder": non_holder, "score": score, "source": source, "source_inbox_id": source_inbox_id,
+        "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    if slot_index is not None:
+        m["slot_index"] = slot_index
+    m.update(extra)
+    trip.setdefault("meetings", []).append(m)
+    return m
