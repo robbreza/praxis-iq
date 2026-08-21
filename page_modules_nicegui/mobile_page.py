@@ -127,6 +127,119 @@ def _upcoming_meetings(client_id):
     return upcoming, today
 
 
+def _ndr_meetings(cid):
+    """Upcoming NDR trip meetings (today + future) — each row carries the RAW trip-meeting dict so the
+    phone renders the SAME prep card the desktop does. Only non-Completed trips with a resolvable start
+    date place onto the schedule; the meeting's absolute date = trip start + its day offset."""
+    from datetime import timedelta
+    from core import db
+    from core.meetings import parse_trip_start
+    today = datetime.now().date()
+    out = []
+    for t in (db.load_json("ndr_trips.json", [], client_id=cid) or []):
+        if (t.get("status") or "").lower() == "completed":
+            continue
+        start = parse_trip_start(t.get("dates"))
+        if start is None:
+            continue
+        for m in (t.get("meetings") or []):
+            if m.get("type") == "break":
+                continue
+            try:
+                d = start + timedelta(days=max(0, int(m.get("day", 1) or 1) - 1))
+            except Exception:
+                continue
+            if d < today:
+                continue
+            out.append({
+                "Firm": m.get("institution", ""), "Contact": m.get("contact", ""),
+                "Date": d.strftime("%Y-%m-%d"),
+                "Time": m.get("time", "") if m.get("time") != "—" else "",
+                "Type": m.get("type", "1x1"), "_ndr": True, "_raw": m,
+                "_trip": t.get("name", ""), "_metro": m.get("metro") or t.get("city", ""),
+            })
+    return out
+
+
+def _prep_inst_lookup(cid):
+    """Holders + promoted prospects, engagement-enriched — the institution rows the prep card reads
+    (position for holders, fit for prospects). Mirrors what the desktop Prep Cards tab resolves, so the
+    phone card is identical."""
+    from core import targets
+    insts = list(targets.targets_as_institutions(client_id=cid) or [])
+    try:
+        seen = {i.get("Fund") for i in insts}
+        insts += [p for p in (targets.promoted_prospects(cid) or []) if p.get("Fund") not in seen]
+    except Exception:
+        pass
+    try:
+        from page_modules_nicegui.investors_page import _enrich_engagement_signals
+        _enrich_engagement_signals(insts, cid)
+    except Exception:
+        pass
+    return {i.get("Fund"): i for i in insts if i.get("Fund")}
+
+
+def _open_ndr_prep(raw, cid, inst_lookup):
+    """The full NDR prep card on a phone — the SAME briefing the desktop Prep Cards tab shows (via the
+    shared render_prep_card_body), so the CFO walks into the meeting ready straight off her phone. Plus
+    one-tap note capture for right after."""
+    from page_modules_nicegui.investors_page import render_prep_card_body, _last_meeting_brief
+    firm = raw.get("institution", "")
+    inst = inst_lookup.get(firm)
+    prior = None
+    try:
+        prior = _last_meeting_brief(firm)
+    except Exception:
+        pass
+    with ui.dialog() as dialog, ui.card().style(
+            f"background:{COLORS['surface_bg']};min-width:min(94vw,460px);"
+            f"max-height:90vh;overflow:auto;border-radius:12px;"):
+        ui.label(pretty_name(firm)).classes("text-lg font-bold").style(f"color:{COLORS['text_heading']};")
+        _sc = raw.get("score")
+        holder = inst.get("USIO_Holder") if inst else (raw.get("non_holder") is False)
+        cap = [raw.get("time"), raw.get("metro"),
+               "Existing holder" if holder else "Prospect",
+               (f"Fit {int(_sc)}" if isinstance(_sc, (int, float)) else None)]
+        ui.label(" · ".join(str(x) for x in cap if x)).style(
+            f"color:{COLORS['accent']};font-size:var(--fs-sm);font-weight:600;margin-bottom:6px;")
+        render_prep_card_body(raw, inst, prior)
+        ui.separator().style("margin:8px 0;")
+        ui.label("Capture a note").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:var(--fs-base);")
+        note_in = ui.textarea(placeholder="What did they say? Objections, follow-ups, buy signal…") \
+            .props("autogrow").classes("w-full")
+
+        def _save():
+            text = (note_in.value or "").strip()
+            if not text:
+                ui.notify("Nothing to save yet.", type="warning"); return
+            try:
+                from core.investor_scoring import load_meeting_log, save_meeting_log
+                from core import activity_log
+                from config.client_config import CI
+                log = load_meeting_log() or []
+                log.append({
+                    "Fund": firm, "Date": datetime.now().strftime("%Y-%m-%d"),
+                    "Type": "Note (mobile)", "Attendees": "", "Notes": text,
+                    "Outcome": "No clear signal", "Logged By": (CI() or {}).get("name") or "IR Team",
+                    "Source": "Mobile · NDR prep",
+                })
+                save_meeting_log(log)
+                try:
+                    activity_log.log_event("meeting_note", entity=firm, launched_from="Mobile · NDR prep")
+                except Exception:
+                    pass
+                ui.notify(f"Note saved to {pretty_name(firm)}."); dialog.close()
+            except Exception:
+                ui.notify("Couldn't save the note — try again from desktop.", type="negative")
+
+        with ui.row().classes("w-full justify-end gap-2").style("margin-top:6px;"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+            ui.button("Save note", on_click=_save).props("color=primary")
+    dialog.open()
+
+
 def _fmt_date(d):
     try:
         return datetime.strptime(d, "%Y-%m-%d").strftime("%b %d")
@@ -145,20 +258,39 @@ def render_home_page():
     inst_by_fund = {r.get("Fund"): r for r in insts if r.get("Fund")}
 
     # ── 1. YOUR MEETINGS (the hero — the one job a phone view has on the road) ──────────────────
-    meetings, today = _upcoming_meetings(client_id)
+    # Standalone 1x1s (scheduled_meetings) AND NDR trip meetings, merged & date-sorted — so a roadshow
+    # planned on the desktop shows up on the phone, and each NDR stop opens the SAME prep card the CFO
+    # would see at her desk (render_prep_card_body), straight off her phone before she walks in.
+    sched, today = _upcoming_meetings(client_id)
+    ndr = _ndr_meetings(client_id)
+    # Sort by date, then by PARSED time-of-day — a plain string sort puts "8:00 AM" after "10:00 AM"
+    # (lexical), which would bury the CFO's earliest meeting. None/unparseable times sort last.
+    try:
+        from page_modules_nicegui.investors_page import _parse_time_min as _tmin
+    except Exception:
+        _tmin = lambda s: None
+    meetings = sorted(sched + ndr,
+                      key=lambda x: ((x.get("Date") or "9999-99-99"),
+                                     (_tmin(x.get("Time")) if _tmin(x.get("Time")) is not None else 9999)))
+    inst_lookup = _prep_inst_lookup(client_id) if ndr else {}
     with _card():
         with ui.row().classes("w-full justify-between items-center"):
             ui.label("Your meetings").classes("section-head")
             ui.button("Schedule →", on_click=lambda: nav.go_to("Inbox")) \
                 .props("flat dense size=sm")
         if meetings:
-            for m in meetings[:6]:
+            for m in meetings[:8]:
                 firm = m.get("Firm") or m.get("Contact") or "—"
                 is_today = (m.get("Date") or "") == today
                 when = "Today" if is_today else _fmt_date(m.get("Date"))
+                _is_ndr = bool(m.get("_ndr"))
+                if _is_ndr:
+                    _tap = lambda m=m: _open_ndr_prep(m["_raw"], client_id, inst_lookup)
+                else:
+                    _tap = lambda m=m, f=firm: _open_brief(f, inst_by_fund, client_id, meeting=m)
                 with ui.row().classes("w-full items-center gap-3").style(
                         f"padding:9px 0;border-top:1px solid {COLORS['border']};cursor:pointer;").on(
-                        "click", lambda m=m, f=firm: _open_brief(f, inst_by_fund, client_id, meeting=m)):
+                        "click", _tap):
                     with ui.column().classes("gap-0 items-center").style("min-width:52px;"):
                         ui.label(when).style(
                             f"font-size:var(--fs-xs);font-weight:700;"
@@ -166,13 +298,19 @@ def render_home_page():
                         if m.get("Time"):
                             ui.label(m["Time"]).style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
                     with ui.column().classes("gap-0").style("flex:1;min-width:0;"):
-                        ui.label(pretty_name(firm)).style(
-                            f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.3;")
-                        sub = " · ".join(x for x in [m.get("Contact"), m.get("Type")] if x)
+                        with ui.row().classes("items-center gap-2").style("min-width:0;"):
+                            ui.label(pretty_name(firm)).style(
+                                f"color:{COLORS['text_heading']};font-size:var(--fs-md);font-weight:600;line-height:1.3;")
+                            if _is_ndr:
+                                ui.label("NDR").style(
+                                    f"background:{COLORS['accent']};color:#fff;font-size:9px;font-weight:700;"
+                                    "padding:1px 6px;border-radius:8px;letter-spacing:.04em;")
+                        sub = " · ".join(x for x in [m.get("Contact"),
+                                                     (m.get("_metro") if _is_ndr else m.get("Type"))] if x)
                         if sub:
                             ui.label(sub).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
                     ui.icon("chevron_right").style(f"color:{COLORS['text_muted']};font-size:var(--fs-2xl);")
-            ui.label("Tap a meeting for the brief + to capture a note.").style(
+            ui.label("Tap a meeting for the prep card + to capture a note.").style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:6px;")
         else:
             ui.label("No meetings booked yet.").style(f"color:{COLORS['text_body']};font-size:var(--fs-base);")

@@ -27,6 +27,7 @@ The demo is deliberately built around a single, believable day of IR work rather
 | 5 | **Active NDRs** — the scoped itinerary: 8 meetings, the **Point72 car leg to Stamford** (6:39 AM pickup, ~71 min), the **catered working lunch**, the **same-venue 10-min turnovers**. | "Eight meetings, routed. It opens with a car up to Point72 in Connecticut, holds the middle of the day at the conference hotel, and paces the turnovers so nothing starts late." | The tool plans a *physically real* day — geography, travel, meals, timing. |
 | 6 | **PREP CARDS** tab. Expand **Halewood Capital Management** (holder), then **Point72** (prospect). Read the two side by side. | "This is the payoff. One card per meeting, pulled live from tracked ownership data. Halewood is an existing holder — so the card leads with their position: 1.4 million shares, adding, and the peers they *also* own. Point72 isn't in yet — so the same tool frames it as a priority conversion. A holder reads like a holder; a prospect reads like a prospect." | The differentiator: prep is generated off the real book, correctly typed per fund. |
 | 7 | Back out to the trip header (0/8 completed · 6 non-holders). Optional: Post-NDR Debrief tab. | "Six of the eight are funds that don't own the stock yet. That's the whole point of a roadshow — and IRconnect walks the team in ready for every one." | Closes the loop: reach + intelligence, measured. |
+| 8 | **Mobile** (phone viewport). The CFO opens IRconnect on her phone → "Your meetings" now lists the NY NDR stops with an **NDR** badge → she taps **Point72** (her 8:00) → the **same prep card** opens on the phone. | "The morning of the roadshow, the CFO doesn't open a laptop. She opens her phone in the car — every NDR meeting is right there, and tapping one gives her the exact same prep card the team built: who they are, the position, what to bring. She walks in ready." | The intelligence travels: desktop-built prep, pulled up on a phone before the meeting. |
 
 ---
 
@@ -45,6 +46,26 @@ Capture these two expanded cards. The on-screen text below is what the live demo
 - Why they matter now: *"Marquee multi-strat; sector PM engaged — the Connecticut anchor that opens the NY swing."*
 
 > The contrast is the point: **same tool, opposite framing**, because it reads off whether the fund actually holds the stock — no manual tagging, no contradictions.
+
+---
+
+## Scene 8 — Mobile: the CFO pulls up the prep card on her phone
+
+The payoff for "the NDR is built — now the CFO needs it on the road." After the desktop plans the trip,
+the NDR meetings surface on the phone automatically, and each opens the **same** `render_prep_card_body`
+briefing the desktop shows (one shared renderer — no separate mobile-lite version).
+
+Capture flow (phone viewport, 390×844):
+1. Bottom tab bar → **Home** (the on-the-road view). Header reads "On the road."
+2. **Your meetings** now lists the NY NDR stops, each with a small **NDR** badge and its metro.
+3. Tap **Point72 Asset Management** (8:00 AM) → the prep card opens full-screen:
+   *"High-fit prospect (Fit 92/100) — a priority conversion, not a cold intro."* + why-they-matter + a **Capture a note** box for right after.
+4. (Optional contrast) Back → tap **Halewood** (10:00) → *"Existing holder — defend-and-deepen… Holds 1,420,000 shares (~$46.6M · 1.2% of their book) — adding."*
+
+Talk track: *"Same briefing, in her hand, before she's out of the car."*
+
+Build note: mobile "Your meetings" merges `scheduled_meetings` + NDR trip meetings; the tap routes NDR
+stops to `mobile_page._open_ndr_prep`, which calls the shared `investors_page.render_prep_card_body`.
 
 ---
 
