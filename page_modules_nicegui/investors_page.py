@@ -6618,10 +6618,25 @@ def _last_meeting_brief(firm):
             "raw": r.get("Raw"), **(st if isinstance(st, dict) else {})}
 
 
-def _ndr_prep_read(inst, prior=None):
+def _ndr_prep_read(inst, prior=None, m=None):
     """The one-line READ for a meeting — holder-vs-prospect framing off the Fit score, plus the
     strongest warm signal on file. Mirrors the ownership-summary READ used elsewhere on the page
-    so a prep card leads with the same judgement, not a different one."""
+    so a prep card leads with the same judgement, not a different one. For a meeting whose fund isn't
+    in the tracked book (a hand-added conference 1x1), it reads off the MEETING's own conviction score
+    and holder flag instead of falling flat to a generic 'no signal' line."""
+    if not inst and m:
+        sc, holder = m.get("score"), (not m.get("non_holder", True))
+        if holder:
+            base = "Existing holder — a defend-and-deepen meeting: protect the position and grow it."
+        elif isinstance(sc, (int, float)) and sc >= 80:
+            base = f"High-conviction target (score {int(sc)}/100) — a priority conversion, not a cold intro."
+        elif isinstance(sc, (int, float)) and sc >= 55:
+            base = f"Solid target (score {int(sc)}/100) — worth a full pitch; qualify the path to a position."
+        else:
+            base = "Prospect — discovery meeting: confirm mandate fit before going deep."
+        if prior and prior.get("sentiment"):
+            base += f" Last conversation read {str(prior['sentiment']).lower()}."
+        return base
     if not inst:
         base = ("No tracked signal on file — treat as a discovery meeting: confirm mandate fit and "
                 "time horizon before going deep on the thesis.")
@@ -6768,7 +6783,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                                 if contact.get("email"):
                                     _mailto(contact["email"], f"{CT('ticker')} — following up on our meeting", "", "Email")
                         # THE READ
-                        ui.label(_ndr_prep_read(inst, prior)).style(
+                        ui.label(_ndr_prep_read(inst, prior, m)).style(
                             f"background:{COLORS['surface_hover_bg']};border-left:3px solid {COLORS['accent']};"
                             f"border-radius:6px;padding:8px 10px;color:{COLORS['text_body']};font-size:var(--fs-sm);"
                             "line-height:1.45;margin-bottom:2px;")
@@ -6798,7 +6813,7 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                             ui.label("Why they matter now").style(hdr)
                             for s in sigs:
                                 ui.label(f"• {s}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                        if not (prior or bring or sigs or inst):
+                        if not (prior or bring or sigs or inst or (m and m.get("score") is not None)):
                             ui.label("• No tracked signal on file — treat as a discovery meeting.").style(
                                 f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
                         # Strategy note last (the human overlay)
