@@ -5092,10 +5092,34 @@ def _ndr_target_candidates(institutions, location, ndr_type):
     anywhere — same threshold app.py used, since a virtual trip isn't
     geography-bound. Non-holders are sorted first (conversion is the
     point of an NDR), holders after (relationship maintenance)."""
+    # The pool is current holders PLUS the peer-prospect universe (funds that own a comp/peer but not
+    # us) folded in as NON-holders — conversion is the point of an NDR, so 'who to see in this metro'
+    # must include the prospects, not just current holders (mirrors the geography metro table). Without
+    # it a prospect-rich metro like New York read as having no targets for a client whose few 13F
+    # holders sit elsewhere. Deduped by fund name.
+    pool = list(institutions)
+    try:
+        from core import peer_prospects
+        from config.client_config import get_active_client_id as _gacid
+        _seen = {(i.get("Fund") or "").strip().lower() for i in institutions}
+        for c in (peer_prospects.build_candidates(_gacid(), limit=None) or []):
+            nm = (c.get("filer") or "").strip()
+            if not nm or nm.lower() in _seen:
+                continue
+            _seen.add(nm.lower())
+            pool.append({
+                "Fund": nm,
+                "Metro": _metro_from_city((c.get("city") or ""), (c.get("state") or "")),
+                "USIO_Holder": False, "Engagement_Score": c.get("conviction"),
+                "Action": "Prospect — owns a peer/comp, not you", "comps": c.get("comps"),
+                "City": (c.get("city") or "").title(),
+            })
+    except Exception:
+        pass
     if ndr_type == "virtual":
-        candidates = [i for i in institutions if not i["USIO_Holder"] and _score_val(i) >= 40]
+        candidates = [i for i in pool if not i["USIO_Holder"] and _score_val(i) >= 40]
     else:
-        candidates = [i for i in institutions if i["Metro"] == location]
+        candidates = [i for i in pool if i["Metro"] == location]
     # _score_val (not x["Engagement_Score"]) — a candidate can have a missing or None score
     # (SEC-sourced names, unscored prospects), and `-None` / a missing key raises, which used to
     # abort the whole Active NDRs panel mid-render so a Planning NDR's card never drew.
