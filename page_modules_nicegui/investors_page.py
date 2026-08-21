@@ -4862,7 +4862,8 @@ def _build_ndr_itinerary(trip, ticker):
             if m.get("notes"):
                 lines.append(f"              Note: {m['notes']}")
             if m.get("lunch"):
-                lines.append("              Catered working lunch (~1h15) · Dietary: "
+                _ml, _mn, _md = _meal_kind(m)
+                lines.append(f"              {_ml} ({_md}) · Dietary: "
                              + ((m.get("dietary") or "").strip() or "— (confirm with caterer)"))
             prev = m
         # Day ends back at where management is staying (the trip ending).
@@ -5163,10 +5164,21 @@ def _fmt_min_12h(mins):
     return f"{h % 12 or 12}:{m:02d} {ap}"
 
 
+def _meal_kind(m):
+    """A catered meeting's (label, minutes, duration_hint) by its START time — a catered meal IS the
+    meeting (the Street norm). Breakfast ~1h, working lunch ~1h15, dinner ~1h30; midday → lunch."""
+    t = _parse_time_min(m.get("time") or "")
+    if t is not None and t < 11 * 60:
+        return ("Catered breakfast", 60, "~1h")
+    if t is not None and t >= 16 * 60:
+        return ("Catered dinner", 90, "~1h30")
+    return ("Catered working lunch", 75, "~1h15")
+
+
 def _meeting_duration(m):
-    """Minutes a meeting occupies on the calendar. A regular 1x1 runs ~45 min; a catered lunch runs
-    ~1h15 (the Street norm — the meeting IS the lunch)."""
-    return 75 if m.get("lunch") else 45
+    """Minutes a meeting occupies on the calendar. A regular 1x1 runs ~45 min; a catered meal runs
+    longer (breakfast ~1h / lunch ~1h15 / dinner ~1h30 — the Street norm, the meeting IS the meal)."""
+    return _meal_kind(m)[1] if m.get("lunch") else 45
 
 
 def _meeting_time_range(m):
@@ -6040,7 +6052,8 @@ def _render_ndr_tab(institutions, meeting_log, client_id, mode="pre"):
                         if m.get("lunch"):
                             with ui.row().classes("items-center gap-1").style("margin-left:6px;"):
                                 ui.icon("restaurant").style(f"color:#B45309;font-size:var(--fs-sm);")
-                                _dtxt = "Catered working lunch (~1h15)"
+                                _ml, _mn, _md = _meal_kind(m)
+                                _dtxt = f"{_ml} ({_md})"
                                 if (m.get("dietary") or "").strip():
                                     _dtxt += f" · Dietary: {m['dietary'].strip()}"
                                 else:
