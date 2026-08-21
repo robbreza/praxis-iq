@@ -27,6 +27,12 @@ done
 
 # 4) old process + port confirmed clear -> safe to open the log and start fresh
 : > "$LOG"                       # truncate now that no one holds it
-DEV_AUTOLOGIN="${DEV_AUTOLOGIN:-PPADMIN@praxispoint.com}" nohup python app_nicegui.py > "$LOG" 2>&1 &
+# DEV_TENANT picks the tenant a fresh session boots into (app defaults to 'usio'). This only
+# affects NEW sessions: app.storage.user["active_client_id"] is set via setdefault, and an
+# existing browser session's choice lives in an httpOnly cookie the app won't override — so to
+# actually land on a different tenant, use a fresh/incognito session (or clear .nicegui storage).
+DEV_TENANT="${DEV_TENANT:-usio}" \
+DEV_AUTOLOGIN="${DEV_AUTOLOGIN:-PPADMIN@praxispoint.com}" \
+  nohup python app_nicegui.py > "$LOG" 2>&1 &
 until grep -q "NiceGUI ready" "$LOG" 2>/dev/null; do sleep 1; done
 echo "app restarted cleanly -> $LOG"
