@@ -927,61 +927,143 @@ def seed():
         "narrative_gap": "Need a cleaner bridge from gross (interchange-inclusive) revenue to net revenue for peer comparability.",
         "next_targets": "Marrow Point Capital, Sutton Yard Management (both NY, screened, not yet met).",
     }
-    # The SHOWCASE Philadelphia NDR, seeded MID-FLIGHT so the invite→response→scheduled loop is
-    # demoable out of the box AND survives reseeds (a hand-built NDR is wiped by the next reseed).
-    # The "reply came back" is represented by a target's status: Confirmed targets move OUT of the
-    # shortlist INTO meetings[] (a filled capacity slot); Invited = awaiting; Declined = a no.
+    # Two PAST corridors (Completed + fully debriefed) and the ACTIVE New York showcase. Seeded here so
+    # the whole invite→scope→run→debrief loop is demoable out of the box AND survives reseeds (a
+    # hand-built NDR is wiped by the next reseed). Every meeting carries a street address so the
+    # itinerary routes real driving miles/time.
     _ts = TODAY.strftime("%Y-%m-%d %H:%M")
-    def _sl(inst, conv, status, city="Philadelphia", bucket="Institutional", peers="CLRT, PYRA, VNTG"):
-        r = {"institution": inst, "city": city, "state": "PA", "metro": "Philadelphia, PA",
-             "conviction": conv, "peers": peers, "bucket": bucket, "status": status,
-             "source": "outbound", "added_at": _ts}
-        if status == "invited":  r["contacted_at"] = _ts
-        if status == "declined": r["declined_at"] = _ts
-        return r
-    def _mtg(inst, day, slot, time, score, address):
+    def _mtg(inst, day, slot, time, score, address, status="completed"):
         return {"institution": inst, "day": day, "slot_index": slot, "time": time, "type": "1x1",
-                "format": "In-person", "status": "scheduled", "address": address, "notes": "Owns PYRA, CLRT, VNTG",
+                "format": "In-person", "status": status, "address": address, "notes": "Owns PYRA, CLRT, VNTG",
                 "non_holder": True, "score": score, "contact": "", "confirmed_at": _ts, "source": "outbound"}
+
+    # PAST 1 — Philadelphia Value Corridor (Completed, fully debriefed).
     _ndr_trips.append({
         "id": "trip-philly", "name": "Philadelphia Value Corridor NDR", "city": "Philadelphia, PA",
         "metro": "Philadelphia, PA", "sponsor_bank": "Westmark Partners", "sponsor": "Westmark Partners",
-        "dates": (TODAY + timedelta(days=8)).strftime("%b %d") + "–" + (TODAY + timedelta(days=9)).strftime("%d, %Y"),
-        "date": (TODAY + timedelta(days=8)).strftime("%Y-%m-%d"), "time": "Full day", "ndr_type": "in_person",
+        "dates": (TODAY - timedelta(days=15)).strftime("%b %d") + "–" + (TODAY - timedelta(days=14)).strftime("%d, %Y"),
+        "date": (TODAY - timedelta(days=15)).strftime("%Y-%m-%d"), "time": "Full day", "ndr_type": "in_person",
         "focus": "Pre-earnings — build anticipation", "team": ["Priya Raman (CFO)", "Marcus Ellery (CEO)"],
-        "notes": "Convert the Main Line value corridor; defend Fairmount.", "status": "Planning",
-        "debrief": {}, "days": 2, "slots_per_day": 6, "created": TODAY.strftime("%Y-%m-%d"),
-        # Management availability window + where they're staying — drives the smart slot picker and the
-        # itinerary's opening pickup time.
+        "notes": "Convert the Main Line value corridor; defend Fairmount.", "status": "Completed",
+        "days": 2, "slots_per_day": 6, "created": (TODAY - timedelta(days=22)).strftime("%Y-%m-%d"),
         "day_start": "8:00 AM", "day_end": "5:00 PM",
         "hotel": "The Rittenhouse Hotel, 210 W Rittenhouse Sq, Philadelphia, PA 19103",
-        "meetings": [   # confirmed → slotted, WITH street addresses so the itinerary routes real
-                        # driving miles/time across the corridor (Philadelphia → Berwyn → Wayne).
+        "meetings": [
             _mtg("Cooke & Bieler L.P.", 1, 0, "9:00 AM", 93, "2001 Market St, Philadelphia, PA 19103"),
             _mtg("Penn Capital Management", 1, 1, "10:30 AM", 92, "1200 Intrepid Ave, Philadelphia, PA 19112"),
-            # Catered working lunch (Street norm — lunch built INTO a meeting), ~1h15 with a dietary
-            # note. Deliberately a Philadelphia lunch right before a Berwyn 1:00 — the itinerary flags
-            # that you can't be mid-lunch downtown and 26 mi out on the Main Line at once.
             {"institution": "Glenmede Investment Management", "day": 1, "slot_index": 2, "time": "11:45 AM",
-             "type": "1x1", "format": "In-person", "status": "scheduled",
+             "type": "1x1", "format": "In-person", "status": "completed",
              "address": "1650 Market St, Philadelphia, PA 19103", "notes": "Owns PYRA, CLRT, VNTG",
              "non_holder": True, "score": 92, "contact": "", "confirmed_at": _ts, "source": "outbound",
              "lunch": True, "dietary": "2 vegetarian, 1 gluten-free (Glenmede team)"},
             _mtg("Chartwell Investment Partners", 1, 3, "1:00 PM", 92, "1205 Westlakes Dr, Berwyn, PA 19312"),
-            # Deliberately tight after Chartwell (only 30 min for a ~5-mi Berwyn→Wayne hop + turnaround)
-            # so the itinerary's feasibility check flags a REAL roadshow snag — the "see what happens".
             _mtg("Conestoga Capital Advisors", 1, 4, "1:30 PM", 93, "550 E Swedesford Rd, Wayne, PA 19087"),
         ],
-        "shortlist": [  # still in the pipeline: awaiting replies, a decline, and not-yet-contacted
-            _sl("Main Line Wealth Advisors", 88, "invited", city="Radnor", bucket="RIA / wealth", peers="RIA — wealth channel"),
-            _sl("abrdn Inc.", 91, "declined", city="Conshohocken"),
-            _sl("Brandywine Global Investment Mgmt", 91, "shortlisted"),
-            _sl("Fairmount Ridge Capital", None, "shortlisted", bucket="Holder", peers="Holder — defend"),
+        "shortlist": [],
+        "debrief": {
+            "meetings_held": 5, "effectiveness": 78, "best_meeting": "Cooke & Bieler L.P.",
+            "follow_ups": "Send the updated net-take-rate bridge to Cooke & Bieler and Glenmede; both asked for the PayFac cohort detail.",
+            "new_positions": "Fairmount Ridge Capital opened a starter position post-visit (per NOBO).",
+            "key_objection": "Skepticism on the durability of net take-rate expansion beyond the integrated-mix shift.",
+            "narrative_gap": "The deck does not quantify PayFac attach economics per merchant — funds kept asking.",
+            "next_targets": "Aristotle Capital (Wayne), Miller/Howard — Philadelphia value names not yet met.",
+        },
+    })
+
+    # PAST 2 — Mid-Atlantic Corridor (Completed): Baltimore anchor (T. Rowe, catered BREAKFAST) → Philly.
+    def _mam(inst, time, contact, score, address, city, state, note, non_holder=True, **extra):
+        m = {"institution": inst, "day": 1, "time": time, "type": "1x1", "format": "In-person",
+             "status": "completed", "address": address, "city": city, "state": state,
+             "metro": "Baltimore, MD", "non_holder": non_holder, "score": score, "contact": contact,
+             "notes": note, "confirmed_at": _ts, "source": "outbound"}
+        m.update(extra); return m
+    _ndr_trips.append({
+        "id": "trip-midatl", "name": "Mid-Atlantic Corridor NDR", "city": "Baltimore, MD",
+        "metro": "Baltimore, MD", "sponsor_bank": "Cascade Securities", "sponsor": "Cascade Securities",
+        "dates": (TODAY - timedelta(days=9)).strftime("%b %d, %Y"),
+        "date": (TODAY - timedelta(days=9)).strftime("%Y-%m-%d"), "time": "Full day", "ndr_type": "in_person",
+        "focus": "Baltimore–Philadelphia day's-drive corridor, anchored by T. Rowe Price.",
+        "team": ["Priya Raman (CFO)", "Dana Whitfield (IR Director)"],
+        "notes": "One-day corridor: Baltimore morning (T. Rowe breakfast + Brown funds) → Philadelphia afternoon.",
+        "status": "Completed", "days": 1, "slots_per_day": 8,
+        "created": (TODAY - timedelta(days=16)).strftime("%Y-%m-%d"),
+        "day_start": "7:15 AM", "day_end": "6:00 PM", "hotel": "",
+        "meetings": [
+            _mam("T. Rowe Price Group", "8:00 AM", "Tom Watson, Director of Research", 95,
+                 "100 E Pratt St, Baltimore, MD 21202", "Baltimore", "MD",
+                 "Baltimore anchor — catered breakfast; the must-see that justifies the corridor.",
+                 lunch=True, dietary="continental breakfast (T. Rowe team)"),
+            _mam("Brown Advisory", "9:30 AM", "Ellen Marsh, Portfolio Manager", 84,
+                 "901 S Bond St, Baltimore, MD 21231", "Baltimore", "MD", "Baltimore value — strong fit."),
+            _mam("Brown Capital Management", "10:45 AM", "Gerald Pittman, Analyst", 80,
+                 "1201 N Calvert St, Baltimore, MD 21202", "Baltimore", "MD", "Baltimore small-cap growth."),
+            _mam("Cooke & Bieler L.P.", "1:00 PM", "Andrew Armstrong, Portfolio Manager", 93,
+                 "2001 Market St, Philadelphia, PA 19103", "Philadelphia", "PA", "Philadelphia value corridor."),
+            _mam("Glenmede Investment Management", "2:15 PM", "Allison Donnelly, Managing Director", 92,
+                 "1650 Market St, Philadelphia, PA 19103", "Philadelphia", "PA", "Owns peers; convert."),
+            _mam("Fairmount Ridge Capital", "3:30 PM", "Thomas Sorensen, Portfolio Manager", 68,
+                 "1818 Market St, Philadelphia, PA 19103", "Philadelphia", "PA", "Holder — defend the position.", non_holder=False),
+            _mam("Chartwell Investment Partners", "4:45 PM", "David Bright, Head of IR", 82,
+                 "1205 Westlakes Dr, Berwyn, PA 19312", "Berwyn", "PA", "Main Line value close-out."),
         ],
+        "shortlist": [],
+        "debrief": {
+            "meetings_held": 7, "effectiveness": 82, "best_meeting": "T. Rowe Price Group",
+            "follow_ups": "T. Rowe (Tom Watson) wants the segment-KPI file; Brown Advisory requested a pre-earnings follow-up call.",
+            "new_positions": "Brown Capital Management indicated they are building a position.",
+            "key_objection": "Concentration risk in the top-3 merchant accounts.",
+            "narrative_gap": "No clear framing of the Ion float-monetization upside — the story management tells but the deck does not.",
+            "next_targets": "Legg Mason successors and additional Main Line value funds via the Baltimore–Philly corridor.",
+        },
+    })
+
+    # ACTIVE showcase — New York · Ashfield Payments Conference (built from inbound req-1). Opens with a
+    # Point72 field visit in Stamford, CT (the routing engine schedules the car out of the NYC hotel),
+    # then the conference block: 2 current owners deepened + 6 new NY accounts, incl. a catered lunch.
+    _HOTEL = "The Pierre, 2 E 61st St, New York, NY 10065"
+    def _nym(inst, time, contact, nh, score, note, address=None, city="New York", state="NY", **extra):
+        m = {"institution": inst, "day": 1, "time": time, "type": "1x1", "format": "In-person",
+             "status": "scheduled", "address": address or _HOTEL, "city": city, "state": state,
+             "metro": "New York, NY", "non_holder": nh, "score": score, "contact": contact,
+             "notes": note, "confirmed_at": _ts, "source": "conference"}
+        m.update(extra); return m
+    _ndr_trips.append({
+        "id": "trip-ny-ashfield", "name": "New York — Ashfield Payments Conference", "city": "New York, NY",
+        "metro": "New York, NY", "sponsor_bank": "Ashfield Research", "sponsor": "Ashfield Research",
+        "dates": (TODAY + timedelta(days=13)).strftime("%Y-%m-%d"),
+        "date": (TODAY + timedelta(days=13)).strftime("%Y-%m-%d"), "time": "Full day", "ndr_type": "in_person",
+        "focus": "Ashfield Payments Conference (NYC) — Ellis Grant's invite; slot 1x1s with attending funds while management is in the city.",
+        "team": ["Priya Raman (CFO)", "Dana Whitfield (IR Director)"],
+        "objectives": "Deepen 2 current owners (Halewood, Brentmoor) and open 6 new NY accounts at the Ashfield conference.",
+        "notes": "Built from inbound request req-1 (Ellis Grant, Ashfield Research).", "request_id": "req-1",
+        "status": "Planning", "debrief": {}, "days": 1, "slots_per_day": 8,
+        "created": TODAY.strftime("%Y-%m-%d"), "day_start": "8:00 AM", "day_end": "5:00 PM",
+        "hotel": _HOTEL, "lodging": _HOTEL,
+        "meetings": [
+            _nym("Point72 Asset Management", "8:00 AM", "Adam Feldman, Sector PM", True, 92,
+                 "CT marquee — field visit; depart the hotel early, the must-do that opens the day.",
+                 address="72 Cummings Point Rd, Stamford, CT 06902", city="Stamford", state="CT"),
+            _nym("Halewood Capital Management", "10:00 AM", "Peter Vance, Portfolio Manager", False, 74,
+                 "CURRENT OWNER — adding; deepen the relationship."),
+            _nym("Ruane, Cunniff & Goldfarb", "11:00 AM", "Elena Marsh, Research Analyst", True, 86,
+                 "New — marquee value shop, concentrated long-hold."),
+            _nym("GAMCO Investors (Gabelli)", "12:00 PM", "Frank DeLaria, Portfolio Manager", True, 80,
+                 "New — catered working lunch; classic value buyer.", lunch=True, dietary="2 vegetarian (Gabelli team)"),
+            _nym("Brentmoor Capital Management", "1:30 PM", "Julia Reyes, Senior Analyst", False, 69,
+                 "CURRENT OWNER — maintain; watch for trims."),
+            _nym("Neuberger Berman", "2:30 PM", "Amira Osei, Portfolio Manager", True, 83,
+                 "New — broad platform, small-cap sleeve."),
+            _nym("First Eagle Investment Management", "3:30 PM", "Daniel Okafor, Research Analyst", True, 82,
+                 "New — value discipline, patient capital."),
+            _nym("Royce Investment Partners", "4:30 PM", "Steven Kohl, Portfolio Manager", True, 91,
+                 "New — small-cap specialist; strong NLKP fit."),
+        ],
+        "shortlist": [],
     })
     db.save_json("ndr_trips.json", _ndr_trips, client_id=CID)
-    print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} completed NDR trips "
-          f"+ 1 mid-flight Philadelphia NDR (5 slotted incl. a catered lunch, 1 invited, 1 declined, 2 shortlisted)")
+    print(f"[demo] seeded {len(reqs)} inbound NDR requests + {len(trips)} legacy completed NDRs "
+          f"+ 2 debriefed past corridors (Philadelphia, Mid-Atlantic) + 1 ACTIVE NY Ashfield conference NDR "
+          f"(Point72 field visit + 8 meetings, 2 owners + 6 new)")
 
     # 3d-bis. A few UPCOMING scheduled meetings so the Mobile "On the road → Your meetings" hero
     # has something to lead with in the demo (illustrative buy-side names; the tenant stays fully
