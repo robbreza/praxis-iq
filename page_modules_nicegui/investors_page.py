@@ -4706,6 +4706,21 @@ def _travel_leg_between(prev_m, m, trip):
     if (prev_m.get("format", "In-person") != "In-person"
             or m.get("format", "In-person") != "In-person"):
         return None, None
+    # Consecutive 1x1s at the SAME venue (a conference suite — identical street address) are a room
+    # reset, not a city hop: use a short turnover allowance instead of the ~20-min same-city fallback,
+    # which would otherwise flag every back-to-back conference meeting as TIGHT.
+    _ps, _cs = _meeting_street(prev_m), _meeting_street(m)
+    if _ps and _cs and _ps.strip().lower() == _cs.strip().lower():
+        lg = {"miles": 0.0, "drive_min": 10, "basis": "same_venue",
+              "label": "same venue — ~10 min to reset the room"}
+        t0, t1 = _parse_time_min(prev_m.get("time")), _parse_time_min(m.get("time"))
+        tight = None
+        if t0 is not None and t1 is not None:
+            gap = t1 - t0
+            needed = _meeting_duration(prev_m) + 10
+            if 0 <= gap < needed:
+                tight = f"TIGHT — {gap} min between starts vs ~{needed} min needed (meeting + turnover)"
+        return lg, tight
     from_loc, to_loc = _meeting_loc(prev_m, trip), _meeting_loc(m, trip)
     # Real routing is only meaningful when BOTH stops have a real street address.
     # If either falls back to a metro/city label, both endpoints collapse to the
@@ -5196,7 +5211,7 @@ def _meal_kind(m):
         return ("Catered breakfast", 60, "~1h")
     if t is not None and t >= 16 * 60:
         return ("Catered dinner", 90, "~1h30")
-    return ("Catered working lunch", 75, "~1h15")
+    return ("Catered working lunch", 50, "~50 min")
 
 
 def _meeting_duration(m):

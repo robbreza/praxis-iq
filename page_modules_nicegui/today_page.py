@@ -1216,7 +1216,7 @@ def _render_investor_brief(inst, full, nm):
             _addr_val, market_data.get_snapshot(CT("ticker"), refresh_if_stale=False),
             shares_out=_shares or None)
         if _ar:
-            _pct = f" ≈ {_ar['pct_of_company'] * 100:.1f}% of USIO" if _ar.get("pct_of_company") else ""
+            _pct = f" ≈ {_ar['pct_of_company'] * 100:.1f}% of {CT('ticker')}" if _ar.get("pct_of_company") else ""
             _dd = _ar.get("days_to_build")
             _feas = f" · ~{_dd:,.0f} days of ADV to build (thin)" if _dd and _dd >= 5 else ""
             fact("Potential size", f"${_ar['value'] / 1e6:,.2f}M in your comps{_pct}{_feas}")
@@ -1746,7 +1746,7 @@ def _render_peer_watch():
                     clr = "#15803D" if (m["pct"] or 0) >= 0 else "#B91C1C"
                     tag = ("  ◆ closest analog" if m.get("closest_analog")
                            else ("  · reference" if m.get("tier") == "reference"
-                                 else ("  · USIO" if m.get("is_client") else "")))
+                                 else ("  · you" if m.get("is_client") else "")))
                     with ui.row().classes("w-full items-center justify-between").style("padding:1px 0;"):
                         with ui.row().classes("items-baseline gap-1").style("min-width:0;"):
                             ui.label(m["ticker"]).classes("font-bold").style(
@@ -1759,7 +1759,7 @@ def _render_peer_watch():
             with ui.card().classes("w-full").style(f"background:{COLORS['surface_hover_bg']};border-radius:8px;"):
                 _inner_head("Recent peer SEC filings")
                 for f in s["filings"][:5]:
-                    who = f"{f['ticker']}" + (" (USIO)" if f.get("is_client") else "")
+                    who = f"{f['ticker']}" + (" (you)" if f.get("is_client") else "")
                     def _filing_line():
                         with ui.row().classes("w-full items-center gap-2").style("padding:1px 0;"):
                             ui.label(f["date"][5:]).style(f"color:{COLORS['accent']};font-size:var(--fs-xs);width:42px;")
