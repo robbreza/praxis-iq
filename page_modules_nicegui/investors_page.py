@@ -6651,8 +6651,10 @@ def _ndr_prep_read(inst, prior=None, m=None):
         else:
             base = "Prospect — discovery meeting: confirm mandate fit before going deep."
         warm = []
-        if inst.get("Peer_Holdings"):
+        if inst.get("Peer_Holdings") and not inst.get("USIO_Holder"):
             warm.append(f"owns {len(inst['Peer_Holdings'])} of your peers")
+        if inst.get("USIO_Holder") and inst.get("Direction") == "adding":
+            warm.append("adding to the position")
         if inst.get("IR_Visits_30d"):
             warm.append(f"on your IR site {inst['IR_Visits_30d']}× in 30d")
         di = inst.get("Digital_Intent_Score")
@@ -6675,7 +6677,12 @@ def _prep_bring(inst, prior):
             if xs and not any(xs.lower() in o.lower() or o.lower() in xs.lower() for o in out):
                 out.append(xs)
     if inst and inst.get("Peer_Holdings"):
-        out.append(f"The side-by-side vs {', '.join(inst['Peer_Holdings'])} — they hold the peers, not you yet.")
+        _pl = ', '.join(inst['Peer_Holdings'])
+        if inst.get("USIO_Holder"):
+            # They already hold you AND the comps — a favorable side-by-side deepens the position.
+            out.append(f"The side-by-side vs {_pl} — they own the peers too; make the case you're the best expression of the group.")
+        else:
+            out.append(f"The side-by-side vs {_pl} — they hold the peers, not you yet.")
     return out
 
 
@@ -6686,10 +6693,26 @@ def _prep_signals(inst):
     if not inst:
         return []
     out = []
+    # A holder's own position is the headline signal — size, weight in their book, and direction.
+    if inst.get("USIO_Holder") and inst.get("Shares"):
+        sh, pv, bp, dr = inst.get("Shares"), inst.get("Position_Value"), inst.get("Book_Pct"), inst.get("Direction")
+        pos = f"Holds {sh:,.0f} shares"
+        _b = [b for b in ((f"~${pv/1e6:.1f}M" if pv else None),
+                          (f"{bp:.1f}% of their book" if bp else None)) if b]
+        if _b:
+            pos += " (" + " · ".join(_b) + ")"
+        if dr:
+            _qoq = inst.get("QoQ_Change")
+            pos += f" — {dr}" + (f" (+{_qoq:,.0f} sh last quarter)" if dr == "adding" and _qoq else "")
+        out.append(pos + ".")
     ph = inst.get("Peer_Holdings")
     if ph:
         src = inst.get("Peer_Holdings_Source") or ""
-        out.append(f"Owns {', '.join(ph)}{f' ({src})' if src else ''} — the direct peer comparison writes itself.")
+        _tag = f" ({src})" if src else ""
+        if inst.get("USIO_Holder"):
+            out.append(f"Also owns {', '.join(ph)}{_tag} — deep in the space; reinforce why you're the best expression of it.")
+        else:
+            out.append(f"Owns {', '.join(ph)}{_tag} — the direct peer comparison writes itself.")
     if inst.get("IR_Visits_30d"):
         last = inst.get("Last_Visit")
         out.append(f"{inst['IR_Visits_30d']} visit(s) to your IR site in the last 30 days"
@@ -6769,7 +6792,13 @@ def _render_ndr_prep_cards_tab(institutions, meeting_log):
                             cap_bits.append(f"Engagement {inst['Engagement_Score']}")
                         caption = " · ".join(str(x) for x in cap_bits if x)
                     else:
-                        caption = (f"{who} · " if who else "") + "not in tracked list — added by hand"
+                        # Not in the holders table — a prospect/target scheduled for the trip. Build the
+                        # same shape of caption from the meeting's own data so it reads complete, not ad-hoc.
+                        _sc = m.get("score")
+                        _cap = [who or None, m.get("metro"),
+                                "Existing holder" if m.get("non_holder") is False else "Prospect",
+                                (f"Fit {int(_sc)}" if isinstance(_sc, (int, float)) else None)]
+                        caption = " · ".join(str(x) for x in _cap if x)
                     with ui.expansion(f"{_meeting_time_range(m)} — {pretty_name(firm)}", caption=caption).classes("w-full").style(
                             f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:8px;"):
                         # Who + one-tap reach

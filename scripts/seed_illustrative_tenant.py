@@ -1113,6 +1113,16 @@ def seed():
         ("Chartwell Investment Partners","Value","Philadelphia, PA","Holds 3 peers (13F)",92,"Owns PYRA, CLRT, VNTG; Berwyn — Main Line corridor."),
         ("Glenmede Investment Management","GARP","Philadelphia, PA","Holds 3 peers (13F)",92,"Owns PYRA, CLRT, VNTG; catered-lunch meeting on the NDR."),
         ("Conestoga Capital Advisors","Small-cap growth","Philadelphia, PA","Holds 3 peers (13F)",93,"Owns PYRA, CLRT, VNTG; Radnor."),
+        # New York conference swing — the non-holder funds slotted on the showcase NY NDR (Ashfield
+        # Payments Conference). Promoted so the Prep Cards tab resolves each into the tracked universe
+        # (holder status + conviction + talking points) instead of "not in tracked list — added by hand".
+        # Fund names MUST match the meeting `institution` values seeded in seed() exactly.
+        ("Point72 Asset Management","Multi-strategy","Stamford, CT","Conference",92,"Marquee multi-strat; sector PM engaged — the Connecticut anchor that opens the NY swing."),
+        ("Ruane, Cunniff & Goldfarb","Concentrated value","New York, NY","Conference",86,"Classic long-hold value shop; 1x1 on the NY conference."),
+        ("GAMCO Investors (Gabelli)","Fundamental value","New York, NY","Conference",80,"Deep-value buyer; catered-lunch meeting on the NY NDR."),
+        ("Neuberger Berman","Broad platform","New York, NY","Conference",83,"Small-cap sleeve is the fit; 1x1 on the NY swing."),
+        ("First Eagle Investment Management","Value / patient capital","New York, NY","Conference",82,"Patient value discipline; met on the NY conference."),
+        ("Royce Investment Partners","Small-cap specialist","New York, NY","Conference",91,"Small-cap specialist — one of the cleanest fits in the book."),
         ("Ridge & Vale Capital","Small-cap growth","New York, NY","Holds 2 peers (13F)",88,"Owns PYRA and CLRT; no position in you — clean fit."),
         ("Hanover Reed Partners","GARP","New York, NY","Conference",83,"Met at the Q2 micro-cap conference; requested the model."),
         ("Ellison Park Advisors","Fundamental value","New York, NY","Holds peer (13F)",80,"Holds VNTG; rotating into payments."),
