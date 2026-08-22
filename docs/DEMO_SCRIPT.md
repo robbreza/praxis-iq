@@ -56,7 +56,8 @@ Neural TTS via edge-tts, voice `en-US-AndrewNeural`, rate −4%. Each scene is h
 - **Title:** "This is IRconnect. Investor targeting, roadshows, and meeting prep, in one place."
 - **1 · Today:** "It starts with the morning brief. One screen: where the stock is, what the Street is doing, and the few things that actually need a decision today."
 - **2 · IR Inbox:** "Every investor email is parsed, classified, and filed automatically. Models, research, meeting requests, all ready for one click."
-- **3 · NY trip:** "When an analyst sends a conference invite, it becomes a fully planned New York roadshow, built straight from that inbound request."
+- **3 · Metro table (the differentiator):** "And here's the real difference. Day one, every investor, organized by city, in one place. Your current holders, whether they're adding or trimming, right next to the high-potential targets we've already ranked for you. It's the view most teams only get from an expensive legacy system. You get it on day one." *(Targeting → "Institutions & Peer Ownership By City/Metro Area" — holders, Tier-1-ready, ranked peer-owners, NDR status per metro.)*
+- **4 · NY trip:** "When an analyst sends a conference invite, it becomes a fully planned New York roadshow, built straight from that inbound request."
 - **4 · Targets:** "IRconnect already knows who to see in the city. Ranked by conviction, off real thirteen-F filings, not a database you rent."
 - **5 · Plan New NDR:** "And you can spin up a brand new roadshow from any inbound request in a single click."
 - **6 · Prep Cards:** "Here's the payoff. A prep card for every meeting, off the real ownership book. For a holder, it shows whether they're adding or trimming, and that they sit underweight versus a peer they already own. So the ask writes itself."
