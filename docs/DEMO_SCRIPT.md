@@ -49,6 +49,22 @@ Capture these two expanded cards. The on-screen text below is what the live demo
 
 ---
 
+## Voiceover script (final — as narrated in IRconnect-demo-narrated.mp4)
+
+Neural TTS via edge-tts, voice `en-US-AndrewNeural`, rate −4%. Each scene is held to its line's length + ~1.1s. Swap the voice by changing `VOICE` in `scratchpad/build_narrated_video.py`.
+
+- **Title:** "This is IRconnect. Investor targeting, roadshows, and meeting prep, in one place."
+- **1 · Today:** "It starts with the morning brief. One screen: where the stock is, what the Street is doing, and the few things that actually need a decision today."
+- **2 · IR Inbox:** "Every investor email is parsed, classified, and filed automatically. Models, research, meeting requests, all ready for one click."
+- **3 · NY trip:** "When an analyst sends a conference invite, it becomes a fully planned New York roadshow, built straight from that inbound request."
+- **4 · Targets:** "IRconnect already knows who to see in the city. Ranked by conviction, off real thirteen-F filings, not a database you rent."
+- **5 · Plan New NDR:** "And you can spin up a brand new roadshow from any inbound request in a single click."
+- **6 · Prep Cards:** "Here's the payoff. A prep card for every meeting, off the real ownership book. For a holder, it shows whether they're adding or trimming, and that they sit underweight versus a peer they already own. So the ask writes itself."
+- **7 · Mobile list:** "On the road, those same meetings show up on the CFO's phone, in order."
+- **8 · Mobile prep card:** "She taps one, and the prep card is right there, so she walks into every meeting ready."
+
+---
+
 ## Scene 8 — Mobile: the CFO pulls up the prep card on her phone
 
 The payoff for "the NDR is built — now the CFO needs it on the road." After the desktop plans the trip,
