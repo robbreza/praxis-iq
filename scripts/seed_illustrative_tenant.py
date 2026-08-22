@@ -346,6 +346,18 @@ def _cik_for(filer):
 # so the Philly showcase shows an invitable holder to defend.
 _QUANT = {"Longmere Trust Company", "Aldergate Asset Management", "Straiton Global Investors"}
 
+# How each holder weights our tight comps (PYRA/CLRT/VNTG) as a % of THEIR OWN book. Drives the
+# holder-vs-comp upsell read on the prep card ("Underweight vs CLRT — get to peer weight") WITHOUT
+# injecting these holders into the comps' 13F books (which would inflate peer holder-counts / the
+# peer-average stability signal). Keys must be comps the holder also owns (its Peer_Overlap). NLKP
+# weights for reference: Halewood 1.2% / Brentmoor 1.2% of their book — so these read Underweight.
+COMP_WEIGHTS = {
+    "Halewood Capital Management":  {"CLRT": 2.6, "PYRA": 1.5, "VNTG": 0.9},   # Underweight vs CLRT
+    "Brentmoor Capital Management": {"PYRA": 1.9, "VNTG": 1.0},                # Underweight vs PYRA
+    "Corveth Advisors":             {"PYRA": 2.3, "CLRT": 1.4},                # Underweight vs PYRA
+    "Fairmount Ridge Capital":      {"CLRT": 2.8, "VNTG": 1.1},                # keeps the Philly showcase read
+}
+
 
 def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSIP):
     # `value` in the table was struck at OLD_PX; recompute at the new price and scale
@@ -359,6 +371,7 @@ def _holder(filer, city, state, shares, value, book_total, positions, cusip=CUSI
         "file_date": FILE_DATE, "book_total": book_total, "size_known": True,
         "book_positions": positions,
         "style": "Quant/Systematic" if filer in _QUANT else "Active",
+        "comp_weight_pcts": COMP_WEIGHTS.get(filer),
     }
 
 

@@ -117,6 +117,11 @@ def targets_from_13f(client_id=None, ticker=None, include_contacts=True):
             "Continuous_Holder": hist.get("continuous"),
             "Peer_Overlap": hist.get("peer_overlap"),
             "History_As_Of": hist.get("as_of"),
+            # Optional seeded map {comp_ticker: their % weight in that comp} — lets the holder-vs-comp
+            # upsell read work for illustrative tenants without injecting holders into the comp 13F
+            # books (which would inflate peer holder-counts). Real tenants leave this None and the
+            # weighting is derived from the comps' actual filings instead.
+            "Comp_Weight_Pcts": h.get("comp_weight_pcts"),
             # Peer Ownership pillar. This used to be left None for every 13F holder, so a
             # quarter of the Engagement model was discarded even though the input — which
             # of OUR peers this holder also owns — is already crawled and stored. Scored
@@ -218,6 +223,7 @@ def targets_as_institutions(client_id=None, ticker=None):
             "Held_Since_At_Least": r.get("Held_Since_At_Least"),
             "Peer_Holdings": r.get("Peer_Overlap") or [],
             "Peer_Holdings_Source": "SEC 13F",
+            "Comp_Weight_Pcts": r.get("Comp_Weight_Pcts"),
             # never None — several consumers do sorted({i["Metro"]}) / group by metro, and None
             # vs str raises. "Unknown (SEC)" is the app's existing placeholder.
             "Metro": r.get("Metro") or "Unknown (SEC)",

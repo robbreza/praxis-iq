@@ -982,13 +982,22 @@ def _enrich_holders_vs_comps(institutions, cid):
         if not inst.get("USIO_Holder"):
             continue
         bpct, pv = inst.get("Book_Pct"), inst.get("Position_Value")
-        cvs = comp_val.get(str(inst.get("cik") or "").lstrip("0"))
-        if not (bpct and pv and cvs):
+        if not bpct:
             continue
-        best_tk, best_v = max(cvs.items(), key=lambda kv: kv[1])
-        if not best_v:
-            continue
-        comp_pct = best_v * bpct / pv               # their comp weight, same book-total basis
+        # Their weight (% of their book) in each of our tight comps. Prefer a seeded per-holder map
+        # (Comp_Weight_Pcts, used by the illustrative demo so holders needn't be injected into the comp
+        # 13F books and inflate peer holder-counts); otherwise derive it from the real comp filings.
+        seeded = inst.get("Comp_Weight_Pcts")
+        if seeded:
+            best_tk, comp_pct = max(seeded.items(), key=lambda kv: kv[1])
+        else:
+            cvs = comp_val.get(str(inst.get("cik") or "").lstrip("0"))
+            if not (pv and cvs):
+                continue
+            best_tk, best_v = max(cvs.items(), key=lambda kv: kv[1])
+            if not best_v:
+                continue
+            comp_pct = best_v * bpct / pv           # their comp weight, same book-total basis
         inst["Comp_Best"] = best_tk
         inst["Comp_Weight_Pct"] = round(comp_pct, 1)
         diff = bpct - comp_pct
@@ -1562,6 +1571,10 @@ def render_investors_page(section="ownership"):
     # instead of "no call/visit data" on every card).
     _enrich_engagement_signals(raw_institutions, client_id)
     institutions = _score_institutions(raw_institutions, mode, q2_listeners, meeting_log)
+    # Holder-vs-comp weighting (Over/In-line/Underweight vs the comp they hold biggest) — computed
+    # once here so EVERY consumer, including the Prep Cards tab, carries the actionable upsell read,
+    # not just the Big Picture / metro tabs that used to call this locally.
+    _enrich_holders_vs_comps(institutions, client_id)
 
     _TITLES = {"ownership": "Ownership — who owns you",
                "targeting": "Targeting — who should own you",
@@ -6693,7 +6706,8 @@ def _prep_signals(inst):
     if not inst:
         return []
     out = []
-    # A holder's own position is the headline signal — size, weight in their book, and direction.
+    # A holder's own position is the headline signal — size, weight in their book, and DIRECTION
+    # (adding vs trimming, with the quarter's share delta so it's a fact, not an adjective).
     if inst.get("USIO_Holder") and inst.get("Shares"):
         sh, pv, bp, dr = inst.get("Shares"), inst.get("Position_Value"), inst.get("Book_Pct"), inst.get("Direction")
         pos = f"Holds {sh:,.0f} shares"
@@ -6703,14 +6717,28 @@ def _prep_signals(inst):
             pos += " (" + " · ".join(_b) + ")"
         if dr:
             _qoq = inst.get("QoQ_Change")
-            pos += f" — {dr}" + (f" (+{_qoq:,.0f} sh last quarter)" if dr == "adding" and _qoq else "")
+            _q = f" ({_qoq:+,.0f} sh last quarter)" if _qoq else ""
+            pos += f" — {dr}{_q}"
         out.append(pos + ".")
+        # The quantified upsell: our weight in their book vs how they weight the comp they hold
+        # biggest. "You're under where your own peer already is" is the concrete ask — the read a
+        # rented database can't give.
+        vs, comp, cw = inst.get("Weight_Vs_Comp"), inst.get("Comp_Best"), inst.get("Comp_Weight_Pct")
+        if vs and comp and cw is not None and bp:
+            if vs == "Underweight":
+                out.append(f"Underweight vs {comp}: they hold {comp} at {cw:.1f}% of their book vs {bp:.1f}% for you — "
+                           f"closing to peer weight is the ask.")
+            elif vs == "Overweight":
+                out.append(f"Overweight vs {comp}: {bp:.1f}% for you vs {cw:.1f}% for {comp} — "
+                           f"your strongest comp position in their book; defend it.")
+            else:
+                out.append(f"In-line with {comp} ({bp:.1f}% vs {cw:.1f}%) — hold the weight; a catalyst is what grows it.")
     ph = inst.get("Peer_Holdings")
     if ph:
         src = inst.get("Peer_Holdings_Source") or ""
         _tag = f" ({src})" if src else ""
         if inst.get("USIO_Holder"):
-            out.append(f"Also owns {', '.join(ph)}{_tag} — deep in the space; reinforce why you're the best expression of it.")
+            out.append(f"Also owns {', '.join(ph)}{_tag} — deep in the space.")
         else:
             out.append(f"Owns {', '.join(ph)}{_tag} — the direct peer comparison writes itself.")
     if inst.get("IR_Visits_30d"):

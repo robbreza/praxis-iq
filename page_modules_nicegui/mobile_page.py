@@ -173,8 +173,9 @@ def _prep_inst_lookup(cid):
     except Exception:
         pass
     try:
-        from page_modules_nicegui.investors_page import _enrich_engagement_signals
+        from page_modules_nicegui.investors_page import _enrich_engagement_signals, _enrich_holders_vs_comps
         _enrich_engagement_signals(insts, cid)
+        _enrich_holders_vs_comps(insts, cid)   # so the phone prep card shows the same peer-weight upsell
     except Exception:
         pass
     return {i.get("Fund"): i for i in insts if i.get("Fund")}
