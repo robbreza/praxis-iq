@@ -215,9 +215,10 @@ def _render_live_weekly_brief():
             for line in sec["lines"]:
                 ui.label("• " + line).style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);margin-left:4px;")
 
-        def _dl():
+        async def _dl():
             try:
-                ui.download(report_pdf.weekly_brief_pdf(),
+                _pdf = await asyncio.to_thread(report_pdf.weekly_brief_pdf)
+                ui.download(_pdf,
                             f"{CT('ticker')}_Weekly_IR_Brief_{datetime.now():%Y%m%d}.pdf")
             except Exception as e:
                 ui.notify(f"PDF failed: {e}", type="negative")
@@ -942,9 +943,10 @@ def _render_script_scorecard():
         for g in d["gaps"]:
             ui.label("• " + g).style("color:#B45309;font-size:var(--fs-xs);")
 
-    def _dl():
+    async def _dl():
         try:
-            ui.download(report_pdf.script_scorecard_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.script_scorecard_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_Script_Effectiveness_Scorecard_{datetime.now():%Y%m%d}.pdf")
         except Exception as e:
             ui.notify(f"PDF failed: {e}", type="negative")
@@ -1221,9 +1223,10 @@ def _render_benchmark_analysis():
              "Bloomberg) would add cleaner normalization and is the eventual upgrade; nothing here costs "
              "anything today.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-top:8px;")
 
-    def _dl_bench_pdf():
+    async def _dl_bench_pdf():
         try:
-            ui.download(report_pdf.peer_benchmarking_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.peer_benchmarking_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_Peer_Benchmarking_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -1354,9 +1357,10 @@ def _render_ndr_by_city():
             ui.label(" · ".join(f"{x['fund']} ({x['score']})" for x in r["top_targets"])).style(
                 f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
 
-    def _dl_ndr():
+    async def _dl_ndr():
         try:
-            ui.download(report_pdf.ndr_by_city_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.ndr_by_city_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_NDR_Coverage_by_City_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -1499,9 +1503,10 @@ def _render_onboarding_checklist():
     ui.button("Discover market-revealed peers", icon="hub", on_click=_run_peer_install).props(
         "color=primary dense outline").style("margin-top:6px;")
 
-    def _dl_cl():
+    async def _dl_cl():
         try:
-            ui.download(report_pdf.onboarding_checklist_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.onboarding_checklist_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_IRConnect_Onboarding_Readiness_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -1564,9 +1569,10 @@ def _render_onboarding_kit():
             ui.label(g["item"]).style("color:#B45309;font-size:var(--fs-sm);font-weight:700;")
             ui.label(g["why"]).style(f"color:{COLORS['text_body']};font-size:var(--fs-xs);")
 
-    def _dl_kit():
+    async def _dl_kit():
         try:
-            ui.download(report_pdf.onboarding_kit_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.onboarding_kit_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_New_Analyst_Onboarding_Kit_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -1747,10 +1753,11 @@ def _render_earnings_prep():
                "if you want management to hear it in your words — it's used on screen and in the PDF, "
                "and persists across refreshes. Reset restores the auto-written headline."))
 
-    def _dl_prep_pdf():
+    async def _dl_prep_pdf():
         try:
             qlabel = (d.get("quarter") or "").replace(" ", "_")
-            ui.download(report_pdf.earnings_prep_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.earnings_prep_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_{qlabel}_Earnings_Prep_Brief_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -2093,9 +2100,10 @@ def _render_board_ir_report():
                 ui.button("Save edits", icon="save", on_click=_save_board_edits).props("color=primary dense")
                 ui.button("Reset to auto", icon="restart_alt", on_click=_reset_board_edits).props("flat dense")
 
-    def _dl_board_pdf():
+    async def _dl_board_pdf():
         try:
-            ui.download(report_pdf.board_package_pdf(),
+            _pdf = await asyncio.to_thread(report_pdf.board_package_pdf)
+            ui.download(_pdf,
                         f"{CT('ticker')}_IR_Quarterly_Board_Package_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
@@ -2200,9 +2208,10 @@ def _render_ir_plan(reviews, review_path):
                 ui.label(action).style(f"color:{COLORS['text_body']};font-size:var(--fs-base);font-weight:600;")
                 ui.label(detail).classes("flex-1").style(f"color:{COLORS['text_muted']};font-size:var(--fs-sm);")
 
-    def _dl_plan_pdf():
+    async def _dl_plan_pdf():
         try:
-            ui.download(report_pdf.ir_plan_pdf(), f"{CT('ticker')}_90_Day_IR_Plan_{datetime.now():%Y%m%d}.pdf")
+            _pdf = await asyncio.to_thread(report_pdf.ir_plan_pdf)
+            ui.download(_pdf, f"{CT('ticker')}_90_Day_IR_Plan_{datetime.now():%Y%m%d}.pdf")
         except Exception as exc:
             ui.notify(f"PDF export failed: {exc}", type="negative")
 
