@@ -210,7 +210,8 @@ def send_sms(text, to_list, c) -> dict:
             data = urllib.parse.urlencode({"To": num, "From": c["twilio_from"], "Body": text[:1500]}).encode()
             req = urllib.request.Request(url, data=data)
             req.add_header("Authorization", "Basic " + auth)
-            urllib.request.urlopen(req, timeout=20).read()
+            with urllib.request.urlopen(req, timeout=20) as _resp:
+                _resp.read()
             sent.append(num)
         except Exception as e:
             errs.append(f"{num}: {e!r}")

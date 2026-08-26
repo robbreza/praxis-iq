@@ -1165,8 +1165,25 @@ def main_page(request: Request = None):
     # the whole page (header, nav, every data pull) reads the active client, not
     # the default. Re-asserted in render_page() for later navigations. This also
     # enforces the tenant clamp + read-only for client users.
-    _bind_active_client()
-    client = get_client()
+    # Binding the tenant + loading the client record runs BEFORE render_page()'s own
+    # try/except, so a failure here (missing/corrupt client record, storage read error)
+    # would 500 the entire "/" route on login. Guard it: degrade to a recoverable
+    # message and reset to the default tenant instead of a hard blank page.
+    try:
+        _bind_active_client()
+        client = get_client()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        try:
+            app.storage.user.pop("active_client_id", None)
+        except Exception:
+            pass
+        with ui.column().classes("w-full items-center").style("padding:96px 24px;gap:14px;text-align:center;"):
+            ui.label("We couldn't load your workspace.").classes("text-xl font-bold")
+            ui.label("Please try again. If it keeps happening, contact support.").style("color:#64748B;")
+            ui.button("Try again", on_click=lambda: ui.navigate.to("/"))
+        return
     # "role" is the active RBAC role_key for this session (IR/CEO/CFO/CRO/
     # Legal…). Starts on the default role (IR — full access). The role
     # selector in the drawer changes it; go_to()/_apply_role_gating() below
@@ -2092,7 +2109,8 @@ app.add_static_files("/pwa", _PWA_DIR)
 def _pwa_service_worker():
     from fastapi.responses import Response
     try:
-        js = open(os.path.join(_PWA_DIR, "sw.js"), encoding="utf-8").read()
+        with open(os.path.join(_PWA_DIR, "sw.js"), encoding="utf-8") as _f:
+            js = _f.read()
     except Exception:
         js = ""
     # served at root so its scope is "/" (covers the whole app)
@@ -2104,7 +2122,8 @@ def _pwa_service_worker():
 def _pwa_manifest():
     from fastapi.responses import Response
     try:
-        data = open(os.path.join(_PWA_DIR, "manifest.webmanifest"), encoding="utf-8").read()
+        with open(os.path.join(_PWA_DIR, "manifest.webmanifest"), encoding="utf-8") as _f:
+            data = _f.read()
     except Exception:
         data = "{}"
     return Response(data, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})

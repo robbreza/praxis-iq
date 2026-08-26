@@ -557,11 +557,17 @@ def _get_pooled_pg_connection():
     import psycopg2
     from core.security import get_database_url
     real = psycopg2.connect(get_database_url())
-    with real.cursor() as cur:
-        cur.execute(_POSTGRES_SCHEMA)
-        _ensure_contact_columns(cur, pg=True)
-        _ensure_web_events_columns(cur, pg=True)
-    real.commit()
+    try:
+        with real.cursor() as cur:
+            cur.execute(_POSTGRES_SCHEMA)
+            _ensure_contact_columns(cur, pg=True)
+            _ensure_web_events_columns(cur, pg=True)
+        real.commit()
+    except Exception:
+        # Schema DDL failed after connect succeeded — close the session so it
+        # isn't orphaned (would accumulate toward Neon's connection cap).
+        real.close()
+        raise
     _pg_conn_holder["conn"] = real
     return real
 
@@ -588,13 +594,24 @@ def get_connection():
 
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.executescript(_SQLITE_SCHEMA)
-    _cur = conn.cursor()
-    _ensure_contact_columns(_cur, pg=False)
-    _ensure_web_events_columns(_cur, pg=False)
-    conn.commit()
-    return conn
+    try:
+        # Wait up to 5s for a contended lock instead of raising "database is
+        # locked" instantly — covers a concurrent background writer (market_data
+        # refresh) and a not-yet-exited previous process on restart.
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.executescript(_SQLITE_SCHEMA)
+        _cur = conn.cursor()
+        _ensure_contact_columns(_cur, pg=False)
+        _ensure_web_events_columns(_cur, pg=False)
+        conn.commit()
+        return conn
+    except Exception:
+        # Schema setup raised (e.g. app.db still locked by a dying process on
+        # restart). Close the just-opened handle so it doesn't itself hold the
+        # lock and compound the contention into a hard "file is in use".
+        conn.close()
+        raise
 
 
 # Backward-compatible alias — a handful of earlier call sites/tests refer

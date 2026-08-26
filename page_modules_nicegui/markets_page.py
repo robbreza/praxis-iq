@@ -160,7 +160,7 @@ def _render_risk_dashboard(seed, days_to_earn, state):
     _ests = (seed.get("period_estimates", {}) or {}).get(_period, {}) or {}
     ingested = sum(1 for v in _ests.values() if v.get("Revenue Est ($M)") is not None)
     total_analysts = len(CA())
-    snap = market_data.get_snapshot(CT("ticker"))
+    snap = market_data.get_snapshot(CT("ticker"), refresh_if_stale=False)
     last_price = snap["last_price"] if snap and snap.get("last_price") is not None else CT("last_price", 0)
     price_sub = (snap.get("as_of") or "")[:16].replace("T", " ") if snap and snap.get("last_price") is not None else CT("price_date", "not yet fetched")
 
@@ -294,7 +294,7 @@ def _last_price():
     shared by the Consensus Matrix and PT Drift Tracker so both stay
     consistent with the Risk Dashboard's own price, instead of each
     reading a stale config literal independently."""
-    snap = market_data.get_snapshot(CT("ticker"))
+    snap = market_data.get_snapshot(CT("ticker"), refresh_if_stale=False)
     if snap and snap.get("last_price") is not None:
         return snap["last_price"]
     return CT("last_price", 0)

@@ -1829,7 +1829,7 @@ def _render_board_ir_report():
         pt = risk_scorecard._consensus_pt_avg()
     except Exception:
         pt = None
-    snap = market_data.get_snapshot(CT("ticker"))
+    snap = market_data.get_snapshot(CT("ticker"), refresh_if_stale=False)
     price = snap.get("last_price") if snap else None
     upside = ((pt / price - 1) * 100) if (pt and price) else None
     nobo_cov = nobo_ret = None

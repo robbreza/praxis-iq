@@ -401,7 +401,7 @@ def render_today_page():
     # reads both for its own (properly contextualised) view.
     overdue = activity_log.overdue_sent_without_response("model_request_sent", ["model_received"], hours=24)
     readiness_pct = _earnings_readiness_pct()
-    snap = market_data.get_snapshot(CT("ticker"))
+    snap = market_data.get_snapshot(CT("ticker"), refresh_if_stale=False)
     recent = activity_log.recent_events(limit=5)
 
     # ── (removed) ROI / "automation stats" strip ──

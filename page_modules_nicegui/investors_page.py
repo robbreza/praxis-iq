@@ -344,7 +344,7 @@ def _client_ev_rev(period="Q2 2026E"):
     # front of an investor — which is the failure this function's docstring says it
     # exists to avoid.
     from core.consensus import get_consensus
-    snap = market_data.get_snapshot(CT("ticker"))
+    snap = market_data.get_snapshot(CT("ticker"), refresh_if_stale=False)
     last_price = snap["last_price"] if snap and snap.get("last_price") is not None else CT("last_price", None)
     if last_price is None:
         return None

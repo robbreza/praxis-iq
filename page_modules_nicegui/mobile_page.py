@@ -329,7 +329,7 @@ def render_home_page():
             sel.on_value_change(lambda e: (e.value and _open_brief(e.value, inst_by_fund, client_id)))
 
     # ── 2. PULSE (a glance — the whole card taps through to Lighthouse) ─────────────────────────
-    snap = market_data.get_snapshot(ticker)
+    snap = market_data.get_snapshot(ticker, refresh_if_stale=False)
     pulse = _card().style(
         f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-radius:12px;"
         "cursor:pointer;").on("click", lambda: nav.go_to("Lighthouse"))

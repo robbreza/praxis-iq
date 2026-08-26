@@ -367,11 +367,13 @@ def render_lighthouse_page():
         model = attribution(rets, issuer=ticker, window=126)
         rows = list(model.iterrows())[-4:][::-1]
         conn = psycopg2.connect(get_database_url())          # one shared connection for all cards
-        verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
-        from lighthouse import weekly as _weekly
-        wk = _weekly.weekly_digest(model, ticker, conn=conn)
-        _weekly.save_context_cache(client_id, ticker, wk)   # keep the Today-page mirror fresh
-        conn.close()
+        try:
+            verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
+            from lighthouse import weekly as _weekly
+            wk = _weekly.weekly_digest(model, ticker, conn=conn)
+            _weekly.save_context_cache(client_id, ticker, wk)   # keep the Today-page mirror fresh
+        finally:
+            conn.close()                                     # always release, even if a card raises
     except Exception as e:
         ui.label(f"Lighthouse engine error: {e}").style("color:#B91C1C;")
         return
