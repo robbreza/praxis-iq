@@ -5053,6 +5053,75 @@ def _ensure_script_drafted(ss):
         _save_json("script_workflow_state.json", ss)
 
 
+# ── A1: keep AI drafting OFF the render path ──────────────────────────────────
+# _ensure_script_drafted makes up to ~5 sequential Anthropic calls to fill blank
+# sections. Calling it inline in _render_script_canvas froze the whole event loop
+# (every tenant) on a first visit. Instead the canvas renders a placeholder and
+# runs the drafting off the event loop, then re-renders. This guard records which
+# sections we've already tried (per client+quarter) so a draft that errors or
+# comes back empty can't loop placeholder->draft->placeholder forever.
+_CANVAS_DRAFT_ATTEMPTED = {}   # (client_id, quarter) -> set(section keys attempted)
+
+
+def _canvas_draft_key():
+    return (get_active_client_id(), CE().get("current_quarter", ""))
+
+
+def _canvas_blank_keys(ss):
+    """Persona + guidance section keys that still have no draft text."""
+    keys = [key for _role, key, _label in _active_personas() if not ss["script_text"].get(key)]
+    if not (ss.get("guidance_decision") or {}).get("text"):
+        keys.append("guidance")
+    return keys
+
+
+def _needs_canvas_draft(ss):
+    """True only when a section still needs its FIRST auto-draft attempt this
+    process (per client+quarter). Requires Stage-1 numbers to draft from; once a
+    section has been attempted it is never re-deferred, so a failed/empty draft
+    falls through to a normal render (with the section's manual Draft controls)
+    instead of looping."""
+    if not ss.get("q2_numbers"):
+        return False
+    blank = set(_canvas_blank_keys(ss))
+    if not blank:
+        return False
+    tried = _CANVAS_DRAFT_ATTEMPTED.get(_canvas_draft_key(), set())
+    return bool(blank - tried)
+
+
+def _render_canvas_drafting(ss):
+    """Placeholder shown while the initial section drafts generate off the event
+    loop. Records the attempt up-front (loop guard), then re-renders when done."""
+    _CANVAS_DRAFT_ATTEMPTED.setdefault(_canvas_draft_key(), set()).update(_canvas_blank_keys(ss))
+    cid = get_active_client_id()   # captured here (correct context) to re-bind in the bg task
+    with ui.card().classes("w-full").style(
+            f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};"
+            "border-radius:12px;padding:28px;align-items:center;gap:10px;"):
+        ui.spinner(size="lg").style(f"color:{COLORS['accent']};")
+        ui.label("Drafting your script...").classes("font-bold").style(
+            f"color:{COLORS['text_heading']};font-size:var(--fs-md);")
+        ui.label("Generating each section - IR, CEO, CFO, guidance and Q&A. "
+                 "This runs once and takes a few seconds.").style(
+            f"color:{COLORS['text_muted']};font-size:var(--fs-sm);text-align:center;")
+
+    async def _bg():
+        # ui.timer does not re-bind the tenant ContextVar, and asyncio.to_thread
+        # copies THIS context into the worker - so bind the captured client first.
+        from config.client_config import set_active_client_id
+        set_active_client_id(cid)
+        try:
+            await asyncio.to_thread(_ensure_script_drafted, ss)
+        except Exception:
+            import logging
+            import traceback
+            logging.getLogger(__name__).warning(
+                "Script Canvas auto-draft failed:\n%s", traceback.format_exc())
+        _refresh()
+
+    ui.timer(0.05, _bg, once=True)
+
+
 def _assembled_script_text(ss):
     """Join the locked Call Opening (operator + IR's welcome/FLS reading —
     always included, never part of script_text) with every persona section
@@ -5287,7 +5356,12 @@ def _render_section_rail(ss, sec):
 
 
 def _render_script_canvas(ss):
-    _ensure_script_drafted(ss)
+    # A1: never block the event loop on AI drafting. When a section still needs its
+    # first auto-draft, show a placeholder and generate off the event loop, then
+    # re-render (see _render_canvas_drafting). Nothing already written is touched.
+    if _needs_canvas_draft(ss):
+        _render_canvas_drafting(ss)
+        return
     # DRAFT-FIRST canvas: the decision is pinned on top, then a section workspace where each section's DRAFT
     # sits in the center with its ANALYSIS docked beside it, and the sections run in TRANSCRIPT order (IR →
     # CEO → CFO → Guidance → Q&A). Clicking a section swaps both the draft and its context together, so the
