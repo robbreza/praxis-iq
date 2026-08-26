@@ -7210,12 +7210,15 @@ def _render_meeting_hub_tab():
 
             result_area = ui.column().classes("w-full")
 
-            def structure_notes():
+            async def structure_notes():
                 if not (n_raw.value and n_contact.value):
                     ui.notify("Contact name and raw notes are required.", type="warning")
                     return
                 ui.notify("Structuring notes...")
-                structured = _structure_notes_with_ai(n_raw.value, n_contact.value, n_firm.value, n_type.value)
+                # AI call off the event loop so structuring one meeting's notes never
+                # freezes the server for other tenants.
+                structured = await asyncio.to_thread(
+                    _structure_notes_with_ai, n_raw.value, n_contact.value, n_firm.value, n_type.value)
                 all_notes = _load_json("post_meeting_notes.json", [])
                 all_notes.append({"Contact": n_contact.value, "Firm": n_firm.value, "Side": n_side.value,
                                   "Date": today.strftime("%Y-%m-%d"), "Type": n_type.value, "Raw": n_raw.value,

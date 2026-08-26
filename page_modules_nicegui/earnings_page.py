@@ -3281,7 +3281,7 @@ def _render_guidance_drafter(ss, on_submit=None):
                           type="positive")
             ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
 
-    def generate_guidance(guidance_context_input=guidance_context_input):
+    async def generate_guidance(guidance_context_input=guidance_context_input):
         ui.notify("Generating guidance draft…", type="info")
         try:
             nl2, nh2 = gd.get("new_low"), gd.get("new_hi")
@@ -3289,7 +3289,8 @@ def _render_guidance_drafter(ss, on_submit=None):
                 nl2, nh2 = _new
             _ch2 = _ge.characterize_range_change(_prior, [nl2, nh2])
             action, rationale = _ch2["action_key"], _ch2["signal"]
-            draft, was_ai = _generate_guidance_draft(ss, action, nl2, nh2, rationale, guidance_context_input.value)
+            draft, was_ai = await asyncio.to_thread(
+                _generate_guidance_draft, ss, action, nl2, nh2, rationale, guidance_context_input.value)
             gd.update({"action": action, "new_low": nl2, "new_hi": nh2, "rationale": rationale,
                        "context": guidance_context_input.value, "text": draft})
             ss["guidance_decision"] = gd
@@ -3610,7 +3611,7 @@ def _render_guidance_decision(ss, context="script", on_submit=None):
                           type="positive")
             ui.button("Submit to Script", on_click=submit).props("color=primary dense").style("margin-top:4px;")
 
-    def generate_guidance(guidance_context_input=guidance_context_input):
+    async def generate_guidance(guidance_context_input=guidance_context_input):
         ui.notify("Generating guidance draft…", type="info")
         try:
             nl2, nh2 = gd.get("new_low"), gd.get("new_hi")
@@ -3618,7 +3619,8 @@ def _render_guidance_decision(ss, context="script", on_submit=None):
                 nl2, nh2 = _new
             _ch2 = _ge.characterize_range_change(_prior, [nl2, nh2])
             action, rationale = _ch2["action_key"], _ch2["signal"]
-            draft, was_ai = _generate_guidance_draft(ss, action, nl2, nh2, rationale, guidance_context_input.value)
+            draft, was_ai = await asyncio.to_thread(
+                _generate_guidance_draft, ss, action, nl2, nh2, rationale, guidance_context_input.value)
             gd.update({"action": action, "new_low": nl2, "new_hi": nh2, "rationale": rationale,
                        "context": guidance_context_input.value, "text": draft})
             ss["guidance_decision"] = gd
@@ -3818,7 +3820,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                     placeholder="e.g. tighten to 4 sentences · less promotional · work in the RTP win · firmer guidance",
                 ).classes("flex-grow").props("dense outlined")
 
-                def refine(box=box, key=key, role=role, refine_input=refine_input, pace_label=pace_label):
+                async def refine(box=box, key=key, role=role, refine_input=refine_input, pace_label=pace_label):
                     instr = (refine_input.value or "").strip()
                     if not instr:
                         ui.notify("Type an instruction first — what should change?", type="warning")
@@ -3829,7 +3831,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                         return
                     ui.notify("Refining draft…", type="info")
                     try:
-                        revised, was_ai = _refine_persona_draft(_old, instr, role, ss)
+                        revised, was_ai = await asyncio.to_thread(_refine_persona_draft, _old, instr, role, ss)
                         if not was_ai:
                             ui.notify("Refine needs the AI (ANTHROPIC_API_KEY) — draft left unchanged.",
                                       type="warning")
@@ -3868,15 +3870,18 @@ def _render_persona_steps(ss, role, key, on_submit=None):
 
             ui.button("Submit to Script", on_click=submit_to_script).props("color=primary dense").style("margin-top:4px;")
 
-    def _do_generate(role=role, key=key, whats_new_input=whats_new_input):
+    async def _do_generate(role=role, key=key, whats_new_input=whats_new_input):
         # Wrapped in try/except + an immediate "Generating…" notify — a bare
         # click that produces neither a draft nor an error is exactly what a
         # silent server-side exception looks like from the browser (NiceGUI
         # logs it to the console, not the UI). This makes failures visible
         # instead of looking like the button did nothing.
+        # The AI call runs off the event loop (asyncio.to_thread) so it never
+        # freezes the server for other tenants while a draft generates.
         ui.notify("Generating draft…", type="info")
         try:
-            draft, was_ai = _generate_persona_draft(role, ss, (whats_new_input.value or "").strip())
+            draft, was_ai = await asyncio.to_thread(
+                _generate_persona_draft, role, ss, (whats_new_input.value or "").strip())
             if not draft:
                 ui.notify("Generation returned nothing — check Stage 1 numbers were submitted.", type="warning")
                 return
@@ -3888,7 +3893,7 @@ def _render_persona_steps(ss, role, key, on_submit=None):
             ui.notify(f"Draft generation failed: {exc}", type="negative")
             raise
 
-    def generate(key=key):
+    async def generate(key=key):
         # "Generate with AI" starts OVER from the numbers + notes and replaces the
         # draft box wholesale. If a draft already exists (a prior generate, a manual
         # edit, or a refine), confirm first so a stray click can't wipe that work —
@@ -3904,13 +3909,13 @@ def _render_persona_steps(ss, role, key, on_submit=None):
                 with ui.row().classes("justify-end w-full gap-2").style("margin-top:6px;"):
                     ui.button("Cancel", on_click=_dlg.close).props("flat dense")
 
-                    def _go():
+                    async def _go():
                         _dlg.close()
-                        _do_generate()
+                        await _do_generate()
                     ui.button("Regenerate", icon="refresh", on_click=_go).props("color=primary dense")
             _dlg.open()
         else:
-            _do_generate()
+            await _do_generate()
 
     ui.button("Regenerate with what's new", icon="refresh", on_click=generate).props(
         "color=primary dense").style("margin-top:6px;")
@@ -5447,14 +5452,14 @@ def _render_script_canvas(ss):
                 placeholder="e.g. make the whole script less promotional · tighten throughout · warmer, plainer tone",
             ).classes("flex-grow").props("dense outlined")
 
-            def refine_all(all_instr=all_instr):
+            async def refine_all(all_instr=all_instr):
                 instr = (all_instr.value or "").strip()
                 if not instr:
                     ui.notify("Type an instruction to apply across every section.", type="warning")
                     return
                 ui.notify("Refining every section — one AI pass per speaker, this takes a moment…", type="info")
                 try:
-                    s = _refine_all_sections(ss, instr)
+                    s = await asyncio.to_thread(_refine_all_sections, ss, instr)
                 except Exception as exc:
                     ui.notify(f"Refine-all failed: {exc}", type="negative")
                     raise
