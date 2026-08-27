@@ -2035,6 +2035,27 @@ app.on_startup(_kick_off_lighthouse_shadow)
 app.on_startup(_kick_off_ir_inbox_poll)
 
 
+def _notify_uncaught_handler_error(*_args):
+    """B3 — turn an UNCAUGHT event-handler exception into a visible, recoverable
+    toast instead of a silent, console-only failure that makes a button look dead.
+
+    Only exceptions a handler did NOT catch reach here, so handlers that already
+    show their own specific message (e.g. "Guidance draft generation failed: ...")
+    are unaffected — this is purely the safety net for the rest. NiceGUI still
+    logs the full traceback server-side; we only add the user-facing message, and
+    guard it so a missing client/slot context (an exception outside a request)
+    degrades to log-only rather than raising a second error here."""
+    try:
+        ui.notify("Something went wrong with that action and it wasn't completed. "
+                  "Please try again — if it keeps happening, reload the page.",
+                  type="negative", timeout=6000)
+    except Exception:
+        pass
+
+
+app.on_exception(_notify_uncaught_handler_error)
+
+
 # ── Lighthouse digest engagement tracking (email opens + click-throughs) ──────────────────────────
 # Public, unauthenticated endpoints an email client / browser hits: a 1x1 pixel logs an OPEN, and the
 # digest CTA routes through the click endpoint (which logs then redirects to the app). Tokens are
