@@ -58,6 +58,29 @@ _QA_BOUNDARY = re.compile(
 # predecessor rather than lost, so the error masquerades as a plausible number.
 _TURN = re.compile(r"^(?P<spk>[A-Z][A-Za-z0-9 .,'&()/\-]{2,90})\n(?P<ts>\d{2}:\d{2}:\d{2})\s*$", re.M)
 
+# Fallback turn header for transcripts that DON'T carry per-turn timestamps: the
+# speaker's name sits alone on its own line (e.g. "Louis Hoch", or
+# "Neil Cataldi — Analyst, Blueprint Capital"), with the dialogue below it.
+# The name is 2-4 Title-Case words (first word Upper+lower, so ALL-CAPS headers and
+# prose with a lone leading capital don't match), optionally trailed by an em/en-dash
+# role+firm. find_turns() prefers the timestamped format and only falls back to this
+# when no timestamped turns exist, so a mixed corpus is unaffected.
+_TURN_NAMED = re.compile(
+    r"^(?P<spk>(?:Operator|[A-Z][a-z][A-Za-z.'\-]*(?: [A-Z][A-Za-z.'\-]+){1,3})"
+    r"(?:\s*[—–][^\n]{2,90})?)\s*$", re.M)
+
+
+def find_turns(text):
+    """Turn (speaker-header) matches for a transcript. Prefer the timestamped
+    format (_TURN); fall back to bare-name headers (_TURN_NAMED) for vendor
+    transcripts with no HH:MM:SS. Both expose .group('spk'), .start(), .end() —
+    all build_exchanges needs. Only _TURN carries a 'ts' group, so the delivery-
+    timing surfaces keep using _TURN directly (they need real timestamps)."""
+    turns = list(_TURN.finditer(text or ""))
+    if turns:
+        return turns
+    return list(_TURN_NAMED.finditer(text or ""))
+
 _STOP = {"the", "and", "for", "with", "that", "this", "from", "into", "over", "under",
          "growth", "revenue", "impact", "outlook", "timeline", "rates", "specificity",
          "drivers", "recovery", "penetration", "attrition", "portfolio", "risk"}
@@ -127,6 +150,47 @@ def normalize_role(label):
     if "analyst" in s or " at " in s:
         return "Analyst"
     return label or "Unknown"
+
+
+def _mgmt_roster(client_id=None):
+    """{lowercased management name -> role} for the active client, so a BARE-NAME
+    speaker in a transcript that omits role labels (some vendors print 'Louis Hoch'
+    on its own line, not 'Louis Hoch — Chairman and CEO') can still be classified.
+    Built from the client's executives + IR contact in config.client_config."""
+    from config.client_config import C, CI
+    roster = {}
+    role_map = {"CEO": "CEO", "CFO": "CFO/CAO", "CAO": "CFO/CAO", "CRO": "CRO", "IR": "IR"}
+    for role, e in (C().get("executives") or {}).items():
+        nm = ((e or {}).get("name") or "").strip()
+        if nm and " " in nm and nm.lower() not in ("none", "legal counsel"):
+            roster[nm.lower()] = role_map.get(role, role)
+    ir = CI() or {}
+    irn = (ir.get("name") or "").strip()
+    if irn and " " in irn and irn.lower() != "investor relations":
+        roster[irn.lower()] = "IR"
+    return roster
+
+
+def make_role_resolver(client_id=None):
+    """A role resolver for build_exchanges that first tries the label-based
+    normalize_role, then — for a BARE NAME it couldn't classify — falls back to the
+    client's management roster, defaulting an unrecognized bare name in the Q&A to
+    Analyst (analysts ask the questions; management is the known, finite roster).
+    Behaviour is IDENTICAL to normalize_role for role-labelled transcripts (the
+    fallback only fires when normalize_role returns the raw label unchanged)."""
+    roster = _mgmt_roster(client_id)
+
+    def resolve(label):
+        raw = (label or "").strip()
+        base = normalize_role(raw)
+        if base != raw:                       # normalize_role classified it
+            return base
+        name = re.split(r"\s*[—–\-]\s*", raw, 1)[0].strip().lower()   # drop "— role, firm"
+        if name in roster:
+            return roster[name]
+        return "Analyst"                      # a bare, unrostered Q&A speaker is an analyst
+
+    return resolve
 
 
 def split_prepared_qa(text):
@@ -421,7 +485,7 @@ def frame_qa(quarter, client_id=None, force=False):
     _p, _q, b = split_prepared_qa(text)
     if b is None:
         return None
-    exchanges = hedge_lexicon.build_exchanges(text, list(_TURN.finditer(text)), b, normalize_role)
+    exchanges = hedge_lexicon.build_exchanges(text, find_turns(text), b, make_role_resolver(cid))
 
     frames = []
     skipped = 0
