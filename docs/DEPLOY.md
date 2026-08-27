@@ -10,10 +10,39 @@ backend. Target scale: ~10 tenants × ~3 users — comfortably one instance.
 
 ---
 
+## 0. Region pairing (do this decision first)
+
+**The dominant rule: Neon and Render must sit in the SAME cloud region.** A page render makes many
+sequential DB round-trips; when the app server and Neon are co-located they're ~1–3 ms each, and the
+whole prefetch/perf effort holds. Split them across regions and you put ~50–80 ms back on *every*
+round-trip — undoing that work. Co-location matters more than being physically near your users,
+because the browser↔server link is a websocket (few round-trips per click) while the server↔DB link
+is dozens.
+
+**Recommended pair — US-East (finance, East-Coast weighted):**
+
+| Piece | Pick | Why |
+|---|---|---|
+| Render | **Virginia** | Render Virginia is AWS `us-east-1` |
+| Neon | **AWS `us-east-1` (N. Virginia)** | Same AWS region as Render Virginia → lowest possible DB latency |
+
+This fits your user base (US micro-cap issuers + a buy-side that's overwhelmingly NY/Boston/East-Coast):
+~10–30 ms to East-Coast users, and an acceptable ~60–70 ms to any West-Coast fund — and the DB
+co-location is what preserves the render speed regardless of where a given user sits.
+
+**Discipline:**
+- **Pick the two as a pair, both on AWS.** Don't mix (e.g. Neon *Azure* East US with Render AWS
+  Virginia is cross-cloud and adds latency). Neon → AWS `us-east-1`; Render → Virginia.
+- **Don't split regions** to chase a few West-Coast users. One co-located US-East region is the right
+  answer until you have a large, geographically-clustered cohort abroad.
+- **Fallback pair** (capacity/preference): Render **Ohio** ↔ Neon **AWS `us-east-2` (Ohio)** — also
+  same-region; use it only if you deliberately choose Ohio for both.
+- Set `region: virginia` in `render.yaml` (already the default) so it matches the Neon pick above.
+
 ## 1. Neon (database)
 
-1. Create a Neon project. **Pick the region you'll run Render in** (e.g. AWS `us-east` ↔ Render
-   `virginia`) — co-location turns per-page DB latency from ~80 ms/round-trip into single digits.
+1. Create a Neon project **in AWS `us-east-1` (N. Virginia)** — the pair for Render Virginia (see §0).
+   Co-location turns per-page DB latency from ~80 ms/round-trip into single digits.
 2. Copy the **pooled** connection string (Connection Details → *Pooled connection*; host looks like
    `…-pooler.…neon.tech`). The app opens many short connections, so the pooler endpoint is correct.
    It must include `?sslmode=require`.
