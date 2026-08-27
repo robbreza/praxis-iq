@@ -27,7 +27,7 @@ _MATERIAL = ("10-Q", "10-K", "8-K")
 def _conn(): return _db.get_connection()
 
 
-def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None) -> dict:
+def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None, fetch_cache=None) -> dict:
     own = conn is None
     conn = conn or _conn()
     as_of = AsOf(datetime.combine(day, time(21, 0), tzinfo=timezone.utc))
@@ -88,7 +88,7 @@ def build_verdict(client_id, ticker, day, model_row, lookback_days=10, conn=None
     not_found.append("Non-SEC news, options/flow, and short/borrow lenses are not yet wired (Phase 3).")
 
     # Technician lens (Spec 3): how the move was expressed/amplified — never the cause.
-    tech = technician.compute_technicals(ticker, day, benchmark="IWM", as_of=as_of, conn=conn)
+    tech = technician.compute_technicals(ticker, day, benchmark="IWM", as_of=as_of, conn=conn, fetch_cache=fetch_cache)
     for s in tech.get("signals", []):
         drivers.append(dict(cls=s["role"], label=s["label"], detail="technical structure", link=None))
 

@@ -380,7 +380,8 @@ def render_lighthouse_page():
         rows = list(model.iterrows())[-4:][::-1]
         conn = psycopg2.connect(get_database_url())          # one shared connection for all cards
         try:
-            verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn) for d, m in rows]
+            _ohlcv_fc = {}   # render-scoped: fetch each ticker's OHLCV once, not once per verdict (8->2 queries)
+            verdicts = [ceo.build_verdict(client_id, ticker, d, m, conn=conn, fetch_cache=_ohlcv_fc) for d, m in rows]
             from lighthouse import weekly as _weekly
             wk = _weekly.weekly_digest(model, ticker, conn=conn)
             _weekly.save_context_cache(client_id, ticker, wk)   # keep the Today-page mirror fresh

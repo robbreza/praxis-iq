@@ -22,7 +22,30 @@ from core import db as _db
 def _conn(): return _db.get_connection()
 
 
-def _ohlcv(ticker, day, as_of, cur) -> pd.DataFrame:
+_OHLCV_NUM = ["open", "high", "low", "close", "adj_close", "volume"]
+
+
+def _ohlcv(ticker, day, as_of, cur, fetch_cache=None) -> pd.DataFrame:
+    # PERF (render-scoped, opt-in): build_verdict renders 4 recent days x (issuer + benchmark),
+    # which fired 8 nested-superset SELECTs per Lighthouse render. When the caller passes a
+    # fetch_cache dict (the page owns one per render), fetch each ticker's history ONCE and slice
+    # point-in-time in pandas — the slice replicates the SQL gate EXACTLY (d<=day AND
+    # knowledge_ts<=as_of, NULL knowledge_ts dropped) and was verified row-identical to the query.
+    # Without a fetch_cache (shadow / digest callers) behaviour is unchanged: a direct bounded SELECT.
+    if fetch_cache is not None:
+        full = fetch_cache.get(ticker)
+        if full is None:
+            cur.execute("""SELECT d, open, high, low, close, adj_close, volume, knowledge_ts
+                           FROM lh_ohlcv WHERE ticker=%s ORDER BY d""", [ticker])
+            full = pd.DataFrame(cur.fetchall(),
+                                columns=["d", "open", "high", "low", "close", "adj_close", "volume", "knowledge_ts"])
+            full = full.astype({c: float for c in _OHLCV_NUM})
+            fetch_cache[ticker] = full
+        sub = full[full["d"] <= day]
+        if as_of is not None:
+            kt = sub["knowledge_ts"]
+            sub = sub[kt.notna() & (kt <= as_of.as_of)]
+        return sub.drop(columns=["knowledge_ts"]).reset_index(drop=True)
     gate, params = "", [ticker, day]
     if as_of is not None:
         frag, val = as_of.where_sql("knowledge_ts"); gate = " AND " + frag; params.append(val)
@@ -30,12 +53,12 @@ def _ohlcv(ticker, day, as_of, cur) -> pd.DataFrame:
                     WHERE ticker=%s AND d<=%s{gate} ORDER BY d""", params)
     rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=["d", "open", "high", "low", "close", "adj_close", "volume"])
-    return df.astype({c: float for c in ["open", "high", "low", "close", "adj_close", "volume"]})
+    return df.astype({c: float for c in _OHLCV_NUM})
 
 
-def compute_technicals(ticker, day, benchmark="IWM", as_of=None, conn=None) -> dict:
+def compute_technicals(ticker, day, benchmark="IWM", as_of=None, conn=None, fetch_cache=None) -> dict:
     own = conn is None; conn = conn or _conn(); cur = conn.cursor()
-    df = _ohlcv(ticker, day, as_of, cur)
+    df = _ohlcv(ticker, day, as_of, cur, fetch_cache=fetch_cache)
     if len(df) < 60:
         if own: conn.close()
         return {"signals": [], "summary": "insufficient history"}
@@ -67,7 +90,7 @@ def compute_technicals(ticker, day, benchmark="IWM", as_of=None, conn=None) -> d
     new_high = hi252 is not None and today >= hi252
 
     # relative strength vs benchmark (21d)
-    bdf = _ohlcv(benchmark, day, as_of, cur)
+    bdf = _ohlcv(benchmark, day, as_of, cur, fetch_cache=fetch_cache)
     rs21 = None
     if len(bdf) > 22:
         bret = bdf["adj_close"].iloc[-1] / bdf["adj_close"].iloc[-22] - 1
