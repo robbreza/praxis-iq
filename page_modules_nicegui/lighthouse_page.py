@@ -191,89 +191,101 @@ def render_lighthouse_page():
         # engagement, model calibration — collapsed into ONE expander so the CEO-facing "why did my
         # stock move" answer (above, via _answer_slot) and the peer intelligence (below) lead the page,
         # not the plumbing. Nothing diagnostic renders naked in the lead anymore.
-        with ui.expansion("Diagnostics & delivery — shadow mode, alerts, engagement, calibration",
-                          icon="settings", value=False).classes("w-full").style("margin-bottom:8px;"):
-            try:
-                from lighthouse import shadow as _shadow
-                st = _shadow.shadow_status(client_id, ticker)
+        _diag_exp = ui.expansion("Diagnostics & delivery — shadow mode, alerts, engagement, calibration",
+                          icon="settings", value=False).classes("w-full").style("margin-bottom:8px;")
+        # PERF: build the (collapsed-by-default) diagnostics only on first expand. shadow_status
+        # + telemetry.summary are ~0.5s of work that otherwise ran on every Lighthouse render for
+        # a panel most people never open. Pure deferral — no change to what any model computes.
+        _diag_built = {"done": False}
+
+        def _build_diagnostics():
+            if _diag_built["done"]:
+                return
+            _diag_built["done"] = True
+            with _diag_exp:
+                try:
+                    from lighthouse import shadow as _shadow
+                    st = _shadow.shadow_status(client_id, ticker)
+                    with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                        ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
+                            "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
+                        ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
+                                 f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
+                                 f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                except Exception:
+                    pass
                 with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-                    ui.label("● SHADOW MODE").style("color:#B45309;font-weight:800;font-size:var(--fs-xs);"
-                        "border:1px solid #B4530955;border-radius:999px;padding:2px 10px;background:#B4530911;")
-                    ui.label(f"{st['logged']} sessions logged {st['since'] or ''}..{st['latest'] or ''} · "
-                             f"{st['pct_high_abnormality']*100:.0f}% high-abnormality · {st['pct_explained']*100:.0f}% explained · "
-                             f"IR review — no automated executive alerts yet.").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            except Exception:
-                pass
-            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-                ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
-                    .props("outline size=sm color=primary")
-                ui.label("sends the daily digest to your configured address and shows the result here — "
-                         "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
-            # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
-            # it sends a real notification on demand — so delivery can be proven without waiting for a
-            # Critical market day.
-            with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
-                ui.html(f'<button onclick="window.irconnectSubscribePush(\'{client_id}\')" '
-                        'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
-                        'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
-                        'sans-serif;cursor:pointer;">🔔 Enable phone alerts</button>')
+                    ui.button("✉ Send test digest email", icon="mail", on_click=_send_test_digest) \
+                        .props("outline size=sm color=primary")
+                    ui.label("sends the daily digest to your configured address and shows the result here — "
+                             "no terminal needed").style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                # Opt in to native-style phone alerts (Web Push). Raw HTML so the permission prompt fires
+                # inside a real click; on iOS this works only in the installed PWA. The test-push button beside
+                # it sends a real notification on demand — so delivery can be proven without waiting for a
+                # Critical market day.
+                with ui.row().classes("items-center gap-2").style("margin-bottom:8px;"):
+                    ui.html(f'<button onclick="window.irconnectSubscribePush(\'{client_id}\')" '
+                            'style="display:inline-flex;align-items:center;gap:6px;background:#1E40AF;color:#fff;'
+                            'border:0;border-radius:8px;padding:6px 12px;font:600 12px -apple-system,Segoe UI,Roboto,'
+                            'sans-serif;cursor:pointer;">🔔 Enable phone alerts</button>')
 
-                def _send_test_push():
-                    try:
-                        import os
-                        from lighthouse import push
-                        rep = push.send_to_client(
-                            client_id, f"{ticker} — test alert",
-                            "Phone alerts are working. This is a Lighthouse test push.",
-                            url=(os.environ.get("LIGHTHOUSE_APP_URL", "") or "/"), tag="lh-test")
-                        if rep.get("sent"):
-                            ui.notify(f"Test push sent to {rep['sent']} device(s).", type="positive")
-                        elif rep.get("total") == 0:
-                            ui.notify("No subscribed devices yet — tap Enable phone alerts on your phone first.",
-                                      type="warning")
-                        else:
-                            ui.notify("Couldn't deliver — the subscription may be stale; re-enable on your phone.",
-                                      type="warning")
-                    except Exception:
-                        ui.notify("Test push failed — see server log.", type="negative")
+                    def _send_test_push():
+                        try:
+                            import os
+                            from lighthouse import push
+                            rep = push.send_to_client(
+                                client_id, f"{ticker} — test alert",
+                                "Phone alerts are working. This is a Lighthouse test push.",
+                                url=(os.environ.get("LIGHTHOUSE_APP_URL", "") or "/"), tag="lh-test")
+                            if rep.get("sent"):
+                                ui.notify(f"Test push sent to {rep['sent']} device(s).", type="positive")
+                            elif rep.get("total") == 0:
+                                ui.notify("No subscribed devices yet — tap Enable phone alerts on your phone first.",
+                                          type="warning")
+                            else:
+                                ui.notify("Couldn't deliver — the subscription may be stale; re-enable on your phone.",
+                                          type="warning")
+                        except Exception:
+                            ui.notify("Test push failed — see server log.", type="negative")
 
-                ui.button("Send test push", on_click=_send_test_push).props("flat dense size=sm")
-            try:                                            # used-vs-ignored readout (measure, don't hope)
-                from lighthouse import telemetry as _tel
-                eng = _tel.summary(client_id, ticker, days=30)
-                if eng["app_views"] or eng["emails_sent"]:
-                    bits = [f"{eng['app_views']} page view(s)"]
-                    if eng["emails_sent"]:
-                        orate = f" ({eng['open_rate']*100:.0f}% open)" if eng["open_rate"] is not None else ""
-                        bits.append(f"{eng['emails_opened']}/{eng['emails_sent']} digest(s) opened{orate}")
-                    if eng["clicks"]:
-                        bits.append(f"{eng['clicks']} click-through(s)")
-                    if eng["last_engaged"]:
-                        bits.append(f"last engaged {eng['last_engaged']}")
-                    ui.label("Engagement (30d): " + " · ".join(bits)) \
-                        .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
-            except Exception:
-                pass
-            try:                                            # live calibration (cached; scheduler-refreshed)
-                from lighthouse import calibration as _cal
-                cc = _cal.load_cache(client_id)
-                if cc and not cc.get("error"):
-                    ui.label("Model calibration — is 'abnormal' actually informative?").style(
-                        f"color:{COLORS['text_heading']};font-weight:600;font-size:var(--fs-sm);margin-top:4px;")
-                    ui.label(f"{cc['days']} sessions · FDR alerts ~{cc.get('fdr_per_year', 0):.0f}/yr, "
-                             f"{(cc.get('fdr_precision') or 0)*100:.0f}% with an identifiable catalyst · "
-                             f"top-decile move recall {(cc.get('big_move_recall') or 0)*100:.0f}%") \
-                        .style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
-                    for t in cc.get("reliability", []):
-                        if not t.get("n"):
-                            continue
-                        er = f"{t['event_rate']*100:.0f}% w/ catalyst" if t.get("event_rate") is not None else "—"
-                        ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
-                        ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
-                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
-            except Exception:
-                pass
+                    ui.button("Send test push", on_click=_send_test_push).props("flat dense size=sm")
+                try:                                            # used-vs-ignored readout (measure, don't hope)
+                    from lighthouse import telemetry as _tel
+                    eng = _tel.summary(client_id, ticker, days=30)
+                    if eng["app_views"] or eng["emails_sent"]:
+                        bits = [f"{eng['app_views']} page view(s)"]
+                        if eng["emails_sent"]:
+                            orate = f" ({eng['open_rate']*100:.0f}% open)" if eng["open_rate"] is not None else ""
+                            bits.append(f"{eng['emails_opened']}/{eng['emails_sent']} digest(s) opened{orate}")
+                        if eng["clicks"]:
+                            bits.append(f"{eng['clicks']} click-through(s)")
+                        if eng["last_engaged"]:
+                            bits.append(f"last engaged {eng['last_engaged']}")
+                        ui.label("Engagement (30d): " + " · ".join(bits)) \
+                            .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);margin-bottom:8px;")
+                except Exception:
+                    pass
+                try:                                            # live calibration (cached; scheduler-refreshed)
+                    from lighthouse import calibration as _cal
+                    cc = _cal.load_cache(client_id)
+                    if cc and not cc.get("error"):
+                        ui.label("Model calibration — is 'abnormal' actually informative?").style(
+                            f"color:{COLORS['text_heading']};font-weight:600;font-size:var(--fs-sm);margin-top:4px;")
+                        ui.label(f"{cc['days']} sessions · FDR alerts ~{cc.get('fdr_per_year', 0):.0f}/yr, "
+                                 f"{(cc.get('fdr_precision') or 0)*100:.0f}% with an identifiable catalyst · "
+                                 f"top-decile move recall {(cc.get('big_move_recall') or 0)*100:.0f}%") \
+                            .style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);")
+                        for t in cc.get("reliability", []):
+                            if not t.get("n"):
+                                continue
+                            er = f"{t['event_rate']*100:.0f}% w/ catalyst" if t.get("event_rate") is not None else "—"
+                            ps = f"{t['persist_rate']*100:.0f}% persist" if t.get("persist_rate") is not None else "—"
+                            ui.label(f"{t['bin']}: n={t['n']} · {er} · {ps}") \
+                                .style(f"color:{COLORS['text_muted']};font-size:var(--fs-xs);")
+                except Exception:
+                    pass
+
+        _diag_exp.on_value_change(lambda _=None: _diag_exp.value and _build_diagnostics())
         # The "market-revealed peers" diagnostics (co-ownership / co-movement / sell-side coverage
         # overlap) need a real holder + coverage graph to be meaningful; on the illustrative demo they
         # compute ~0% and are hardcoded to USIO, so skip them — the core verdict + weekly context is
