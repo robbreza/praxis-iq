@@ -120,3 +120,32 @@ This is a **single-process** design: the in-process cache and background jobs as
 That's ideal to ~dozens of tenants. Going to *many* instances (horizontal scale) later requires a
 shared cache + a single-owner for the background jobs (e.g. move the scheduler to one worker, or a
 Render Cron/background worker) — a deliberate re-architecture, not a config flip. Not needed now.
+
+## 10. Phone alerts (VAPID / Web Push) — optional
+
+Lighthouse can push high-tier verdicts to a subscriber's phone via Web Push, which needs a VAPID
+keypair.
+
+**You can skip this and it still works:** if `VAPID_*` are unset, the app auto-generates a keypair
+on first use and persists it in Neon (`lighthouse_vapid.json`), stable across restarts.
+
+**But for production, set explicit env keys** — it decouples the push identity from the database, so
+a DB reset/migration can't silently invalidate every phone subscription already registered.
+
+1. Generate a keypair (locally; keys are secrets — the script prints, persists nothing):
+   ```bash
+   python scripts/gen_vapid_keys.py --subject mailto:ir@praxispointir.com
+   ```
+2. In Render → Environment, set `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, and `VAPID_PRIVATE_KEY`. The
+   private key is a multi-line PEM (BEGIN/END lines included) — paste the whole block as the value;
+   Render preserves multi-line secrets.
+3. Verify after deploy: `curl https://<your-app>/push/vapid-public-key` returns your
+   `VAPID_PUBLIC_KEY`.
+
+**Caveats:**
+- **Generate the keypair once and keep it stable.** Changing it invalidates every existing
+  subscription — users would have to re-tap "Enable phone alerts."
+- **iOS** only allows Web Push from the **installed PWA** (Add to Home Screen), not a Safari tab —
+  the app already tells users this.
+- `VAPID_SUBJECT` must be a real, reachable `mailto:` or `https:` — push services use it to contact
+  you about your sending.
