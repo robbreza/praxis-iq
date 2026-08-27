@@ -1265,6 +1265,18 @@ def main_page(request: Request = None):
         # is not visible, so without this the core calls below could fall back to
         # the default tenant mid-session.
         _bind_active_client()
+        # PERF: warm the whole client JSON store in ONE Neon round-trip before the
+        # page makes its dozens of load_json() calls. prefetch_all is idempotent per
+        # process/client, so this actually queries only on the first render for a
+        # client and is a no-op afterwards — turning ~50 sequential cloud round-trips
+        # on the heaviest pages (Earnings/Ownership/Targeting) into a single SELECT,
+        # and warming every later page too. Guarded: a prefetch failure must never
+        # break the page — load_json just falls back to individual reads.
+        try:
+            from core import db as _db
+            _db.prefetch_all(get_active_client_id())
+        except Exception:
+            pass
         # Record who's viewing which page for this render, so page modules can
         # gate mutating controls (core.ui_context.can_edit / is_read_only).
         from core import ui_context
