@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "irconnect-app",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app_nicegui.py"],
+      "port": 8502
+    }
+  ]
+}
