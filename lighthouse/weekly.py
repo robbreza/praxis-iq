@@ -8,6 +8,7 @@ drift). That drift is the Spec 12 lag/diffusion made visible, and it matches the
 actually wants: a weekly read, with daily alerts reserved for the rare/extreme.
 """
 from __future__ import annotations
+import logging
 from datetime import timedelta
 
 import numpy as np
@@ -215,7 +216,7 @@ def save_context_cache(client_id, ticker, wk) -> None:
         from core import db
         db.save_json(_CTX_CACHE_KEY, {k: wk.get(k) for k in _CTX_FIELDS}, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse weekly context cache write failed", exc_info=True)
 
 
 def load_context_cache(client_id, ticker):

@@ -15,6 +15,7 @@ signal — the winners can then feed the point-in-time factor model as a challen
 pure-numpy OLS + forward selection, separated from the data fetch and unit-tested.
 """
 from __future__ import annotations
+import logging
 from core import db as _db
 import numpy as np
 import pandas as pd
@@ -84,7 +85,7 @@ def candidate_universe(issuer, client_id=None, defined_peers=None, max_sic=60) -
         from core import db
         db.save_json(_UNIVERSE_CACHE_KEY, uni, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse comovement universe cache write failed", exc_info=True)
     return uni
 
 
@@ -192,7 +193,7 @@ def refresh_cache(client_id="usio", issuer="USIO") -> dict:
         if not c.get("error"):
             db.save_json(_CACHE_KEY, c, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse comovement cache write failed", exc_info=True)
     return c
 
 

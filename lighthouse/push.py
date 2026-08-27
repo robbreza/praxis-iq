@@ -15,6 +15,7 @@ generated once and persisted to the DB, so there is zero manual setup and the ke
 restarts (changing them would invalidate every existing subscription).
 """
 from __future__ import annotations
+import logging
 import os
 import json
 import base64
@@ -111,7 +112,7 @@ def delete_subscription(endpoint) -> None:
         cur.execute("DELETE FROM lh_push_subscription WHERE endpoint=%s", (endpoint,))
         conn.commit()
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse push subscription DB commit failed", exc_info=True)
     finally:
         conn.close()
 

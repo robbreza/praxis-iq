@@ -14,6 +14,7 @@ against index breadth and suppresses mega-caps).
 The pure aggregation core (`aggregate`) is separated from the EDGAR fetch and unit-tested.
 """
 from __future__ import annotations
+import logging
 import re
 
 # Quant / passive / market-maker / broad-index filers whose books are the whole market, not a bet.
@@ -118,7 +119,7 @@ def refresh_cache(client_id="usio", ticker="USIO") -> dict:
         if not c.get("error"):
             db.save_json(_CACHE_KEY, c, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse coownership cache write failed", exc_info=True)
     return c
 
 

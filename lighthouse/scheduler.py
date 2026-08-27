@@ -8,6 +8,7 @@ date avoids re-refreshing market data every check; and everything is wrapped so 
 the app. Activates automatically on the next deploy via app.on_startup.
 """
 from __future__ import annotations
+import logging
 import asyncio
 import traceback
 from datetime import datetime, timezone
@@ -32,7 +33,7 @@ def _set_last_run_date(iso_date):
         from core import db
         db.save_json(_STATE_KEY, {"last_run_date": iso_date}, client_id=_STATE_CLIENT)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse scheduler failed to persist last_run_date; digest may re-run", exc_info=True)
 
 
 def _should_run(now: datetime, last_iso: str | None) -> bool:

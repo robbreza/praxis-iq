@@ -13,6 +13,7 @@ even cover. Internal data, so this is a cheap live compute (no EDGAR/paid feed).
 core is separated and unit-tested.
 """
 from __future__ import annotations
+import logging
 
 _PAY_KEYS = ("payment", "fintech", "ach", "payfac", "lto", "processing", " card")
 
@@ -75,7 +76,7 @@ def refresh_cache(client_id="usio", issuer="USIO") -> dict:
         if not c.get("error"):
             db.save_json(_CACHE_KEY, c, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse coverage cache write failed", exc_info=True)
     return c
 
 

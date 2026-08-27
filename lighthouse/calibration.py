@@ -18,6 +18,7 @@ is how you score a forecaster, not a leak into the live signal. The pure scoring
 separated from the DB fetch so it is unit-tested on synthetic arrays.
 """
 from __future__ import annotations
+import logging
 from core import db as _db
 import numpy as np
 
@@ -123,7 +124,7 @@ def refresh_cache(client_id="usio", ticker="USIO") -> dict:
         if not c.get("error"):
             db.save_json(_CACHE_KEY, c, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse calibration cache write failed", exc_info=True)
     return c
 
 

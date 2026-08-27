@@ -64,6 +64,7 @@ confirmed no route to *.neon.tech), not silently on every read.
 
 import contextvars
 import json
+import logging
 import threading as _threading
 import os
 import sqlite3
@@ -762,7 +763,7 @@ def prefetch(keys, client_id=None):
                 try:
                     _MEM_CACHE[(cid, k)] = json.loads(v)
                 except Exception:
-                    pass                             # leave uncached; load_json handles the failure
+                    logging.getLogger(__name__).warning("db cache: skipping corrupt entry for %s", k, exc_info=True)                             # leave uncached; load_json handles the failure
     finally:
         conn.close()
 
@@ -803,7 +804,7 @@ def prefetch_all(client_id=None):
                 try:
                     _MEM_CACHE[(cid, k)] = json.loads(v)
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).warning("db cache: skipping corrupt entry for %s", k, exc_info=True)
         _PREFETCHED_ALL.add(cid)   # whole store loaded — later calls short-circuit
     finally:
         conn.close()

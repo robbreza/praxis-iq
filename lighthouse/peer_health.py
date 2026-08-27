@@ -22,6 +22,7 @@ Reuses core.peer_discovery.enrich (EV / gross margin / gp-status / current-filer
 surfaced in the onboarding checklist.
 """
 from __future__ import annotations
+import logging
 from collections import Counter
 
 _OVERSIZE_X = 25.0          # EV more than this multiple of the issuer's → reference, not median
@@ -87,7 +88,7 @@ def refresh_cache(client_id="usio", issuer=None) -> dict:
         if not c.get("error"):
             db.save_json(_CACHE_KEY, c, client_id=client_id)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("lighthouse peer_health cache write failed", exc_info=True)
     return c
 
 
