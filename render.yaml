@@ -1,25 +1,84 @@
-# Render Blueprint — Lighthouse Shadow Mode daily cron.
-#
-# The IRconnect WEB SERVICE is managed separately in the Render dashboard; this file adds only the
-# post-close daily Lighthouse Shadow run (logs the latest session's verdict to lh_verdict for IR
-# review — no automated executive alerts). Two ways to use it:
-#   A) Blueprint: Render Dashboard -> New -> Blueprint -> pick this repo (creates the cron below).
-#   B) Manual:    Render Dashboard -> New -> Cron Job -> connect this repo, then set
-#                 Schedule = "0 22 * * 1-5"  and  Command = "python -m lighthouse.shadow".
-# Either way, give it the SAME environment as the web service (at minimum DATABASE_URL, plus the
-# SEC EDGAR user-agent / any secrets core/ needs).
+# Render Blueprint for the IRconnect app (praxis-iq).
+# Apply via Render Dashboard -> New -> Blueprint, pointed at this repo.
+# One always-on web service (NiceGUI is a stateful websocket server with in-process
+# caches + background jobs — it must NOT run serverless / spin down).
 services:
-  - type: cron
-    name: lighthouse-shadow
+  - type: web
+    name: irconnect-app
     runtime: python
-    plan: starter
-    schedule: "0 22 * * 1-5"          # 22:00 UTC ~ after the US market close (covers EST/EDT), weekdays
+    plan: standard            # 2 GB RAM. pandas/numpy/reportlab + AI orchestration need it.
+                              # Do NOT use "free": it spins down on idle, which kills the
+                              # background jobs (market refresh, digest scheduler, peer-watch)
+                              # and reintroduces cold-start latency.
+    region: virginia          # MATCH your Neon region to keep DB round-trips ~single-digit ms.
+    branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m lighthouse.shadow
+    startCommand: python app_nicegui.py
+    healthCheckPath: /version # public, returns 200 (no auth) — safe health probe
     autoDeploy: true
     envVars:
-      - key: DATABASE_URL             # the same Neon Postgres the web service uses
+      # ---- generated once by Render and kept stable across deploys ----
+      - key: IRCONNECT_STORAGE_SECRET   # signs app.storage.user (the per-browser tenant pick)
+        generateValue: true
+
+      # ---- REQUIRED secrets: set in the Render dashboard (Environment tab) ----
+      - key: DATABASE_URL               # Neon POOLED string (…-pooler.…neon.tech/…?sslmode=require)
         sync: false
-      - key: PYTHONPATH
-        value: .
-      # Add the web service's other secrets here (SEC user-agent, etc.) as `sync: false` keys.
+      - key: ANTHROPIC_API_KEY          # AI script-gen / refine / structuring
+        sync: false
+      - key: ADMIN_EMAIL                # first admin account, seeded on boot
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DEFAULT_USER_PASSWORD      # initial password for provisioned client users
+        sync: false
+      - key: LIGHTHOUSE_APP_URL         # e.g. https://app.praxispointir.com — used in digest/push links
+        sync: false
+
+      # ---- Web Push (phone alerts). OPTIONAL: app boots without them; alerts just stay off ----
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT              # mailto:ir@praxispointir.com
+        sync: false
+
+      # ---- Email: outbound digests (SMTP) + inbound inbox polling (IMAP). Set if used ----
+      - key: ZOHO_SMTP_HOST
+        sync: false
+      - key: ZOHO_SMTP_PORT
+        sync: false
+      - key: ZOHO_SMTP_USER
+        sync: false
+      - key: ZOHO_SMTP_PASS
+        sync: false
+      - key: ZOHO_FROM_NAME
+        sync: false
+      - key: MAIL_IMAP_HOST
+        sync: false
+      - key: MAIL_IMAP_PORT
+        sync: false
+      - key: MAIL_IMAP_USER
+        sync: false
+      - key: MAIL_IMAP_PASSWORD
+        sync: false
+      - key: MAIL_INBOX_POLL_MINUTES
+        sync: false
+      - key: MAIL_INBOX_CLIENT_IDS
+        sync: false
+
+      # ---- Optional integrations: set ONLY if the feature is in use ----
+      - key: ANYMAILFINDER_API_KEY      # contact email discovery
+        sync: false
+      - key: ORS_API_KEY                # OpenRouteService (NDR geography)
+        sync: false
+      - key: ZOOM_ACCOUNT_ID
+        sync: false
+      - key: ZOOM_CLIENT_ID
+        sync: false
+      - key: ZOOM_CLIENT_SECRET
+        sync: false
+
+      # NOTE: DEV_TENANT and DEV_AUTOLOGIN are DEV-ONLY. Never set them here —
+      # DEV_AUTOLOGIN bypasses the login screen (no password), which in production
+      # would hand anyone a signed-in session. Their absence is the correct prod state.

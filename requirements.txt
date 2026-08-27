@@ -1,15 +1,18 @@
-nicegui
-pandas
-python-dotenv
-openpyxl
-reportlab
-plotly
-requests   # core/sec_filings.py — SEC EDGAR data fetching (13D/13G, 13F)
-dnspython   # core/contact_scrub.py — MX lookup (email-domain deliverability, Phase-2 scrubbing)
-psycopg2-binary   # core/db.py — Neon Postgres backend (falls back to SQLite if unused)
-yfinance   # core/market_data.py — free market data (price/volume), 60-min-delay tolerant
-pypdf   # core/transcripts.py — extract text from uploaded earnings-call transcript PDFs
-pywebpush   # lighthouse/push.py — Web Push (VAPID) for Lighthouse phone alerts
-python-pptx   # core/board_slides.py — PT Drift Tracker board-slide export (replaces app.py's
-              # broken Node.js subprocess approach — generate_pt_slide.js was never actually
-              # included in the project, so that button never worked even in the original demo)
+# Direct dependencies, version-pinned for reproducible production builds (Render).
+# Pins are the versions this app currently runs on. If a pin ever fails to resolve on the
+# deploy's Python (runtime.txt = 3.12), relax that single line rather than unpinning everything.
+nicegui==3.14.0
+pandas==3.0.3
+python-dotenv==1.2.2
+openpyxl==3.1.5
+reportlab==5.0.0
+plotly==6.8.0
+requests==2.34.2          # core/sec_filings.py — SEC EDGAR data fetching (13D/13G, 13F)
+dnspython==2.8.0          # core/contact_scrub.py — MX lookup (email-domain deliverability, Phase-2 scrubbing)
+psycopg2-binary==2.9.12   # core/db.py — Neon Postgres backend (falls back to SQLite if unused)
+yfinance==1.5.1           # core/market_data.py — free market data (price/volume), 60-min-delay tolerant
+pypdf==6.14.2             # core/transcripts.py — extract text from uploaded earnings-call transcript PDFs
+pywebpush==2.3.0          # lighthouse/push.py — Web Push (VAPID) for Lighthouse phone alerts
+python-pptx==1.0.2        # core/board_slides.py — PT Drift Tracker board-slide export (replaces app.py's
+                          # broken Node.js subprocess approach — generate_pt_slide.js was never actually
+                          # included in the project, so that button never worked even in the original demo)
