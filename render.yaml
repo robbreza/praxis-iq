@@ -10,8 +10,9 @@ services:
                               # Do NOT use "free": it spins down on idle, which kills the
                               # background jobs (market refresh, digest scheduler, peer-watch)
                               # and reintroduces cold-start latency.
-    region: oregon            # MATCHED to your Neon project (us-west-2 / AWS Oregon). Do not change
-                              # one without the other — cross-region adds ~60ms to every query.
+    region: virginia          # MATCHED to the Neon project in AWS us-east-1 (see docs/DEPLOY.md §0).
+                              # Do not move one without the other — cross-region adds ~60ms to
+                              # every DB round-trip, and a page makes dozens.
     branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: python app_nicegui.py
