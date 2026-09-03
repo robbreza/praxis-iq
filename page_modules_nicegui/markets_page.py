@@ -605,6 +605,35 @@ def _render_guidance_impact(period, new_eps, new_rev, new_ebd, period_guidance, 
                 f"color:{COLORS['text_secondary']};font-size:var(--fs-sm);margin-top:4px;line-height:1.5;")
 
 
+def _est_sparkline(vals, guide):
+    """A compact estimate-dispersion strip for a beat-bar card: one dot per covering analyst's
+    revenue estimate on a shared mini-axis, with management's guidance as an amber dashed marker —
+    so the CFO sees the whole horizon's spread-vs-guide at a glance. Returns "" when there are no
+    ingested models (the card already says so in text). Pure SVG string for ui.html."""
+    vals = [v for v in vals if isinstance(v, (int, float))]
+    if not vals:
+        return ""
+    marks = vals + ([guide] if isinstance(guide, (int, float)) else [])
+    lo, hi = min(marks), max(marks)
+    W, H, pad = 150, 26, 11
+    if hi - lo < 1e-9:
+        x = lambda v: W / 2  # noqa: E731 — all estimates identical: center them
+    else:
+        span = hi - lo
+        lo2, hi2 = lo - span * 0.15, hi + span * 0.15
+        x = lambda v: pad + (v - lo2) / (hi2 - lo2) * (W - 2 * pad)  # noqa: E731
+    axis = f'<line x1="{pad}" y1="13" x2="{W - pad}" y2="13" stroke="{COLORS["border"]}"/>'
+    dots = "".join(f'<circle cx="{x(v):.1f}" cy="13" r="3" fill="#1E40AF" opacity="0.85"/>' for v in vals)
+    gsvg = ""
+    if isinstance(guide, (int, float)):
+        gx = x(guide)
+        gsvg = (f'<line x1="{gx:.1f}" y1="4" x2="{gx:.1f}" y2="22" stroke="#B45309" '
+                f'stroke-width="1.5" stroke-dasharray="3 2"/>')
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%" style="max-width:190px;margin-top:6px" '
+            f'role="img" aria-label="analyst revenue estimate spread vs guidance">'
+            f'{axis}{dots}{gsvg}</svg>')
+
+
 def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighted_analyst=None):
     from page_modules_nicegui.signals import capability_banner
     last_price = _last_price()
@@ -665,6 +694,9 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
             with ui.card().classes("flex-1").style(f"background:{COLORS['surface_bg']};border:1px solid {COLORS['border']};border-left:4px solid {bc};"):
                 ui.label(period).style(f"color:{COLORS['accent_light2']};font-size:var(--fs-sm);font-weight:600;")
                 ui.label(label).style(f"color:{bc};font-size:var(--fs-sm);font-weight:700;")
+                _spark = _est_sparkline([v.get("Revenue Est ($M)") for v in ingested], grev)
+                if _spark:
+                    ui.html(_spark)
                 ui.label(f"Models: {models_in}/{models_total}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:6px;")
                 # Revenue: Street vs Guidance on one line, then the coloured beat/miss call.
                 ui.label(f"Rev — Street {_srev} · Guide {_grev}").style(f"color:{COLORS['text_body']};font-size:var(--fs-sm);margin-top:4px;")
@@ -675,6 +707,15 @@ def _render_consensus_matrix(seed, period_guidance, period_estimates, highlighte
                     ui.label(_eps_tag).style(f"color:{_eps_clr};font-size:var(--fs-xs);font-weight:700;")
                 if con_pt:
                     ui.label(f"Consensus PT: ${con_pt:.2f} ({upside_pct:+.0f}%)").style("color:#15803D;font-size:var(--fs-sm);font-weight:600;")
+
+    ui.html(
+        f'<div style="display:flex;gap:16px;font-size:11px;color:{COLORS["text_muted"]};margin-top:8px;align-items:center">'
+        f'<span style="display:inline-flex;align-items:center;gap:5px">'
+        f'<svg width="12" height="10"><circle cx="6" cy="5" r="4" fill="#1E40AF"/></svg>analyst estimate</span>'
+        f'<span style="display:inline-flex;align-items:center;gap:5px">'
+        f'<svg width="12" height="12"><line x1="6" y1="0" x2="6" y2="12" stroke="#B45309" stroke-width="1.5" stroke-dasharray="3 2"/></svg>guidance</span>'
+        f'<span>&mdash; each card\'s strip is that period\'s estimate spread vs your guide</span>'
+        f'</div>')
 
     ui.markdown("---")
 
