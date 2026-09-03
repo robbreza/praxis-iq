@@ -6783,6 +6783,42 @@ def _render_consensus_rollup():
                  "public number today; collect your analysts' models to build your own vetted median from it.").style(
             f"color:{MUT};font-size:var(--fs-base);margin-top:8px;")
 
+    # ── estimate dispersion chart ───────────────────────────────────────────
+    # The visual payoff of collecting models: where every covering analyst sits vs the median,
+    # with the low–high band and outliers flagged. Only meaningful once models are in; wrapped so a
+    # plotly hiccup can never take down the tab (chart is an enhancement, the text below is the truth).
+    if r["per_firm"] and r["median"] is not None:
+        try:
+            import plotly.graph_objects as go
+            firms = [f["firm"] for f in r["per_firm"]]
+            vals = [f["value"] for f in r["per_firm"]]
+            cols = ["#B45309" if f["is_outlier"] else "#1E40AF" for f in r["per_firm"]]
+            ui.markdown("---")
+            ui.label("Estimate dispersion").classes("font-bold").style("font-size:var(--fs-md);")
+            ui.label(f"Where each covering analyst's {period} revenue estimate sits vs the median "
+                     f"{_m(r['median'])} — the low–high band is the spread you're managing.").style(
+                f"color:{MUT};font-size:var(--fs-sm);")
+            fig = go.Figure()
+            if r["low"] is not None and r["high"] is not None:
+                fig.add_vrect(x0=r["low"], x1=r["high"], fillcolor="rgba(30,64,175,.06)", line_width=0)
+            fig.add_vline(x=r["median"], line=dict(color="#15803D", width=2),
+                          annotation_text="Median", annotation_position="top")
+            if r.get("mean") is not None:
+                fig.add_vline(x=r["mean"], line=dict(color=MUT, width=1, dash="dot"),
+                              annotation_text="Mean", annotation_position="bottom")
+            fig.add_trace(go.Scatter(
+                x=vals, y=firms, mode="markers",
+                marker=dict(size=13, color=cols, line=dict(color="white", width=1.5)),
+                hovertemplate="%{y}: $%{x:.1f}M<extra></extra>", showlegend=False))
+            fig.update_layout(height=max(180, 42 * len(firms) + 96),
+                              margin=dict(l=8, r=16, t=30, b=40),
+                              xaxis_title=f"{period} revenue estimate ($M)",
+                              yaxis=dict(autorange="reversed"),
+                              plot_bgcolor="#F8F9FA", paper_bgcolor="white")
+            ui.plotly(fig).classes("w-full")
+        except Exception as _e:
+            print(f"[consensus] dispersion chart skipped (non-fatal): {_e}")
+
     ui.markdown("---")
 
     # ── per-analyst models ──────────────────────────────────────────────────
