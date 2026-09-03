@@ -96,10 +96,12 @@ def by_city(client_id=None):
     for i in scored:
         by[i.get("Metro") or "—"].append(i)
     booked, trips, unmatched = _booked(set(by))
-    if unmatched:
-        print(f"[ndr_by_city] trip cities that do not join to any metro: {unmatched}")
+    # `unmatched` = trips whose city has no SCORED institution — a prospecting NDR to a metro where
+    # we hold nothing yet. These used to be dropped from the table entirely; they are now surfaced
+    # as booked-only rows below (see loop after this one), so no warning is needed.
 
     rows = []
+    seen = set()
     for metro, funds in by.items():
         holders = [f for f in funds if f.get("USIO_Holder")]
         non = sorted([f for f in funds if not f.get("USIO_Holder")],
@@ -107,12 +109,26 @@ def by_city(client_id=None):
         top = non[:DAY_CAPACITY]
         top_avg = (sum(f.get("Engagement_Score") or 0 for f in top) / len(top)) if top else 0
         n_booked = booked.get(metro, 0)
+        seen.add(metro)
         rows.append({
             "metro": metro, "funds": len(funds), "holders": len(holders),
             "non_holders": len(non), "top_avg": top_avg,
             "can_fill_a_day": len(non) >= 4,
             "booked": n_booked, "trips": trips.get(metro, []),
             "top_targets": [{"fund": f.get("Fund"), "score": f.get("Engagement_Score")} for f in top],
+            "no_local_targets": False,
+        })
+    # Booked-only metros: a trip is on the calendar in a metro with no scored holders/targets on
+    # file — a prospecting swing. Surface it as its own row (funds/targets = 0) so a completed,
+    # meeting-rich trip can never silently vanish from the by-city view just because we hold nothing
+    # there yet. Skips the "—" bucket (trips with no city at all).
+    for metro, tlist in trips.items():
+        if metro in seen or metro == "—":
+            continue
+        rows.append({
+            "metro": metro, "funds": 0, "holders": 0, "non_holders": 0, "top_avg": 0,
+            "can_fill_a_day": False, "booked": booked.get(metro, 0), "trips": tlist,
+            "top_targets": [], "no_local_targets": True,
         })
     rows.sort(key=lambda r: -r["top_avg"])
     for i, r in enumerate(rows):

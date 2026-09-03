@@ -37,3 +37,9 @@ webheadshot.png
 
 # Runtime logs (scheduled holder-move refresh, etc.)
 logs/
+
+# secrets backups + sqlite sidecars (never commit — repo is public)
+.env.backup*
+*.backup
+*.db-shm
+*.db-wal

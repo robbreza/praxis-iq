@@ -906,7 +906,7 @@ def seed():
     trips = [
         ("New York, NY",              38, "Ashfield Research", 6),
         ("Boston, MA",                61, "Denby Securities",  5),
-        ("San Francisco / Bay Area",  96, "Westmark Partners", 4),
+        ("San Francisco, CA",         96, "Westmark Partners", 4),
     ]
     _ndr_trips = [
         # Full trip shape the NDR Planner panels expect (name + meetings as a LIST, not a count) —
